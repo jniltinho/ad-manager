@@ -53,9 +53,9 @@ shares with Windows permissions, backups and migrations — behind one fast, aud
 </table>
 
 <p align="center">
-  <img src="docs/screenshots/12-edit-share.png" alt="Shares with Windows permissions" width="32%">
-  <img src="docs/screenshots/31-sync-wizard.png" alt="Sync wizard" width="32%">
-  <img src="docs/screenshots/desktop-04-users.png" alt="Desktop app" width="32%">
+  <img src="docs/screenshots/12-edit-share.png" alt="Shares with Windows permissions" width="33%">
+  <img src="docs/screenshots/31-sync-wizard.png" alt="Sync wizard" width="33%">
+  <img src="docs/screenshots/desktop-04-users.png" alt="Desktop app" width="29.7%">
 </p>
 
 ## 🚀 Quick start
