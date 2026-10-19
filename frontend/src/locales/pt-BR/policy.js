@@ -1,4 +1,4 @@
-// pt-BR for the password policy page.
+// pt-BR for the password policy dialog (Users).
 export default {
   'Minimum length': 'Tamanho mínimo',
   characters: 'caracteres',

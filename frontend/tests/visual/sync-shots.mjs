@@ -48,7 +48,7 @@ try {
   for (const theme of themes) {
     const scheme = theme.endsWith('dark') ? 'dark' : 'light'
     const brand = { theme, lang: 'en', themes: [{ id: theme, label: theme, scheme }] }
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 })
     let run = null
     const json = (body) => (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     await page.route('**/api/**', json({})) // anything else: empty

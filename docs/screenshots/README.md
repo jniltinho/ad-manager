@@ -1,8 +1,9 @@
 # Screenshots
 
-The web panel (1600 × 900) and the desktop app (1280 × 800) on a demo environment: the all-in-one image
+The web panel (1600 × 900) and the desktop app (1280 × 800), captured at 2× (3200 × 1800 and 2560 × 1600), on a
+demo environment: the all-in-one image
 ([docker.md](../docker.md)) with the fictitious domain **`domain.local`**, seeded by `scripts/demo-seed.sh`
-(18 users, 8 groups, 4 OUs, 8 computers, 6 shares, backups and a sync job). **ADManager** theme, company
+(18 users, 8 groups, 4 OUs, 8 computers, 6 shares, backups and a sync job). **Classic blue (XP)** theme, company
 "Example Company Ltd". How to retake them is at the end of this page.
 
 ## Web panel
@@ -69,7 +70,7 @@ The web panel (1600 × 900) and the desktop app (1280 × 800) on a demo environm
 
 ### Policy, import and logs
 
-| Password policy | Import/export |
+| Password policy (Users → Password policy) | Import/export |
 |---|---|
 | ![Policy](13-password-policy.png) | ![Import/export](14-import-export.png) |
 
@@ -174,7 +175,7 @@ Everything runs locally, with passwords only in environment variables.
    AD_TEST_PASSWORD="$AD_ADMIN_PASSWORD" AD_DOMAIN=domain.local AD_URL=ldaps://127.0.0.1:16636 CONTAINER=adm-docs PANEL_URL=https://127.0.0.1:18443 scripts/demo-seed.sh
    ```
 
-   In the panel's Settings: theme **ADManager**, company "Example Company Ltd". Run a backup and create a sync job
+   In the panel's Settings: theme **Classic blue (XP)**, company "Example Company Ltd". Run a backup and create a sync job
    (inside the container the machine account gets no Kerberos ticket: use **User and password** with a test
    account).
 
@@ -187,10 +188,10 @@ Everything runs locally, with passwords only in environment variables.
 4. Setup (fictitious data, after `npm run build`):
 
    ```bash
-   (cd frontend && node tests/visual/setup-shots.mjs /tmp/setup admanager)
+   (cd frontend && node tests/visual/setup-shots.mjs /tmp/setup classic-blue)
    ```
 
-   and copy `setup-admanager-N-*.png` as `setup-N-*.png`.
+   and copy `setup-classic-blue-N-*.png` as `setup-N-*.png`.
 
 5. Desktop app (the container's agent with a new token, also registered in the panel):
 

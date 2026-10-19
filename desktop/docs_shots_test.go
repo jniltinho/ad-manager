@@ -40,6 +40,7 @@ func TestDocsShots(t *testing.T) {
 	w := a.NewWindow("AD Manager")
 	defer w.Close()
 	w.Resize(fyne.NewSize(1280, 800))
+	w.Canvas().(test.WindowlessCanvas).SetScale(2) // 2560 × 1600: sharp on HiDPI screens and in the README
 	setLang("en")
 	if v := os.Getenv("DOCS_VERSION"); v != "" {
 		version = v

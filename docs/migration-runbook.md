@@ -145,7 +145,7 @@ as the destination for the DNS application partition, even though Samba has it. 
 
 ## After the cutover
 
-- Harden the password policy (panel → Password policy): minimum 8, complexity, lockout after 10.
+- Harden the password policy (panel → Users → Password policy): minimum 8, complexity, lockout after 10.
 - Second Samba DC and a daily `samba-tool domain backup offline` with a tested restore.
 - Retire the Windows XP machines (if any) and remove the Netlogon exceptions.
 - Shares on `old-dc`: `migrate shares --csv` on `old-dc` and import into a member file server, with the

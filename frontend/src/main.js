@@ -12,7 +12,6 @@ const pages = [
   ['/ous', 'OUs', () => import('./pages/OrgUnits.vue')],
   ['/computers', 'Computers', () => import('./pages/Computers.vue')],
   ['/shares', 'Shares', () => import('./pages/Shares.vue')],
-  ['/password-policy', 'Password policy', () => import('./pages/PasswordPolicy.vue')],
   ['/import-export', 'Import/export', () => import('./pages/ImportExport.vue')],
   ['/backup', 'Backup', () => import('./pages/Backup.vue')],
   ['/sync', 'Sync', () => import('./pages/Sync.vue')],
@@ -25,7 +24,8 @@ const legacy = {
   '/grupos': '/groups',
   '/computadores': '/computers',
   '/compartilhamentos': '/shares',
-  '/politica': '/password-policy',
+  '/politica': '/users?policy=1',
+  '/password-policy': '/users?policy=1', // the policy became a dialog in Users
   '/importar': '/import-export',
 }
 

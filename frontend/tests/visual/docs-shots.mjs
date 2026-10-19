@@ -20,7 +20,12 @@ if (!PASS) throw new Error('DOCS_PASS not set')
 mkdirSync(out, { recursive: true })
 
 const browser = await chromium.launch({ channel: process.env.PW_CHANNEL || 'chrome' })
-const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, ignoreHTTPSErrors: true, locale: 'en-US' })
+const ctx = await browser.newContext({
+  viewport: { width: 1600, height: 900 },
+  deviceScaleFactor: 2,
+  ignoreHTTPSErrors: true,
+  locale: 'en-US',
+})
 await ctx.addInitScript(() => localStorage.setItem('ad-manager.lang', localStorage.getItem('ad-manager.lang') || 'en'))
 const page = await ctx.newPage()
 
@@ -113,6 +118,7 @@ const shots = [
     async () => {
       const anon = await browser.newContext({
         viewport: { width: 1600, height: 900 },
+        deviceScaleFactor: 2,
         ignoreHTTPSErrors: true,
         locale: 'en-US',
       })
@@ -221,8 +227,11 @@ const shots = [
   [
     '13-password-policy',
     async () => {
-      await go('/password-policy')
+      await go('/users')
+      await button(/^password policy$/i).click()
+      await page.locator('dialog[open] input[type=number]').first().waitFor()
       await snap('13-password-policy')
+      await close()
     },
   ],
   [

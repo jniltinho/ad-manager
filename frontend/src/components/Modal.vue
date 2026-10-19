@@ -5,15 +5,23 @@ import { onMounted, ref } from 'vue'
 import { Check } from 'lucide-vue-next'
 import { t } from '../i18n'
 
-// foot: false leaves the buttons to the content (a wizard with its own bar per step); ✕ and Esc still close
-defineProps({ title: String, wide: Boolean, busy: Boolean, ok: { type: String, default: '' }, foot: { type: Boolean, default: true } })
+// foot: false leaves the buttons to the content (a wizard with its own bar per step); ✕ and Esc still close.
+// locked: ✕, Esc and Cancel do nothing (a write in flight whose failure must keep the form)
+const props = defineProps({
+  title: String,
+  wide: Boolean,
+  busy: Boolean,
+  locked: Boolean,
+  ok: { type: String, default: '' },
+  foot: { type: Boolean, default: true },
+})
 const emit = defineEmits(['close', 'submit'])
 const dlg = ref(null)
 onMounted(() => dlg.value.showModal())
 // close fades the dialog out first (the .closing animation), unless the system asks for less motion
 function close() {
   const el = dlg.value
-  if (!el || el.classList.contains('closing')) return
+  if (!el || props.locked || el.classList.contains('closing')) return
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return emit('close')
   el.classList.add('closing')
   setTimeout(() => emit('close'), 150)

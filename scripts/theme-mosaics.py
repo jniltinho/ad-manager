@@ -14,7 +14,7 @@ THEMES = [('default', 'Default'), ('admanager', 'ADManager'), ('breeze', 'Breeze
           ('violet', 'Violet'), ('violet-dark', 'Violet (dark)'), ('aurora', 'Aurora'), ('aurora-dark', 'Aurora (dark)'),
           ('crystal', 'Crystal'), ('crystal-dark', 'Crystal (dark)'), ('cone', 'Cone (dark)'),
           ('classic-blue', 'Classic blue (XP)'), ('classic-gray', 'Classic gray (98)'), ('graphite', 'Graphite (dark)')]
-LABEL = 22
+LABEL = 26
 
 
 def font(size):
@@ -31,7 +31,7 @@ def tile(path, width):
 
 def grid(cells, cols, width, out, quality):
     """cells: [(label, [paths])]; each cell is its images side by side under a label."""
-    f = font(14)
+    f = font(17)
     rendered = []
     for label, paths in cells:
         w = (width - 8 * (len(paths) - 1)) // len(paths)
@@ -60,8 +60,8 @@ def grid(cells, cols, width, out, quality):
     print(out, m.size)
 
 
-grid([('%s (%s)' % (label, tid), [WEB.format(tid)]) for tid, label in THEMES], 2, 812,
-     os.path.join(ROOT, 'docs/screenshots/themes.jpg'), 88)
+grid([('%s (%s)' % (label, tid), [WEB.format(tid)]) for tid, label in THEMES], 2, 1200,
+     os.path.join(ROOT, 'docs/screenshots/themes.jpg'), 92)
 for n, part in enumerate((THEMES[:7], THEMES[7:]), 1):
     grid([('%s — web × desktop' % tid, [WEB.format(tid), DESK.format(tid)]) for tid, _ in part], 1, 1384,
-         os.path.join(ROOT, 'docs/img/conformity/web-desktop-%d.jpg' % n), 80)
+         os.path.join(ROOT, 'docs/img/conformity/web-desktop-%d.jpg' % n), 90)

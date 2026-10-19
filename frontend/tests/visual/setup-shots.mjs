@@ -52,7 +52,7 @@ await new Promise((r) => setTimeout(r, 800))
 const browser = await chromium.launch({ channel: 'chrome' })
 try {
   for (const theme of themes) {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 })
     let status = { state: 'running', finished: false, lines: STEPS.slice(0, 3).map((s) => JSON.stringify({ step: s })) }
     const json =
       (body, code = 200) =>

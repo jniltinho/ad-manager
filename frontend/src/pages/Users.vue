@@ -1,5 +1,5 @@
 <script setup>
-import { Copy, Download, FolderInput, KeyRound, LockOpen, Power, Trash2, UserPlus } from 'lucide-vue-next'
+import { Copy, Download, FolderInput, KeyRound, LockOpen, Power, ShieldCheck, Trash2, UserPlus } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { auth, get, post, del, enc } from '../api'
@@ -10,6 +10,7 @@ import { t } from '../i18n'
 import PasswordDialog from '../components/PasswordDialog.vue'
 import MoveUserDialog from '../components/dialogs/MoveUserDialog.vue'
 import UserFormDialog from '../components/dialogs/UserFormDialog.vue'
+import PasswordPolicyDialog from '../components/dialogs/PasswordPolicyDialog.vue'
 import LoadingRow from '../components/LoadingRow.vue'
 
 const route = useRoute()
@@ -21,6 +22,8 @@ const loading = ref(false)
 const search = ref(route.query.q || '')
 const filter = ref(route.query.f || 'all')
 const inactiveDays = computed(() => auth.settings?.inactive_days || 90)
+// the domain's password policy dialog; ?policy=1 (Home's alert, old /password-policy links) opens it
+const policy = ref(!!route.query.policy)
 
 async function load() {
   loading.value = true
@@ -44,6 +47,7 @@ watch(
   (q) => {
     search.value = q.q || ''
     filter.value = q.f || 'all'
+    if (q.policy) policy.value = true
   },
 )
 watch([search, filter], ([q, f]) => router.replace({ query: { ...(q && { q }), ...(f !== 'all' && { f }) } }))
@@ -160,6 +164,10 @@ function formDone() {
 
 // ── password / move
 const passwordFor = ref(null)
+function closePolicy() {
+  policy.value = false
+  if (route.query.policy) router.replace({ query: { ...route.query, policy: undefined } })
+}
 const moving = ref(null)
 function moveDone() {
   moving.value = null
@@ -186,6 +194,7 @@ const editable = (u) => !u.protected && u.sam !== auth.user
     </select>
     <span class="text-[12px] text-fg-muted">{{ t('{n} of {total}', { n: visible.length, total: list.length }) }}</span>
     <div class="ml-auto flex gap-2">
+      <button class="btn-ghost" @click="policy = true"><ShieldCheck :size="13" /> {{ t('Password policy') }}</button>
       <button class="btn-ghost" @click="exportCsv"><Download :size="13" /> {{ t('Export CSV') }}</button>
       <button class="btn" @click="create()"><UserPlus :size="13" /> {{ t('New user') }}</button>
     </div>
@@ -276,6 +285,7 @@ const editable = (u) => !u.protected && u.sam !== auth.user
 
   <PasswordDialog v-if="passwordFor" :user="passwordFor" @close="passwordFor = null" @done="passwordDone" />
 
+  <PasswordPolicyDialog v-if="policy" @close="closePolicy" />
   <MoveUserDialog v-if="moving" :user="moving" :ous="ous" @close="moving = null" @done="moveDone" />
 </template>
 

@@ -26,6 +26,10 @@ Server or Samba 4) and supports migrating a Windows DC to Samba 4.23. Read `docs
    response) updates `internal/server/openapi.yaml` in the same commit. `TestOpenAPICoversRoutes`
    (`internal/server/swagger_test.go`) fails if a route exists without documentation or vice versa; also check it at
    `/swagger` (enabled in the Settings screen).
+9. **Screenshots** (`docs/screenshots/`, how-to at the end of its README): a visible UI change retakes the affected
+   screenshots in the same change. Always at **2×** (`deviceScaleFactor: 2` in Playwright, `SetScale(2)` in the
+   desktop capture), with the **Classic blue (XP)** theme (`classic-blue`), English UI, company "Example Company Ltd"
+   and the fictitious `domain.local` demo — never a real domain, user or IP.
 
 ## Validate
 

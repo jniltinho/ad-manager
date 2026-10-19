@@ -151,7 +151,7 @@ function passwordDone() {
                 },
               )
             }}
-            <router-link to="/password-policy" class="act ml-auto">{{ t('view') }} <ChevronRight :size="12" /></router-link>
+            <router-link to="/users?policy=1" class="act ml-auto">{{ t('view') }} <ChevronRight :size="12" /></router-link>
           </li>
           <li v-for="u in locked" :key="u.sam" class="flex items-center gap-2 px-3 py-2">
             <span class="tag bg-err-fill text-on-err-fill">{{ t('locked') }}</span

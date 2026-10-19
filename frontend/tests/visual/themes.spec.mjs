@@ -282,7 +282,6 @@ test('panel pages', async ({ page }, info) => {
     ['/ous', 'ous', '.grid-t tbody tr'],
     ['/computers', 'computers', '.grid-t tbody tr'],
     ['/shares', 'shares', '.grid-t tbody tr .font-semibold'],
-    ['/password-policy', 'password-policy', 'main input'],
     ['/import-export', 'import-export', 'main .card'],
     ['/logs', 'logs', '.grid-t tbody tr'],
     ['/settings', 'settings', '#s-theme'],
@@ -290,6 +289,13 @@ test('panel pages', async ({ page }, info) => {
     await go(page, path)
     await shot(page, name, selector)
   }
+  // the password policy is a dialog on the users screen (password-policy-dialog), with no tab of its own
+  await expect(page.locator('nav.top-tabs a[href="/password-policy"]')).toHaveCount(0)
+  await go(page, '/users')
+  await page.getByRole('button', { name: /^(Password policy|Política de senha)$/ }).click()
+  await shot(page, 'password-policy', 'dialog[open] input[type=number]')
+  await page.keyboard.press('Escape')
+  await expect(page.locator('dialog[open]')).toHaveCount(0)
   // a table still loading says so, not "no shares" (interface-modais-setup): the agent's reply is held back
   let release
   const held = new Promise((r) => (release = r))

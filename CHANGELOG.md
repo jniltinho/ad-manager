@@ -7,6 +7,18 @@ All notable changes to this project are documented here. The format follows
 
 —
 
+## [0.15.0] — 2026-10-19
+
+**Password policy moves into Users, and sharper screenshots.**
+
+### Changed
+- Web panel: the password policy is a dialog opened from the **Password policy** button on the Users toolbar, no
+  longer a tab of its own. `/password-policy` (and the legacy `/politica`) open it, as does Home's weak policy alert.
+- Docs screenshots (web panel, setup wizard, sync wizard and desktop app) are captured at 2× with the Classic blue
+  (XP) theme; the theme mosaics are larger and sharper.
+- Docs: the browser setup wizard is the recommended installation (`docs/installation.md`); the desktop's agent token
+  can be generated in the web panel (Settings → File server agent token).
+
 ## [0.14.0] — 2026-10-19
 
 **First public release.** Manage Active Directory (Windows Server or Samba 4) from a web panel, a desktop app, a CLI
@@ -28,5 +40,6 @@ and an MCP server, with an agent for Samba file servers.
 - Desktop app (Fyne) for Linux, Windows and macOS; CLI; MCP server; all-in-one Docker demo image.
 - CI and releases on GitHub Actions: `.deb`, server binaries and the desktop app for Linux, Windows and macOS.
 
-[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/jniltinho/ad-manager/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/jniltinho/ad-manager/releases/tag/v0.14.0
