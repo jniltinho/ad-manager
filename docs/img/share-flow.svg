@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800" font-family="Inter, DejaVu Sans, Arial, sans-serif" stroke-linecap="square" stroke-linejoin="miter" role="img" aria-labelledby="title desc">
+<title id="title">Create or edit a share</title>
+<desc id="desc">Six-step flow: form entry, validation and auditing, Redis queue, pickup by the agent, folder creation with ACL and Samba publication. The result goes back to the panel and to asynqmon.</desc>
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5 L1 9 Z" fill="#113058"/></marker>
+</defs>
+<rect x="0" y="0" width="1400" height="800" fill="#ffffff"/>
+<path d="M195 285 V229 H307 V285" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M195 285 V229 H307 V285" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M420 285 V229 H532 V285" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M420 285 V229 H532 V285" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M645 285 V229 H757 V285" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M645 285 V229 H757 V285" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M870 285 V229 H982 V285" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M870 285 V229 H982 V285" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1095 285 V229 H1207 V285" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M1095 285 V229 H1207 V285" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1262 525 V575 H362 V525" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M1262 525 V575 H362 V525" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M580 525 V605 H1125 V630" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M580 525 V605 H1125 V630" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="40" y="285" width="195" height="240" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="56" y="302" width="32" height="32" fill="#f58322"/>
+<rect x="265" y="285" width="195" height="240" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="266" y="286" width="4" height="238" fill="#f58322"/>
+<rect x="281" y="302" width="32" height="32" fill="#f58322"/>
+<rect x="490" y="285" width="195" height="240" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="491" y="286" width="4" height="238" fill="#f58322"/>
+<rect x="506" y="302" width="32" height="32" fill="#f58322"/>
+<rect x="715" y="285" width="195" height="240" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="716" y="286" width="4" height="238" fill="#f58322"/>
+<rect x="731" y="302" width="32" height="32" fill="#f58322"/>
+<rect x="940" y="285" width="195" height="240" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="941" y="286" width="4" height="238" fill="#f58322"/>
+<rect x="956" y="302" width="32" height="32" fill="#f58322"/>
+<rect x="1165" y="285" width="195" height="240" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="1166" y="286" width="4" height="238" fill="#f58322"/>
+<rect x="1181" y="302" width="32" height="32" fill="#f58322"/>
+<rect x="40" y="630" width="800" height="110" fill="#d9e6f3" stroke="#113058" stroke-width="2"/>
+<rect x="890" y="630" width="470" height="110" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="891" y="631" width="4" height="108" fill="#f58322"/>
+<text x="40" y="50" font-size="28" font-weight="700" fill="#113058" text-anchor="start">Create or edit a share</text>
+<text x="40" y="79" font-size="13" fill="#69788b" text-anchor="start">From request to publication in Samba, with auditing, retries and status tracking</text>
+<text x="72" y="324" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+<text x="56" y="368" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Operator</text>
+<text x="56" y="400" font-size="13" fill="#0e172d" text-anchor="start">Panel or desktop</text>
+<text x="56" y="426" font-size="13" fill="#0e172d" text-anchor="start">Enters name and folder</text>
+<text x="56" y="452" font-size="13" fill="#0e172d" text-anchor="start">Groups and users</text>
+<text x="297" y="324" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+<text x="281" y="368" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Panel</text>
+<text x="281" y="400" font-size="13" fill="#0e172d" text-anchor="start">Validates the request</text>
+<text x="281" y="426" font-size="13" fill="#0e172d" text-anchor="start">Enqueues the task</text>
+<text x="281" y="452" font-size="13" fill="#0e172d" text-anchor="start">share:create</text>
+<text x="281" y="478" font-size="13" fill="#0e172d" text-anchor="start">Writes the audit log</text>
+<text x="522" y="324" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+<text x="506" y="368" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Redis</text>
+<text x="506" y="400" font-size="13" fill="#0e172d" text-anchor="start">Stores the task</text>
+<text x="506" y="426" font-size="13" fill="#0e172d" text-anchor="start">asynq queue</text>
+<text x="506" y="452" font-size="13" fill="#0e172d" text-anchor="start">Automatic retries</text>
+<text x="747" y="324" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">4</text>
+<text x="731" y="368" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Agent</text>
+<text x="731" y="400" font-size="13" fill="#0e172d" text-anchor="start">On the file server</text>
+<text x="731" y="426" font-size="13" fill="#0e172d" text-anchor="start">Picks up the task</text>
+<text x="731" y="452" font-size="13" fill="#0e172d" text-anchor="start">Runs the operation</text>
+<text x="972" y="324" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">5</text>
+<text x="956" y="368" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Folder and ACL</text>
+<text x="956" y="400" font-size="13" fill="#0e172d" text-anchor="start">Creates, no symlinks</text>
+<text x="956" y="426" font-size="13" fill="#0e172d" text-anchor="start">Applies owner + ACL</text>
+<text x="956" y="452" font-size="13" fill="#0e172d" text-anchor="start">with inheritance</text>
+<text x="1197" y="324" font-size="16" font-weight="700" fill="#ffffff" text-anchor="middle">6</text>
+<text x="1181" y="368" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Samba publishing</text>
+<text x="1181" y="400" font-size="13" fill="#0e172d" text-anchor="start">Publishes via net conf</text>
+<text x="1181" y="426" font-size="13" fill="#0e172d" text-anchor="start">valid users / write list</text>
+<text x="1181" y="452" font-size="13" fill="#0e172d" text-anchor="start">Share is active</text>
+<text x="60" y="660" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Safeguards</text>
+<text x="60" y="690" font-size="13" fill="#0e172d" text-anchor="start">allowed roots only · no symbolic links</text>
+<text x="60" y="716" font-size="13" fill="#0e172d" text-anchor="start">reserved names rejected · token stored only as a hash</text>
+<text x="910" y="660" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Panel + asynqmon</text>
+<text x="910" y="690" font-size="13" fill="#0e172d" text-anchor="start">Task status and execution result</text>
+<text x="910" y="716" font-size="13" fill="#0e172d" text-anchor="start">/asynqmon · queue monitoring</text>
+<rect x="191.62" y="203" width="118.77" height="17" fill="#ffffff"/>
+<text x="251.0" y="215" font-size="13" fill="#113058" text-anchor="middle">HTTPS + session</text>
+<rect x="426.87" y="203" width="98.27" height="17" fill="#ffffff"/>
+<text x="476.0" y="215" font-size="13" fill="#113058" text-anchor="middle">Redis (asynq)</text>
+<rect x="651.87" y="203" width="98.27" height="17" fill="#ffffff"/>
+<text x="701.0" y="215" font-size="13" fill="#113058" text-anchor="middle">Redis (asynq)</text>
+<rect x="879.19" y="203" width="93.62" height="17" fill="#ffffff"/>
+<text x="926.0" y="215" font-size="13" fill="#113058" text-anchor="middle">POSIX (local)</text>
+<rect x="1097.04" y="203" width="107.92" height="17" fill="#ffffff"/>
+<text x="1151.0" y="215" font-size="13" fill="#113058" text-anchor="middle">net conf (local)</text>
+<rect x="693.94" y="552" width="242.13" height="17" fill="#ffffff"/>
+<text x="815" y="564" font-size="13" fill="#113058" text-anchor="middle">HTTPS + token · status to the panel</text>
+<rect x="780.80" y="584" width="238.41" height="17" fill="#ffffff"/>
+<text x="900" y="596" font-size="13" fill="#113058" text-anchor="middle">Redis (asynq) · status in asynqmon</text>
+</svg>

@@ -1,0 +1,68 @@
+/* "Default" theme: the role contract's defaults in style.css are the Default values; this block only turns its tabs
+ * into real tabs, keeping its look (dark navy strip, orange accent): the top tabs, the inner tabs (Logs) and the
+ * card and modal tabs. Only role values and recipe parameters; square corners. */
+:root[data-theme='default'] {
+  /* top tabs: boxes a little lighter than the strip, apart and lower; the current one white with the orange bar
+     on top, open into the white content */
+  --tabs-pad: 6px;
+  --tab-gap: 2px;
+  --tab-inset-top: 4px;
+  --color-tab: #13284a;
+  --shadow-tab: inset 1px 0 rgba(255, 255, 255, 0.08), inset -1px 0 rgba(255, 255, 255, 0.08), inset 0 1px rgba(255, 255, 255, 0.14);
+  --color-tab-on-top: #fff;
+  --color-tab-on: #fff;
+  --color-on-tab-on: var(--color-cn);
+  --color-tab-on-icon: var(--color-cn-accent-strong);
+  --shadow-tab-on: inset 0 3px 0 var(--color-cn-accent);
+  --shadow-tabs: 0 0 #0000;
+
+  /* inner tabs (Logs): light blue boxes, the current one white with the orange bar, open into the content */
+  --color-subtab-line: var(--color-cn-border);
+  --color-subtab: #eef3f8;
+  --color-on-subtab: var(--color-cn);
+  --color-subtab-hover: #dde8f3;
+  --color-subtab-on: #fff;
+  --color-on-subtab-on: var(--color-cn);
+  --shadow-subtab: inset 1px 0 #b9c9dc, inset -1px 0 #b9c9dc, inset 0 1px #b9c9dc;
+  --shadow-subtab-on: inset 1px 0 #b9c9dc, inset -1px 0 #b9c9dc, inset 0 3px #f58322;
+  --subtabs-line-w: 1px;
+  --subtabs-gap: 2px;
+  --subtab-inset-top: 3px;
+  --subtab-on-overlap: 1px;
+
+  /* card and modal tabs, the same way on the card head's gray */
+  --color-cardtabs: var(--color-cn-bg-light);
+  --color-cardtabs-line: var(--color-cn-border);
+  --color-cardtab: #f3f6f9;
+  --color-on-cardtab: var(--color-cn);
+  --color-cardtab-hover: #fafbfd;
+  --color-cardtab-on: #fff;
+  --color-on-cardtab-on: var(--color-cn);
+  --shadow-cardtab: inset 1px 0 #b9c9dc, inset -1px 0 #b9c9dc, inset 0 1px #b9c9dc;
+  --shadow-cardtab-on: inset 1px 0 #b9c9dc, inset -1px 0 #b9c9dc, inset 0 3px #f58322;
+  --cardtabs-pad: 6px;
+  --cardtabs-gap: 2px;
+  --cardtab-inset-top: 3px;
+  --cardtab-on-overlap: 1px;
+  --cardtab-bar-w: 0px;
+  --cardtab-transform: none;
+
+  /* phase B (theme-base 5.1): the smallest change in OKLCH lightness, same hue and chroma, that makes every
+     contrast recipe pass AA; the brand button keeps its color and takes a dark ink */
+  --color-fg-muted: #586677; /* was #69788b */
+  --color-field-line: #8b94a3; /* was #aab3c2 */
+  --color-check-line: #8695a8; /* was #8b9aad */
+  --color-danger-top: #d54041; /* was #d84343 */
+  --color-on-brand-action: #13284a; /* was #fff */
+  --color-ok-fill: #018938; /* was #2fa14f */
+  --color-warn-fill: #cc4b00; /* was #ef6c00 */
+  --color-neutral-fill: #697789; /* was #8b9aad */
+  --color-toast-warn: #cc4b00; /* was #ef6c00 */
+  --color-ok: #007624; /* was #2fa14f */
+  --color-warn: #b93800; /* was #ef6c00 */
+  --color-focus: #e67500; /* was #f58322 */
+  --color-fg-subtle: #596778; /* was #8b9aad */
+  --color-link-hover: #c03500; /* 4.5:1 on row-hover too (table actions), was #d83c00, before #fe6101 */
+  --color-err: #c32425; /* was #c62828 */
+  --color-on-header-muted: #5c6b7e; /* was #69788b */
+}

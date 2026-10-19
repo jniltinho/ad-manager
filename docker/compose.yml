@@ -1,0 +1,35 @@
+# make samba-up → test Samba AD DC at ldaps://127.0.0.1:6636 (Kerberos at 127.0.0.1:88/464)
+# Domain empresa.test, admin "Administrator", password in AD_TEST_PASSWORD.
+# Also: Redis (queue) at 127.0.0.1:6380 and a file server running the agent at
+# https://127.0.0.1:9443 (token in AGENT_TEST_TOKEN; binary from dist/).
+services:
+  samba:
+    build: ./samba
+    hostname: dc1
+    domainname: empresa.test
+    environment:
+      ADMIN_PASS: ${AD_TEST_PASSWORD:-Teste-ad-manager-2026}
+    ports:
+      - "127.0.0.1:6636:636"
+      - "127.0.0.1:88:88"     # Kerberos: password links (kpasswd)
+      - "127.0.0.1:464:464"
+    cap_add: [SYS_ADMIN]
+    tmpfs: [/run]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6380:6379"
+
+  fileserver:
+    build: ./fileserver
+    hostname: fileserver
+    environment:
+      AGENT_TOKEN: ${AGENT_TEST_TOKEN:-agent-test-token}
+    volumes:
+      - ../dist:/opt/ad-manager/bin:ro   # binary only; config, tls and token are written beside it
+    ports:
+      - "127.0.0.1:9443:9443"
+      - "127.0.0.1:6445:445"
+    depends_on: [redis]

@@ -1,0 +1,7 @@
+﻿login;name;given_name;surname;email;phone;title;department;description;enabled;ou;groups
+lab.ana;Ana Lab;Ana;Lab;ana@exemplo.lab;;Analyst;Finance;test user;yes;OU=Financeiro,OU=Matriz;Financeiro|Leitura-Geral
+lab.bia;Bia Lab;Bia;Lab;bia@exemplo.lab;;Assistant;Finance;test user;yes;OU=Financeiro,OU=Matriz;Financeiro
+lab.caio;Caio Lab;Caio;Lab;caio@exemplo.lab;;Director;Board;test user;yes;OU=Matriz;Diretoria
+lab.dani;Dani Lab;Dani;Lab;dani@exemplo.lab;;Technician;IT;test user;yes;OU=TI,OU=Matriz;TI
+lab.edu;Edu Lab;Edu;Lab;edu@exemplo.lab;;Intern;Sales;test user;yes;OU=Matriz;Leitura-Geral
+lab.fabi;Fabi Lab;Fabi;Lab;fabi@exemplo.lab;;Former employee;Sales;disabled account;no;OU=Matriz;

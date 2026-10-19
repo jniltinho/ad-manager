@@ -1,0 +1,20 @@
+# ad-manager — configuration of a fresh install (.deb package).
+# setup = true: the panel opens only the setup wizard (https://<this server>:8443, token in
+# /opt/ad-manager/data/setup-token) and the agent only the local setup server. The wizard writes the final
+# configuration in place of this file. To configure by hand: copy config.toml.example (docs/deployment.md).
+setup = true
+
+[server]
+listen = "0.0.0.0:8443"
+cert_file = "/opt/ad-manager/tls/tls.crt"
+key_file = "/opt/ad-manager/tls/tls.key"
+audit_log = "/opt/ad-manager/logs/audit.log"
+
+[db]
+path = "/opt/ad-manager/data/ad-manager.db"
+
+[redis]
+addr = "127.0.0.1:6379"
+
+[agent]
+backup_dir = "/var/backups/ad-manager"

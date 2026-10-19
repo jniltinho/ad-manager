@@ -1,0 +1,26 @@
+[Unit]
+Description=ad-manager agent — file server folders and shares
+Documentation=https://github.com/jniltinho/ad-manager
+After=network-online.target redis-server.service smbd.service winbind.service
+Wants=network-online.target
+
+[Service]
+# root: chown/setfacl on the share roots and `net conf` (Samba registry).
+# Path/name/group validation lives in the binary; here the rest of the system is locked down.
+User=root
+EnvironmentFile=-/opt/ad-manager/env
+ExecStart=/opt/ad-manager/ad-manager agent --config /opt/ad-manager/config.toml
+Restart=on-failure
+LimitCORE=0
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

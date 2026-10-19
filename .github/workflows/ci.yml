@@ -1,0 +1,65 @@
+# CI: every push to main and every pull request — Go, frontend and desktop tests on Linux, and the desktop app built
+# on macOS (Apple Silicon and Intel, universal .app). The release (release.yml) calls this workflow first. The themes'
+# visual regression is not run here (scripts/visual-ci.sh, locally).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  TZ: America/Sao_Paulo
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Go vet and tests
+        run: |
+          go vet ./...
+          go test -race ./... -count=1
+          (cd third_party/go-msrpc && go test ./dcerpc -run 'TestBodyComplete' -count=1)
+      - name: Frontend check and tests
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check
+          npm run test
+      - name: Desktop app (palettes in step with the web themes, contrast, screens)
+        working-directory: desktop
+        run: |
+          # Fyne compiles GLFW (OpenGL, X11 and Wayland) even in its test driver
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols pkg-config
+          go vet ./...
+          CGO_ENABLED=1 go test ./... -count=1
+
+  desktop-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: Build darwin arm64, amd64 and the universal .app
+        working-directory: desktop
+        run: make mac VERSION="ci-${GITHUB_SHA:0:7}"

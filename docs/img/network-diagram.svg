@@ -1,0 +1,397 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" font-family="Inter, DejaVu Sans, Arial, sans-serif" fill="#113058" role="img" aria-labelledby="title desc">
+<title id="title">Architecture — AD Manager</title>
+<desc id="desc">Network diagram of the example.local domain. Administration from the browser, desktop app, CLI or MCP; panel with SQLite and Redis; two Samba AD controllers and two Samba servers, each with an smbd service for shares and a separate management agent. HTTPS 9443 connections from the panel to the agents, SMB 445 from the workstations to the smbd services, LDAPS, Kerberos and DNS, with migration from a Windows 2008 controller.</desc>
+<defs>
+<pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#eaf0f6" stroke-width=".85"/></pattern>
+<linearGradient id="face" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#f4f7fa"/><stop offset=".45" stop-color="#d9e2eb"/><stop offset="1" stop-color="#b2c1d1"/></linearGradient>
+<linearGradient id="bezel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#697f96"/><stop offset=".5" stop-color="#344c65"/><stop offset="1" stop-color="#173556"/></linearGradient>
+<linearGradient id="top" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#bdcbd9"/></linearGradient>
+<linearGradient id="side" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#97aabd"/><stop offset="1" stop-color="#657e97"/></linearGradient>
+<linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eaf0f6"/><stop offset="1" stop-color="#a4c2df"/></linearGradient>
+<linearGradient id="disk" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#a9bfd4"/><stop offset=".35" stop-color="#f0f5fa"/><stop offset=".7" stop-color="#d9e6f3"/><stop offset="1" stop-color="#8ca8c3"/></linearGradient>
+<filter id="eqShadow" x="-30%" y="-40%" width="170%" height="190%"><feDropShadow dx="2" dy="5" stdDeviation="3" flood-color="#113058" flood-opacity=".14"/></filter>
+<marker id="blue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M1 1L7 4 1 7Z" fill="#1d4a7e"/></marker>
+<marker id="orange" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1L7 4 1 7Z" fill="#f58322"/></marker>
+<marker id="orange-agent" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" viewBox="0 0 8 8" refX="7" refY="4" orient="auto"><path d="M1 1L7 4 1 7Z" fill="#f58322"/></marker>
+<marker id="gray" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1L7 4 1 7Z" fill="#69788b"/></marker>
+</defs>
+<rect x="0" y="0" width="1600" height="1000" fill="#ffffff"/>
+<rect x="24" y="116" width="1552" height="777" fill="url(#grid)"/>
+<rect x="0" y="0" width="1600" height="111" fill="#ffffff"/>
+<g transform="translate(44 33) scale(0.0517578125)">
+<rect x="0" y="0" width="1024" height="1024" fill="#113058" rx="150"/>
+<path d="M128 64H896V704L512 960 128 704Z M192 128V670L512 884 832 670V128Z" fill="#ffffff" fill-rule="evenodd"/>
+<path d="M416 224H608V416H544V448H736V544H768V672H640V544H672V512H544V544H576V672H448V544H480V512H352V544H384V672H256V544H288V448H480V416H416Z" fill="#f58322"/>
+</g>
+<text x="115" y="58" font-size="34" fill="#113058" font-weight="700" letter-spacing="-.8">Domain architecture</text>
+<text x="116" y="88" font-size="16" fill="#69788b" font-weight="400">example.local  /  identity, files and auditable access</text>
+<text x="1558" y="48" font-size="20" fill="#113058" font-weight="700" text-anchor="end">AD Manager</text>
+<text x="1558" y="76" font-size="14" fill="#69788b" font-weight="400" text-anchor="end">Windows Server or Samba 4</text>
+<rect x="44" y="109" width="1514" height="3" fill="#eaf0f6"/>
+<rect x="44" y="109" width="88" height="3" fill="#f58322"/>
+<rect x="44" y="150" width="320" height="440" fill="#ffffff" rx="10" stroke="#9bb0c5" stroke-width="1.5" stroke-dasharray="7 5" fill-opacity=".90"/>
+<rect x="59" y="149" width="196" height="34" fill="#113058" rx="5"/>
+<rect x="59" y="167" width="196" height="16" fill="#113058"/>
+<text x="73" y="172" font-size="18" fill="#ffffff" font-weight="600">Administration</text>
+<rect x="475" y="150" width="500" height="490" fill="#ffffff" rx="10" stroke="#9bb0c5" stroke-width="1.5" stroke-dasharray="7 5" fill-opacity=".90"/>
+<rect x="490" y="149" width="176" height="34" fill="#113058" rx="5"/>
+<rect x="490" y="167" width="176" height="16" fill="#113058"/>
+<text x="504" y="172" font-size="18" fill="#ffffff" font-weight="600">Panel server</text>
+<rect x="1090" y="150" width="468" height="328" fill="#ffffff" rx="10" stroke="#9bb0c5" stroke-width="1.5" stroke-dasharray="7 5" fill-opacity=".90"/>
+<rect x="1105" y="149" width="257" height="34" fill="#113058" rx="5"/>
+<rect x="1105" y="167" width="257" height="16" fill="#113058"/>
+<text x="1119" y="172" font-size="18" fill="#ffffff" font-weight="600">Domain controllers</text>
+<rect x="44" y="666" width="320" height="190" fill="#ffffff" rx="10" stroke="#9bb0c5" stroke-width="1.5" stroke-dasharray="7 5" fill-opacity=".90"/>
+<rect x="59" y="665" width="186" height="34" fill="#113058" rx="5"/>
+<rect x="59" y="683" width="186" height="16" fill="#113058"/>
+<text x="73" y="688" font-size="18" fill="#ffffff" font-weight="600">Workstations</text>
+<rect id="samba-servers-zone" x="1090" y="578" width="468" height="278" fill="#ffffff" rx="10" stroke="#9bb0c5" stroke-width="1.5" stroke-dasharray="7 5" fill-opacity=".90"/>
+<rect x="1105" y="577" width="246" height="34" fill="#113058" rx="5"/>
+<rect x="1105" y="595" width="246" height="16" fill="#113058"/>
+<text x="1119" y="600" font-size="18" fill="#ffffff" font-weight="600">Samba file servers</text>
+<rect x="475" y="712" width="408" height="144" fill="#f5f7f9" rx="10" stroke="#b5bfca" stroke-width="1.5" stroke-dasharray="5 5"/>
+<path d="M364 350H549" fill="none" stroke="#ffffff" stroke-width="7.8" stroke-linejoin="miter"/>
+<path d="M364 350H549" fill="none" stroke="#f58322" stroke-width="2.8" stroke-linejoin="miter" stroke-dasharray="9 5" marker-end="url(#orange)"/>
+<path d="M710 283H830" fill="none" stroke="#ffffff" stroke-width="7.3" stroke-linejoin="miter"/>
+<path d="M710 283H830" fill="none" stroke="#1d4a7e" stroke-width="2.3" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<path d="M710 378H774V521H831" fill="none" stroke="#ffffff" stroke-width="7.3" stroke-linejoin="miter"/>
+<path d="M710 378H774V521H831" fill="none" stroke="#1d4a7e" stroke-width="2.3" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<path d="M710 350H1146" fill="none" stroke="#ffffff" stroke-width="7.8" stroke-linejoin="miter"/>
+<path d="M710 350H1146" fill="none" stroke="#1d4a7e" stroke-width="2.8" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<!-- Administration bus: panel -> the two agent components, never smbd. -->
+<path d="M710 397H1008V626H1324V708" fill="none" stroke="#ffffff" stroke-width="7.8" stroke-linejoin="miter"/>
+<path id="https-9443-panel" d="M710 397H1008V626H1324V708" fill="none" stroke="#f58322" stroke-width="2.8" stroke-linejoin="miter" stroke-dasharray="9 5"/>
+<path d="M1324 708H1342" fill="none" stroke="#ffffff" stroke-width="7.8" stroke-linejoin="miter"/>
+<path id="https-9443-fs02" d="M1324 708H1342" fill="none" stroke="#f58322" stroke-width="2.8" stroke-linejoin="miter" marker-end="url(#orange-agent)"/>
+<path d="M1324 708H1306" fill="none" stroke="#ffffff" stroke-width="7.8" stroke-linejoin="miter"/>
+<path id="https-9443-fs01" d="M1324 708H1306" fill="none" stroke="#f58322" stroke-width="2.8" stroke-linejoin="miter" marker-end="url(#orange-agent)"/>
+<path d="M364 748H400V672H1048V452H1118V369H1146" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linejoin="miter"/>
+<path d="M364 748H400V672H1048V452H1118V369H1146" fill="none" stroke="#1d4a7e" stroke-width="2.5" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<path d="M883 782H1068V538H1325V478" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linejoin="miter"/>
+<path d="M883 782H1068V538H1325V478" fill="none" stroke="#69788b" stroke-width="2.5" stroke-linejoin="miter" stroke-dasharray="5 6" marker-end="url(#gray)"/>
+<!-- SMB bus: stations -> the bottom edge of each smbd component. -->
+<path d="M206 856V884H1437V834" fill="none" stroke="#ffffff" stroke-width="7.8" stroke-linejoin="miter"/>
+<path id="smb-445-fs02" d="M206 856V884H1437V834" fill="none" stroke="#1d4a7e" stroke-width="2.8" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<path d="M1211 884V834" fill="none" stroke="#ffffff" stroke-width="7.8" stroke-linejoin="miter"/>
+<path id="smb-445-fs01" d="M1211 884V834" fill="none" stroke="#1d4a7e" stroke-width="2.8" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<path d="M1278 277H1379" fill="none" stroke="#ffffff" stroke-width="7.4" stroke-linejoin="miter"/>
+<path d="M1278 277H1379" fill="none" stroke="#1d4a7e" stroke-width="2.4" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<path d="M1379 300H1278" fill="none" stroke="#ffffff" stroke-width="7.4" stroke-linejoin="miter"/>
+<path d="M1379 300H1278" fill="none" stroke="#1d4a7e" stroke-width="2.4" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<rect x="378" y="258" width="159" height="54" fill="#ffffff" rx="6" stroke="#c6d4e2" stroke-width="1"/>
+<text x="457.5" y="280" font-size="14.5" fill="#1d4a7e" font-weight="600" text-anchor="middle">HTTPS 8443</text>
+<text x="457.5" y="301" font-size="14" fill="#1d4a7e" font-weight="500" text-anchor="middle">+ session</text>
+<rect x="714" y="241" width="110" height="26" fill="#ffffff" rx="5" stroke="#c6d4e2" stroke-width="1"/>
+<text x="769.0" y="258.375" font-size="12.5" fill="#69788b" font-weight="500" text-anchor="middle">Local file</text>
+<rect x="703" y="441" width="143" height="29" fill="#ffffff" rx="5" stroke="#c6d4e2" stroke-width="1"/>
+<text x="774.5" y="460.4" font-size="14" fill="#1d4a7e" font-weight="500" text-anchor="middle">Redis 6379</text>
+<rect x="944" y="281" width="174" height="56" fill="#ffffff" rx="6" stroke="#b6c9dd" stroke-width="1"/>
+<text x="1031" y="303" font-size="14" fill="#1d4a7e" font-weight="600" text-anchor="middle">LDAPS 636</text>
+<text x="1031" y="324" font-size="14" fill="#1d4a7e" font-weight="500" text-anchor="middle">Kerberos 88/464</text>
+<rect x="866" y="410" width="244" height="32" fill="#ffffff" rx="5" stroke="#c6d4e2" stroke-width="1"/>
+<text x="988.0" y="431.25" font-size="15" fill="#a95110" font-weight="500" text-anchor="middle">HTTPS 9443 + token</text>
+<rect x="684" y="657" width="112" height="30" fill="#ffffff" rx="5" stroke="#c6d4e2" stroke-width="1"/>
+<text x="740.0" y="676.9" font-size="14" fill="#1d4a7e" font-weight="500" text-anchor="middle">DNS 53</text>
+<rect x="1136" y="518" width="211" height="31" fill="#ffffff" rx="5" stroke="#c6d4e2" stroke-width="1"/>
+<text x="1241.5" y="538.4" font-size="14" fill="#69788b" font-weight="500" text-anchor="middle">Migration · migrate</text>
+<rect x="674" y="869" width="124" height="30" fill="#ffffff" rx="5" stroke="#c6d4e2" stroke-width="1"/>
+<text x="736.0" y="889.25" font-size="15" fill="#1d4a7e" font-weight="500" text-anchor="middle">SMB 445</text>
+<circle cx="364" cy="350" r="3.5" fill="#ffffff" stroke="#1d4a7e" stroke-width="1.8"/>
+<circle cx="364" cy="748" r="3.5" fill="#ffffff" stroke="#1d4a7e" stroke-width="1.8"/>
+<circle cx="206" cy="856" r="3.5" fill="#ffffff" stroke="#1d4a7e" stroke-width="1.8"/>
+<circle cx="1211" cy="884" r="3" fill="#1d4a7e"/>
+<circle cx="883" cy="782" r="3.5" fill="#ffffff" stroke="#69788b" stroke-width="1.8"/>
+
+<g filter="url(#eqShadow)">
+<path d="M82 219h92l4 6v56h-96Z" fill="url(#side)" stroke="#6c849c" stroke-width="1"/>
+<rect x="82" y="219" width="92" height="56" fill="url(#bezel)" rx="4" stroke="#607c96" stroke-width="1"/>
+<rect x="88" y="225" width="80" height="43" fill="url(#screen)" rx="2"/>
+<rect x="88" y="225" width="80" height="11" fill="#113058" rx="2"/>
+<rect x="88" y="234" width="80" height="2" fill="#f58322"/>
+<rect x="95" y="243" width="22" height="24" fill="#ffffff" rx="2"/>
+<rect x="125" y="244" width="36" height="4" fill="#ffffff" rx="1"/>
+<rect x="125" y="253" width="36" height="4" fill="#ffffff" rx="1"/>
+<rect x="125" y="262" width="36" height="4" fill="#ffffff" rx="1"/>
+<path d="M82 275h92l16 17h-125Z" fill="url(#top)" stroke="#8297ac" stroke-width="1"/>
+<path d="M65 292h125v4h-125Z" fill="#8297ac"/>
+<path d="M118 279h32l4 7h-40Z" fill="#bccddd"/>
+</g>
+<text x="202" y="244" font-size="15" fill="#113058" font-weight="600">Browser /</text>
+<text x="202" y="267" font-size="15" fill="#113058" font-weight="600">Desktop app</text>
+<path d="M65 313H343" fill="none" stroke="#eaf0f6" stroke-width="1.3"/>
+<g filter="url(#eqShadow)">
+<path d="M79 341l7-6h62v46l-7 6Z" fill="#9aafc3" stroke="#6c849c" stroke-width="1"/>
+<rect x="79" y="341" width="62" height="46" fill="url(#face)" rx="3" stroke="#607c96" stroke-width="1"/>
+<rect x="84" y="346" width="52" height="33" fill="#113058" rx="2"/>
+<rect x="87" y="349" width="46" height="27" fill="url(#screen)" rx="1"/>
+<path d="M103.8 387v10h-10.540000000000001l-6 5h34.1l-6-5h-10.540000000000001V387Z" fill="url(#face)" stroke="#6c849c" stroke-width="1"/>
+<path d="M82 411h72l10 9h-84Z" fill="#b9cbdc" stroke="#8297ac" stroke-width="1"/>
+<rect x="154" y="345" width="26" height="78" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<path d="M180 345l7-4v78l-7 4Z" fill="url(#side)"/>
+<rect x="159" y="354" width="16" height="3" fill="#6d859d" rx="1"/>
+<circle cx="166" cy="411" r="2" fill="#2fa14f"/>
+<path d="M98 361l7 5-7 5M112 371h12" fill="none" stroke="#1d4a7e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="202" y="376" font-size="18" fill="#113058" font-weight="650">CLI</text>
+<path d="M65 434H343" fill="none" stroke="#eaf0f6" stroke-width="1.3"/>
+<g filter="url(#eqShadow)">
+<path d="M133 459v-12" fill="none" stroke="#69788b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="133" cy="444" r="4" fill="#f58322"/>
+<rect x="101" y="458" width="64" height="44" fill="url(#face)" rx="10" stroke="#718aa3" stroke-width="1.3"/>
+<rect x="109" y="468" width="48" height="23" fill="#113058" rx="5"/>
+<circle cx="123" cy="479" r="3" fill="#d9e6f3"/>
+<circle cx="144" cy="479" r="3" fill="#d9e6f3"/>
+<rect x="111" y="508" width="44" height="33" fill="url(#face)" rx="7" stroke="#718aa3" stroke-width="1.2"/>
+<rect x="120" y="514" width="26" height="13" fill="#eaf0f6" rx="3"/>
+<text x="133" y="524" font-size="8.2" fill="#1d4a7e" font-weight="700" text-anchor="middle">MCP</text>
+<path d="M117 541v8M149 541v8" fill="none" stroke="#69788b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M103 512l-10 16M163 512l10 16" fill="none" stroke="#69788b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="202" y="487" font-size="15" fill="#113058" font-weight="600">AI agent</text>
+<text x="202" y="510" font-size="14" fill="#69788b" font-weight="400">via MCP</text>
+<rect x="63" y="559" width="282" height="23" fill="#eaf0f6" rx="4"/>
+<text x="204" y="575" font-size="13.5" fill="#1d4a7e" font-weight="500" text-anchor="middle">Linux · Windows · macOS</text>
+<g filter="url(#eqShadow)">
+<path d="M405 337l9-10h57l-10 10Z" fill="url(#top)" stroke="#8297ac" stroke-width="1"/>
+<path d="M461 337l10-10v37l-10 10Z" fill="url(#side)" stroke="#8297ac" stroke-width="1"/>
+<rect x="405" y="337" width="56" height="37" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<rect x="412" y="354" width="8" height="8" fill="#113058" rx="1"/>
+<rect x="424" y="354" width="8" height="8" fill="#113058" rx="1"/>
+<rect x="436" y="354" width="8" height="8" fill="#113058" rx="1"/>
+<rect x="413" y="343" width="39" height="4" fill="#f58322" rx="1"/>
+<circle cx="452" cy="359" r="2" fill="#2fa14f"/>
+</g>
+<text x="420" y="408" font-size="12" fill="#69788b" font-weight="500" text-anchor="middle">Secure network</text>
+<text x="626" y="219" font-size="19" fill="#113058" font-weight="700" text-anchor="middle">ad-manager server</text>
+<g filter="url(#eqShadow)">
+<path d="M549 260l16 -16h144l-16 16Z" fill="url(#top)" stroke="#8297ac" stroke-width="1"/>
+<path d="M693 260l16 -16v148l-16 16Z" fill="url(#side)" stroke="#6f879f" stroke-width="1"/>
+<rect x="549" y="260" width="144" height="148" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<rect x="556" y="269" width="130" height="130" fill="url(#bezel)" rx="2" stroke="#405b76" stroke-width="0.9"/>
+<rect x="561" y="278.0" width="120" height="35.0" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="566" y="283.0" width="95" height="5" fill="#647e97" rx="1"/>
+<rect x="566" y="291.0" width="95" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="670" cy="287.0" r="2.3" fill="#2fa14f"/>
+<circle cx="676" cy="287.0" r="1.5" fill="#f58322"/>
+<rect x="561" y="316.0" width="120" height="35.0" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="566" y="321.0" width="95" height="5" fill="#647e97" rx="1"/>
+<rect x="566" y="329.0" width="95" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="670" cy="325.0" r="2.3" fill="#2fa14f"/>
+<circle cx="676" cy="325.0" r="1.5" fill="#f58322"/>
+<rect x="561" y="354.0" width="120" height="35.0" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="566" y="359.0" width="95" height="5" fill="#647e97" rx="1"/>
+<rect x="566" y="367.0" width="95" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="670" cy="363.0" r="2.3" fill="#2fa14f"/>
+<circle cx="676" cy="363.0" r="1.5" fill="#f58322"/>
+<rect x="559" y="395" width="26" height="3" fill="#d9e6f3" rx="1"/>
+</g>
+<text x="535" y="438" font-size="17" fill="#113058" font-weight="650">REST API + SPA</text>
+<text x="535" y="464" font-size="15.5" fill="#1d4a7e" font-weight="500">Swagger /swagger</text>
+<text x="535" y="490" font-size="15.5" fill="#1d4a7e" font-weight="500">Logs · Audit</text>
+<rect x="535" y="511" width="122" height="26" fill="#eaf0f6" rx="5"/>
+<text x="596" y="529" font-size="14" fill="#1d4a7e" font-weight="600" text-anchor="middle">Go + Vue</text>
+<g filter="url(#eqShadow)">
+<path d="M831 246v56c0 20 104 20 104 0V246Z" fill="url(#disk)" stroke="#718aa3" stroke-width="1.3"/>
+<ellipse cx="883.0" cy="246" rx="52.0" ry="15" fill="url(#top)" stroke="#718aa3" stroke-width="1.3"/>
+<path d="M832 284c0 19 102 19 102 0" fill="none" stroke="#93abc1" stroke-width="1"/>
+<path d="M832 263c0 18 102 18 102 0" fill="none" stroke="#c5d5e4" stroke-width="1"/>
+<rect x="848" y="272" width="70" height="9" fill="#1d4a7e" rx="2"/>
+<circle cx="920" cy="299" r="2.7" fill="#2fa14f"/>
+</g>
+<text x="883" y="335" font-size="17" fill="#113058" font-weight="650" text-anchor="middle">SQLite</text>
+<g filter="url(#eqShadow)">
+<path d="M831 491v56c0 20 104 20 104 0V491Z" fill="url(#disk)" stroke="#718aa3" stroke-width="1.3"/>
+<ellipse cx="883.0" cy="491" rx="52.0" ry="15" fill="url(#top)" stroke="#718aa3" stroke-width="1.3"/>
+<path d="M832 529c0 19 102 19 102 0" fill="none" stroke="#93abc1" stroke-width="1"/>
+<path d="M832 508c0 18 102 18 102 0" fill="none" stroke="#c5d5e4" stroke-width="1"/>
+<rect x="848" y="517" width="70" height="9" fill="#1d4a7e" rx="2"/>
+<circle cx="920" cy="544" r="2.7" fill="#2fa14f"/>
+</g>
+<text x="883" y="587" font-size="17" fill="#113058" font-weight="650" text-anchor="middle">Redis</text>
+<text x="883" y="608" font-size="14" fill="#69788b" font-weight="400" text-anchor="middle">asynq queue</text>
+<text x="1324" y="210" font-size="17" fill="#1d4a7e" font-weight="600" text-anchor="middle">Samba 4 AD DC</text>
+<g filter="url(#eqShadow)">
+<path d="M1146 266l16 -16h116l-16 16Z" fill="url(#top)" stroke="#8297ac" stroke-width="1"/>
+<path d="M1262 266l16 -16v117l-16 16Z" fill="url(#side)" stroke="#6f879f" stroke-width="1"/>
+<rect x="1146" y="266" width="116" height="117" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<rect x="1153" y="275" width="102" height="99" fill="url(#bezel)" rx="2" stroke="#405b76" stroke-width="0.9"/>
+<rect x="1158" y="284.0" width="92" height="24.666666666666668" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="1163" y="289.0" width="67" height="5" fill="#647e97" rx="1"/>
+<rect x="1163" y="297.0" width="67" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="1239" cy="293.0" r="2.3" fill="#2fa14f"/>
+<circle cx="1245" cy="293.0" r="1.5" fill="#f58322"/>
+<rect x="1158" y="311.6666666666667" width="92" height="24.666666666666668" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="1163" y="316.6666666666667" width="67" height="5" fill="#647e97" rx="1"/>
+<rect x="1163" y="324.6666666666667" width="67" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="1239" cy="320.6666666666667" r="2.3" fill="#2fa14f"/>
+<circle cx="1245" cy="320.6666666666667" r="1.5" fill="#f58322"/>
+<rect x="1158" y="339.3333333333333" width="92" height="24.666666666666668" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="1163" y="344.3333333333333" width="67" height="5" fill="#647e97" rx="1"/>
+<rect x="1163" y="352.3333333333333" width="67" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="1239" cy="348.3333333333333" r="2.3" fill="#2fa14f"/>
+<circle cx="1245" cy="348.3333333333333" r="1.5" fill="#f58322"/>
+<rect x="1156" y="370" width="26" height="3" fill="#d9e6f3" rx="1"/>
+</g>
+<g filter="url(#eqShadow)">
+<path d="M1380 266l16 -16h116l-16 16Z" fill="url(#top)" stroke="#8297ac" stroke-width="1"/>
+<path d="M1496 266l16 -16v117l-16 16Z" fill="url(#side)" stroke="#6f879f" stroke-width="1"/>
+<rect x="1380" y="266" width="116" height="117" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<rect x="1387" y="275" width="102" height="99" fill="url(#bezel)" rx="2" stroke="#405b76" stroke-width="0.9"/>
+<rect x="1392" y="284.0" width="92" height="24.666666666666668" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="1397" y="289.0" width="67" height="5" fill="#647e97" rx="1"/>
+<rect x="1397" y="297.0" width="67" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="1473" cy="293.0" r="2.3" fill="#2fa14f"/>
+<circle cx="1479" cy="293.0" r="1.5" fill="#f58322"/>
+<rect x="1392" y="311.6666666666667" width="92" height="24.666666666666668" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="1397" y="316.6666666666667" width="67" height="5" fill="#647e97" rx="1"/>
+<rect x="1397" y="324.6666666666667" width="67" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="1473" cy="320.6666666666667" r="2.3" fill="#2fa14f"/>
+<circle cx="1479" cy="320.6666666666667" r="1.5" fill="#f58322"/>
+<rect x="1392" y="339.3333333333333" width="92" height="24.666666666666668" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="1397" y="344.3333333333333" width="67" height="5" fill="#647e97" rx="1"/>
+<rect x="1397" y="352.3333333333333" width="67" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="1473" cy="348.3333333333333" r="2.3" fill="#2fa14f"/>
+<circle cx="1479" cy="348.3333333333333" r="1.5" fill="#f58322"/>
+<rect x="1390" y="370" width="26" height="3" fill="#d9e6f3" rx="1"/>
+</g>
+<text x="1204" y="410" font-size="19" fill="#113058" font-weight="700" text-anchor="middle">dc01</text>
+<text x="1438" y="410" font-size="19" fill="#113058" font-weight="700" text-anchor="middle">dc02</text>
+<text x="1204" y="433" font-size="13.5" fill="#69788b" font-weight="400" text-anchor="middle">10.0.0.10</text>
+<text x="1438" y="433" font-size="13.5" fill="#69788b" font-weight="400" text-anchor="middle">10.0.0.11</text>
+<text x="1328" y="234" font-size="13.5" fill="#1d4a7e" font-weight="600" text-anchor="middle">DRS replication</text>
+<!-- fs01: a host container with separate management and SMB services. -->
+<g id="fs01" role="group" aria-labelledby="fs01-title">
+<rect x="1106" y="640" width="210" height="204" fill="#f7f9fc" rx="7" stroke="#9bb0c5" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text id="fs01-title" x="1211" y="662" font-size="14" fill="#113058" font-weight="650" text-anchor="middle">fs01 · Samba Server</text>
+<g id="fs01-agent" role="group" aria-labelledby="fs01-agent-title">
+<rect id="fs01-agent-box" x="1116" y="676" width="190" height="64" fill="#fff6ec" rx="4" stroke="#d99557" stroke-width="1.3"/>
+<text id="fs01-agent-title" x="1211" y="695" font-size="12" fill="#113058" font-weight="650" text-anchor="middle">ad-manager agent :9443</text>
+<g transform="translate(1133 719)">
+<path d="M-3-10H3L4-7 6-6 9-7 12-2 9 0V3L11 5 8 10 5 9 3 10 2 13H-4L-5 10-7 9-10 10-13 5-10 3V0L-12-2-9-7-6-6-4-7Z" transform="scale(.66)" fill="url(#face)" stroke="#a96a32" stroke-width="1.5" stroke-linejoin="miter"/>
+<circle cx="0" cy="1" r="3.2" fill="#ffffff" stroke="#a96a32" stroke-width="1.2"/>
+</g>
+<text x="1150" y="713" font-size="11.4" fill="#69788b" font-weight="500"><tspan x="1150" y="713">mgmt: net conf · folders</tspan> <tspan x="1150" y="730">· ACL (Samba API)</tspan></text>
+</g>
+<path id="fs01-configures" d="M1211 740V772" fill="none" stroke="#f58322" stroke-width="2" stroke-linejoin="miter" marker-end="url(#orange)"/>
+<text x="1221" y="760" font-size="11.5" fill="#69788b" font-weight="500">configures</text>
+<g id="fs01-smbd" role="group" aria-labelledby="fs01-smbd-title">
+<rect id="fs01-smbd-box" x="1116" y="772" width="190" height="62" fill="#eaf0f6" rx="4" stroke="#6f90b2" stroke-width="1.3"/>
+<g transform="translate(1128 782)">
+<path d="M0 3V0H10L14 4H27V20H0Z" fill="url(#top)" stroke="#6c849c" stroke-width="1" stroke-linejoin="miter"/>
+<path d="M0 7H28L25 20H0Z" fill="url(#disk)" stroke="#6c849c" stroke-width="1" stroke-linejoin="miter"/>
+<path d="M8 13H19M15 10 19 13 15 16" fill="none" stroke="#1d4a7e" stroke-width="1.5" stroke-linejoin="miter"/>
+</g>
+<text id="fs01-smbd-title" x="1167" y="794" font-size="14" fill="#113058" font-weight="650">smbd (Samba)</text>
+<text x="1211" y="811" font-size="11.8" fill="#1d4a7e" font-weight="500" text-anchor="middle"><tspan x="1211" y="811">Shares · SMB 445</tspan> <tspan x="1211" y="827">/srv/shares</tspan></text>
+</g>
+</g>
+<!-- fs02: a host container with separate management and SMB services. -->
+<g id="fs02" role="group" aria-labelledby="fs02-title">
+<rect x="1332" y="640" width="210" height="204" fill="#f7f9fc" rx="7" stroke="#9bb0c5" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text id="fs02-title" x="1437" y="662" font-size="14" fill="#113058" font-weight="650" text-anchor="middle">fs02 · Samba Server</text>
+<g id="fs02-agent" role="group" aria-labelledby="fs02-agent-title">
+<rect id="fs02-agent-box" x="1342" y="676" width="190" height="64" fill="#fff6ec" rx="4" stroke="#d99557" stroke-width="1.3"/>
+<text id="fs02-agent-title" x="1437" y="695" font-size="12" fill="#113058" font-weight="650" text-anchor="middle">ad-manager agent :9443</text>
+<g transform="translate(1359 719)">
+<path d="M-3-10H3L4-7 6-6 9-7 12-2 9 0V3L11 5 8 10 5 9 3 10 2 13H-4L-5 10-7 9-10 10-13 5-10 3V0L-12-2-9-7-6-6-4-7Z" transform="scale(.66)" fill="url(#face)" stroke="#a96a32" stroke-width="1.5" stroke-linejoin="miter"/>
+<circle cx="0" cy="1" r="3.2" fill="#ffffff" stroke="#a96a32" stroke-width="1.2"/>
+</g>
+<text x="1376" y="713" font-size="11.4" fill="#69788b" font-weight="500"><tspan x="1376" y="713">mgmt: net conf · folders</tspan> <tspan x="1376" y="730">· ACL (Samba API)</tspan></text>
+</g>
+<path id="fs02-configures" d="M1437 740V772" fill="none" stroke="#f58322" stroke-width="2" stroke-linejoin="miter" marker-end="url(#orange)"/>
+<text x="1447" y="760" font-size="11.5" fill="#69788b" font-weight="500">configures</text>
+<g id="fs02-smbd" role="group" aria-labelledby="fs02-smbd-title">
+<rect id="fs02-smbd-box" x="1342" y="772" width="190" height="62" fill="#eaf0f6" rx="4" stroke="#6f90b2" stroke-width="1.3"/>
+<g transform="translate(1354 782)">
+<path d="M0 3V0H10L14 4H27V20H0Z" fill="url(#top)" stroke="#6c849c" stroke-width="1" stroke-linejoin="miter"/>
+<path d="M0 7H28L25 20H0Z" fill="url(#disk)" stroke="#6c849c" stroke-width="1" stroke-linejoin="miter"/>
+<path d="M8 13H19M15 10 19 13 15 16" fill="none" stroke="#1d4a7e" stroke-width="1.5" stroke-linejoin="miter"/>
+</g>
+<text id="fs02-smbd-title" x="1393" y="794" font-size="14" fill="#113058" font-weight="650">smbd (Samba)</text>
+<text x="1437" y="811" font-size="11.8" fill="#1d4a7e" font-weight="500" text-anchor="middle"><tspan x="1437" y="811">Shares · SMB 445</tspan> <tspan x="1437" y="827">/srv/shares</tspan></text>
+</g>
+</g>
+<circle cx="1324" cy="708" r="2.8" fill="#f58322"/>
+<g filter="url(#eqShadow)">
+<path d="M77 723l7-6h65v47l-7 6Z" fill="#9aafc3" stroke="#6c849c" stroke-width="1"/>
+<rect x="77" y="723" width="65" height="47" fill="url(#face)" rx="3" stroke="#607c96" stroke-width="1"/>
+<rect x="82" y="728" width="55" height="34" fill="#113058" rx="2"/>
+<rect x="85" y="731" width="49" height="28" fill="url(#screen)" rx="1"/>
+<path d="M103.0 770v10h-11.05l-6 5h35.75l-6-5h-11.05V770Z" fill="url(#face)" stroke="#6c849c" stroke-width="1"/>
+<path d="M80 794h75l10 9h-87Z" fill="#b9cbdc" stroke="#8297ac" stroke-width="1"/>
+<rect x="155" y="727" width="26" height="79" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<path d="M181 727l7-4v79l-7 4Z" fill="url(#side)"/>
+<rect x="160" y="736" width="16" height="3" fill="#6d859d" rx="1"/>
+<circle cx="167" cy="794" r="2" fill="#2fa14f"/>
+<rect x="101" y="739" width="10" height="10" fill="#1d4a7e" rx="1"/>
+<rect x="113" y="739" width="10" height="10" fill="#1d4a7e" rx="1"/>
+<rect x="101" y="751" width="10" height="10" fill="#1d4a7e" rx="1"/>
+<rect x="113" y="751" width="10" height="10" fill="#1d4a7e" rx="1"/>
+</g>
+<g filter="url(#eqShadow)">
+<path d="M225 723l7-6h65v47l-7 6Z" fill="#9aafc3" stroke="#6c849c" stroke-width="1"/>
+<rect x="225" y="723" width="65" height="47" fill="url(#face)" rx="3" stroke="#607c96" stroke-width="1"/>
+<rect x="230" y="728" width="55" height="34" fill="#113058" rx="2"/>
+<rect x="233" y="731" width="49" height="28" fill="url(#screen)" rx="1"/>
+<path d="M251.0 770v10h-11.05l-6 5h35.75l-6-5h-11.05V770Z" fill="url(#face)" stroke="#6c849c" stroke-width="1"/>
+<path d="M228 794h75l10 9h-87Z" fill="#b9cbdc" stroke="#8297ac" stroke-width="1"/>
+<rect x="303" y="727" width="26" height="79" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<path d="M329 727l7-4v79l-7 4Z" fill="url(#side)"/>
+<rect x="308" y="736" width="16" height="3" fill="#6d859d" rx="1"/>
+<circle cx="315" cy="794" r="2" fill="#2fa14f"/>
+<ellipse cx="260" cy="753" rx="10" ry="15" fill="#113058"/>
+<ellipse cx="260" cy="756" rx="6" ry="9" fill="#ffffff"/>
+<circle cx="257" cy="743" r="2" fill="#ffffff"/>
+<circle cx="263" cy="743" r="2" fill="#ffffff"/>
+<path d="M256 747h8l-4 4Z" fill="#f58322"/>
+</g>
+<text x="117" y="835" font-size="15" fill="#113058" font-weight="600" text-anchor="middle">Windows</text>
+<text x="267" y="835" font-size="15" fill="#113058" font-weight="600" text-anchor="middle">Linux</text>
+<g filter="url(#eqShadow)" opacity=".64">
+<path d="M498 755l16 -16h64l-16 16Z" fill="url(#top)" stroke="#8297ac" stroke-width="1"/>
+<path d="M562 755l16 -16v83l-16 16Z" fill="url(#side)" stroke="#6f879f" stroke-width="1"/>
+<rect x="498" y="755" width="64" height="83" fill="url(#face)" rx="3" stroke="#8297ac" stroke-width="1"/>
+<rect x="505" y="764" width="50" height="65" fill="url(#bezel)" rx="2" stroke="#405b76" stroke-width="0.9"/>
+<rect x="510" y="773.0" width="40" height="13.333333333333334" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="515" y="778.0" width="15" height="5" fill="#647e97" rx="1"/>
+<rect x="515" y="786.0" width="15" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="539" cy="782.0" r="2.3" fill="#69788b"/>
+<circle cx="545" cy="782.0" r="1.5" fill="#69788b"/>
+<rect x="510" y="789.3333333333334" width="40" height="13.333333333333334" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="515" y="794.3333333333334" width="15" height="5" fill="#647e97" rx="1"/>
+<rect x="515" y="802.3333333333334" width="15" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="539" cy="798.3333333333334" r="2.3" fill="#69788b"/>
+<circle cx="545" cy="798.3333333333334" r="1.5" fill="#69788b"/>
+<rect x="510" y="805.6666666666666" width="40" height="13.333333333333334" fill="#b0c1d1" rx="2" stroke="#1d3853" stroke-width="0.7"/>
+<rect x="515" y="810.6666666666666" width="15" height="5" fill="#647e97" rx="1"/>
+<rect x="515" y="818.6666666666666" width="15" height="2" fill="#d9e6f3" rx="1"/>
+<circle cx="539" cy="814.6666666666666" r="2.3" fill="#69788b"/>
+<circle cx="545" cy="814.6666666666666" r="1.5" fill="#69788b"/>
+<rect x="508" y="825" width="26" height="3" fill="#d9e6f3" rx="1"/>
+</g>
+<text x="602" y="756" font-size="18" fill="#69788b" font-weight="600">Windows 2008 DC</text>
+<text x="602" y="782" font-size="16" fill="#69788b" font-weight="400">(migration)</text>
+<text x="602" y="819" font-size="14" fill="#69788b" font-weight="400">Transition to Samba 4</text>
+<rect x="44" y="916" width="570" height="63" fill="#ffffff" rx="5" stroke="#acbdce" stroke-width="1"/>
+<text x="59" y="937" font-size="13.5" fill="#113058" font-weight="650">Connections</text>
+<path d="M62 958H99" fill="none" stroke="#ffffff" stroke-width="7.4" stroke-linejoin="miter"/>
+<path d="M62 958H99" fill="none" stroke="#1d4a7e" stroke-width="2.4" stroke-linejoin="miter" marker-end="url(#blue)"/>
+<text x="112" y="963" font-size="13.5" fill="#69788b" font-weight="500">data</text>
+<path d="M204 958H241" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linejoin="miter"/>
+<path d="M204 958H241" fill="none" stroke="#f58322" stroke-width="2.5" stroke-linejoin="miter" stroke-dasharray="9 5" marker-end="url(#orange)"/>
+<text x="255" y="963" font-size="13.5" fill="#69788b" font-weight="500">administration</text>
+<path d="M431 958H468" fill="none" stroke="#ffffff" stroke-width="7.4" stroke-linejoin="miter"/>
+<path d="M431 958H468" fill="none" stroke="#69788b" stroke-width="2.4" stroke-linejoin="miter" stroke-dasharray="5 6" marker-end="url(#gray)"/>
+<text x="482" y="963" font-size="13.5" fill="#69788b" font-weight="500">migration</text>
+<text x="650" y="928" font-size="14" fill="#113058" font-weight="600">Your domain account.</text>
+<text x="650" y="949" font-size="13.5" fill="#69788b" font-weight="400">No service account.</text>
+<circle cx="655" cy="969" r="5" fill="#2fa14f"/>
+<path d="M651.5 969.1l2.3800000000000003 2.3800000000000003 4.69 -5.25" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="670" y="974" font-size="13" fill="#113058" font-weight="500">All operations are audited.</text>
+<rect x="1050" y="916" width="508" height="63" fill="#ffffff" stroke="#8097ad" stroke-width="1.3"/>
+<path d="M1050 953H1558M1437 953V979" fill="none" stroke="#8097ad" stroke-width="1"/>
+<rect x="1050" y="916" width="6" height="37" fill="#f58322"/>
+<text x="1069" y="942" font-size="22" fill="#113058" font-weight="650">Architecture — AD Manager</text>
+<text x="1069" y="971" font-size="14.5" fill="#69788b" font-weight="500">Network diagram</text>
+<text x="1496" y="971" font-size="14.5" fill="#113058" font-weight="600" text-anchor="middle">Rev. 1</text>
+</svg>

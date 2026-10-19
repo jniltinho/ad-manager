@@ -1,0 +1,5 @@
+﻿group;type;scope;description;ou;members
+Financeiro;security;global;Finance team;OU=Financeiro,OU=Matriz;lab.ana|lab.bia
+Diretoria;security;global;Board of directors;OU=Matriz;lab.caio
+TI;security;global;Support and infrastructure;OU=TI,OU=Matriz;lab.dani
+Leitura-Geral;security;global;Read-only on Publico;OU=Matriz;lab.edu|lab.ana

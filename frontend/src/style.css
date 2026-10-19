@@ -1,0 +1,887 @@
+@import 'tailwindcss';
+@import './themes/default.css';
+@import './themes/admanager.css';
+@import './themes/breeze.css';
+@import './themes/violet.css';
+@import './themes/aurora.css';
+@import './themes/crystal.css';
+@import './themes/cone.css';
+@import './themes/classics.css';
+@import './themes/graphite.css';
+
+/* Default theme — tokens of the original skin (site kit).
+   No border-radius anywhere: square corners. */
+@theme {
+  --color-cn: #113058;
+  --color-cn-dark: #0e172d;
+  --color-cn-light: #1d4a7e;
+  --color-cn-accent: #f58322;
+  --color-cn-accent-light: #f79a4c; /* top of the login button's gradient */
+  --color-cn-accent-strong: #fe6101;
+  --color-cn-muted: #69788b;
+  --color-cn-soft: #8b9aad;
+  --color-cn-bg: #d9e6f3;
+  --color-cn-bg-light: #e7ecef;
+  --color-cn-bg-soft: #eaf0f6;
+  --color-cn-border: #b9c9dc;
+  --color-cn-ok: #2fa14f;
+  --color-cn-err: #c62828;
+  --color-cn-warn: #ef6c00;
+  --font-sans: 'Inter', Tahoma, Verdana, Arial, sans-serif;
+  --radius-none: 0px;
+}
+
+/* ── Role contract (theme-base) ──────────────────────────────────────────────────────────────────────────────
+   Components use these roles, never the palette above or literal colors. Every role defaults to the Default value
+   of before the themes (pixel-identical); a theme (themes/*.css) only redefines roles and parameters under
+   html[data-theme="id"]. Colors are solid (utilities: text-fg, bg-surface, border-line…); gradients are two color
+   roles (…-top and the base) combined in the --bg-* gradients; shadows are --shadow-*; parameters are plain variables.
+   static: every role is emitted, also those only read through var(). */
+@theme static {
+  /* text */
+  --color-fg: oklch(20.8% 0.042 265.755); /* text on surfaces (was slate-900) */
+  --color-on-page: var(--color-fg); /* text directly on the page background */
+  --color-fg-strong: var(--color-cn); /* titles, emphasized values */
+  --color-fg-muted: var(--color-cn-muted);
+  --color-fg-subtle: var(--color-cn-soft); /* dimmed data (disabled accounts) and hints */
+  --color-link: var(--color-cn);
+  --color-link-hover: var(--color-cn-accent-strong);
+  /* page and surfaces */
+  --color-page: var(--color-cn-bg);
+  --color-page-dots: rgba(17, 48, 88, 0.35);
+  --color-surface: #fff;
+  --color-surface-2: var(--color-cn-bg-light);
+  --color-surface-3: var(--color-cn-bg-soft);
+  --color-row-alt: var(--color-cn-bg);
+  --color-row-hover: var(--color-cn-bg-soft);
+  --color-line: var(--color-cn-border);
+  --color-line-soft: var(--color-cn-bg-light);
+  /* fields */
+  --color-field: #fff;
+  --color-on-field: oklch(27.9% 0.041 260.031); /* was slate-800 */
+  --color-field-line: #aab3c2;
+  --color-field-focus: var(--color-cn);
+  --color-check-line: #8b9aad;
+  --color-autofill: #333;
+  /* actions */
+  --color-action: var(--color-cn);
+  --color-action-top: var(--color-cn-light);
+  --color-action-line: var(--color-cn-dark);
+  --color-on-action: #fff;
+  --color-action-2: var(--color-cn-bg-soft);
+  --color-action-2-top: #fff;
+  --color-action-2-line: var(--color-cn-border);
+  --color-action-2-hover-line: var(--color-cn);
+  --color-on-action-2: var(--color-cn);
+  --color-danger: var(--color-cn-err);
+  --color-danger-top: #d84343;
+  --color-danger-line: oklch(39.6% 0.141 25.723); /* was red-900 */
+  --color-on-danger: #fff;
+  --color-brand-action: var(--color-cn-accent); /* login button */
+  --color-brand-action-top: var(--color-cn-accent-light);
+  --color-brand-action-hover: var(--color-cn-accent-strong);
+  --color-on-brand-action: #fff;
+  /* accents, selection, focus */
+  --color-accent: var(--color-cn-accent);
+  --color-accent-strong: var(--color-cn-accent-strong);
+  --color-selection: var(--color-cn);
+  --color-on-selection: #fff;
+  --color-focus: var(--color-cn-accent);
+  /* states: text, fill (badges) and the toasts */
+  --color-ok: var(--color-cn-ok);
+  --color-err: var(--color-cn-err);
+  --color-warn: var(--color-cn-warn);
+  --color-ok-fill: var(--color-cn-ok);
+  --color-err-fill: var(--color-cn-err);
+  --color-warn-fill: var(--color-cn-warn);
+  --color-on-ok-fill: #fff;
+  --color-on-err-fill: #fff;
+  --color-on-warn-fill: #fff;
+  --color-on-neutral-fill: #fff;
+  --color-on-strong-fill: #fff;
+  --color-on-toast: #fff;
+  --color-on-toast-warn: var(--color-on-toast); /* a light warning fill needs dark text */
+  --color-err-soft: #f6dcdc;
+  --color-on-err-soft: #8a2020;
+  --color-neutral-fill: var(--color-cn-soft); /* gray badges and status dots */
+  --color-strong-fill: var(--color-cn); /* "system", "DC" badges */
+  --color-ok-soft: #d9ecd9;
+  --color-on-ok-soft: #1f5c2a;
+  --color-warn-soft: #fef3d7;
+  --color-on-warn-soft: #8a5a00;
+  --color-toast-ok: #2e7d32;
+  --color-toast-err: #c62828;
+  --color-toast-warn: #ef6c00;
+  /* header, tabs, footer */
+  --color-header-top: #fff;
+  --color-header: var(--color-cn-bg-light);
+  --color-on-header: var(--color-cn);
+  --color-on-header-muted: var(--color-cn-muted);
+  --color-on-header-subtle: var(--color-cn-soft);
+  --color-header-bar: var(--color-cn-accent);
+  --color-header-link: var(--color-link); /* "my password" / "sign out" in the header */
+  --color-header-link-hover: var(--color-link-hover);
+  --color-tabs-top: var(--color-cn-dark);
+  --color-tabs: #0a1222;
+  --color-tab: transparent;
+  --color-on-tab: #ccc;
+  --color-tab-hover: var(--color-cn-light);
+  --color-on-tab-hover: #fff;
+  --color-tab-divider: transparent;
+  --color-on-tab-aux: #ccc; /* API / Queues links at the right of the tabs */
+  --color-tab-aux-hover: var(--color-cn-light);
+  --color-on-tab-aux-hover: #fff;
+  --color-tab-on-top: var(--color-cn-light);
+  --color-tab-on: var(--color-cn);
+  --color-on-tab-on: #fff;
+  --color-tab-on-icon: var(--color-cn-accent);
+  --color-footer-top: var(--color-cn);
+  --color-footer: var(--color-cn-dark);
+  --color-footer-bar: var(--color-cn-accent);
+  --color-on-footer: #c9d4e3;
+  --color-footer-strong: var(--color-cn-accent);
+  /* side list (current item), cards, tables, dialogs, tooltip, scrollbar */
+  --color-nav-on: var(--color-cn);
+  --color-on-nav-on: #fff;
+  --color-nav-on-line: var(--color-cn-border); /* bottom line of the current item (the list divider by default) */
+  --color-card-head-top: #fff;
+  --color-card-head: var(--color-cn-bg-light);
+  --color-card-head-bar: var(--color-cn-accent);
+  --color-on-card-head: var(--color-cn);
+  --color-table-head-top: var(--color-cn-light);
+  --color-table-head: var(--color-cn);
+  --color-on-table-head: #fff;
+  --color-dialog-line: var(--color-cn);
+  --color-on-dialog: #000; /* text in dialogs (the browser's dialog default) */
+  --color-dialog-head-top: var(--color-cn);
+  --color-dialog-head: var(--color-cn-dark);
+  --color-dialog-head-bar: var(--color-cn-accent);
+  --color-on-dialog-head: #fff;
+  --color-backdrop: rgba(14, 23, 45, 0.55);
+  --color-pop-line: var(--color-cn);
+  --color-tooltip: var(--color-cn-dark);
+  --color-on-tooltip: #fff;
+  --color-tooltip-bar: var(--color-cn-accent);
+  --color-on-pop: #1e293b; /* suggestion list text */
+  --color-on-selection-muted: rgba(255, 255, 255, 0.75);
+  --color-card-hover-line: var(--color-cn);
+  --color-subtab-line: var(--color-cn);
+  /* inner tabs (Logs): the default is the strip with the current tab in the selection colors */
+  --color-subtab: transparent;
+  --color-on-subtab: var(--color-fg-strong);
+  --color-subtab-hover: var(--color-row-hover);
+  --color-subtab-on: var(--color-selection);
+  --color-on-subtab-on: var(--color-on-selection);
+  /* tabs on top of a card (Import/export): the default is a strip with the current tab marked by a bar on its left */
+  --color-cardtabs: var(--color-surface-2);
+  --color-cardtabs-line: var(--color-line);
+  --color-cardtab: transparent;
+  --color-on-cardtab: var(--color-fg-muted);
+  --color-cardtab-hover: transparent;
+  --color-cardtab-on: var(--color-surface);
+  --color-on-cardtab-on: var(--color-fg-strong);
+  --color-cardtab-bar: var(--color-accent);
+  --color-chart-1: var(--color-cn);
+  /* decorative stripes of the Home cards (default: the color of the number) */
+  --color-decor-ok: var(--color-cn-ok);
+  --color-decor-err: var(--color-cn-err);
+  --color-decor-warn: var(--color-cn-warn);
+  --color-decor-muted: var(--color-cn-muted);
+  --color-decor-strong: var(--color-cn);
+  --color-scroll-thumb: var(--color-cn-soft);
+  --color-scroll-track: var(--color-cn-bg-light);
+  /* login box */
+  --color-login-page: var(--color-cn-bg-light);
+  --color-login-box: var(--color-cn);
+  --color-login-box-line: var(--color-cn-dark);
+  --color-login-box-bar: var(--color-cn-accent);
+  --color-on-login-box: #fff;
+  --color-on-login-box-strong: rgba(255, 255, 255, 0.9);
+  --color-on-login-box-muted: rgba(255, 255, 255, 0.6);
+  --color-on-login-box-faint: rgba(255, 255, 255, 0.55);
+  --color-login-title: var(--color-cn-accent);
+  --color-login-field-line: var(--color-cn-border);
+  --color-login-focus: rgba(245, 131, 34, 0.45);
+  /* customer logo plate (dark themes: a light plate behind a logo made for light backgrounds) */
+  --color-logo-plate: transparent;
+}
+
+/* parameters (not colors): sizes and on/off switches of the recipes, overridden by themes */
+:root {
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
+  /* gradients (background-image; a theme sets none for a flat fill of the base color) */
+  --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
+  --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
+  --bg-tab-on: linear-gradient(to bottom in oklab, var(--color-tab-on-top) 0%, var(--color-tab-on) 100%);
+  --bg-action: linear-gradient(to bottom in oklab, var(--color-action-top) 0%, var(--color-action) 100%);
+  --bg-action-hover: linear-gradient(to bottom in oklab, var(--color-action-top) 0%, var(--color-action-top) 100%);
+  --bg-action-2: linear-gradient(to bottom in oklab, var(--color-action-2-top) 0%, var(--color-action-2) 100%);
+  --bg-danger: linear-gradient(to bottom in oklab, var(--color-danger-top) 0%, var(--color-danger) 100%);
+  --bg-table-head: linear-gradient(to bottom in oklab, var(--color-table-head-top) 0%, var(--color-table-head) 100%);
+  --bg-card-head: linear-gradient(to bottom in oklab, var(--color-card-head-top) 0%, var(--color-card-head) 100%);
+  --bg-dialog-head: linear-gradient(to right in oklab, var(--color-dialog-head-top) 0%, var(--color-dialog-head) 100%);
+  --bg-dialog-foot: linear-gradient(to bottom in oklab, var(--color-surface) 0%, var(--color-surface-2) 100%);
+  --bg-footer: linear-gradient(to bottom in oklab, var(--color-footer-top) 0%, var(--color-footer) 100%);
+  /* shadows (box-shadow values, used through shadow-(--shadow-x) so a theme can change them) */
+  --shadow-btn: var(--bevel-raised), 0 1px 2px rgba(14, 23, 45, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --shadow-btn-2: var(--bevel-raised), 0 1px 2px rgba(17, 48, 88, 0.12);
+  --bg-brand-action: linear-gradient(to bottom in oklab, var(--color-brand-action-top) 0%, var(--color-brand-action) 100%);
+  --shadow-brand-action: var(--bevel-raised), 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  --shadow-btn-danger: var(--bevel-raised), 0 1px 2px rgba(90, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --shadow-field-focus: 0 0 0 2px rgba(17, 48, 88, 0.22);
+  --shadow-invalid: 0 0 0 2px rgba(198, 40, 40, 0.2);
+  --shadow-card: var(--bevel-raised), 0 2px 6px rgba(17, 48, 88, 0.12);
+  --shadow-field: var(--bevel-sunken);
+  --shadow-table-head: var(--bevel-raised), 0 1px 0 var(--color-cn-dark);
+  --shadow-dialog: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 6px 16px rgba(14, 23, 45, 0.28);
+  --shadow-tip: 0 3px 10px rgba(14, 23, 45, 0.3);
+  --shadow-app: 0 0 12px rgba(0, 0, 0, 0.5);
+  --shadow-tabs: 0 2px 4px rgba(14, 23, 45, 0.4);
+  --shadow-tab-on: inset 0 -3px 0 var(--color-cn-accent);
+  --shadow-subtab-on: inset 0 -3px 0 var(--color-cn-accent);
+  --shadow-card-hover: 0 6px 14px rgba(17, 48, 88, 0.22);
+  --shadow-nav-on: 0 0 #0000;
+  --shadow-login-box: 0 2px 6px rgba(0, 0, 0, 0.18);
+  --bg-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23113058'/%3E%3C/svg%3E");
+  --tab-divider-w: 0px;
+  /* top tabs: relief of the inactive ones, gap between tabs, how much lower the inactive ones start (classic tab
+     strips: the current tab is taller and opens into the content) */
+  --shadow-tab: 0 0 #0000;
+  --tab-gap: 0px;
+  --tab-inset-top: 0px;
+  --tabs-pad: 0px; /* padding of the tab strip (top, sides) */
+  /* footer: the bar on top, the gap between items and, as a status bar (98), the relief and padding of each item */
+  --footer-bar-w: 3px;
+  --footer-gap: 1.25rem;
+  --footer-line: none;
+  --footer-pane-relief: 0 0 #0000;
+  --footer-pane-pad: 0px 0px;
+  /* inner tabs: line under the strip, gap, side padding, relief of the other tabs, how much lower they start and
+     how far the current one covers the line (open into the content) */
+  --subtabs-line-w: 2px;
+  --subtabs-gap: 0px;
+  --subtabs-pad: 0px;
+  --shadow-subtab: 0 0 #0000;
+  --subtab-inset-top: 0px;
+  --subtab-on-overlap: 0px;
+  /* card tabs: the same knobs, plus the bar left of the current tab and the letter case */
+  --cardtabs-pad: 0px;
+  --cardtabs-gap: 0px;
+  --shadow-cardtab: 0 0 #0000;
+  --shadow-cardtab-on: 0 0 #0000;
+  --cardtab-inset-top: 0px;
+  --cardtab-on-overlap: 0px;
+  --cardtab-bar-w: 4px;
+  --cardtab-transform: uppercase;
+  --nav-on-last-line-w: 0px; /* bottom line of the current side item when it is the last one (divide-y skips it) */
+  --tab-hover-filter: none;
+  --table-head-h: auto;
+  --card-head-bar-w: 4px;
+  --card-head-size: 12px;
+  --card-head-weight: 600;
+  --card-head-transform: uppercase;
+  --card-stripe: 0.25rem; /* top stripe of the Home cards */
+  --font-size-base: 13px;
+  --logo-plate-pad: 0px;
+  --btn-hover-filter: brightness(1.1); /* on top of the hover fill (none: the fill alone carries the hover) */
+  --shadow-btn-active: none; /* a pressed button (the 98 theme: its pressed relief) */
+  /* placeholder text: the browser's (current color at 50%) unless the theme gives one */
+  --placeholder-color: color-mix(in oklab, currentcolor 50%, transparent);
+  /* product logo in the Settings preview (over surface-3) */
+  --preview-logo-dark-ink: block;
+  --preview-logo-light-ink: none;
+  /* dialogs: frame and title (the defaults are the Default window: 2px frame, colored title with a 3px bar) */
+  --dialog-line-w: 2px;
+  --dialog-head-bar-w: 3px;
+  --dialog-head-size: 13px;
+  --dialog-head-pad: 0.5rem 0.75rem;
+  /* toasts: 100% = title bar in the state color (Default); 0% = a card on the surface with the title in the state's
+     text color, thin frame and a state-colored bar on the left (--toast-bar-w) */
+  --toast-head-mix: 100%;
+  --toast-alpha: 100%; /* < 100%: a translucent banner (the page blurred behind it, --toast-blur) */
+  --toast-blur: 0px;
+  --dialog-top: 0.1; /* where a dialog opens, a fraction of the window height (0: a sheet hanging from the top) */
+  --dialog-rise: 6px; /* it comes in from this far below (negative: from above, a sheet sliding down) */
+  --focus-ring-w: 2px;
+  --toast-line-w: 2px;
+  --toast-bar-w: 2px;
+  /* which product logo shows: dark ink (for light backgrounds) or light ink (for dark ones), as display values */
+  --header-logo-dark-ink: block;
+  --header-logo-light-ink: none;
+  --login-shadow-img: url('./assets/login_shadow.png'); /* the elliptic shadow under the login box */
+  --login-logo-dark-ink: none;
+  --login-logo-light-ink: block;
+  /* 3D relief (classic themes); a transparent zero shadow by default, so the shadows below are unchanged */
+  --bevel-raised: 0 0 #0000;
+  --bevel-sunken: 0 0 #0000;
+  --bevel-pressed: 0 0 #0000;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 400;
+  font-display: swap;
+  src: url(./assets/fonts/inter-latin-400-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-weight: 600;
+  font-display: swap;
+  src: url(./assets/fonts/inter-latin-600-normal.woff2) format('woff2');
+}
+
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+/* Large screens: the panel is dense (12px). On QHD/4K without OS scaling
+   (CSS width ≥ 2400px) everything grows proportionally. With OS scaling
+   (125%/150%/200%) the CSS width stays at Full HD and nothing changes here. */
+/* --view-h is the usable window height in CSS px after the zoom: Chrome also
+   scales dvh heights, so without it the panel overflows the window and the
+   footer disappears. Use calc(var(--view-h) - X) instead of 100dvh. */
+:root {
+  --z: 1;
+  --view-h: calc(100dvh / var(--z));
+}
+@media (min-width: 2400px) {
+  :root {
+    zoom: 1.25;
+    --z: 1.25;
+  }
+}
+@media (min-width: 3200px) {
+  :root {
+    zoom: 1.6;
+    --z: 1.6;
+  }
+}
+
+/* the page never scrolls: only the panel <main> (and tables/lists inside it) */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-page text-on-page antialiased;
+  font-size: var(--font-size-base);
+  background-image: var(--bg-page);
+  background-size: 22px 22px;
+}
+
+@layer components {
+  /* buttons with depth: vertical gradient, short shadow, pressed on click */
+  .btn {
+    @apply inline-flex h-7 cursor-pointer items-center gap-1.5 border border-action-line bg-action bg-(image:--bg-action) px-3 text-xs font-semibold text-on-action shadow-(--shadow-btn) hover:bg-(image:--bg-action-hover) active:translate-y-px active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 transition-[box-shadow,transform,filter] duration-150;
+  }
+  .btn:hover {
+    filter: var(--btn-hover-filter);
+  }
+  .btn-ghost {
+    @apply inline-flex h-7 cursor-pointer items-center gap-1.5 border border-action-2-line bg-action-2 bg-(image:--bg-action-2) px-3 text-xs text-on-action-2 shadow-(--shadow-btn-2) hover:border-action-2-hover-line active:translate-y-px active:shadow-none disabled:opacity-50 transition-[border-color,box-shadow,transform] duration-150;
+  }
+  .btn-danger {
+    @apply inline-flex h-7 cursor-pointer items-center gap-1.5 border border-danger-line bg-danger bg-(image:--bg-danger) px-3 text-xs font-semibold text-on-danger shadow-(--shadow-btn-danger) active:translate-y-px active:shadow-none disabled:opacity-50;
+  }
+  /* inner tabs (Logs) recipe, in the theme's tab style */
+  .subtabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--subtabs-gap);
+    margin-bottom: 0.75rem;
+    padding: 0 var(--subtabs-pad);
+    border-bottom: var(--subtabs-line-w) solid var(--color-subtab-line);
+  }
+  .subtab {
+    display: flex;
+    gap: 0.375rem;
+    align-items: center;
+    margin-top: var(--subtab-inset-top);
+    padding: 0.375rem 1rem;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-on-subtab);
+    cursor: pointer;
+    background: var(--color-subtab);
+    box-shadow: var(--shadow-subtab);
+  }
+  .subtab:not(.on):hover {
+    background: var(--color-subtab-hover);
+  }
+  .subtab.on {
+    margin-top: 0;
+    margin-bottom: calc(-1 * var(--subtab-on-overlap));
+    color: var(--color-on-subtab-on);
+    background: var(--color-subtab-on);
+    box-shadow: var(--shadow-subtab-on);
+  }
+  /* tabs on top of a card (Import/export) recipe, in the theme's tab style */
+  .cardtabs {
+    display: flex;
+    gap: var(--cardtabs-gap);
+    padding: var(--cardtabs-pad) var(--cardtabs-pad) 0;
+    background: var(--color-cardtabs);
+    border-bottom: 1px solid var(--color-cardtabs-line);
+  }
+  .cardtab {
+    flex: 1;
+    margin-top: var(--cardtab-inset-top);
+    padding: 0.5rem 0.75rem;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-on-cardtab);
+    text-transform: var(--cardtab-transform);
+    cursor: pointer;
+    background: var(--color-cardtab);
+    box-shadow: var(--shadow-cardtab);
+  }
+  .cardtabs.fit > .cardtab {
+    flex: none; /* modal tabs: as wide as their label */
+  }
+  .cardtab:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+  .cardtab:not(.on):hover {
+    background: var(--color-cardtab-hover);
+  }
+  .cardtab.on {
+    margin-top: 0;
+    margin-bottom: calc(-1 * var(--cardtab-on-overlap));
+    color: var(--color-on-cardtab-on);
+    background: var(--color-cardtab-on);
+    border-left: var(--cardtab-bar-w) solid var(--color-cardtab-bar);
+    box-shadow: var(--shadow-cardtab-on);
+  }
+  /* more specific than their active:shadow-none (Tailwind emits those variants after this rule) */
+  .btn:active:not(:disabled),
+  .btn-ghost:active:not(:disabled),
+  .btn-danger:active:not(:disabled) {
+    box-shadow: var(--shadow-btn-active);
+  }
+  .inp {
+    @apply h-7 w-full border border-field-line bg-field px-2 text-[12px] text-on-field shadow-(--shadow-field) outline-none focus:border-field-focus focus:shadow-(--shadow-field-focus) transition-[border-color,box-shadow] duration-150;
+  }
+  /* filled by the browser and focused: the focus ring and the inset shadow that hides the autofill background */
+  .inp:-webkit-autofill:focus {
+    box-shadow:
+      var(--shadow-field-focus),
+      0 0 0 1000px var(--color-field) inset;
+  }
+  .lbl {
+    @apply mb-1 block text-[11px] font-semibold tracking-wide text-fg-muted uppercase;
+  }
+  .grid-t {
+    @apply w-full border-collapse border border-line text-[12px];
+  }
+  .grid-t th {
+    @apply sticky top-0 z-10 bg-table-head bg-(image:--bg-table-head) px-2 py-1.5 text-left font-semibold whitespace-nowrap text-on-table-head shadow-(--shadow-table-head);
+    height: var(--table-head-h);
+  }
+  .grid-t td {
+    @apply border-t border-line px-2 py-1 align-middle;
+  }
+  .grid-t tbody tr:nth-child(even) {
+    @apply bg-row-alt;
+  }
+  .grid-t tbody tr {
+    @apply transition-colors duration-100;
+  }
+  .grid-t tbody tr:hover {
+    @apply bg-row-hover;
+  }
+  .act {
+    @apply inline-flex cursor-pointer items-center gap-0.5 px-1 text-link hover:text-link-hover transition-colors duration-150;
+  }
+  .tag {
+    @apply inline-block px-1.5 py-px text-[10px] font-semibold uppercase;
+  }
+  .card {
+    @apply border border-line bg-surface text-fg shadow-(--shadow-card);
+  }
+  .card-h {
+    @apply flex items-center gap-1.5 border-b border-line border-l-4 border-l-card-head-bar bg-card-head bg-(image:--bg-card-head) px-3 py-1.5 text-xs font-semibold text-on-card-head uppercase;
+    /* the theme parameters only override these (line height, border style… come from the utilities above) */
+    border-left-width: var(--card-head-bar-w);
+    font-size: var(--card-head-size);
+    font-weight: var(--card-head-weight);
+    text-transform: var(--card-head-transform);
+  }
+}
+
+/* flat look (Settings, any theme): no gradients and no depth; the shadows that mark a state (current tab, side
+   item, focus, invalid field) and the popups' stay */
+:root[data-flat='true'][data-theme] {
+  --bg-page: none;
+  --bg-header: none;
+  --bg-tabs: none;
+  --bg-tab-on: none;
+  --bg-action: none;
+  --bg-action-2: none;
+  --bg-brand-action: none;
+  --bg-danger: none;
+  --bg-table-head: none;
+  --bg-card-head: none;
+  --bg-dialog-head: none;
+  --bg-dialog-foot: none;
+  --bg-footer: none;
+  --shadow-btn: none;
+  --shadow-btn-2: none;
+  --shadow-btn-danger: none;
+  --shadow-brand-action: none;
+  --shadow-card: none;
+  --shadow-card-hover: none;
+  --shadow-field: none;
+  --shadow-table-head: none;
+  --shadow-app: none;
+  --shadow-tabs: none;
+  --shadow-login-box: none;
+  --shadow-btn-active: none; /* the 98's pressed relief */
+  --footer-pane-relief: none; /* the 98's sunken status-bar panes */
+  --footer-line: none;
+}
+
+/* themed select list (native.js, browsers without appearance: base-select): the same look as the base-select
+   picker in style.css */
+.select-pop {
+  position: fixed;
+  z-index: 80;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  inset: auto;
+  font-size: 12px;
+  color: var(--color-on-field);
+  list-style: none;
+  background: var(--color-field);
+  border: 1px solid var(--color-pop-line);
+  border-top: 3px solid var(--color-accent);
+  box-shadow: var(--shadow-pop);
+}
+.select-pop li {
+  padding: 5px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.select-pop li:nth-child(even) {
+  background: var(--color-row-hover);
+}
+.select-pop li[aria-selected='true'] {
+  font-weight: 600;
+}
+.select-pop li.active {
+  color: var(--color-on-selection);
+  background: var(--color-selection);
+}
+.select-pop li[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* customer logo on a plate (transparent and 0 px by default) */
+.logo-plate {
+  padding: var(--logo-plate-pad);
+  background: var(--color-logo-plate);
+}
+
+/* side list recipe: the current item's bottom line takes the theme's color (the divider's by default); the width
+   is the list's divide-y, and --nav-on-last-line-w on the last item */
+.nav-on {
+  border-bottom-color: var(--color-nav-on-line);
+}
+.nav-on:last-child {
+  border-bottom-width: var(--nav-on-last-line-w);
+}
+
+/* panel <dialog> (port of the legacy .pnlDialog) */
+dialog.pnl {
+  @apply border-2 border-dialog-line bg-surface p-0 text-on-dialog shadow-(--shadow-dialog);
+  border-width: var(--dialog-line-w);
+  /* 10% of the window height from the top, centered horizontally (like the login), in every theme */
+  margin: calc(var(--view-h) * var(--dialog-top)) auto auto;
+}
+dialog.pnl::backdrop {
+  background: var(--color-backdrop);
+}
+/* opening like the pages: fade in rising 6 px, the backdrop fading in; .closing (Modal.vue) fades both out */
+dialog.pnl[open] {
+  animation: pnl-in 0.15s ease;
+}
+dialog.pnl[open]::backdrop {
+  animation: pnl-fade 0.15s ease;
+}
+dialog.pnl.closing {
+  animation: pnl-out 0.15s ease forwards;
+}
+dialog.pnl.closing::backdrop {
+  animation: pnl-fade 0.15s ease reverse forwards;
+}
+@keyframes pnl-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--dialog-rise));
+  }
+}
+@keyframes pnl-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes pnl-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.pnl[open],
+  dialog.pnl[open]::backdrop,
+  dialog.pnl.closing,
+  dialog.pnl.closing::backdrop {
+    animation: none;
+  }
+}
+.pnl-head {
+  @apply border-b-[3px] border-dialog-head-bar bg-dialog-head bg-(image:--bg-dialog-head) px-3 py-2 text-[13px] font-semibold text-on-dialog-head;
+  /* the theme parameters only override these */
+  border-bottom-width: var(--dialog-head-bar-w);
+  padding: var(--dialog-head-pad);
+  font-size: var(--dialog-head-size);
+}
+.pnl-body {
+  @apply px-4 py-3;
+}
+.pnl-foot {
+  @apply flex justify-end gap-2 border-t border-line bg-surface-2 bg-(image:--bg-dialog-foot) px-3 py-2;
+}
+
+/* toasts (as in the earlier panel) */
+#toasts {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 9999;
+  /* a popover: none of the browser's popover box */
+  inset: 14px 14px auto auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+.toast {
+  /* the state of the toast: fill, text on the fill, state text color */
+  --k: var(--color-toast-ok);
+  --ok: var(--color-on-toast);
+  --kt: var(--color-ok);
+  min-width: 240px;
+  max-width: 360px;
+  margin-bottom: 8px;
+  border: var(--toast-line-w) solid color-mix(in srgb, var(--k) var(--toast-head-mix), var(--color-line));
+  border-left: var(--toast-bar-w) solid var(--k);
+  background: color-mix(in srgb, var(--color-surface) var(--toast-alpha), transparent);
+  backdrop-filter: blur(var(--toast-blur));
+  box-shadow: var(--shadow-dialog);
+  font-size: 12px;
+  opacity: 0;
+  transform: translateX(20px);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+  cursor: pointer;
+}
+.toast .toastHead {
+  background: color-mix(in srgb, var(--k) var(--toast-head-mix), var(--color-surface));
+  color: color-mix(in srgb, var(--ok) var(--toast-head-mix), var(--kt));
+  font-weight: 600;
+  padding: 5px 12px;
+}
+.toast .toastBody {
+  color: var(--color-fg);
+  padding: 10px 12px;
+  line-height: 1.4;
+}
+/* no backdrop-filter: an opaque banner (a translucent one would mix the text with the page) */
+@supports not (backdrop-filter: blur(1px)) {
+  .toast {
+    background: var(--color-surface);
+  }
+}
+:root[data-flat='true'] .toast {
+  background: var(--color-surface);
+  backdrop-filter: none;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+.toast.err {
+  --k: var(--color-toast-err);
+  --kt: var(--color-err);
+}
+.toast.warn {
+  --k: var(--color-toast-warn);
+  --ok: var(--color-on-toast-warn);
+  --kt: var(--color-warn);
+}
+
+/* ── Native controls in the theme (nothing drawn by the browser) ─────────────── */
+@layer base {
+  /* thin navy scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scroll-thumb) var(--color-scroll-track);
+  }
+  ::placeholder {
+    color: var(--placeholder-color);
+  }
+  ::selection {
+    color: var(--color-on-selection);
+    background: var(--color-selection);
+  }
+  /* square orange keyboard focus (no rounded blue system ring) */
+  :focus-visible {
+    outline: var(--focus-ring-w) solid var(--color-focus);
+    outline-offset: 1px;
+  }
+  input.inp:focus-visible,
+  select.inp:focus-visible {
+    outline: none; /* .inp has its own highlight */
+  }
+
+  /* select: own arrow; where the browser supports appearance: base-select,
+     the open list is themed too */
+  select.inp {
+    appearance: none;
+    padding-right: 24px;
+    background: var(--color-field) var(--bg-select-arrow) no-repeat right 8px center;
+    cursor: pointer;
+  }
+  @supports (appearance: base-select) {
+    select.inp,
+    select.inp::picker(select) {
+      appearance: base-select;
+    }
+    select.inp {
+      display: inline-flex;
+      align-items: center;
+    }
+    select.inp::picker-icon {
+      display: none;
+    }
+    select.inp::picker(select) {
+      margin-top: 2px;
+      padding: 0;
+      background: var(--color-field);
+      border: 1px solid var(--color-pop-line);
+      border-top: 3px solid var(--color-accent);
+      box-shadow: var(--shadow-pop);
+    }
+    select.inp option {
+      padding: 5px 8px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--color-line-soft);
+    }
+    select.inp option:nth-child(even) {
+      background: var(--color-row-hover);
+    }
+    select.inp option:hover,
+    select.inp option:focus-visible {
+      color: var(--color-on-selection);
+      background: var(--color-selection);
+      outline: none;
+    }
+    select.inp option:checked {
+      font-weight: 600;
+    }
+    select.inp option::checkmark {
+      display: none;
+    }
+  }
+
+  /* square navy checkbox and radio */
+  input[type='checkbox'],
+  input[type='radio'] {
+    appearance: none;
+    display: inline-grid;
+    place-content: center;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
+    background: var(--color-field);
+    border: 1px solid var(--color-check-line);
+    vertical-align: -2px;
+  }
+  input[type='checkbox']:checked,
+  input[type='radio']:checked {
+    background: var(--color-action);
+    border-color: var(--color-action);
+  }
+  input[type='checkbox']:checked::after {
+    content: '';
+    width: 8px;
+    height: 5px;
+    margin-top: -2px;
+    border: solid var(--color-on-action);
+    border-width: 0 0 2px 2px;
+    transform: rotate(-45deg);
+  }
+  input[type='radio']:checked::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--color-on-action);
+  }
+  input[type='checkbox']:disabled,
+  input[type='radio']:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  /* number inputs without system spinners (arrow keys still work) */
+  input[type='number'] {
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  /* autofill without the browser's blue/yellow background */
+  input:-webkit-autofill,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--color-autofill);
+    box-shadow: 0 0 0 1000px var(--color-field) inset;
+    transition: background-color 9999s;
+  }
+
+  /* field rejected by validation (the native bubble becomes a toast) */
+  .inp.invalid {
+    border-color: var(--color-err);
+    box-shadow: var(--shadow-invalid);
+  }
+}
+
+/* tooltip (replaces the native title= tooltip) */
+.theme-tip {
+  position: fixed;
+  z-index: 70;
+  max-width: 320px;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-on-tooltip);
+  pointer-events: none;
+  background: var(--color-tooltip);
+  border-left: 3px solid var(--color-tooltip-bar);
+  box-shadow: var(--shadow-tip);
+}

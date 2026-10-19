@@ -1,0 +1,62 @@
+# ad-manager .deb package (nfpm). Built by `make deb` and by the release workflow.
+name: ad-manager
+arch: amd64
+platform: linux
+version: ${VERSION}
+version_schema: semver
+section: admin
+priority: optional
+maintainer: jniltinho <jniltinho@users.noreply.github.com>
+description: |
+  Active Directory management (Samba/Windows): web panel, CLI,
+  MCP server and a shares agent for file servers.
+homepage: https://github.com/jniltinho/ad-manager
+license: MIT
+depends:
+  - adduser
+  - openssl
+recommends:
+  - redis-server
+  - acl
+  - python3-samba # agent: Windows (NTFS) permissions via Samba (docs/samba-api.md)
+  - tdb-tools # agent on a DC: samba-tool domain backup offline (docs/backup.md)
+suggests:
+  - samba
+  - winbind
+contents:
+  # everything lives in /opt/ad-manager; /usr/bin/ad-manager is only a symlink
+  - dst: /opt/ad-manager
+    type: dir
+    file_info: { mode: 0755 }
+  - src: dist/ad-manager
+    dst: /opt/ad-manager/ad-manager
+    file_info: { mode: 0755 }
+  - src: /opt/ad-manager/ad-manager
+    dst: /usr/bin/ad-manager
+    type: symlink
+  - src: deploy/ad-manager.service
+    dst: /usr/lib/systemd/system/ad-manager.service
+    file_info: { mode: 0644 }
+  - src: deploy/ad-manager-agent.service
+    dst: /usr/lib/systemd/system/ad-manager-agent.service
+    file_info: { mode: 0644 }
+  - src: packaging/config.toml.default # setup = true: the setup wizard on the first start
+    dst: /opt/ad-manager/config.toml
+    type: config|noreplace
+    file_info: { mode: 0640 }
+  - src: config.toml.example
+    dst: /opt/ad-manager/config.toml.example
+    file_info: { mode: 0644 }
+  - src: scripts/samba-setup.py
+    dst: /opt/ad-manager/scripts/samba-setup.py
+    file_info: { mode: 0755 }
+  - src: README.md
+    dst: /opt/ad-manager/README.md
+    file_info: { mode: 0644 }
+  - src: docs/*.md
+    dst: /opt/ad-manager/docs/
+    file_info: { mode: 0644 }
+scripts:
+  postinstall: packaging/postinst.sh
+  preremove: packaging/prerm.sh
+  postremove: packaging/postrm.sh

@@ -1,0 +1,5 @@
+# zone;name;type;data — the reverse zone does not exist at the target (import with --create-zones)
+origem-samba.lab;intranet;A;192.168.57.200
+origem-samba.lab;wiki;CNAME;intranet.origem-samba.lab
+origem-samba.lab;erp;A;192.168.57.201
+57.168.192.in-addr.arpa;200;PTR;intranet.origem-samba.lab

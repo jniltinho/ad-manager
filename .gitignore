@@ -1,0 +1,62 @@
+# ── secrets and AD data (never commit) ───────────────────────────────────────
+.env
+.env.*
+secret.key
+setup-token
+# senhas-geradas-*.csv and inventario/: the old names of generated-passwords-*.csv and inventory/
+senhas-geradas-*.csv
+generated-passwords-*.csv
+*.pem
+*.key
+agent.token
+inventario/
+inventory/
+*.json.bak
+audit.log
+config.toml
+*.db
+*.db-shm
+*.db-wal
+.review/
+base/
+.run/
+
+# ── build ────────────────────────────────────────────────────────────────────
+/dist/
+/bin/
+*.test
+*.out
+
+# built SPA (vp build → web/dist): only the .gitkeep is committed, for go:embed
+web/dist/*
+!web/dist/.gitkeep
+
+# ── frontend ─────────────────────────────────────────────────────────────────
+node_modules/
+frontend/.vite/
+
+# ── Vagrant ──────────────────────────────────────────────────────────────────
+.vagrant/
+*.log
+
+# ── editors / agents ─────────────────────────────────────────────────────────
+.idea/
+.vscode/
+.agents/settings.local.json
+
+# ── agent skills: outside git, except this project's release skill ───────────
+.agents/skills/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/create-release/
+.codex/
+
+# binaries built inside desktop/ by a plain "go build"
+/desktop/desktop
+/desktop/*.exe
+__pycache__/
+
+# Samba source (reference for the API study, docs/samba-api.md) — not versioned
+/samba-4.23.6/
+/backups/

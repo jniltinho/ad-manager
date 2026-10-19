@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800" font-family="Inter, DejaVu Sans, Arial, sans-serif" stroke-linecap="square" stroke-linejoin="miter" role="img" aria-labelledby="title desc">
+<title id="title">AD Manager architecture</title>
+<desc id="desc">Operators use the panel; the CLI and MCP reach the directory directly over LDAPS. The panel and the desktop app reach the agents over HTTPS with a token. Redis coordinates the agents' tasks and clients reach the files over SMB.</desc>
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5 L1 9 Z" fill="#113058"/></marker>
+</defs>
+<rect x="0" y="0" width="1400" height="800" fill="#ffffff"/>
+<path d="M295 376 H322 V109 H1190 V155" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M295 376 H322 V109 H1190 V155" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M295 461 H340 V132 H1320 V155" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M295 461 H340 V132 H1320 V155" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M295 188 H510" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M295 188 H510" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M930 250 H1100" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M930 250 H1100" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M600 485 V585" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M600 485 V585" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M840 485 V520 H950 V555" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M840 485 V520 H950 V555" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M900 485 V497 H1235 V555" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M900 485 V497 H1235 V555" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M295 281 H440 V540 H805 V628 H830" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M295 281 H440 V540 H805 V628 H830" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M650 680 V705 H945 V680" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M650 680 V705 H945 V680" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<path d="M710 680 V728 H1240 V680" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M710 680 V728 H1240 V680" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<path d="M195 680 V751 H995 V680" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M195 680 V751 H995 V680" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M995 751 H1300 V680" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M995 751 H1300 V680" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="992" y="748" width="6" height="6" fill="#113058"/>
+<rect x="40" y="160" width="255" height="58" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="40" y="245" width="255" height="72" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="41" y="246" width="4" height="70" fill="#f58322"/>
+<rect x="40" y="350" width="255" height="58" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="41" y="351" width="4" height="56" fill="#f58322"/>
+<rect x="40" y="435" width="255" height="58" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="41" y="436" width="4" height="56" fill="#f58322"/>
+<rect x="510" y="155" width="420" height="330" fill="#ffffff" stroke="#113058" stroke-width="2"/>
+<rect x="511" y="156" width="4" height="328" fill="#f58322"/>
+<rect x="532" y="231" width="376" height="51" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="533" y="232" width="374" height="4" fill="#f58322"/>
+<rect x="532" y="298" width="376" height="39" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="533" y="299" width="374" height="4" fill="#f58322"/>
+<rect x="532" y="351" width="376" height="50" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="533" y="352" width="374" height="4" fill="#f58322"/>
+<rect x="532" y="415" width="174" height="49" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="533" y="416" width="172" height="4" fill="#f58322"/>
+<rect x="722" y="415" width="186" height="49" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="723" y="416" width="184" height="4" fill="#f58322"/>
+<rect x="1100" y="155" width="260" height="135" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="500" y="585" width="260" height="95" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="501" y="586" width="4" height="93" fill="#f58322"/>
+<rect x="830" y="555" width="245" height="125" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="831" y="556" width="4" height="123" fill="#f58322"/>
+<rect x="1110" y="555" width="250" height="125" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<rect x="1111" y="556" width="4" height="123" fill="#f58322"/>
+<rect x="60" y="610" width="275" height="70" fill="#eaf0f6" stroke="#113058" stroke-width="2"/>
+<text x="40" y="50" font-size="28" font-weight="700" fill="#113058" text-anchor="start">AD Manager architecture</text>
+<text x="40" y="79" font-size="13" fill="#69788b" text-anchor="start">System components and the directory and share administration flows</text>
+<text x="40" y="137" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Operators</text>
+<text x="428" y="541" font-size="13" fill="#69788b" text-anchor="end">direct share management</text>
+<text x="58" y="185" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Browser</text>
+<text x="58" y="205" font-size="13" fill="#0e172d" text-anchor="start">Web panel</text>
+<text x="58" y="272" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Desktop app</text>
+<text x="58" y="297" font-size="13" fill="#0e172d" text-anchor="start">Linux / Windows / macOS</text>
+<text x="58" y="376" font-size="16" font-weight="700" fill="#113058" text-anchor="start">CLI</text>
+<text x="58" y="397" font-size="13" fill="#0e172d" text-anchor="start">Terminal administration</text>
+<text x="58" y="461" font-size="16" font-weight="700" fill="#113058" text-anchor="start">AI agent (MCP)</text>
+<text x="58" y="482" font-size="13" fill="#0e172d" text-anchor="start">Directory tools</text>
+<text x="532" y="185" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Panel server</text>
+<text x="532" y="208" font-size="13" font-weight="700" fill="#1d4a7e" text-anchor="start">ad-manager server</text>
+<text x="548" y="255" font-size="16" font-weight="700" fill="#113058" text-anchor="start">REST API + SPA (Vue)</text>
+<text x="548" y="273" font-size="13" fill="#0e172d" text-anchor="start">Web UI and administration</text>
+<text x="548" y="324" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Sessions (operator account)</text>
+<text x="548" y="374" font-size="16" font-weight="700" fill="#113058" text-anchor="start">SQLite</text>
+<text x="548" y="393" font-size="13" fill="#0e172d" text-anchor="start">settings, servers and profiles</text>
+<text x="548" y="437" font-size="16" font-weight="700" fill="#113058" text-anchor="start">audit.log</text>
+<text x="548" y="455" font-size="13" fill="#0e172d" text-anchor="start">Audit trail</text>
+<text x="738" y="437" font-size="16" font-weight="700" fill="#113058" text-anchor="start">asynqmon</text>
+<text x="738" y="455" font-size="13" fill="#0e172d" text-anchor="start">/asynqmon</text>
+<text x="1118" y="184" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Domain controller</text>
+<text x="1118" y="208" font-size="13" fill="#0e172d" text-anchor="start">(Windows or Samba)</text>
+<text x="1118" y="235" font-size="13" fill="#0e172d" text-anchor="start">dc01 · example.local</text>
+<text x="1118" y="266" font-size="13" fill="#69788b" text-anchor="start">Identity and directory</text>
+<text x="518" y="612" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Redis (asynq queue)</text>
+<text x="518" y="638" font-size="13" fill="#0e172d" text-anchor="start">Tasks and retries</text>
+<text x="518" y="659" font-size="13" fill="#0e172d" text-anchor="start">Background execution</text>
+<text x="848" y="580" font-size="16" font-weight="700" fill="#113058" text-anchor="start">File server</text>
+<text x="848" y="601" font-size="13" fill="#0e172d" text-anchor="start">(Samba member)</text>
+<text x="848" y="622" font-size="13" font-weight="700" fill="#1d4a7e" text-anchor="start">fs01 — ad-manager agent</text>
+<text x="848" y="646" font-size="13" fill="#0e172d" text-anchor="start">net conf · POSIX ACL</text>
+<text x="848" y="666" font-size="13" fill="#0e172d" text-anchor="start">/srv/shares · Samba logs</text>
+<text x="1128" y="580" font-size="16" font-weight="700" fill="#113058" text-anchor="start">File server</text>
+<text x="1128" y="601" font-size="13" fill="#0e172d" text-anchor="start">(Samba member)</text>
+<text x="1128" y="622" font-size="13" font-weight="700" fill="#1d4a7e" text-anchor="start">fs02 — ad-manager agent</text>
+<text x="1128" y="646" font-size="13" fill="#0e172d" text-anchor="start">net conf · POSIX ACL</text>
+<text x="1128" y="666" font-size="13" fill="#0e172d" text-anchor="start">/srv/shares · Samba logs</text>
+<text x="78" y="637" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Windows / Linux clients</text>
+<text x="78" y="661" font-size="13" fill="#0e172d" text-anchor="start">Share access</text>
+<text x="40" y="784" font-size="13" fill="#69788b" text-anchor="start">No service account: every action uses the credentials of the person operating.</text>
+<rect x="642.62" y="88" width="154.75" height="17" fill="#ffffff"/>
+<text x="720" y="100" font-size="13" fill="#113058" text-anchor="middle">LDAPS 636 · direct CLI</text>
+<rect x="928.63" y="111" width="162.74" height="17" fill="#ffffff"/>
+<text x="1010" y="123" font-size="13" fill="#113058" text-anchor="middle">LDAPS 636 · direct MCP</text>
+<rect x="356.62" y="165" width="118.77" height="17" fill="#ffffff"/>
+<text x="416" y="177" font-size="13" fill="#113058" text-anchor="middle">HTTPS + session</text>
+<rect x="974.53" y="226" width="80.94" height="17" fill="#ffffff"/>
+<text x="1015" y="238" font-size="13" fill="#113058" text-anchor="middle">LDAPS 636</text>
+<rect x="605" y="557" width="98.27" height="17" fill="#ffffff"/>
+<text x="610" y="569" font-size="13" fill="#113058" text-anchor="start">Redis (asynq)</text>
+<rect x="961" y="531" width="107.0" height="17" fill="#ffffff"/>
+<text x="966" y="543" font-size="13" fill="#113058" text-anchor="start">HTTPS + token</text>
+<rect x="1076.5" y="475" width="107.0" height="17" fill="#ffffff"/>
+<text x="1130" y="487" font-size="13" fill="#113058" text-anchor="middle">HTTPS + token</text>
+<rect x="326.0" y="508" width="107.0" height="17" fill="#ffffff"/>
+<text x="428" y="520" font-size="13" fill="#113058" text-anchor="end">HTTPS + token</text>
+<rect x="740.87" y="685" width="98.27" height="17" fill="#ffffff"/>
+<text x="790" y="697" font-size="13" fill="#113058" text-anchor="middle">Redis (asynq)</text>
+<rect x="1050.87" y="708" width="98.27" height="17" fill="#ffffff"/>
+<text x="1100" y="720" font-size="13" fill="#113058" text-anchor="middle">Redis (asynq)</text>
+<rect x="366.34" y="731" width="67.31" height="17" fill="#ffffff"/>
+<text x="400" y="743" font-size="13" fill="#113058" text-anchor="middle">SMB 445</text>
+<rect x="1106.34" y="731" width="67.31" height="17" fill="#ffffff"/>
+<text x="1140" y="743" font-size="13" fill="#113058" text-anchor="middle">SMB 445</text>
+</svg>

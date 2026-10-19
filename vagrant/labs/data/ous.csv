@@ -1,0 +1,4 @@
+﻿ou;description
+OU=Matriz;Headquarters (lab)
+OU=Financeiro,OU=Matriz;Finance
+OU=TI,OU=Matriz;Technology

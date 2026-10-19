@@ -1,0 +1,126 @@
+{
+    "timestamp": "2026-10-18T15:07:43.113812+0000",
+    "version": "4.23.6-Ubuntu-4.23.6+dfsg-1ubuntu2.2",
+    "smb_conf": "/etc/samba/smb.conf",
+    "sessions": {
+        "1041753017": {
+            "session_id": "1041753017",
+            "server_id": {
+                "pid": "281",
+                "task_id": "0",
+                "vnn": "4294967295",
+                "unique_id": "2625939119048763355"
+            },
+            "uid": 1001,
+            "gid": 1003,
+            "username": "ana",
+            "groupname": "ana",
+            "creation_time": "2026-10-18T15:07:40.116568+00:00",
+            "expiration_time": "30828-09-14T02:48:05.477581+00:00",
+            "auth_time": "2026-10-18T15:07:40.116767+00:00",
+            "remote_machine": "127.0.0.1",
+            "hostname": "ipv4:127.0.0.1:38048",
+            "session_dialect": "SMB3_11",
+            "client_guid": "58b5db4e-0127-4892-a9fa-dfda2ddd84d8",
+            "encryption": {
+                "cipher": "-",
+                "degree": "none"
+            },
+            "signing": {
+                "cipher": "AES-128-GMAC",
+                "degree": "partial"
+            },
+            "channels": {
+                "1": {
+                    "channel_id": "1",
+                    "creation_time": "2026-10-18T15:07:40.116568+00:00",
+                    "local_address": "ipv4:127.0.0.1:445",
+                    "remote_address": "ipv4:127.0.0.1:38048",
+                    "transport": "tcp"
+                }
+            }
+        }
+    },
+    "tcons": {
+        "2296158698": {
+            "service": "Financeiro",
+            "server_id": {
+                "pid": "281",
+                "task_id": "0",
+                "vnn": "4294967295",
+                "unique_id": "2625939119048763355"
+            },
+            "tcon_id": "2296158698",
+            "session_id": "1041753017",
+            "machine": "127.0.0.1",
+            "connected_at": "2026-10-18T15:07:40.117762+00:00",
+            "encryption": {
+                "cipher": "-",
+                "degree": "none"
+            },
+            "signing": {
+                "cipher": "-",
+                "degree": "none"
+            }
+        }
+    },
+    "open_files": {
+        "/srv/shares/financeiro/planilha.xlsx": {
+            "service_path": "/srv/shares/financeiro",
+            "filename": "planilha.xlsx",
+            "fileid": {
+                "devid": 153,
+                "inode": 22444149,
+                "extid": 0
+            },
+            "num_pending_deletes": 0,
+            "opens": {
+                "281/3": {
+                    "server_id": {
+                        "pid": "281",
+                        "task_id": "0",
+                        "vnn": "4294967295",
+                        "unique_id": "2625939119048763355"
+                    },
+                    "uid": 1001,
+                    "share_file_id": "3",
+                    "sharemode": {
+                        "hex": "0x00000003",
+                        "READ": true,
+                        "WRITE": true,
+                        "DELETE": false,
+                        "text": "RW"
+                    },
+                    "access_mask": {
+                        "hex": "0x00000003",
+                        "READ_DATA": true,
+                        "WRITE_DATA": true,
+                        "APPEND_DATA": false,
+                        "READ_EA": false,
+                        "WRITE_EA": false,
+                        "EXECUTE": false,
+                        "READ_ATTRIBUTES": false,
+                        "WRITE_ATTRIBUTES": false,
+                        "DELETE_CHILD": false,
+                        "DELETE": false,
+                        "READ_CONTROL": false,
+                        "WRITE_DAC": false,
+                        "SYNCHRONIZE": false,
+                        "ACCESS_SYSTEM_SECURITY": false,
+                        "text": "RW"
+                    },
+                    "caching": {
+                        "READ": false,
+                        "WRITE": false,
+                        "HANDLE": false,
+                        "hex": "0x00000000",
+                        "text": ""
+                    },
+                    "oplock": {},
+                    "lease": {},
+                    "opened_at": "2026-10-18T15:07:40.118058+00:00"
+                }
+            }
+        }
+    }
+}

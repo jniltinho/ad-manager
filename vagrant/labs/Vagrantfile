@@ -1,0 +1,80 @@
+# Migration and installation labs (openspec: lab-windows-2019, lab-windows-2022, lab-samba-ubuntu,
+# domain-clients lab, initial-setup). Host-only network 192.168.57.0/24; every VM blocks the production LANs in its
+# first provisioner. VMs start on demand: vagrant up setup-test
+#   LAB=1 is required (a guard against running these scripts elsewhere).
+abort "set LAB=1 (isolated lab)" unless ENV["LAB"] == "1"
+
+# Ubuntu 26.04 machines with only the basics and Redis: the .deb and the setup wizard do the rest.
+#   name => [hostname, address, what it is for]
+UBUNTU = {
+  "setup-test"   => ["setuptest", "192.168.57.50", "the setup wizard on a clean machine (initial-setup)"],
+  "restore-test" => ["dcrestore", "192.168.57.51", "the \"restore a DC\" role: setup-test's DC from its backup"],
+  # lab-samba-ubuntu (vagrant/labs/lab-samba.sh)
+  "samba-src"    => ["srcdc", "192.168.57.30", "DC of origem-samba.lab, with the panel"],
+  "samba-fs"     => ["srcfs", "192.168.57.31", "file server of origem-samba.lab (member with the agent)"],
+  "samba-mig"    => ["migdc", "192.168.57.32", "path B: additional DC of origem-samba.lab that takes over"],
+  "samba-dst"    => ["dstdc", "192.168.57.40", "path A: DC of destino.lab, with the panel"],
+  "samba-dst-fs" => ["dstfs", "192.168.57.41", "path A: file server of destino.lab (member with the agent)"],
+  # lab-windows-2022 (vagrant/labs/lab-windows.sh); path A reuses samba-dst and samba-dst-fs
+  "samba-mig22"  => ["mig22", "192.168.57.23", "path B: Samba DC that joins origem2022.lab and takes it over"],
+  "samba-mig19"  => ["mig19", "192.168.57.24", "path B: Samba DC that joins origem2019.lab and takes it over"],
+  # domain-clients lab: the Linux client (realmd/sssd; without the desktop packages: the join and logon are the same)
+  "ubuntu-desk"  => ["udesk", "192.168.57.63", "Ubuntu client of destino.lab (realmd, sssd, mkhomedir, Kerberos)"],
+}
+
+# Windows Server machines (WinRM): name => [box, box version (pinned), hostname, address, memory MiB, what it is for]
+WINDOWS = {
+  # lab-windows.sh: WIN_VERSION=2019 (the box's maintainer stopped publishing 2019: its last version) and 2022
+  "w2019" => ["gusztavvargadr/windows-server-2019-standard", "1809.0.2407", "w2019", "192.168.57.21", 4096,
+              "DC of origem2019.lab"],
+  "w2022" => ["gusztavvargadr/windows-server-2022-standard", "2601.0.0", "w2022", "192.168.57.22", 4096,
+              "DC of origem2022.lab, hardened (LDAP signing, channel binding, SMB signing, AES only)"],
+  # domain-clients lab (vagrant/labs/lab-clients.sh): clients of destino.lab
+  "win11"   => ["gusztavvargadr/windows-11", "2607.1.0", "win11", "192.168.57.61", 4096, "a user's workstation"],
+  "ws2022m" => ["gusztavvargadr/windows-server-2022-standard", "2601.0.0", "ws2022m", "192.168.57.62", 4096,
+                "member server with RSAT (ADUC, GPMC, DNS) administering the Samba DC"],
+}
+
+# The networks the lab must never reach (your production LANs) and a host there to prove it: LAB_BLOCK="cidr cidr…",
+# LAB_PROBE=ip (port 389 is tried). The defaults are only an example.
+ISOLATE = {
+  "LAB_BLOCK" => ENV.fetch("LAB_BLOCK", "192.168.10.0/24 192.168.20.0/24"),
+  "LAB_PROBE" => ENV.fetch("LAB_PROBE", "192.168.10.10"),
+}
+
+Vagrant.configure("2") do |config|
+  config.vm.synced_folder "../..", "/vagrant"
+
+  WINDOWS.each do |name, (box, version, host, ip, mem, _what)|
+    config.vm.define name, autostart: false do |w|
+      w.vm.box = box
+      w.vm.box_version = version if version
+      w.vm.hostname = host
+      w.vm.communicator = "winrm"
+      w.vm.boot_timeout = 900
+      w.vm.network "private_network", ip: ip
+      w.vm.provider "virtualbox" do |vb|
+        vb.name = "adm-lab-#{name}"
+        vb.memory = mem
+        vb.cpus = 2
+        vb.gui = false
+      end
+      w.vm.provision "isolate", type: "shell", path: "isolate-windows.ps1", env: ISOLATE
+    end
+  end
+
+  UBUNTU.each do |name, (host, ip, _what)|
+    config.vm.define name, autostart: false do |v|
+      v.vm.box = "bento/ubuntu-26.04"
+      v.vm.hostname = host
+      v.vm.network "private_network", ip: ip
+      v.vm.provider "virtualbox" do |vb|
+        vb.name = "adm-lab-#{name}"
+        vb.memory = 2048
+        vb.cpus = 2
+      end
+      v.vm.provision "isolate", type: "shell", path: "isolate-linux.sh", env: ISOLATE
+      v.vm.provision "base", type: "shell", inline: "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server jq >/dev/null && echo redis ok"
+    end
+  end
+end

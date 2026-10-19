@@ -1,0 +1,122 @@
+/* "ADManager" theme: looks like ManageEngine ADManager Plus. Chosen in Settings and switched on with
+ * <html data-theme="admanager">. Only role values and recipe parameters of the contract in style.css — no
+ * component selectors. Values measured on the lab ADManager Plus 8.0 install (computed styles, 2026-10-18), */
+:root[data-theme='admanager'] {
+  /* palette (the roles default to these) */
+  --color-cn: #424f56; /* top band (logo + tabs) */
+  --color-cn-dark: #333d42; /* derived: strong text / footer */
+  --color-cn-light: #627884; /* inactive tab, "Directory Settings" button */
+  --color-cn-accent: #80ba50; /* main action (Add, Create, Save) */
+  --color-cn-accent-light: #9ccb75; /* derived: top of the login button's gradient */
+  --color-cn-accent-strong: #64ac4b; /* section titles (h3 13px/600) and ok status */
+  --color-cn-muted: #666666; /* secondary text */
+  --color-cn-soft: #a0a0a0; /* disabled text / hint */
+  --color-cn-bg: #f0f1f3; /* page background */
+  --color-cn-bg-light: #f9f9f9; /* striped rows, boxes */
+  --color-cn-bg-soft: #dfe1e3; /* selected item in the side menu */
+  --color-cn-border: #dddddd; /* box and table borders */
+  --color-cn-ok: #64ac4b;
+  --color-cn-err: #fa3e3e;
+  --color-cn-warn: #c25418;
+  --font-sans: Verdana, 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  /* flat page (no dots) */
+  --bg-page: none;
+
+  /* top tabs: flat band, inactive #627884 with dividers, active white "fitting" into the content */
+  --color-tabs-top: #56656d; /* volume: the band lighter on top (the flat look keeps the solid #424f56) */
+  --color-tabs: var(--color-cn);
+  --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
+  --shadow-tabs: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  --color-tab: var(--color-cn-light);
+  --color-on-tab: #fff;
+  --color-on-tab-aux: #fff; /* API / Queues links: white on the band (also over its lighter top) */
+  --color-tab-divider: #424f56;
+  --tab-divider-w: 1px;
+  --tab-hover-filter: brightness(1.12);
+  /* refined: a little room in the band and the other tabs 3px lower, so the white current tab stands taller */
+  --tabs-pad: 4px;
+  --tab-inset-top: 3px;
+  --color-tab-on-top: #fff;
+  --color-tab-on: #fff;
+  --color-on-tab-on: #000;
+  --color-tab-on-icon: var(--color-cn-accent-strong);
+  --bg-tab-on: none;
+  --shadow-tab-on: 0 0 #0000;
+
+  /* side list: current item white with a 3px green bar on the left */
+  --color-nav-on: #fff;
+  --color-on-nav-on: #000;
+  --shadow-nav-on: inset 3px 0 0 #74bc49;
+  --color-nav-on-line: #e6e6e6;
+  --nav-on-last-line-w: 1px;
+
+  /* dark flat table header, 31px */
+  --color-table-head-top: #67737a; /* volume: lighter top, darker base (the flat look keeps #556067) */
+  --color-table-head: #556067;
+  --color-on-table-head: #fff;
+  --bg-table-head: linear-gradient(to bottom in oklab, var(--color-table-head-top) 0%, var(--color-table-head) 100%);
+  --shadow-table-head: inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  --table-head-h: 31px;
+
+  /* inner tabs (Logs) and card/modal tabs: light gray boxes with a border; the current one white with the side
+     menu's green on top, open into the content */
+  --color-subtab-line: #c9ced2;
+  --color-subtab: #f0f1f3;
+  --color-on-subtab: #333d42;
+  --color-subtab-hover: #f7f8f9;
+  --color-subtab-on: #fff;
+  --color-on-subtab-on: #000;
+  --shadow-subtab: inset 1px 0 #c9ced2, inset -1px 0 #c9ced2, inset 0 1px #c9ced2;
+  --shadow-subtab-on: inset 1px 0 #c9ced2, inset -1px 0 #c9ced2, inset 0 3px #74bc49;
+  --subtabs-line-w: 1px;
+  --subtabs-gap: 2px;
+  --subtab-inset-top: 3px;
+  --subtab-on-overlap: 1px;
+  --color-cardtabs: #f9f9f9;
+  --color-cardtabs-line: #c9ced2;
+  --color-cardtab: #f0f1f3;
+  --color-on-cardtab: #333d42;
+  --color-cardtab-hover: #f7f8f9;
+  --color-cardtab-on: #fff;
+  --color-on-cardtab-on: #000;
+  --shadow-cardtab: inset 1px 0 #c9ced2, inset -1px 0 #c9ced2, inset 0 1px #c9ced2;
+  --shadow-cardtab-on: inset 1px 0 #c9ced2, inset -1px 0 #c9ced2, inset 0 3px #74bc49;
+  --cardtabs-pad: 6px;
+  --cardtabs-gap: 2px;
+  --cardtab-inset-top: 3px;
+  --cardtab-on-overlap: 1px;
+  --cardtab-bar-w: 0px;
+  --cardtab-transform: none;
+
+  /* green section titles (13px/600, no caps, no side bar) */
+  --color-card-head-top: #fff;
+  --color-on-card-head: #387f1a; /* AA (phase B), was #64ac4b */
+  --color-card-head: #f4f5f6; /* volume: white on top to a very light gray */
+  --bg-card-head: linear-gradient(to bottom in oklab, var(--color-card-head-top) 0%, var(--color-card-head) 100%);
+  --card-head-bar-w: 0px;
+  --card-head-size: 13px;
+  --card-head-transform: none;
+
+  /* phase B (theme-base 5.1): the smallest change in OKLCH lightness, same hue and chroma, that makes every
+     contrast recipe pass AA; the brand button keeps its color and takes a dark ink */
+  --color-fg-muted: #636363; /* was #666666 */
+  --color-field-line: #8b94a3; /* was #aab3c2 */
+  --color-check-line: #8695a8; /* was #8b9aad */
+  --color-danger: #e5242c; /* was #fa3e3e */
+  --color-danger-top: #d54041; /* was #d84343 */
+  --color-on-brand-action: #1e2b14; /* was #fff */
+  --color-ok-fill: #3e8522; /* was #64ac4b */
+  --color-err-fill: #e5242c; /* was #fa3e3e */
+  --color-neutral-fill: #767676; /* was #a0a0a0 */
+  --color-toast-warn: #cc4b00; /* was #ef6c00 */
+  --color-ok: #2b7206; /* was #64ac4b */
+  --color-err: #ca0011; /* was #fa3e3e */
+  --color-on-login-box-muted: rgba(255, 255, 255, 0.63); /* was rgba(255, 255, 255, 0.6) */
+  --color-on-login-box-faint: rgba(255, 255, 255, 0.63); /* was rgba(255, 255, 255, 0.55) */
+  --color-login-title: #94cf65; /* was #80ba50 */
+  --color-focus: #6aa338; /* was #80ba50 */
+  --color-fg-subtle: #626262; /* 4.5:1 on row-hover too, was #6d6d6d, before #a0a0a0 */
+  --color-link-hover: #33701c; /* 4.5:1 on row-hover too (table actions), was #3e8522, before #64ac4b */
+  --color-warn: #ad4100; /* was #c25418 */
+}

@@ -1,0 +1,22 @@
+// pt-BR for the Home page (dashboard).
+export default {
+  'Enabled users': 'Usuários ativos',
+  'Inactive {n}+ days': 'Inativos +{n} dias',
+  'Reset password / unlock': 'Redefinir senha / desbloquear',
+  'user login': 'login do usuário',
+  Open: 'Abrir',
+  'Login not found.': 'Login não encontrado.',
+  'Domain controllers': 'Controladores de domínio',
+  'Connected to': 'Conectado em',
+  'Replication/SYSVOL are not checked here — use': 'Replicação/SYSVOL não são verificados por aqui — use',
+  Alerts: 'Alertas',
+  policy: 'política',
+  'Minimum password length of {n} characters.': 'Senha mínima de {n} caracteres.',
+  'Minimum password length of {n} characters, no complexity.': 'Senha mínima de {n} caracteres, sem complexidade.',
+  view: 'ver',
+  inactive: 'inativos',
+  '{n} enabled account(s) with no logon for more than {days} days.': '{n} conta(s) ativa(s) sem logon há mais de {days} dias.',
+  review: 'revisar',
+  'Nothing pending.': 'Nada pendente.',
+  'Operating systems': 'Sistemas operacionais',
+}

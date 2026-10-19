@@ -1,0 +1,59 @@
+# ad-manager — copy to config.toml (or /opt/ad-manager/config.toml).
+# AD_* environment variables override these values.
+# Credentials NEVER go here: the CLI uses AD_USER/AD_PASSWORD and the panel uses
+# each operator's own sign-in.
+#
+# setup = true opens only the setup wizard (new install from the .deb); leave it out or false here.
+
+[ad]
+url = "ldaps://dc01.example.local"   # a DC of the domain (Windows or Samba)
+domain = "example.local"
+# base_dn = "DC=example,DC=local"    # derived from domain
+# start_tls = false                # with an ldap:// url
+# ca_file = "/opt/ad-manager/tls/ca.pem" # Samba: /var/lib/samba/private/tls/ca.pem
+insecure_skip_verify = false        # true only in a lab
+# admin_group = ""                 # empty = Domain Admins by SID (RID 512)
+
+[server]
+listen = "127.0.0.1:8443"
+# cert_file = "/opt/ad-manager/tls/tls.crt"   # your own certificate (recommended in production)
+# key_file  = "/opt/ad-manager/tls/tls.key"
+self_signed = false                 # true: without cert_file, generates a self-signed one in /opt/ad-manager/data (SHA-256 fingerprint in the log)
+session_minutes = 30
+audit_log = "/opt/ad-manager/logs/audit.log"
+# access_log = "/opt/ad-manager/logs/access.log"  # API requests (Logs → HTTP); default: beside audit_log
+trust_proxy = false                 # true behind Nginx on 127.0.0.1
+
+[db]
+path = "/opt/ad-manager/data/ad-manager.db"   # SQLite: file servers and AD profiles (0600)
+
+[redis]
+# asynq queue; empty turns off /asynqmon in the panel. Password: the AD_REDIS_PASSWORD variable
+addr = "127.0.0.1:6379"
+tls = false
+
+# ── only on the file server (ad-manager agent) ────────────────────────────────
+[agent]
+listen = "0.0.0.0:9443"
+cert_file = "/opt/ad-manager/tls/tls.crt"
+key_file = "/opt/ad-manager/tls/tls.key"
+token_file = "/opt/ad-manager/agent.token"  # generate with: sudo ad-manager agent token
+self_signed = false                        # true: without cert_file, generates a self-signed one in /opt/ad-manager/data
+# queue = "fs-fs01"                        # default: fs-<hostname>
+share_roots = ["/srv/shares"]
+# Only on a DC (the agent there is read-only): explicit write mode to restore a GPO from a backup, always as a
+# new GPO (docs/gpo.md). An account that creates GPOs and a file with only its password, mode 0600.
+# gpo_restore_user = "svc-gporestore"
+# gpo_restore_password_file = "/opt/ad-manager/gpo-restore.pass"
+# This server's backups (docs/backup.md): files, manifests and schedules.
+# backup_dir = "/var/backups/ad-manager"
+# Largest backup accepted in "Send a backup", in MiB (default 20480 = 20 GiB).
+# backup_upload_max_mib = 20480
+# Sync (docs/sync.md): each run's process runs in a systemd unit that can only write the destination.
+# In a container without systemd, allow running without that confinement explicitly:
+# sync_unconfined = true
+
+[samba]
+# Samba log directory shown on the Logs page (panel on a DC, and on each agent).
+# The panel service reads it through the "adm" group (SupplementaryGroups in the unit).
+log_dir = "/var/log/samba"

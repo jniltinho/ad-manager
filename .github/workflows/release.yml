@@ -1,0 +1,131 @@
+# Release on a tag vX.Y.Z: the CI (ci.yml) runs first; then the Linux job builds the SPA, the server for linux and
+# windows (amd64), the .deb and the desktop app for linux and windows, and the macOS job builds the desktop app for
+# Apple Silicon, Intel and the universal .app. The last job publishes everything with the gh CLI, with the notes of
+# that version in CHANGELOG.md and checksums.txt.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  TZ: America/Sao_Paulo
+  APP: ad-manager
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  linux:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: SPA (→ web/dist)
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Server, .deb and desktop app (linux, windows)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq zip upx-ucl libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev gcc-mingw-w64-x86-64
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          BUILDTIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          PKG="ad-manager/internal/buildinfo"
+          LDFLAGS="-s -w -X ${PKG}.Version=${VERSION} -X ${PKG}.Commit=${COMMIT} -X ${PKG}.BuildTime=${BUILDTIME}"
+          mkdir -p dist build
+          for p in linux/amd64 windows/amd64; do
+            GOOS="${p%/*}"; GOARCH="${p#*/}"
+            bin="${APP}"; [ "$GOOS" = windows ] && bin="${APP}.exe"
+            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" go build -trimpath -ldflags "$LDFLAGS" -o "build/${bin}" .
+            upx -q --best --lzma "build/${bin}"
+            cp README.md build/
+            cp config.toml.example build/config.toml
+            base="${APP}_${VERSION}_${GOOS}_${GOARCH}"
+            if [ "$GOOS" = windows ]; then
+              (cd build && zip -q "../dist/${base}.zip" "${bin}" config.toml README.md)
+            else
+              tar -C build -czf "dist/${base}.tar.gz" "${bin}" config.toml README.md
+            fi
+            rm -f "build/${bin}"
+          done
+          # .deb (nfpm) with the already-compressed linux binary
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.0
+          tar -xzf "dist/${APP}_${VERSION}_linux_amd64.tar.gz" -C build "${APP}"
+          cp "build/${APP}" dist/ad-manager # nfpm packages dist/ad-manager
+          VERSION="${VERSION#v}" "$(go env GOPATH)/bin/nfpm" pkg --packager deb --config packaging/nfpm.yaml --target dist/
+          rm -f dist/ad-manager "build/${APP}"
+          # desktop app (Fyne, CGO): native linux, windows through mingw
+          (cd desktop && CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o ../build/ad-manager-desktop . \
+            && CGO_ENABLED=1 GOOS=windows CC=x86_64-w64-mingw32-gcc go build -trimpath \
+              -ldflags "-s -w -H=windowsgui -extldflags=-Wl,--subsystem,windows -X main.version=${VERSION}" -o ../build/ad-manager-desktop.exe .)
+          tar -C build -czf "dist/ad-manager-desktop_${VERSION}_linux_amd64.tar.gz" ad-manager-desktop
+          (cd build && zip -q "../dist/ad-manager-desktop_${VERSION}_windows_amd64.zip" ad-manager-desktop.exe)
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    needs: ci
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: Desktop app (darwin arm64, amd64 and universal .app)
+        working-directory: desktop
+        run: make mac VERSION="${GITHUB_REF_NAME}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/ad-manager-desktop_*_darwin_*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release with gh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          (cd dist && sha256sum * > checksums.txt && cat checksums.txt)
+          # the notes: this version's section of CHANGELOG.md
+          awk -v v="${TAG#v}" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^(## )?\[/ {exit} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Release ${TAG}." > notes.md
+          cat >> notes.md <<'NOTES'
+
+          ---
+          **Packages:** server for `linux/amd64` (`.tar.gz`, and `.deb` for Ubuntu 26.04) and `windows/amd64` (`.zip`);
+          desktop app for Linux, Windows and macOS (Apple Silicon, Intel and a universal `.app`); `checksums.txt`.
+          NOTES
+          gh release create "$TAG" dist/* --title "$TAG" --notes-file notes.md --verify-tag

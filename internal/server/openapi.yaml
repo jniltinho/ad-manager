@@ -1,0 +1,912 @@
+openapi: 3.0.3
+info:
+  title: AD Manager API
+  version: "1"
+  description: |
+    JSON API of the AD Manager panel. Every call under `/api` (except login, health, branding,
+    i18n and password links) needs the session cookie `adc_session`, obtained with
+    `POST /api/login` by a domain administrator: each request then runs against the directory
+    with that operator's own credentials. Changes are written to the audit log.
+
+    Errors answer `{"error": "message"}` in English (the web panel and the CLI translate them).
+    This page is switched on in Settings (off by default) and, like the queue monitor, only opens for a
+    signed-in administrator.
+servers:
+  - url: /
+security:
+  - session: []
+tags:
+  - name: Session
+  - name: Users
+  - name: Groups
+  - name: OUs
+  - name: Computers
+  - name: DNS
+  - name: Group Policy
+  - name: Policy
+  - name: Password links
+  - name: Import/export
+  - name: File servers
+  - name: Logs
+  - name: Settings
+
+paths:
+  /api/health:
+    get:
+      tags: [Session]
+      summary: Directory reachability, version and branding (public)
+      security: []
+      responses:
+        "200": { description: "OK. `brand` has the company, support link, logo flag, language, `theme` (id), `flat` (flat look) and `themes` (the theme registry: id, label, scheme light/dark)" }
+        "503": { description: Directory unreachable }
+  /api/i18n:
+    get:
+      tags: [Session]
+      summary: pt-BR catalog of the server messages (public)
+      security: []
+      responses: { "200": { description: "{messages, patterns}" } }
+  /api/brand/logo:
+    get:
+      tags: [Settings]
+      summary: Company logo (public)
+      security: []
+      responses: { "200": { description: Image }, "404": { description: No logo } }
+  /api/login:
+    post:
+      tags: [Session]
+      summary: Sign in (domain administrators only); sets the adc_session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user, password]
+              properties:
+                user: { type: string, example: administrator }
+                password: { type: string, format: password }
+      responses:
+        "200": { description: "{user, domain}" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/logout:
+    post:
+      tags: [Session]
+      summary: Sign out
+      responses: { "204": { description: Done } }
+  /api/me:
+    get:
+      tags: [Session]
+      summary: Signed-in operator, settings and branding
+      responses: { "200": { description: "OK. `brand` as in /api/health (with `theme` and `themes`)" } }
+  /api/me/password:
+    post:
+      tags: [Session]
+      summary: Change the operator's own password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { old: { type: string, format: password }, new: { type: string, format: password } }
+      responses: { "204": { description: Changed }, "422": { $ref: "#/components/responses/Error" } }
+  /api/summary:
+    get:
+      tags: [Session]
+      summary: Dashboard numbers (users, groups, computers, policy)
+      responses: { "200": { description: OK } }
+
+  /api/users:
+    get:
+      tags: [Users]
+      summary: List users
+      parameters: [{ $ref: "#/components/parameters/q" }]
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/User" } } } }
+    post:
+      tags: [Users]
+      summary: Create a user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/UserInput"
+                - type: object
+                  properties:
+                    password: { type: string, format: password }
+                    ou: { type: string, description: "OU DN (default CN=Users)" }
+                    must_change: { type: boolean }
+      responses: { "201": { description: Created }, "409": { $ref: "#/components/responses/Error" } }
+  /api/users/{sam}:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    get:
+      tags: [Users]
+      summary: One user with its groups
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [Users]
+      summary: Update a user's data
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/UserInput" } } } }
+      responses: { "200": { description: Updated user } }
+    delete:
+      tags: [Users]
+      summary: Delete a user (built-in accounts, DCs and the operator are refused)
+      responses: { "204": { description: Deleted }, "403": { $ref: "#/components/responses/Error" } }
+  /api/users/{sam}/enable:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post: { tags: [Users], summary: Enable the account, responses: { "204": { description: Done } } }
+  /api/users/{sam}/disable:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post: { tags: [Users], summary: Disable the account, responses: { "204": { description: Done } } }
+  /api/users/{sam}/unlock:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post: { tags: [Users], summary: Clear a lockout, responses: { "204": { description: Done } } }
+  /api/users/{sam}/move:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post:
+      tags: [Users]
+      summary: Move to another OU
+      requestBody: { content: { application/json: { schema: { type: object, properties: { ou: { type: string } } } } } }
+      responses: { "204": { description: Done } }
+  /api/users/{sam}/password:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post:
+      tags: [Users]
+      summary: Reset the password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { password: { type: string, format: password }, must_change: { type: boolean } }
+      responses: { "204": { description: Done }, "422": { $ref: "#/components/responses/Error" } }
+
+  /api/users/{sam}/password-link:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post:
+      tags: [Password links]
+      summary: Single-use link for the user to choose a new password
+      description: The account gets a random temporary password (must change at next logon) and is unlocked.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { hours: { type: integer, minimum: 1, maximum: 168, example: 24 } } }
+      responses:
+        "200": { description: "{token, expires}; the link is /password/{token}" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/password-link/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Password links]
+      summary: Link details (public); the first browser that opens it owns it
+      security: []
+      responses: { "200": { description: "{user, name, expires}" }, "404": { description: Invalid or expired }, "410": { description: Opened elsewhere } }
+    post:
+      tags: [Password links]
+      summary: Set the new password (public, Kerberos kpasswd)
+      security: []
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { password: { type: string, format: password } } } } }
+      responses: { "204": { description: Changed }, "422": { $ref: "#/components/responses/Error" } }
+
+  /api/groups:
+    get:
+      tags: [Groups]
+      summary: List groups
+      parameters: [{ $ref: "#/components/parameters/q" }]
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Group" } } } }
+    post:
+      tags: [Groups]
+      summary: Create a group
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                type: { type: string, enum: [security, distribution] }
+                scope: { type: string, enum: [global, domainlocal, universal] }
+                ou: { type: string }
+      responses: { "201": { description: Created } }
+  /api/groups/{sam}:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    get: { tags: [Groups], summary: One group with its members, responses: { "200": { description: OK } } }
+    put:
+      tags: [Groups]
+      summary: Change the description
+      requestBody: { content: { application/json: { schema: { type: object, properties: { description: { type: string } } } } } }
+      responses: { "204": { description: Done } }
+    delete: { tags: [Groups], summary: Delete a group, responses: { "204": { description: Deleted } } }
+  /api/groups/{sam}/members:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post:
+      tags: [Groups]
+      summary: Add a member (user, group or computer NAME$)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { member: { type: string } } } } } }
+      responses: { "204": { description: Done } }
+  /api/groups/{sam}/members/{member}:
+    parameters:
+      - { $ref: "#/components/parameters/sam" }
+      - { name: member, in: path, required: true, schema: { type: string } }
+    delete: { tags: [Groups], summary: Remove a member, responses: { "204": { description: Done } } }
+
+  /api/ous:
+    get: { tags: [OUs], summary: List OUs and default containers, responses: { "200": { description: OK } } }
+    post:
+      tags: [OUs]
+      summary: Create an OU
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { name: { type: string }, description: { type: string }, parent: { type: string, description: "DN; empty = domain root" } } }
+      responses: { "201": { description: Created } }
+    delete:
+      tags: [OUs]
+      summary: Delete an empty OU
+      parameters: [{ name: dn, in: query, required: true, schema: { type: string } }]
+      responses: { "204": { description: Deleted }, "409": { $ref: "#/components/responses/Error" } }
+
+  /api/computers:
+    get:
+      tags: [Computers]
+      summary: List computers
+      parameters: [{ $ref: "#/components/parameters/q" }]
+      responses: { "200": { description: OK } }
+  /api/computers/sessions:
+    get:
+      tags: [Computers]
+      summary: SMB sessions open on a computer of the domain (MS-SRVS NetrSessionEnum level 1, with the operator's credential)
+      description: "host must be a computer account of the directory with a DNS name. The call uses Kerberos only, for cifs/<that DNS name>, over signed SMB (encrypted when the server supports it): a forged DNS answer cannot take the credential elsewhere, and no NTLM is sent. Needs an administrator of that server. host and sessions: client, user, open_files, active_seconds, idle_seconds. Read only."
+      parameters: [{ name: host, in: query, required: true, schema: { type: string, example: fs01.example.net } }]
+      responses: { "200": { description: OK }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/computers/{sam}:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    delete: { tags: [Computers], summary: Delete a computer account, responses: { "204": { description: Deleted } } }
+  /api/computers/{sam}/enable:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post: { tags: [Computers], summary: Enable, responses: { "204": { description: Done } } }
+  /api/computers/{sam}/disable:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post: { tags: [Computers], summary: Disable, responses: { "204": { description: Done } } }
+  /api/computers/{sam}/move:
+    parameters: [{ $ref: "#/components/parameters/sam" }]
+    post:
+      tags: [Computers]
+      summary: Move to another OU
+      requestBody: { content: { application/json: { schema: { type: object, properties: { ou: { type: string } } } } } }
+      responses: { "204": { description: Done } }
+
+  /api/policy:
+    get:
+      tags: [Policy]
+      summary: Domain password policy
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Policy" } } } } }
+    put:
+      tags: [Policy]
+      summary: Save the password policy (send every field)
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Policy" } } } }
+      responses: { "204": { description: Saved } }
+
+  /api/export/{file}:
+    get:
+      tags: [Import/export]
+      summary: Export one CSV (";" + UTF-8 BOM; ous.csv, groups.csv, users.csv or computers.csv)
+      parameters: [{ name: file, in: path, required: true, schema: { type: string, enum: [ous, groups, users, computers] } }]
+      responses: { "200": { description: CSV file } }
+  /api/import/plan:
+    post:
+      tags: [Import/export]
+      summary: Preview an import (multipart CSV files ous, groups, users, computers; older Portuguese column names are accepted); changes nothing
+      requestBody: { content: { multipart/form-data: { schema: { type: object } } } }
+      responses: { "200": { description: "List of actions {kind, target, detail}" } }
+  /api/import/apply:
+    post:
+      tags: [Import/export]
+      summary: Apply an import (creates and updates only)
+      requestBody: { content: { multipart/form-data: { schema: { type: object } } } }
+      responses: { "200": { description: "Actions with result and generated passwords" } }
+  /api/ad-sources:
+    get: { tags: [Import/export], summary: Saved source AD profiles (no passwords), responses: { "200": { description: OK } } }
+  /api/ad-sources/{id}:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    delete: { tags: [Import/export], summary: Delete a source AD profile, responses: { "204": { description: Deleted } } }
+  /api/import/ad/plan:
+    post:
+      tags: [Import/export]
+      summary: Preview an import straight from another AD (objects, GPOs, shares)
+      description: "Read only on the source. objects (default true): users, groups, OUs and computers. gpos: each source GPO whose name is not in use here becomes gpo.import (a new, unlinked GPO; links are not copied); used names are skipped. shares: the shares of the source file server host (rpcclient/smbcacls on the panel host, credential in a temporary 0600 file), with the effective access of the share root by the source's groups, planned on the target agent as share.create/share.update (empty folders, no files, no deny ACEs nor subfolder ACLs). counts: what was read from the source."
+      requestBody: { $ref: "#/components/requestBodies/ImportAD" }
+      responses: { "200": { description: "plan (kind, target, detail), counts" }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/import/ad/apply:
+    post:
+      tags: [Import/export]
+      summary: Apply an import straight from another AD
+      description: "As the preview, then writes: objects to this domain (generated passwords in passwords), GPOs through the agent of a DC of this domain in its GPO restore mode (samba-tool gpo backup from the source DC, restore as a new GPO; result: the new GUID), shares as tasks queued on the target agent. Every action is audited (import.<kind>)."
+      requestBody: { $ref: "#/components/requestBodies/ImportAD" }
+      responses: { "200": { description: "plan with result and ok per action, passwords, counts" }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+
+  /api/agents:
+    get:
+      tags: [File servers]
+      summary: Registered file servers (agents)
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Agent" } } } } } }
+    post:
+      tags: [File servers]
+      summary: Register a file server
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { name: { type: string }, url: { type: string, example: "https://fs01.example.local:9443" }, token: { type: string }, insecure: { type: boolean } }
+      responses: { "201": { description: Created } }
+  /api/agents/token:
+    post:
+      tags: [File servers]
+      summary: Generate an agent token
+      description: Returns the token (register it here) and its SHA-256, which goes into the agent's token_file.
+      responses: { "200": { description: "{token, hash, command}" } }
+  /api/agents/{id}:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    put: { tags: [File servers], summary: Update a registration (empty token keeps the current one), responses: { "204": { description: Done } } }
+    delete: { tags: [File servers], summary: Remove the registration (the server is not touched), responses: { "204": { description: Done } } }
+  /api/agents/{id}/health:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get: { tags: [File servers], summary: Agent reachability, responses: { "200": { description: OK } } }
+  /api/agents/{id}/shares:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get: { tags: [File servers], summary: Published shares (net conf), responses: { "200": { description: OK } } }
+  /api/agents/{id}/dirs:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: path, in: query, schema: { type: string } }]
+    get: { tags: [File servers], summary: Share roots or subfolders, responses: { "200": { description: OK } } }
+  /api/gpos:
+    get:
+      tags: [Group Policy]
+      summary: GPOs and where they are linked (LDAP, read only)
+      description: "gpos: guid, dn, name, user_enabled, machine_enabled, user_version, machine_version, path (SYSVOL), extensions (client-side extensions, friendly names), links (target, enforced, disabled, order). containers: dn, block_inheritance, links — the domain, OUs and sites that link GPOs or block inheritance."
+      responses: { "200": { description: OK } }
+  /api/gpos/{guid}/backup:
+    parameters: [{ name: guid, in: path, required: true, schema: { type: string, example: "{31B2F340-016D-11D2-945F-00C04FB984F9}" } }]
+    get:
+      tags: [Group Policy]
+      summary: Back up a GPO (samba-tool gpo backup on the DC, read only) as a .tar.gz download
+      description: "Run by the first registered agent installed on a domain controller of the panel's domain (health dc: true and realm = ad.domain), from that DC itself with its machine account; 503 when there is none. The archive has the container and the SYSVOL files as readable XML (up to 4 MiB). Audited as gpo.backup."
+      responses: { "200": { description: application/gzip }, "502": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } }
+  /api/backups:
+    get:
+      tags: [Backup]
+      summary: Backups of the panel and of every registered agent
+      description: "One entry per server (id 0 is the panel): name, dc, kinds it can make (dc on a domain controller; fileserver-config and fileserver-data on a file server; panel), share roots, and the manifests (id, kind, origin manual, schedule:<id>, upload, pre-restore or setup, by, chain and full for the data chains, size, sha256, started, finished, status running/ok/error, error, log); restore (the last restoration: backup, kind, target, dest, pre_backup, status, error, log), upload_kinds and upload_max_mib. An agent that does not answer comes with error."
+      responses: { "200": { description: OK } }
+  /api/backups/panel:
+    post:
+      tags: [Backup]
+      summary: Back up the panel now (database by VACUUM INTO, config.toml without secrets, audit log)
+      description: "Kept in the panel's state folder (backups/, 0600). 409 when a backup of the panel is already running. Audited as backup.run."
+      responses: { "200": { description: the manifest }, "409": { $ref: "#/components/responses/Error" } }
+  /api/backups/panel/{bid}:
+    parameters: [{ name: bid, in: path, required: true, schema: { type: string, example: 20261018T195845Z-panel-13566cea } }]
+    delete:
+      tags: [Backup]
+      summary: Delete a backup of the panel
+      responses: { "200": { description: "deleted: the ids removed" }, "404": { $ref: "#/components/responses/Error" } }
+  /api/backups/panel/{bid}/download:
+    parameters: [{ name: bid, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Backup]
+      summary: Download a backup of the panel (X-Backup-SHA256 header); audited as backup.download
+      responses: { "200": { description: application/octet-stream }, "404": { $ref: "#/components/responses/Error" } }
+  /api/backups/panel/{bid}/restore:
+    parameters: [{ name: bid, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Backup]
+      summary: Restore the panel's database from a backup (the panel restarts)
+      description: "The backup's database is checked (SHA-256) and staged, the current one is backed up (origin pre-restore), then the panel exits and systemd starts it again with the restored database (the previous one kept as ad-manager.db.before-restore). The configuration and the audit log are not restored. confirm: the last 8 characters of the backup's id. Audited as backup.restore."
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [confirm], properties: { confirm: { type: string } } }
+      responses: { "202": { description: "restart: true, pre_backup" }, "400": { $ref: "#/components/responses/Error" }, "409": { $ref: "#/components/responses/Error" } }
+  /api/backups/panel/upload:
+    parameters: [{ name: kind, in: query, required: true, schema: { type: string, enum: [panel] } }]
+    post:
+      tags: [Backup]
+      summary: Send a panel backup (.tar.gz with ad-manager.db), up to 4 GiB
+      requestBody: { content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+      responses: { "200": { description: the manifest }, "400": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/backups:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    post:
+      tags: [Backup]
+      summary: Back up a server now (queued on its agent, in the operator's name)
+      description: "kind: dc (only on a domain controller: samba-tool domain backup offline — base, secrets, SYSVOL, smb.conf), fileserver-config (smb.conf, registry shares, NT and POSIX ACL of the share roots, ACL history) or fileserver-data with folders inside the share roots (a full archive heads a chain; the next ones are incremental). Audited as backup.run."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { type: string, enum: [all, dc, fileserver-config, fileserver-data], description: "all: fileserver-config plus a full fileserver-data of every share root (also as a schedule)" }
+                folders: { type: array, items: { type: string }, example: [/srv/shares/Financeiro] }
+                full: { type: boolean, description: "fileserver-data: a full backup now (starts a new chain)" }
+      responses: { "202": { description: the queued task }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/backups/{bid}:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: bid, in: path, required: true, schema: { type: string } }]
+    delete:
+      tags: [Backup]
+      summary: Delete a backup of a server (a full one takes its chain, an incremental the ones after it)
+      responses: { "200": { description: "deleted: the ids removed" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/backups/{bid}/download:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: bid, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Backup]
+      summary: Download a backup of a server, streamed from its agent (X-Backup-SHA256 header); audited as backup.download
+      description: "A DC backup holds the domain's secrets (password hashes, Kerberos keys): keep the file as such."
+      responses: { "200": { description: application/octet-stream }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/backups/{bid}/restore:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: bid, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Backup]
+      summary: Restore a backup of a server (queued on its agent; the result shows as restore in GET /api/backups)
+      description: "fileserver-data: the chain (full plus the incrementals up to this one, each checked against its SHA-256 and its names) into a new folder, or over the original folders after a pre-restore backup of them. fileserver-config: the chosen parts (smb.conf checked with testparm, the previous one kept as smb.conf.before-restore; the registry shares with net conf import; the NT and POSIX ACL of the share roots that still exist) after a pre-restore backup. samba-files: /etc/samba, /var/lib/samba and krb5.conf back as before the setup, with Samba stopped and the current ones moved aside (.before-restore-<time>). dc: refused (the initial setup restores a DC on a new server). Audited as backup.restore."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target: { type: string, enum: [new, original], description: "fileserver-data: new (default, <share root>/_restored/<time>/<original path>) or original (the current folders are backed up first)" }
+                folders: { type: array, items: { type: string }, description: "fileserver-data: only these of the backup's folders (empty: all)" }
+                parts: { type: array, items: { type: string, enum: [smbconf, shares, acls] }, description: "fileserver-config: what to restore" }
+                confirm: { type: string, description: "the last 8 characters of the backup's id, required when the restoration replaces what is in use (everything but a data restoration to a new folder)" }
+      responses: { "202": { description: the queued task }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/backups/upload:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: kind, in: query, required: true, schema: { type: string, enum: [fileserver-config, fileserver-data, samba-files] } }]
+    post:
+      tags: [Backup]
+      summary: Send a backup (.tar.gz) to a server, streamed to its agent
+      description: "The agent checks the archive for the kind (safe names; smb.conf in a configuration; the folders of a data backup; only Samba's paths in samba-files), keeps it with origin upload and its SHA-256, up to its upload_max_mib. Audited as backup.upload."
+      requestBody: { content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+      responses: { "200": { description: the manifest }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get:
+      tags: [Sync]
+      summary: Sync jobs of a file server and their last runs (kept by its agent)
+      description: "jobs (id, name, rev, source {host, port, share, path, auth kerberos|ntlm, user, domain}, password_file, dest, mode copy|mirror, exclude, bwlimit, transfers, max_delete, max_delete_pct, verify, reinherit, keep_days, keep_gib, cron, enabled, approved_rev), runs (newest first: id, job, rev, preview, origin, by, started, finished, status queued|running|ok|error|cancelled, error, result {plan {New, Changed, Delete, Same, Errors, *Bytes, sample}, transfers, bytes, deleted, errors, checked, content_verified, quarantined, seconds}, progress, confined, notes, quarantine), roots, file_server, kerberos."
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/{sid}:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: sid, in: path, required: true, schema: { type: string, example: fin-antigo } }]
+    put:
+      tags: [Sync]
+      summary: Create or replace a sync job (a new revision)
+      description: "The agent checks it: a file server; dest a real folder strictly inside a share root (not _restored or _sync, nor their old names _restaurado and _sincronizacao; no link, no mount inside); source host and share (not C$, ADMIN$, IPC$, SYSVOL, NETLOGON); ntlm with password (typed in the wizard: kept sealed with AES-256-GCM in the panel's database and sent to the agent, which keeps its own sealed copy for the schedules; never returned, logged or audited; empty keeps the one kept) or password_file (a 0600 file of root on the server); mirror with confirm = the job id; keep_days (0-3650, 0: 30) and keep_gib (0: no size limit) are the quarantine's retention. Saving resets a mirror's approval. Audited as sync.save (without secrets)."
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { "200": { description: the job }, "502": { $ref: "#/components/responses/Error" } }
+    delete:
+      tags: [Sync]
+      summary: Delete a sync job (the files already brought stay); audited as sync.delete
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/browse:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    post:
+      tags: [Sync]
+      summary: List the shares of a source server (no share) or the folders of a share path, through the agent
+      description: "Body: source {host, share?, path?, auth kerberos|ntlm, user, domain}, password (ntlm, typed; not kept), password_file, job (use the password kept for that job), size (true: count the files and bytes under the path instead — a walk of the whole tree, up to 5 minutes; answers files, bytes), check (true: test the way to the source step by step — credentials, resolve, port, signin (signed SMB, lists the shares), share, folder — and answer steps [{name, ok, detail}], stopping at the first that fails). For the wizard."
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { "200": { description: "dirs: names; or files and bytes with size" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/validate:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    post:
+      tags: [Sync]
+      summary: Check a destination and a schedule before saving (the wizard)
+      description: "Body: dest, cron. Answers dest {ok, error, exists, items (up to 10001), free_bytes, share} and cron {ok, error, next: the next three runs in the server's time}."
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/{sid}/preview:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: sid, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Sync]
+      summary: Queue a preview (the complete plan, nothing written); a clean preview approves a mirror's revision
+      responses: { "202": { description: the run }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/{sid}/run:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: sid, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Sync]
+      summary: Queue a run (a mirror needs a clean preview of its current revision)
+      description: "On the agent's sync queue, in a child process (a systemd unit that can write only the destination and the quarantine when the agent runs under systemd). The plan comes first; a mirror deletes nothing when the source is empty, the plan had errors or the deletions pass max_delete / max_delete_pct; deleted and replaced files go to <root>/_sync/<job>-<run>/ (the quarantine; when the run ends, an empty one goes and the job's retention removes the older ones of its generation, never the one just made). Audited as sync.run."
+      responses: { "202": { description: the run }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/sync-runs/{run}/cancel:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: run, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Sync]
+      summary: Cancel a running preview or run; audited as sync.cancel
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/sync-runs/{run}/log:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: run, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Sync]
+      summary: rclone's log of a run (text, up to 3 MiB)
+      responses: { "200": { description: text/plain }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/quarantines:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get:
+      tags: [Sync]
+      summary: Quarantines of the current jobs and the free space of the share roots
+      description: "quarantines (newest first: name <job>-<run>, job, gen, run, dest (the destination of that run: files go back there), path, created, files, size) — only of each job's current generation; space [{root, free, total, low (under 10% or 5 GiB free)}]."
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/quarantines/{qid}/files:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: qid, in: path, required: true, schema: { type: string, example: fin-antigo-20261018T235509Z-93f3c870 } }]
+    get:
+      tags: [Sync]
+      summary: Files of a quarantine (up to 2000)
+      description: "quarantine, files [{path (relative, as in the destination), size, modified, in_dest (a file with this path is in the destination now)}], truncated."
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/quarantines/{qid}/restore:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: qid, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Sync]
+      summary: Give files of a quarantine back to the run's destination; audited as sync.quarantine.restore
+      description: "Body: paths (relative; none: all the files), replace. Each file moves back to its path in the destination of that run, opened folder by folder without following links (missing folders created); a file there already is a conflict, or with replace the two swap places (the destination's goes into the quarantine: nothing is lost). Not while a run writes that destination. The job's Windows inheritance is applied afterwards when it has reinherit. Answers restored, swapped, conflicts (first 200) and conflict_count, errors (first 200) and error_count."
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/quarantines/{qid}/file:
+    parameters:
+      - { $ref: "#/components/parameters/id" }
+      - { name: qid, in: path, required: true, schema: { type: string } }
+      - { name: path, in: query, required: true, schema: { type: string } }
+    get:
+      tags: [Sync]
+      summary: Download one file of a quarantine; audited as sync.quarantine.download
+      responses: { "200": { description: application/octet-stream }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/syncs/{sid}/quarantine/empty:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: sid, in: path, required: true, schema: { type: string } }]
+    post:
+      tags: [Sync]
+      summary: Remove every quarantine of a job's current generation; audited as sync.quarantine.empty
+      description: "Body: confirm = the job id. Refused while a run of the job writes its destination. Answers removed, freed."
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/backup-schedules:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get:
+      tags: [Backup]
+      summary: Backup schedules of a server (kept and run by its agent, with the panel off too)
+      responses: { "200": { description: OK } }
+    put:
+      tags: [Backup]
+      summary: Replace the backup schedules of a server
+      description: "Each schedule: id (lowercase letters, digits, -), kind, cron (min hour day month weekday, or @daily/@weekly), folders (fileserver-data), full_every_days (a new chain after this many days, default 7), retention {chains, days} (whole chains only; the backup just made is never deleted), enabled. Audited as backup.schedule."
+      requestBody:
+        content:
+          application/json:
+            schema: { type: array, items: { type: object } }
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/gpos/restore:
+    post:
+      tags: [Group Policy]
+      summary: Restore a GPO from a backup, always as a new GPO (new GUID, not linked)
+      description: "Run by the first agent on a domain controller of this domain whose health says gpo_restore: true — the agent's explicit write mode (gpo_restore_user and a 0600 gpo_restore_password_file in its configuration; otherwise every agent on a DC is read only). samba-tool gpo restore with that account; the archive is a backup from GET /api/gpos/{guid}/backup (only policy/{GUID}/ folders and files, up to 4 MiB). 409 when a GPO already has the name; 503 when no agent can restore. sync lists the other domain controllers: Samba does not replicate SYSVOL, so the new GPO's folder must be copied to them. Audited as gpo.restore, refusals included."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, archive]
+              properties:
+                name: { type: string, maxLength: 128, example: "Copy of Default Domain Policy" }
+                archive: { type: string, format: byte, description: base64 of the backup .tar.gz }
+      responses:
+        "200": { description: "guid of the new GPO, dc that created it, sync: other DCs to copy its SYSVOL folder to" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /api/dns/zones:
+    get:
+      tags: [DNS]
+      summary: Primary DNS zones of the domain controller (MS-DNSP, with the operator's credential)
+      description: "The DC is the host of ad.url, dialed at that address and authenticated by Kerberos as its rootDSE dnsHostName, over the dnsserver named pipe (no endpoint mapper). name and reverse (in-addr.arpa/ip6.arpa), forward zones first."
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/dns/records:
+    get:
+      tags: [DNS]
+      summary: Records of a DNS zone or of a name inside it
+      description: "records: name (relative, @ = the zone), type, ttl, data; nodes: names below with only children (open them with node=)."
+      parameters:
+        - { name: zone, in: query, required: true, schema: { type: string, example: example.net } }
+        - { name: node, in: query, schema: { type: string, default: "@", example: _tcp } }
+      responses: { "200": { description: OK }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+    post:
+      tags: [DNS]
+      summary: Add an A, CNAME or PTR record on the domain controller (with the operator's credential)
+      description: "Refused (400, nothing sent to the DC) for any other type (SOA, NS, SRV…), the zone itself (@), the _msdcs zone, a name with a _ label, DomainDnsZones/ForestDnsZones/gc, a name of a domain controller (its dNSHostName) and a PTR pointing to one. A full name inside the zone is made relative (as the DNS server does) and that checked name is the one sent. A takes an IPv4 address; CNAME and PTR a full host name; PTR only in a reverse zone. ttl defaults to 3600 (up to 604800). Every RPC bind is Kerberos-sealed. Audited as dns.add, refusals included."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zone, name, type, data]
+              properties:
+                zone: { type: string, example: example.net }
+                name: { type: string, description: relative to the zone, example: intranet }
+                type: { type: string, enum: [A, CNAME, PTR] }
+                data: { type: string, example: 192.168.10.50 }
+                ttl: { type: integer, default: 3600, maximum: 604800 }
+      responses: { "204": { description: Added }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+    delete:
+      tags: [DNS]
+      summary: Delete an A, CNAME or PTR record (the one with this type and data)
+      description: "The same protection as the add: records of the domain controllers, SOA, NS and SRV are never deleted. Audited as dns.delete, refusals included."
+      parameters:
+        - { name: zone, in: query, required: true, schema: { type: string, example: example.net } }
+        - { name: name, in: query, required: true, schema: { type: string, example: intranet } }
+        - { name: type, in: query, required: true, schema: { type: string, enum: [A, CNAME, PTR] } }
+        - { name: data, in: query, required: true, schema: { type: string, example: 192.168.10.50 } }
+      responses: { "204": { description: Deleted }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/acl:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: path, in: query, required: true, schema: { type: string, example: /srv/shares/Financeiro } }]
+    get:
+      tags: [File servers]
+      summary: Windows (NT) permissions of a folder, read through Samba by the agent
+      description: Owner, group, SDDL and ACEs (SID, name, allow/deny, mask, flags, access full/rw/ro/custom). 501 when the server has no Samba Python API (python3-samba) or no acl_xattr.
+      responses: { "200": { description: OK }, "501": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/acl/history:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: path, in: query, required: true, schema: { type: string, example: /srv/shares/Financeiro } }]
+    get:
+      tags: [File servers]
+      summary: Recorded Windows ACL changes of a folder (newest first, up to 50)
+      description: Each line has time, path and the SDDL before the change (before) or right after it (after). A "before" line can be put back with the task acl:restore {path, time}. 501 without the Samba Python API.
+      responses: { "200": { description: OK }, "501": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/sessions:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get:
+      tags: [File servers]
+      summary: Connected sessions and open files (smbstatus --json on the file server)
+      description: "sessions: id, pid (smbd process), user, group, machine, dialect, encryption, signing, since, shares. open_files: path, share_path, name, pid, user, machine (of the sessions of that smbd process), access (R/W/RW), opened_at."
+      responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/sessions/close:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    post:
+      tags: [File servers]
+      summary: Disconnect a session (ends the smbd process serving it)
+      description: The pid and the session it serves must match a live session; the process is pinned (pidfd) before the check and gets SIGTERM, so a reused pid is never hit. Every session of that process ends (closed lists them); the clients lose their open files (unsaved changes) and reconnect on their next access. Audited as session.close with the closed sessions.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [pid, session_id], properties: { pid: { type: integer }, session_id: { type: string } } }
+      responses: { "200": { description: "{closed: [sessions]}" }, "400": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/dc/replication:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get:
+      tags: [File servers]
+      summary: Replication of a domain controller (samba-tool drs showrepl --json, read only)
+      description: "Only for an agent installed on a Samba AD DC (health dc: true; 404 elsewhere). ok and links: direction (inbound/outbound), nc, dsa, last_attempt, message, failures, last_success, deleted, ok."
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/dc/checks:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: refresh, in: query, schema: { type: integer, enum: [1] } }]
+    get:
+      tags: [File servers]
+      summary: Consistency check of a domain controller's database (dbcheck --cross-ncs, without --fix)
+      description: "Cached 10 min (refresh=1 reruns; dbcheck can take minutes, one run at a time). at, ok and checks: name, ok, objects, errors, output (last lines). ntacl sysvolcheck is not run (it may write secrets.tdb). On a DC, or when the server role cannot be read, the agent refuses every change (tasks, disconnect); health tells dc and read_only."
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/sizes:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: refresh, in: query, schema: { type: integer, enum: [1] } }]
+    get: { tags: [File servers], summary: Folder size of each share (cached 5 min), responses: { "200": { description: OK } } }
+  /api/agents/{id}/tasks:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    post:
+      tags: [File servers]
+      summary: Queue a task (folder:create, share:create, share:delete, acl:restore)
+      description: "acl:restore puts back the ACL a folder had before a recorded change ({path, time} from /acl/history) and passes it on to the folder's contents; the replaced ACL goes to the history."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type: { type: string, enum: ["folder:create", "share:create", "share:delete", "acl:restore"] }
+                payload:
+                  description: "Depends on type: ShareReq (folder:create, share:create), {name} (share:delete), {path, time} (acl:restore)."
+                  anyOf:
+                    - { $ref: "#/components/schemas/ShareReq" }
+                    - { type: object, required: [name], properties: { name: { type: string } } }
+                    - { type: object, required: [path, time], properties: { path: { type: string }, time: { type: string, format: date-time } } }
+      responses: { "202": { description: "{id, state}" } }
+  /api/agents/{id}/tasks/{tid}:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: tid, in: path, required: true, schema: { type: string } }]
+    get: { tags: [File servers], summary: Task state and last error, responses: { "200": { description: OK } } }
+  /api/agents/{id}/export:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get: { tags: [File servers], summary: Shares as shares.csv, responses: { "200": { description: CSV file } } }
+  /api/agents/{id}/import/plan:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    post: { tags: [File servers], summary: Preview a shares import (multipart field shares; older Portuguese column names are accepted), responses: { "200": { description: OK } } }
+  /api/agents/{id}/import/apply:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    post: { tags: [File servers], summary: Queue the shares import, responses: { "200": { description: OK } } }
+  /api/agents/{id}/samba/logs:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get: { tags: [Logs], summary: Samba log files of a file server, responses: { "200": { description: OK } } }
+  /api/agents/{id}/samba/logs/{tid}:
+    parameters: [{ $ref: "#/components/parameters/id" }, { name: tid, in: path, required: true, schema: { type: string, example: log.smbd } }]
+    get: { tags: [Logs], summary: Newest entries of one Samba log of a file server, responses: { "200": { description: OK } } }
+
+  /api/audit:
+    get:
+      tags: [Logs]
+      summary: Audit trail, newest first
+      parameters: [{ $ref: "#/components/parameters/q" }, { $ref: "#/components/parameters/limit" }]
+      responses: { "200": { description: OK } }
+  /api/http-log:
+    get:
+      tags: [Logs]
+      summary: API requests (no bodies, no headers), newest first
+      parameters: [{ $ref: "#/components/parameters/q" }, { $ref: "#/components/parameters/limit" }]
+      responses: { "200": { description: OK } }
+  /api/samba/logs:
+    get: { tags: [Logs], summary: Samba log files of this server, responses: { "200": { description: OK } } }
+  /api/samba/logs/{name}:
+    parameters: [{ name: name, in: path, required: true, schema: { type: string, example: log.samba } }, { $ref: "#/components/parameters/q" }]
+    get: { tags: [Logs], summary: Newest entries of one Samba log, responses: { "200": { description: OK } } }
+
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Runtime settings and the read-only config.toml summary
+      responses: { "200": { description: OK } }
+    put:
+      tags: [Settings]
+      summary: Save the runtime settings
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Settings" } } } }
+      responses: { "200": { description: Saved } }
+  /api/settings/logo:
+    put:
+      tags: [Settings]
+      summary: Upload the company logo (PNG, JPEG or SVG, up to 512 KiB; PNG/JPEG at most 660 × 220 px)
+      requestBody: { content: { multipart/form-data: { schema: { type: object, properties: { logo: { type: string, format: binary } } } } } }
+      responses: { "204": { description: Saved } }
+    delete: { tags: [Settings], summary: Remove the logo, responses: { "204": { description: Removed } } }
+
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: adc_session, description: Set by POST /api/login }
+  parameters:
+    sam: { name: sam, in: path, required: true, description: "sAMAccountName (computers end with $)", schema: { type: string } }
+    id: { name: id, in: path, required: true, schema: { type: integer } }
+    q: { name: q, in: query, description: Text filter, schema: { type: string } }
+    limit: { name: limit, in: query, schema: { type: integer, maximum: 5000 } }
+  requestBodies:
+    ImportAD:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [url, domain, user, password]
+            properties:
+              url: { type: string, example: "ldaps://dc01.example.local" }
+              domain: { type: string, example: example.local }
+              user: { type: string }
+              password: { type: string, format: password }
+              insecure: { type: boolean }
+              save_as: { type: string, description: saves the profile without the password }
+              objects: { type: boolean, default: true }
+              gpos: { type: boolean, default: false }
+              dns: { type: boolean, default: false, description: "A, CNAME and PTR records read over LDAP; never records of domain controllers, SOA, NS, SRV, _msdcs or the zone root" }
+              include_dynamic: { type: boolean, default: false, description: "dns: also the records clients registered (timestamp)" }
+              create_zones: { type: boolean, default: false, description: "dns: a zone missing here becomes zone.create (a primary zone integrated with the directory, secure updates; never _msdcs), created through MS-DNSP with the operator's credential before its records; audited as import.zone.create" }
+              shares:
+                type: object
+                properties:
+                  host: { type: string, description: "file server of the source domain (DNS name or IPv4)", example: fs01.example.local }
+                  agent: { type: integer, description: target agent id }
+                  map: { type: string, example: "E:\\=/srv/shares" }
+  responses:
+    Error:
+      description: Error
+      content: { application/json: { schema: { type: object, properties: { error: { type: string } } } } }
+  schemas:
+    UserInput:
+      type: object
+      properties:
+        sam: { type: string }
+        name: { type: string }
+        given_name: { type: string }
+        surname: { type: string }
+        mail: { type: string }
+        phone: { type: string }
+        title: { type: string }
+        department: { type: string }
+        description: { type: string }
+    User:
+      allOf:
+        - $ref: "#/components/schemas/UserInput"
+        - type: object
+          properties:
+            dn: { type: string }
+            sid: { type: string }
+            upn: { type: string }
+            enabled: { type: boolean }
+            locked: { type: boolean }
+            password_never_expires: { type: boolean }
+            protected: { type: boolean }
+            groups: { type: array, items: { type: string } }
+            last_logon: { type: string, format: date-time }
+            pwd_last_set: { type: string, format: date-time }
+            created: { type: string, format: date-time }
+    Group:
+      type: object
+      properties:
+        dn: { type: string }
+        name: { type: string }
+        sid: { type: string }
+        description: { type: string }
+        type: { type: string, enum: [security, distribution] }
+        scope: { type: string, enum: [global, domainlocal, universal, builtin] }
+        protected: { type: boolean }
+        members: { type: array, items: { type: string } }
+        member_count: { type: integer }
+    Policy:
+      type: object
+      properties:
+        complexity: { type: boolean }
+        min_length: { type: integer }
+        history: { type: integer }
+        min_age_days: { type: integer }
+        max_age_days: { type: integer, description: 0 = never expires }
+        lockout_threshold: { type: integer }
+        lockout_minutes: { type: integer }
+        lockout_window_minutes: { type: integer }
+    Agent:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        url: { type: string }
+        insecure: { type: boolean }
+        created: { type: string, format: date-time }
+    ShareReq:
+      type: object
+      properties:
+        name: { type: string, description: 'A trailing "$" hides the share' }
+        path: { type: string }
+        comment: { type: string }
+        rw_groups: { type: array, items: { type: string } }
+        ro_groups: { type: array, items: { type: string } }
+        rw_users: { type: array, items: { type: string } }
+        ro_users: { type: array, items: { type: string } }
+        full_groups: { type: array, items: { type: string }, description: Windows full control }
+        full_users: { type: array, items: { type: string } }
+        hidden: { type: boolean }
+        create_path: { type: boolean }
+        recycle: { type: boolean, description: "Recycle bin: deleted files go to .recycle/<user> (vfs recycle; needs python3-samba)" }
+        abe: { type: boolean, description: "Access-based enumeration: the share and the files the user cannot read are not listed" }
+        audit: { type: boolean, description: "File audit: file renames and deletions and new folders to syslog local5 (vfs full_audit; needs python3-samba)" }
+    Settings:
+      type: object
+      properties:
+        lang: { type: string, enum: [pt-BR, en] }
+        session_minutes: { type: integer }
+        inactive_days: { type: integer }
+        password_length: { type: integer }
+        default_ou: { type: string }
+        company: { type: string }
+        support_url: { type: string }
+        theme: { type: string, enum: [default, admanager, breeze, breeze-dark, violet, violet-dark, aurora, aurora-dark, crystal, crystal-dark, cone, classic-blue, classic-gray, graphite], default: default, description: "Visual theme for every operator, one of the theme registry (brand.themes); also in the public brand of /api/health and /api/me" }
+        flat: { type: boolean, default: false, description: "Flat look: the theme without gradients and depth shadows (brand.flat)" }

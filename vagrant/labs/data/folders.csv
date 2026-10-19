@@ -1,0 +1,5 @@
+# share;folder under the root;groups with write;read-only groups;groups with full control;a subfolder's own ACL (folder:group with write) — path A does not carry it
+Financeiro;Financeiro;Financeiro;Diretoria;;Financeiro/Restrito:Financeiro
+Diretoria;Diretoria;;;Diretoria;
+TI;TI;TI;;;
+Publico;Publico;Financeiro;Leitura-Geral;;

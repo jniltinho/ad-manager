@@ -1,0 +1,40 @@
+# ad-manager all-in-one (docs/docker.md): a Samba 4 AD domain with the panel and the agent.
+#
+#   docker compose -f docker/allinone/compose.yml up -d            # image from Docker Hub
+#   docker compose -f docker/allinone/compose.yml up -d --build    # built from this repository
+#   docker compose -f docker/allinone/compose.yml logs ad-manager  # URL, user and the generated password
+#
+# Settings in docker/allinone/.env (outside git) or the shell's environment: AD_DOMAIN, AD_NETBIOS,
+# AD_ADMIN_PASSWORD (empty: generated and shown once in the log), AD_PUBLIC_HOST, AD_PUBLIC_PORT, AD_DNS_FORWARDER.
+services:
+  ad-manager:
+    image: jniltinho/ad-manager:latest
+    build:
+      context: ../..
+      dockerfile: docker/allinone/Dockerfile
+    hostname: dc1
+    cap_add: [SYS_ADMIN] # Windows permissions (security.* xattrs) on the domain and the shares
+    environment:
+      AD_DOMAIN: ${AD_DOMAIN:-example.local}
+      AD_NETBIOS: ${AD_NETBIOS:-}
+      AD_ADMIN_PASSWORD: ${AD_ADMIN_PASSWORD:-}
+      AD_PUBLIC_HOST: ${AD_PUBLIC_HOST:-localhost}
+      AD_PUBLIC_PORT: ${AD_PUBLIC_PORT:-8443}
+      AD_DNS_FORWARDER: ${AD_DNS_FORWARDER:-}
+    ports:
+      - "${AD_PUBLIC_PORT:-8443}:8443" # the panel
+    volumes:
+      - samba:/var/lib/samba
+      - samba-etc:/etc/samba
+      - data:/opt/ad-manager/data
+      - tls:/opt/ad-manager/tls
+      - shares:/srv/shares
+    restart: unless-stopped
+    stop_grace_period: 60s # supervisord stops samba and the agent (with its sync and backup work) in order
+
+volumes:
+  samba:
+  samba-etc:
+  data:
+  tls:
+  shares:

@@ -1,0 +1,628 @@
+{
+  "comment": "Contrast recipes (theme-base): text role over the background roles where it appears (layers top→bottom). size: normal 4.5:1, large/ui 3:1. pending: the pairs a theme may still fail (empty since phase B of openspec/changes/theme-base); the test fails unless this list is exactly the failing set. aaa: themes held to enhanced contrast (WCAG 1.4.6: normal text 7:1, large 4.5:1; components 1.4.11 3:1). aaaOnly: a recipe only the aaa themes are held to (the selected segment, the solid login focus ring).",
+  "recipes": [
+    {
+      "id": "text/page",
+      "fg": "fg",
+      "bg": ["page"],
+      "size": "normal"
+    },
+    {
+      "id": "text/surface",
+      "fg": "fg",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "text/row-alt",
+      "fg": "fg",
+      "bg": ["row-alt"],
+      "size": "normal"
+    },
+    {
+      "id": "text/row-hover",
+      "fg": "fg",
+      "bg": ["row-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "muted/row-hover",
+      "fg": "fg-muted",
+      "bg": ["row-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "strong/surface",
+      "fg": "fg-strong",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "strong/surface-2",
+      "fg": "fg-strong",
+      "bg": ["surface-2"],
+      "size": "normal"
+    },
+    {
+      "id": "muted/surface",
+      "fg": "fg-muted",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "muted/surface-2",
+      "fg": "fg-muted",
+      "bg": ["surface-2"],
+      "size": "normal"
+    },
+    {
+      "id": "muted/row-alt",
+      "fg": "fg-muted",
+      "bg": ["row-alt"],
+      "size": "normal"
+    },
+    {
+      "id": "muted/page",
+      "fg": "fg-muted",
+      "bg": ["page"],
+      "size": "normal"
+    },
+    {
+      "id": "link/surface",
+      "fg": "link",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "link/row-alt",
+      "fg": "link",
+      "bg": ["row-alt"],
+      "size": "normal"
+    },
+    {
+      "id": "field/text",
+      "fg": "on-field",
+      "bg": ["field"],
+      "size": "normal"
+    },
+    {
+      "id": "field/line",
+      "fg": "field-line",
+      "bg": ["field"],
+      "size": "ui"
+    },
+    {
+      "id": "field/check-line",
+      "fg": "check-line",
+      "bg": ["field"],
+      "size": "ui"
+    },
+    {
+      "id": "action",
+      "fg": "on-action",
+      "bg": ["action"],
+      "size": "normal"
+    },
+    {
+      "id": "action/top",
+      "fg": "on-action",
+      "bg": ["action-top"],
+      "size": "normal"
+    },
+    {
+      "id": "action-2",
+      "fg": "on-action-2",
+      "bg": ["action-2"],
+      "size": "normal"
+    },
+    {
+      "id": "action-2/top",
+      "fg": "on-action-2",
+      "bg": ["action-2-top"],
+      "size": "normal"
+    },
+    {
+      "id": "danger",
+      "fg": "on-danger",
+      "bg": ["danger"],
+      "size": "normal"
+    },
+    {
+      "id": "danger/top",
+      "fg": "on-danger",
+      "bg": ["danger-top"],
+      "size": "normal"
+    },
+    {
+      "id": "brand-action",
+      "fg": "on-brand-action",
+      "bg": ["brand-action"],
+      "size": "normal"
+    },
+    {
+      "id": "brand-action/hover",
+      "fg": "on-brand-action",
+      "bg": ["brand-action-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "brand-action/top",
+      "fg": "on-brand-action",
+      "bg": ["brand-action-top"],
+      "size": "normal"
+    },
+    {
+      "id": "selection",
+      "fg": "on-selection",
+      "bg": ["selection"],
+      "size": "normal"
+    },
+    {
+      "id": "selection/muted",
+      "fg": "on-selection-muted",
+      "bg": ["selection"],
+      "size": "normal"
+    },
+    {
+      "id": "table-head",
+      "fg": "on-table-head",
+      "bg": ["table-head"],
+      "size": "normal"
+    },
+    {
+      "id": "table-head/top",
+      "fg": "on-table-head",
+      "bg": ["table-head-top"],
+      "size": "normal"
+    },
+    {
+      "id": "tab",
+      "fg": "on-tab",
+      "bg": ["tab", "tabs"],
+      "size": "normal"
+    },
+    {
+      "id": "tab/top",
+      "fg": "on-tab",
+      "bg": ["tab", "tabs-top"],
+      "size": "normal"
+    },
+    {
+      "id": "tab/hover",
+      "fg": "on-tab-hover",
+      "bg": ["tab-hover", "tabs"],
+      "size": "normal"
+    },
+    {
+      "id": "tab-on",
+      "fg": "on-tab-on",
+      "bg": ["tab-on"],
+      "size": "normal"
+    },
+    {
+      "id": "tab-on/top",
+      "fg": "on-tab-on",
+      "bg": ["tab-on-top"],
+      "size": "normal"
+    },
+    {
+      "id": "subtab",
+      "fg": "on-subtab",
+      "bg": ["subtab", "surface"],
+      "size": "normal"
+    },
+    {
+      "id": "subtab-on",
+      "fg": "on-subtab-on",
+      "bg": ["subtab-on"],
+      "size": "normal"
+    },
+    {
+      "id": "cardtab",
+      "fg": "on-cardtab",
+      "bg": ["cardtab", "cardtabs"],
+      "size": "normal"
+    },
+    {
+      "id": "cardtab-on",
+      "fg": "on-cardtab-on",
+      "bg": ["cardtab-on"],
+      "size": "normal"
+    },
+    {
+      "id": "nav-on",
+      "fg": "on-nav-on",
+      "bg": ["nav-on"],
+      "size": "normal"
+    },
+    {
+      "id": "card-head",
+      "fg": "on-card-head",
+      "bg": ["card-head"],
+      "size": "normal"
+    },
+    {
+      "id": "card-head/top",
+      "fg": "on-card-head",
+      "bg": ["card-head-top"],
+      "size": "normal"
+    },
+    {
+      "id": "card-head/muted",
+      "fg": "fg-muted",
+      "bg": ["card-head"],
+      "size": "normal"
+    },
+    {
+      "id": "card-head/muted-top",
+      "fg": "fg-muted",
+      "bg": ["card-head-top"],
+      "size": "normal"
+    },
+    {
+      "id": "card-head/link",
+      "fg": "link",
+      "bg": ["card-head"],
+      "size": "normal"
+    },
+    {
+      "id": "card-head/link-top",
+      "fg": "link",
+      "bg": ["card-head-top"],
+      "size": "normal"
+    },
+    {
+      "id": "dialog-head",
+      "fg": "on-dialog-head",
+      "bg": ["dialog-head"],
+      "size": "normal"
+    },
+    {
+      "id": "dialog-head/top",
+      "fg": "on-dialog-head",
+      "bg": ["dialog-head-top"],
+      "size": "normal"
+    },
+    {
+      "id": "footer",
+      "fg": "on-footer",
+      "bg": ["footer"],
+      "size": "normal"
+    },
+    {
+      "id": "footer/top",
+      "fg": "on-footer",
+      "bg": ["footer-top"],
+      "size": "normal"
+    },
+    {
+      "id": "footer/strong",
+      "fg": "footer-strong",
+      "bg": ["footer"],
+      "size": "normal"
+    },
+    {
+      "id": "tooltip",
+      "fg": "on-tooltip",
+      "bg": ["tooltip"],
+      "size": "normal"
+    },
+    {
+      "id": "fill/ok",
+      "fg": "on-ok-fill",
+      "bg": ["ok-fill"],
+      "size": "normal"
+    },
+    {
+      "id": "fill/err",
+      "fg": "on-err-fill",
+      "bg": ["err-fill"],
+      "size": "normal"
+    },
+    {
+      "id": "fill/warn",
+      "fg": "on-warn-fill",
+      "bg": ["warn-fill"],
+      "size": "normal"
+    },
+    {
+      "id": "fill/neutral",
+      "fg": "on-neutral-fill",
+      "bg": ["neutral-fill"],
+      "size": "normal"
+    },
+    {
+      "id": "fill/strong",
+      "fg": "on-strong-fill",
+      "bg": ["strong-fill"],
+      "size": "normal"
+    },
+    {
+      "id": "toast/ok",
+      "fg": "on-toast",
+      "bg": ["toast-ok"],
+      "size": "normal"
+    },
+    {
+      "id": "toast/err",
+      "fg": "on-toast",
+      "bg": ["toast-err"],
+      "size": "normal"
+    },
+    {
+      "id": "toast/warn",
+      "fg": "on-toast-warn",
+      "bg": ["toast-warn"],
+      "size": "normal"
+    },
+    {
+      "id": "soft/ok",
+      "fg": "on-ok-soft",
+      "bg": ["ok-soft"],
+      "size": "normal"
+    },
+    {
+      "id": "soft/warn",
+      "fg": "on-warn-soft",
+      "bg": ["warn-soft"],
+      "size": "normal"
+    },
+    {
+      "id": "soft/err",
+      "fg": "on-err-soft",
+      "bg": ["err-soft"],
+      "size": "normal"
+    },
+    {
+      "id": "state/ok",
+      "fg": "ok",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "state/err",
+      "fg": "err",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "state/warn",
+      "fg": "warn",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "pop",
+      "fg": "on-pop",
+      "bg": ["field"],
+      "size": "normal"
+    },
+    {
+      "id": "login/text",
+      "fg": "on-login-box",
+      "bg": ["login-box"],
+      "size": "normal"
+    },
+    {
+      "id": "login/muted",
+      "fg": "on-login-box-muted",
+      "bg": ["login-box"],
+      "size": "normal"
+    },
+    {
+      "id": "login/strong",
+      "fg": "on-login-box-strong",
+      "bg": ["login-box"],
+      "size": "normal"
+    },
+    {
+      "id": "login/faint",
+      "fg": "on-login-box-faint",
+      "bg": ["login-box"],
+      "size": "normal"
+    },
+    {
+      "id": "login/title",
+      "fg": "login-title",
+      "bg": ["login-box"],
+      "size": "normal"
+    },
+    {
+      "id": "login/hint",
+      "fg": "fg-muted",
+      "bg": ["login-page"],
+      "size": "normal"
+    },
+    {
+      "id": "focus/surface",
+      "fg": "focus",
+      "bg": ["surface"],
+      "size": "ui"
+    },
+    {
+      "id": "focus/nav-on",
+      "fg": "focus",
+      "bg": ["nav-on"],
+      "size": "ui"
+    },
+    {
+      "id": "chart-1/surface",
+      "fg": "chart-1",
+      "bg": ["surface"],
+      "size": "ui"
+    },
+    {
+      "id": "subtle/surface",
+      "fg": "fg-subtle",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "subtle/row-alt",
+      "fg": "fg-subtle",
+      "bg": ["row-alt"],
+      "size": "normal"
+    },
+    {
+      "id": "link-hover/surface",
+      "fg": "link-hover",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "state/ok/row-alt",
+      "fg": "ok",
+      "bg": ["row-alt"],
+      "size": "normal"
+    },
+    {
+      "id": "state/err/row-alt",
+      "fg": "err",
+      "bg": ["row-alt"],
+      "size": "normal"
+    },
+    {
+      "id": "state/warn/row-alt",
+      "fg": "warn",
+      "bg": ["row-alt"],
+      "size": "normal"
+    },
+    {
+      "id": "state/ok/row-hover",
+      "fg": "ok",
+      "bg": ["row-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "state/err/row-hover",
+      "fg": "err",
+      "bg": ["row-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "state/warn/row-hover",
+      "fg": "warn",
+      "bg": ["row-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "header/text",
+      "fg": "on-header",
+      "bg": ["header"],
+      "size": "normal"
+    },
+    {
+      "id": "header/text-top",
+      "fg": "on-header",
+      "bg": ["header-top"],
+      "size": "normal"
+    },
+    {
+      "id": "header/muted",
+      "fg": "on-header-muted",
+      "bg": ["header"],
+      "size": "normal"
+    },
+    {
+      "id": "header/link",
+      "fg": "header-link",
+      "bg": ["header"],
+      "size": "normal"
+    },
+    {
+      "id": "header/link-top",
+      "fg": "header-link",
+      "bg": ["header-top"],
+      "size": "normal"
+    },
+    {
+      "id": "tab-aux",
+      "fg": "on-tab-aux",
+      "bg": ["tabs"],
+      "size": "normal"
+    },
+    {
+      "id": "tab-aux/top",
+      "fg": "on-tab-aux",
+      "bg": ["tabs-top"],
+      "size": "normal"
+    },
+    {
+      "id": "tab-aux/hover",
+      "fg": "on-tab-aux-hover",
+      "bg": ["tab-aux-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "dialog/text",
+      "fg": "on-dialog",
+      "bg": ["surface"],
+      "size": "normal"
+    },
+    {
+      "id": "field/focus-line",
+      "fg": "field-focus",
+      "bg": ["field"],
+      "size": "ui"
+    },
+    {
+      "id": "page/text",
+      "fg": "on-page",
+      "bg": ["page"],
+      "size": "normal"
+    },
+    {
+      "id": "placeholder",
+      "fg": "fg-muted",
+      "bg": ["field"],
+      "size": "normal"
+    },
+    {
+      "id": "link-hover/row-hover",
+      "fg": "link-hover",
+      "bg": ["row-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "subtab-on/subtab",
+      "fg": "subtab-on",
+      "bg": ["subtab"],
+      "size": "ui",
+      "aaaOnly": true
+    },
+    {
+      "id": "login-focus/login-box",
+      "fg": "login-focus",
+      "bg": ["login-box"],
+      "size": "ui",
+      "aaaOnly": true
+    },
+    {
+      "id": "link/row-hover",
+      "fg": "link",
+      "bg": ["row-hover"],
+      "size": "normal"
+    },
+    {
+      "id": "header-link-hover/header",
+      "fg": "header-link-hover",
+      "bg": ["header"],
+      "size": "normal"
+    },
+    {
+      "id": "cardtab-on/cardtab",
+      "fg": "cardtab-on",
+      "bg": ["cardtab"],
+      "size": "ui",
+      "aaaOnly": true
+    },
+    {
+      "id": "subtle/row-hover",
+      "fg": "fg-subtle",
+      "bg": ["row-hover"],
+      "size": "normal"
+    }
+  ],
+  "pending": {},
+  "aaa": ["crystal", "crystal-dark"]
+}
