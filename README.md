@@ -83,8 +83,9 @@ sudo apt install --no-install-recommends ./ad-manager_X.Y.Z_amd64.deb
 sudo systemctl enable --now ad-manager ad-manager-agent && sudo cat /opt/ad-manager/data/setup-token
 ```
 
-The setup wizard at `https://<server IP>:8443` prepares a new domain controller, an additional DC or a file server,
-or connects the panel to an existing Active Directory ([installation guide](docs/installation.md)).
+Then open `https://<server IP>:8443` and enter the token: the **setup wizard** does the rest automatically — it
+installs and configures Samba as a new domain controller, an additional DC or a file server, or connects the panel
+to an existing Active Directory, writing the configuration for you ([installation guide](docs/installation.md)).
 
 ## 🧩 Under the hood
 

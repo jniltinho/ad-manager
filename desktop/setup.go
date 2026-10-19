@@ -102,7 +102,7 @@ func (u *ui) setup(back func()) {
 	)
 	panelCard := card(t("Panel"), container.NewVBox(panelForm, container.NewBorder(nil, nil, test, nil, result)))
 	agentsCard := card(t("File servers (agents)"), container.NewVBox(
-		wrappedLabel(t("Optional: to see and create shares directly on the agent. Token generated on the server with: sudo ad-manager agent token")),
+		wrappedLabel(t("Optional: to see and create shares directly on the agent. Token: Settings → File server agent token → Generate token in the web panel (then run the command it shows on the file server), or on the server: sudo ad-manager agent token, then sudo systemctl restart ad-manager-agent")),
 		rows, container.NewHBox(add)))
 
 	errText := newText("", errText, 12, false)

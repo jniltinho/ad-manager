@@ -1,6 +1,7 @@
 # Install Samba 4 ready for ad-manager (Ubuntu 26.04)
 
-> From the browser, with the wizard: [installation.md](installation.md).
+> **Prefer the browser?** The setup wizard runs this same script for you, with automatic diagnostics, a review of the
+> plan and a live log, without typing commands: [installation.md](installation.md).
 
 The `scripts/samba-setup.py` script installs Samba 4 (distro packages, 4.23.6) and leaves **ad-manager**
 running: the panel on the DC, talking LDAPS with Samba's own CA, and the agent on each file server.

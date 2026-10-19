@@ -1,5 +1,9 @@
 # Installation
 
+> **Easiest way:** install the `.deb`, enable the services and let the **setup wizard** in the browser configure
+> the server automatically — Samba, the domain, the panel and the agent, or just the connection to an existing AD.
+> See [installation.md](installation.md). This page covers installing and configuring the panel **by hand**.
+
 ad-manager works for **any company** with Active Directory, whether **Windows Server** or
 **Samba 4**: nothing in the binary is tied to a domain. Domain, DC and certificates come from
 `config.toml`; users and permissions come from AD itself (only *Domain Admins* can log in). In the

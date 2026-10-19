@@ -77,9 +77,16 @@ user = "administrator"    # the password is asked on sign-in and stays only in m
 [[agents]]
 name = "fs01"
 url = "https://fs01.example.local:9443"
-token = "generated with: sudo ad-manager agent token"
+token = "the agent token (see below)"
 insecure = false
 ```
+
+**Agent token.** Generate it in the web panel: **Settings → File server agent token → Generate token**. The panel
+shows the token once and a command to run on the file server (it writes the token's hash and restarts the agent).
+Use that same token in the panel (**Shares → File servers**, the server's entry) and here in **Configure**. On the
+server itself, `sudo ad-manager agent token` prints a new token and writes its hash; then restart the agent
+(`sudo systemctl restart ad-manager-agent`), which loads the hash only at start. An agent accepts a single token: a new one replaces the
+previous one, so update it in the panel and in every desktop that uses that server.
 
 Files written by earlier versions, with the Portuguese keys (`[painel]`, `usuario`, `[[agentes]]`, `nome`,
 `idioma`), are still read; saving in **Configure** rewrites them with the keys above.
