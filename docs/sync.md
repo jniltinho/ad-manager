@@ -26,7 +26,7 @@ it.
 
 ### Wizard
 
-**+ New** opens a four-step wizard:
+**+ New** opens a five-step wizard:
 
 1. **Source and access** — server and how to sign in (machine account through Kerberos, or user and password;
    `DOM\user` and `user@dom` are split automatically). **Test connection** shows each stage — credentials, resolved
@@ -39,7 +39,9 @@ it.
    the source.
 4. **How and when** — copy or mirror (with the limits and the quarantine explained), when (presets or cron, with the
    next runs in the server's time zone), the summary, and "Advanced" (exclusions, bandwidth, transfers, verify
-   content, inheritance). **Save and preview** follows the preview right there; from there, "Run now".
+   content, inheritance). **Save and preview** saves the job and starts the preview.
+5. **Preview of the copy** — follows the preview right there (what is new, changed or would be deleted, with sizes and
+   samples); from there, "Run now".
 
 Schedules (backup and sync) follow the server's time zone.
 
