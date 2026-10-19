@@ -9,6 +9,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 
 | I want to… | Read |
 |---|---|
+| See what it does (features, screenshots, architecture) | [overview.md](overview.md) |
 | Try it without preparing a server (Docker: Samba domain with panel and agent) | [docker.md](docker.md) |
 | Install it in a company (`.deb` package, services, TLS, configuration) | [deployment.md](deployment.md) |
 | Set up a new Samba domain, an additional DC or a file server | [samba-install.md](samba-install.md) |
