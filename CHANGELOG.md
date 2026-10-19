@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 —
 
+## [0.15.1] — 2026-10-19
+
+**A raised logo.**
+
+### Changed
+- The AD Manager logo has a soft relief (light from the top left and a soft shadow, the mark's shield and org chart
+  included) in the web panel, the desktop app and the README banner, with the underline closer to the wordmark. The
+  apps show it at the same size, from transparent PNGs at 2× (`scripts/logo-relief.py`).
+- README: the banner fills the image; the three screenshots under "Why AD Manager" share one height.
+- Screenshots and theme mosaics retaken with the new logo.
+
 ## [0.15.0] — 2026-10-19
 
 **Password policy moves into Users, and sharper screenshots.**
@@ -40,6 +51,7 @@ and an MCP server, with an agent for Samba file servers.
 - Desktop app (Fyne) for Linux, Windows and macOS; CLI; MCP server; all-in-one Docker demo image.
 - CI and releases on GitHub Actions: `.deb`, server binaries and the desktop app for Linux, Windows and macOS.
 
-[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/jniltinho/ad-manager/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/jniltinho/ad-manager/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/jniltinho/ad-manager/releases/tag/v0.14.0
