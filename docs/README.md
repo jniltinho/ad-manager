@@ -111,7 +111,7 @@ All screens, web and desktop: [screenshots/README.md](screenshots/README.md).
 
 The test labs (Windows and Samba, isolated) are in [labs.md](labs.md).
 
-SVG sources in [`img/`](img/); logo in `img/logo.svg` and `img/logo-wide.svg`.
+SVG sources in [`img/`](img/); logo in `img/logo.svg` and `img/logo/` (flat). The raised logos of the web panel, the desktop app and the README banner (`img/logo-wide.*`) come from `scripts/logo-relief.py`.
 
 ## Reference
 
