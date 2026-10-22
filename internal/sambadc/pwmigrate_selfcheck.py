@@ -125,6 +125,12 @@ def main():
     check(not m("CUSTOMSALTjohn", "criarenet.net", "criarenet.net"), "same realm but non-default salt → no transfer")
     check(not m("", "criarenet.net", "criarenet.net") and not m("CRIARENET.NETjohn", "", "criarenet.net"), "empty salt/realm → no transfer")
 
+    # 7. access-denied detection (missing replication right → single refusal, not per-user error)
+    ad = ns["is_access_denied"]
+    check(ad(Exception(5, "WERR_DS_DRA_ACCESS_DENIED")), "WERR_DS_DRA_ACCESS_DENIED is access-denied")
+    check(ad(Exception("NT_STATUS_ACCESS_DENIED")), "NT_STATUS_ACCESS_DENIED is access-denied")
+    check(not ad(Exception(53, "supplementalCredentialsBlob memcmp differ")), "a blob memcmp is NOT access-denied")
+
     print("pwmigrate self-check passed")
 
 

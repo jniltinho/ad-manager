@@ -399,7 +399,11 @@ def apply(req, lp):
                 try:
                     out["outcome"], reason = apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm, src_realm)
                 except Exception as e:
-                    # one user's failure (its own transaction already rolled back in set_user) never aborts the rest
+                    # a missing replication right (access denied on GetNCChanges) is not a per-user problem — fail the
+                    # whole operation once, clearly, with nothing written (spec: "Replication rights required")
+                    if is_access_denied(e):
+                        raise PwError("the source account lacks Replicating Directory Changes (All)", "rights")
+                    # any other single-user failure (its own transaction already rolled back) never aborts the rest
                     out["outcome"], reason = "error", reason_of(e)
             if reason:
                 out["reason"] = reason
@@ -468,6 +472,16 @@ _KNOWN_ERRORS = (
     ("werr_ds_dra", "directory replication error"),
     ("constraint", "directory constraint violation"),
 )
+
+
+def is_access_denied(e):
+    """True when a DRS error means the source account lacks the replication right (Replicating Directory Changes
+    All) — a single up-front refusal is clearer than marking every user 'error'."""
+    try:
+        text = " ".join(str(a) for a in getattr(e, "args", ()) if isinstance(a, str)).upper()
+    except Exception:
+        return False
+    return "ACCESS_DENIED" in text or "WERR_DS_DRA_ACCESS_DENIED" in text or "NT_STATUS_ACCESS_DENIED" in text
 
 
 def reason_of(e):
