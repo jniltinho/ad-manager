@@ -82,8 +82,9 @@ rain animation: the page pattern is static, and the flat look removes it).
    desktop casts its own neutral shadow), the field text color (Fyne draws entry text in `fg`, so Winamp's LCD green
    shows on the web only; the field stays black), Winamp's sunken field and pressed relief (the desktop draws the
    raised bevel only), Fyne's translucent text-selection highlight, the monospace font (system font × Fyne font,
-   already accepted), and three gaps the desktop has in every theme: no footer stripe, its own hover tone for
-   one-color buttons, and no keyboard focus on buttons (a follow-up, not part of this change).
+   already accepted), and two gaps the desktop has in every theme: no footer stripe and its own hover tone for
+   one-color buttons. (Keyboard focus on desktop buttons, missing in every theme, is the `desktop-button-focus`
+   change.)
 8. **Labels**: `Matrix (dark)`, `Winamp (dark)`, `Pink Panther`, `High contrast (dark)`; pt-BR `Matrix (escuro)`,
    `Winamp (escuro)`, `Pantera Cor-de-Rosa`, `Alto contraste (escuro)` in the SPA catalog (the labels are rendered
    by the SPA through `t()`; the server and desktop never show them, so `internal/i18n` needs no entry). The stale

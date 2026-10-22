@@ -16,7 +16,8 @@ import (
 // below. Hover lightens it; pressing sinks it 1 px and drops the shadow.
 // Importance picks the style from the theme roles: High = action, Danger = danger, Warning = brand action (the
 // login button), Low = flat (toolbar link), anything else = secondary (action-2). The flat look drops the
-// gradient, the highlight and the shadow.
+// gradient, the highlight and the shadow. It takes the keyboard focus (Tab), shows the theme's focus ring and is
+// pressed with Space or Enter, like the web's button; a click does not focus it (the web's :focus-visible).
 type volButton struct {
 	widget.DisableableWidget
 	Text       string
@@ -24,7 +25,7 @@ type volButton struct {
 	Importance widget.Importance
 	OnTapped   func()
 
-	hovered, pressed bool
+	hovered, pressed, focused bool
 }
 
 // newButton returns a volume button with an optional icon.
@@ -45,6 +46,17 @@ func (b *volButton) Tapped(*fyne.PointEvent) {
 		b.OnTapped()
 	}
 }
+func (b *volButton) FocusGained()   { b.focused = true; b.Refresh() }
+func (b *volButton) FocusLost()     { b.focused = false; b.Refresh() }
+func (b *volButton) TypedRune(rune) {}
+
+// TypedKey presses the button with Space or Enter (Fyne sends Space as a key, not as a rune).
+func (b *volButton) TypedKey(k *fyne.KeyEvent) {
+	if k.Name == fyne.KeySpace || k.Name == fyne.KeyReturn || k.Name == fyne.KeyEnter {
+		b.Tapped(nil)
+	}
+}
+
 func (b *volButton) MouseIn(*desktop.MouseEvent)    { b.hovered = true; b.Refresh() }
 func (b *volButton) MouseMoved(*desktop.MouseEvent) {}
 func (b *volButton) MouseOut()                      { b.hovered, b.pressed = false, false; b.Refresh() }
@@ -127,7 +139,7 @@ func (b *volButton) CreateRenderer() fyne.WidgetRenderer {
 	r.label.TextSize = 13
 	r.content = container.NewHBox(r.icon, r.label)
 	r.Refresh()
-	return r
+	return newRingRenderer(r, &b.focused)
 }
 
 type volRenderer struct {

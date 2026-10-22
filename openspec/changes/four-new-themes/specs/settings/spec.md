@@ -69,8 +69,7 @@ contrast (1.4.6) and 3:1 for components (1.4.11) on the web and on the desktop, 
 - **THEN** all normal text recipes reach 7:1, large text recipes 4.5:1 and component recipes 3:1
 
 #### Scenario: Focus ring
-- **WHEN** a field, select or checkbox (on the web and on the desktop) or a button (on the web) receives focus in
-  High contrast
+- **WHEN** a field, select, checkbox or button receives focus in High contrast, on the web or on the desktop
 - **THEN** a solid 3 px yellow ring surrounds it, ≥ 3:1 against black
 
 #### Scenario: Focus on the current item
