@@ -151,8 +151,8 @@ func TestFocusScrollsIntoView(t *testing.T) {
 func TestRingRefreshBeforeLayout(t *testing.T) {
 	test.NewApp()
 	b := newButton("Open", nil, nil)
-	b.Resize(fyne.NewSize(120, 32))
-	r := test.WidgetRenderer(b)
+	b.Resize(fyne.NewSize(120, 32)) // lays out the cached renderer
+	r := b.CreateRenderer()         // a fresh one, refreshed before any layout of its own
 	r.Refresh()
 	for _, o := range r.Objects() {
 		if c, ok := o.(*fyne.Container); ok && (c.Position().X < 0 || c.Position().Y < 0) {

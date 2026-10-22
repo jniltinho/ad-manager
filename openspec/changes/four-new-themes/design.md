@@ -41,8 +41,8 @@ rain animation: the page pattern is static, and the flat look removes it).
    light-top/dark-bottom bevel through `--bevel-raised` on what the recipes already bevel: buttons, cards, table head,
    dialogs and the login box (fields sunken through `--bevel-sunken`; the header has no bevel consumer and stays a
    gradient); faint horizontal brushing on the page (`--bg-page`, one layer); surfaces `#1b1c25`; silver text
-   `#e2e3ea`; LCD green `#2cf02c` on black for fields (`--color-field: #000`), the current tab, tooltips and the
-   strong text; primary action amber `#ffbe45 → #f4a51c` with `#16110a` text; title-bar stripe gold `#d9a441`;
+   `#e2e3ea`; LCD green `#2cf02c` on black for fields (`--color-field: #000`) and tooltips, and as the text and icon
+   of the current tab (a folder tab in the surface color with a 3 px amber bar on top) and the strong text; primary action amber `#ffbe45 → #f4a51c` with `#16110a` text; title-bar stripe gold `#d9a441`;
    selected row the playlist blue `#1f2fa8` with white text; the Home tiles' stripes in the equalizer's green, amber
    and red; Tahoma/Verdana 12 px; the pressed relief (`--shadow-btn-active: var(--bevel-pressed)`).
 4. **Pink Panther** — page `#f7eef2` with soft rose dots, white surfaces, text `#2b1a23`, strong `#6b1f45`, muted
