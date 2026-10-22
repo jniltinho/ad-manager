@@ -114,14 +114,16 @@ def main():
     except RuntimeError:
         check(True, "unrelated write error propagates (not masked as ntlm_only)")
 
-    # 6. Kerberos salt ↔ realm matching is component-boundary aware (not a substring)
-    m = ns["realm_salt_matches"]
-    check(m("CRIARENET.NETjohn", "criarenet.net"), "same realm salt transfers")
-    check(m("criarenet.netjohn", "CRIARENET.NET"), "salt match is case-insensitive")
-    check(not m("CRIARENET.NET.BRjohn", "criarenet.net"), "criarenet.net.br is NOT the same realm")
-    check(not m("SUB.CRIARENET.NETjohn", "criarenet.net"), "sub.criarenet.net is NOT the same realm")
-    check(not m("OTHER.LOCALjohn", "criarenet.net"), "different realm → no transfer")
-    check(not m("", "criarenet.net") and not m("CRIARENET.NETjohn", ""), "empty salt/realm → no transfer")
+    # 6. Kerberos transfer: authoritative exact source==dest realm match (salt alone can't set the boundary)
+    m = ns["realm_salt_matches"]  # (salt, dest_realm, src_realm)
+    check(m("CRIARENET.NETjohn", "criarenet.net", "criarenet.net"), "same realm transfers")
+    check(m("criarenet.netjohn", "CRIARENET.NET", "Criarenet.Net"), "realm match is case-insensitive")
+    check(not m("CRIARENET.NET.BRjohn", "criarenet.net", "criarenet.net.br"), "criarenet.net.br is NOT the same realm")
+    check(not m("SUB.CRIARENET.NETjohn", "criarenet.net", "sub.criarenet.net"), "sub.criarenet.net is NOT the same realm")
+    check(not m("CRIARENET.NETWORKjohn", "criarenet.net", "criarenet.network"), "criarenet.network is NOT the same realm")
+    check(not m("OTHER.LOCALjohn", "criarenet.net", "other.local"), "different realm → no transfer")
+    check(not m("CUSTOMSALTjohn", "criarenet.net", "criarenet.net"), "same realm but non-default salt → no transfer")
+    check(not m("", "criarenet.net", "criarenet.net") and not m("CRIARENET.NETjohn", "", "criarenet.net"), "empty salt/realm → no transfer")
 
     print("pwmigrate self-check passed")
 

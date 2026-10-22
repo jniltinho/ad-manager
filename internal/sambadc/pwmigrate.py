@@ -226,18 +226,21 @@ def decrypt_secrets(drs, obj, rid):
     return nt_hash, supp
 
 
-def realm_salt_matches(salt, realm):
-    """Whether a Kerberos salt belongs to the destination realm. The default salt is the realm (upper case)
-    immediately followed by the principal name, so the salt must begin with the realm on a DNS component boundary:
-    it starts with the realm but not with realm + "." (which would be a longer realm like criarenet.net.br). A bare
-    substring or prefix test would wrongly accept criarenet.net.br or sub.criarenet.net. Case-insensitive."""
-    if not salt or not realm:
+def realm_salt_matches(salt, dest_realm, src_realm):
+    """Whether a principal's Kerberos keys transfer. The salt is the realm concatenated with the principal name and
+    has no separator, so it cannot by itself establish the realm boundary (CRIARENET.NETWORK vs CRIARENET.NET). The
+    authoritative test is therefore the SOURCE realm equalling the DESTINATION realm exactly (case-insensitive) —
+    the new-domain cutover keeps the same realm. The salt is only a sanity check that it is the default
+    realm-prefixed salt (starts with the realm on a component boundary), so a custom salt is not blindly copied."""
+    if not salt or not dest_realm or not src_realm:
         return False
-    s, r = salt.upper(), realm.upper()
+    if src_realm.upper() != dest_realm.upper():
+        return False
+    s, r = salt.upper(), dest_realm.upper()
     return s.startswith(r) and not s.startswith(r + ".")
 
 
-def inspect_supplemental(supp, realm):
+def inspect_supplemental(supp, realm, src_realm):
     """Classify the decrypted supplementalCredentials: (has_cleartext, kerberos_ok, reason, kerb_blob).
 
     A Primary:CLEARTEXT package is a rejection. The Kerberos keys count as transferable only when their salt names
@@ -278,8 +281,9 @@ def inspect_supplemental(supp, realm):
             return has_cleartext, False, "%s has no salt → NTLM only" % name, None
         # the default salt is REALM + the principal name (no separator), so a transferable salt begins with the
         # destination realm on a component boundary. A plain substring/prefix test would wrongly accept a different
-        # realm that merely contains it (criarenet.net.br, sub.criarenet.net), so require realm_salt_matches.
-        if not realm_salt_matches(salt, realm):
+        # realm that merely contains it (criarenet.net.br, sub.criarenet.net, criarenet.network), so require the
+        # source realm to equal the destination realm exactly (realm_salt_matches).
+        if not realm_salt_matches(salt, realm, src_realm):
             return has_cleartext, False, "%s salt does not match realm %s → NTLM only" % (name, realm), None
         # transferable: rebuild the blob with only the allowlisted Kerberos packages. Samba's write path requires
         # the non-secret "Packages" index (a NUL-joined list of the Primary:* names) and checks
@@ -381,6 +385,7 @@ def apply(req, lp):
         src_sid = str(src.get_domain_sid())
         pin_check(req.get("dest_sid"), dom_sid, src_sid)
         src_inv = misc.GUID(src.get_invocation_id())  # the binding returns a string; the request wants a GUID object
+        src_realm = str(src.domain_dns_name())  # the source realm, to decide Kerberos transfer by exact realm match
         susers = source_users(src)
         for key in sorted(susers):
             u = susers[key]
@@ -392,7 +397,7 @@ def apply(req, lp):
                 out["outcome"], reason = "builtin", "built-in or machine/trust account (skipped)"
             else:
                 try:
-                    out["outcome"], reason = apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm)
+                    out["outcome"], reason = apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm, src_realm)
                 except Exception as e:
                     # one user's failure (its own transaction already rolled back in set_user) never aborts the rest
                     out["outcome"], reason = "error", reason_of(e)
@@ -405,7 +410,7 @@ def apply(req, lp):
     return {"dest_sid": dom_sid, "source_sid": src_sid, "users": users, "counts": counts}
 
 
-def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
+def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm, src_realm):
     """Extract one user's secrets and set them; returns (outcome, reason). reason is a short, secret-free note (no
     key, hash or salt value) explaining an ntlm_only/rejected classification, or None. Secrets live only in these
     locals and are discarded in the finally."""
@@ -416,7 +421,7 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
     try:
         if nt_hash is None:
             return "error", "no NT hash in the replicated object"
-        has_cleartext, kerberos_ok, kerb_reason, kerb_blob = inspect_supplemental(supp, realm)
+        has_cleartext, kerberos_ok, kerb_reason, kerb_blob = inspect_supplemental(supp, realm, src_realm)
         if has_cleartext:
             return "rejected", "source stores a reversible/cleartext password (Primary:CLEARTEXT)"
         # full-state idempotency: skip when pwdLastSet is non-zero, the NT hash matches, and the stored
