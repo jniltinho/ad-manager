@@ -558,7 +558,13 @@ function downloadPasswords() {
         {{ t('Import') }} — {{ syncLog.title }}
       </div>
       <div class="pnl-body">
-        <p v-if="syncLog.status === 'running'" class="mb-2 text-[13px] text-fg-muted">{{ syncLog.phase }}</p>
+        <template v-if="syncLog.status === 'running'">
+          <p class="mb-1 text-[13px] text-fg-muted">{{ syncLog.phase }}</p>
+          <!-- indeterminate progress bar while the import runs (stops when it finishes) -->
+          <div class="mb-2 h-1 w-full overflow-hidden bg-surface-3" role="progressbar" :aria-label="syncLog.phase">
+            <div class="pm-bar h-full bg-warn"></div>
+          </div>
+        </template>
         <p v-else class="mb-2 text-[13px]" :class="syncLog.status === 'error' ? 'text-err' : 'text-ok'">
           {{
             syncLog.status === 'error'
@@ -585,3 +591,26 @@ function downloadPasswords() {
     </dialog>
   </div>
 </template>
+
+<style scoped>
+/* indeterminate progress: a segment sliding across the track while an import runs */
+.pm-bar {
+  width: 40%;
+  animation: pm-indeterminate 1.1s ease-in-out infinite;
+}
+@keyframes pm-indeterminate {
+  0% {
+    margin-left: -40%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+</style>
