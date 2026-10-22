@@ -16,4 +16,4 @@
 
 - [x] 3.1 `openapi.yaml`: `/api/setup/*`; `TestOpenAPICoversRoutes` covers the setup-mode router
 - [x] 3.2 `docs/installation.md` (the import step), `docs/password-migration.md` and `docs/gpo.md` (gates set by the setup)
-- [ ] 3.3 `make check && make test`, `openspec validate --strict`, Codex review
+- [x] 3.3 `make check && make test`, `openspec validate --strict`, Codex review

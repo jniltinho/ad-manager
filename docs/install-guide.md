@@ -187,9 +187,12 @@ share_roots = ["/srv/shares"]          # it only creates inside these roots
 log_dir = "/var/log/samba"
 ```
 
-Then the token and the service:
+Then the share root, Samba's registry shares (the agent publishes shares there), the token and the service:
 
 ```bash
+sudo install -d -m 0755 /srv/shares            # each share_roots entry must exist
+sudoedit /etc/samba/smb.conf                   # [global]: registry shares = yes (samba-setup.py member sets it)
+sudo smbcontrol all reload-config
 sudo ad-manager agent check                    # Samba Python API, acl_xattr, permission mode
 sudo ad-manager agent token                    # prints the token ONCE; keeps only its SHA-256
 sudo systemctl enable --now ad-manager-agent
@@ -201,19 +204,19 @@ sudo systemctl enable --now ad-manager-agent
 V=X.Y.Z
 tar xzf ad-manager_v${V}_linux_amd64.tar.gz
 curl -fsSLO "https://raw.githubusercontent.com/jniltinho/ad-manager/v${V}/deploy/ad-manager-agent.service"
-sudo install -d -m 0755 /opt/ad-manager
-sudo install -d -m 0750 /opt/ad-manager/tls
+sudo install -d -m 0755 /opt/ad-manager /srv/shares                 # /srv/shares: each share_roots entry
+sudo install -d -m 0750 /opt/ad-manager/tls /opt/ad-manager/data     # data/: ACL history, self-signed certificate
 sudo install -m 0755 ad-manager /opt/ad-manager/ad-manager && sudo ln -sf /opt/ad-manager/ad-manager /usr/bin/ad-manager
 sudo install -m 0600 config.toml /opt/ad-manager/config.toml     # edit it as above ([agent] and [redis])
 sudo install -m 0644 ad-manager-agent.service /etc/systemd/system/
 sudo apt install -y redis-server acl python3-samba                # or your distribution's packages
 sudo systemctl daemon-reload
-sudo ad-manager agent check && sudo ad-manager agent token
+sudo ad-manager agent check && sudo ad-manager agent token        # registry shares = yes as in the .deb steps
 sudo systemctl enable --now ad-manager-agent
 ```
 
-Without `cert_file`, set `self_signed = true` in `[agent]` (a certificate in `/opt/ad-manager/data/`; create that
-directory) or bring your own certificate to `tls/`.
+Without `cert_file`, set `self_signed = true` in `[agent]` (a certificate in `/opt/ad-manager/data/`) or bring your
+own certificate to `tls/`.
 
 ### Tokens
 
@@ -222,22 +225,24 @@ directory) or bring your own certificate to `tls/`.
   hash on the server. The agent reads the hash at start: `sudo systemctl restart ad-manager-agent` after a new one.
   One token per agent: a new one replaces the old one in the panel and in every desktop app.
 - **Setup token.** Only on a fresh `.deb` install: `/opt/ad-manager/data/setup-token` (root only), valid 24 h, 5
-  tries every 15 min, spent on the first good sign-in. For a new one: delete `setup-token.used` and restart
-  `ad-manager`.
+  tries every 15 min, spent on the first good sign-in. For a new one (expired, lost or used): `sudo rm -f
+  /opt/ad-manager/data/setup-token /opt/ad-manager/data/setup-token.used` and `sudo systemctl restart ad-manager`.
 - **Register the agent** in the panel: **Shares → File servers → + New**, URL `https://fs01.example.local:9443` and the
   token (tick "Accept self-signed certificate" for a self-signed one).
 
 ### Write modes (gates)
 
 An agent on a **DC** is read-only unless one of its explicit modes is on in its `[agent]` section — each off by
-default and reported by `/api/health`:
+default and reported by `/api/health` (`files`, `gpo_restore`, `password_migration`):
 
 | Key(s) | Turns on | Reference |
 |---|---|---|
 | `dc_file_server = true` | the DC changes files and shares (its own share roots) | [dc-file-server.md](dc-file-server.md) |
 | `gpo_restore_user`, `gpo_restore_password_file` | restoring and importing GPOs (always as new GPOs) | [gpo.md](gpo.md) |
 | `password_migration_user`, `password_migration_password_file` | the password-material migration of a new-domain cutover | [password-migration.md](password-migration.md) |
-| `sync_unconfined = true` | sync runs without their systemd confinement (containers only) | [sync.md](sync.md) |
+
+Not a gate, but also in `[agent]`: `sync_unconfined = true` lets a sync run without its systemd confinement (a container
+without systemd only, [sync.md](sync.md)).
 
 The password files are regular `0600 root` files with only the password, never in `config.toml`. A new domain created
 by the setup wizard with **Prepare the import of GPOs and passwords** has both import modes pointing to
@@ -267,9 +272,11 @@ The desktop app is a client of the panel's API (and, for shares, of each agent):
 
 On the first run the **Configure** screen asks for the panel URL (**Test connection**), whether its certificate is
 self-signed, the default user and, optionally, the file servers (name, URL and agent token). It saves
-`.config/desktop.toml` beside the executable (`0600`; the app refuses a looser file because it holds tokens); when that
-folder is not writable (or inside the `.app`), `~/.config/ad-manager/desktop.toml` (Windows:
-`%AppData%\ad-manager\desktop.toml`). `--config` or `AD_MANAGER_DESKTOP` point to another file.
+`.config/desktop.toml` beside the executable; when that folder is not writable (or inside the macOS `.app`), the user's
+configuration folder: `~/.config/ad-manager/desktop.toml` on Linux, `~/Library/Application Support/ad-manager/` on
+macOS, `%AppData%\ad-manager\` on Windows. On Linux and macOS the file is `0600` and the app refuses a looser one (it
+holds agent tokens); on Windows its protection is the folder's, so keep the app in a folder of your own.
+`--config` or `AD_MANAGER_DESKTOP` point to another file.
 
 **Verify:** sign in with a Domain Admins account; Home shows the totals, and Shares lists each configured agent's
 shares. The panel's audit log records the desktop's actions with the machine's IP.
@@ -329,8 +336,9 @@ sudo rm -rf /opt/ad-manager/ad-manager /opt/ad-manager/config.toml /opt/ad-manag
 # sudo rm -rf /opt/ad-manager && sudo userdel ad-manager
 ```
 
-**Desktop app:** delete its folder (or the `.app`) and, if used, `~/.config/ad-manager/` (Windows:
-`%AppData%\ad-manager`).
+**Desktop app:** delete its folder (with its `.config/`) or the `.app`, and the user configuration folder if used:
+`~/.config/ad-manager/` (Linux), `~/Library/Application Support/ad-manager/` (macOS), `%AppData%\ad-manager` (Windows).
+They hold agent tokens.
 
 Uninstalling never touches Samba, the domain, the shares or the backups in `/var/backups/ad-manager`; remove an agent
 from the panel under **Shares → File servers**.

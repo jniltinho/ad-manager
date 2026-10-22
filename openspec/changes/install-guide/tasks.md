@@ -7,4 +7,4 @@
 
 - [x] 2.1 `config.toml.example`: `password_migration_*`, `dc_file_server`, and any other key the structs read
 - [x] 2.2 `internal/config`: `TestExampleCoversKeys`
-- [ ] 2.3 `make check && make test`, `openspec validate --strict`, Codex review
+- [x] 2.3 `make check && make test`, `openspec validate --strict`, Codex review
