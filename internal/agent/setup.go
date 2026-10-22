@@ -54,6 +54,7 @@ type SetupPlan struct {
 	ShareRoot string `json:"share_root"` // member, or a DC with Files; default /srv/shares
 	Files     bool   `json:"files"`      // new-dc, dc-join, restore-dc: this DC also serves files
 	Backup    string `json:"backup"`     // restore-dc: the DC backup (.tar.bz2) copied to this server
+	ImportAD  bool   `json:"import_ad"`  // new-dc with Files: this DC agent's GPO-import and password-migration write modes
 }
 
 var (
@@ -154,6 +155,12 @@ func (p SetupPlan) Args() ([]string, error) {
 		}
 	default:
 		return bad("role")
+	}
+	if p.ImportAD {
+		if p.Role != "new-dc" || !p.Files {
+			return bad("import_ad")
+		}
+		args = append(args, "--import-ready")
 	}
 	return args, nil
 }

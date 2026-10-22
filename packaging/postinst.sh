@@ -33,5 +33,5 @@ ad-manager installed. No service was started.
           (python3-samba for Windows permissions; check with  ad-manager agent check)
 Everything in /opt/ad-manager (config.toml, tls/, data/, logs/, docs/).
 systemd units: /usr/lib/systemd/system/ad-manager.service and ad-manager-agent.service
-Guide: /opt/ad-manager/docs/deployment.md
+Guide: /opt/ad-manager/docs/install-guide.md
 MSG

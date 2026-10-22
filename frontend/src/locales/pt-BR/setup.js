@@ -190,4 +190,13 @@ export default {
   'Mix three of: lowercase, uppercase, digits and symbols.': 'Misture três destes: minúsculas, maiúsculas, números e símbolos.',
   "This server's IP address": 'Endereço IP deste servidor',
   Overview: 'Revisão',
+  'Prepare the import of GPOs and passwords from an existing AD': 'Preparar a importação de GPOs e senhas de um AD existente',
+  "Turns on this DC agent's write modes for the import (Import/export → From another AD) with the administrator password kept in a root-only file; delete it after the import.":
+    'Liga os modos de escrita do agente deste DC para a importação (Importar/exportar → De outro AD), com a senha do administrador guardada num arquivo só do root; apague-o depois da importação.',
+  "This DC's agent gets the write modes to import GPOs and passwords from an existing AD, with the administrator password in {file} (root only) until you delete it.":
+    'O agente deste DC recebe os modos de escrita para importar GPOs e senhas de um AD existente, com a senha do administrador em {file} (só root) até você apagá-lo.',
+  'To bring users, groups, DNS, GPOs, shares and passwords from an existing AD: Import/export → From another AD.':
+    'Para trazer usuários, grupos, DNS, GPOs, compartilhamentos e senhas de um AD existente: Importar/exportar → De outro AD.',
+  'After the import, turn the write modes off: {cmd}': 'Depois da importação, desligue os modos de escrita: {cmd}',
+  'Import from an existing AD': 'Importar de um AD existente',
 }

@@ -29,6 +29,21 @@ All notable changes to this project are documented here. The format follows
 - Import/export: a per-profile trash button (with a confirmation) deletes a saved source profile, and a log/status
   modal shows each import's progress and result.
 
+### Added (setup and docs)
+- The setup wizard's **New domain** ends with **Import from an existing AD**, opening *Import/export → From another
+  AD* after the Domain Admin sign-in. An optional **Prepare the import of GPOs and passwords** (with "This DC also
+  serves files"; `samba-setup.py new-dc --panel --files --import-ready`) turns on this DC agent's GPO-import and
+  password-migration write modes with the administrator password in `/opt/ad-manager/import.pass` (0600 root);
+  `sudo rm` it after the import to turn both off. `apt purge` removes it.
+- **Installation guide** (`docs/install-guide.md`): the panel and the agent from the `.deb` or the tarball, the
+  desktop app on Linux, Windows and macOS — prerequisites, config keys, TLS, tokens, write-mode gates, verification,
+  upgrade and uninstall. `config.toml.example` lists every key the binary reads (a test keeps it so).
+- The setup-mode API (`/api/setup/*`) is documented in `openapi.yaml`.
+
+### Fixed (setup)
+- DC roles of `samba-setup.py` start the panel last, so the wizard no longer reports success before the DC agent part
+  ran (a failure there now shows in the wizard). The config-backup notice no longer counts as a wizard step.
+
 ## [0.15.1] — 2026-10-19
 
 **A raised logo.**

@@ -30,6 +30,8 @@ path = "/opt/ad-manager/data/ad-manager.db"   # SQLite: file servers and AD prof
 [redis]
 # asynq queue; empty turns off /asynqmon in the panel. Password: the AD_REDIS_PASSWORD variable
 addr = "127.0.0.1:6379"
+# password = ""                    # prefer the AD_REDIS_PASSWORD variable (in /opt/ad-manager/env)
+# db = 0                           # Redis database number
 tls = false
 
 # ── only on the file server (ad-manager agent) ────────────────────────────────
@@ -45,6 +47,13 @@ share_roots = ["/srv/shares"]
 # new GPO (docs/gpo.md). An account that creates GPOs and a file with only its password, mode 0600.
 # gpo_restore_user = "svc-gporestore"
 # gpo_restore_password_file = "/opt/ad-manager/gpo-restore.pass"
+# Only on a DC, separate from the GPO restore and off by default: the password-material migration of a new-domain
+# cutover (docs/password-migration.md). A target-domain administrator and a 0600 root file; the setup wizard's
+# "Prepare the import of GPOs and passwords" sets both modes to /opt/ad-manager/import.pass (delete it to turn them off).
+# password_migration_user = "administrator@example.local"
+# password_migration_password_file = "/opt/ad-manager/pwmigrate.pass"
+# Only on a DC that also serves files (docs/dc-file-server.md): lets the DC's agent change files and shares.
+# dc_file_server = false
 # This server's backups (docs/backup.md): files, manifests and schedules.
 # backup_dir = "/var/backups/ad-manager"
 # Largest backup accepted in "Send a backup", in MiB (default 20480 = 20 GiB).

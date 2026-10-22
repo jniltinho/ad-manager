@@ -12,6 +12,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 | See what it does (features, screenshots, architecture) | [overview.md](overview.md) |
 | Try it without preparing a server (Docker: Samba domain with panel and agent) | [docker.md](docker.md) |
 | **Install on a server — automatic setup in the browser (recommended)** | [installation.md](installation.md) |
+| Install, upgrade or remove the panel, the agent or the desktop app (`.deb` or binary), with every config key | [install-guide.md](install-guide.md) |
 | Install and configure the panel by hand (`.deb` package, services, TLS, existing AD) | [deployment.md](deployment.md) |
 | Set up a new Samba domain, an additional DC or a file server from the command line | [samba-install.md](samba-install.md) |
 | Migrate a Windows DC to Samba (cutover, gates, rollback) | [migration-runbook.md](migration-runbook.md) |
