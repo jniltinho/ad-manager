@@ -54,19 +54,21 @@ rain animation: the page pattern is static, and the flat look removes it).
 5. **High contrast** — `#000000` surfaces, text `#ffffff` (muted `#e6e6e6`, 16.8:1), lines `#bfbfbf`, fields black
    with a white frame, single accent yellow `#ffff00` (19.6:1) only where something acts, is current or has the
    focus: primary action with black text, links, selected row with black text, the header mark, focus, and the
-   current tab. Tabs follow the folder pattern of the other themes (Cone): the current top, inner and card tab has the
-   content's color (black) with yellow text and icon, white sides and a 3 px yellow bar on top; the others are framed
-   in gray. The `aaaOnly` recipes `subtab-on/subtab` and `cardtab-on/cardtab` are now `segmentedOnly` in
-   `matrix.json` (a segmented control, Crystal, marks the selected tab by its fill alone; a folder tab marks it with
-   the bar). To keep it sober, decorations are white or gray, not yellow: no bar left of card titles, a 2 px Home
-   tile stripe, white chart bars and strong tags, 1 px white footer and dialog-title lines. The current side-list
-   item (`nav-on`) is black with yellow text and a 4 px yellow bar, so the yellow focus ring still reads on it
+   current tab. Its structure is Matrix's (the user's reference): the same 1 px line around the window (light gray
+   `#bfbfbf`, no glow; cards, dialogs and the login box are framed by their own border, so the flat look only removes the
+   thin lines it removes in every theme), the 2 px yellow bar before card titles, the 2 px tile
+   stripe, the same tab geometry with a 2 px yellow bar on top of the current top, inner and card tab (black with
+   yellow text and icon, white sides; the others framed in gray), the same dialog and toast parameters, yellow chart
+   bars and strong tags; Inter stays (legibility is this theme's job). The `aaaOnly` recipes `subtab-on/subtab` and
+   `cardtab-on/cardtab` are `segmentedOnly` in `matrix.json` (a segmented control, Crystal, marks the selected tab by
+   its fill alone; a folder tab marks it with the bar). The current side-list item (`nav-on`) is black with yellow
+   text and a 3 px yellow bar, so the yellow focus ring still reads on it
    (`focus/nav-on`). The login focus is solid yellow, 3 px (`login-focus/login-box`). States: ok `#5cff5c`, error
    text `#ffa3a3` (≥ 7:1 on the `#262626` row hover too), error fill `#ff8a8a`, warning `#ffc04d`, all with black
    text on fills. Pink Panther's customer-logo plate is a light `#fdf0f6` with padding, since its header and login box
    are dark plum. Every decorative `--bg-*` is `none` and the top/base pairs are equal; the select arrow
    (`--bg-select-arrow`) stays, in white, since it is an icon. Shadows are zero except the hard state outlines
-   (`--shadow-field-focus: 0 0 0 3px #ffff00`, invalid) and the white tab frames; `--focus-ring-w: 3px`. Buttons have
+   (`--shadow-field-focus: 0 0 0 3px #ffff00`, invalid), the tab frames and the 1 px window line; `--focus-ring-w: 3px`. Buttons have
    one color, so the hover is `--btn-hover-filter: brightness(0.85)` (yellow `#d9d900`, black text 14:1) and the
    secondary button's yellow hover line. Listed in `matrix.json` `aaa`: the web test and `themegen` (`MinText` 7)
    hold it to 7:1 on both sides. Inter 13 px.
@@ -74,7 +76,8 @@ rain animation: the page pattern is static, and the flat look removes it).
    `brand.theme`. Because the desktop draws some depth of its own (button gloss and shadow, card shadow, the login's
    highlight and elliptic shadow) independently of the CSS shadows, the generator marks a theme **depthless** when
    `--shadow-btn`, `--shadow-card` and `--shadow-login-box` have no visible layer (only High contrast), and
-   `applyLook` always draws a depthless theme in the flat look; for the same reason its dialogs are framed in
+   `applyLook` always draws a depthless theme in the flat look (a 1 px line with no blur and no offset, Matrix's
+   frames, is not depth); for the same reason its dialogs are framed in
    `dialog-line` at 2 px (`modal.go`; `dialog-line` is added to the generated roles, the other themes keep their 1 px
    frame in `dialog-head`). Since the current inner tab has the content's color on the web too, the desktop draws it
    the same way (black, yellow text, white sides and the yellow top bar). `TestVolumeDrawn` accepts one-color bands where the

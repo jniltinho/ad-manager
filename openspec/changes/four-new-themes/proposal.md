@@ -17,7 +17,7 @@ blues by design.
   - **Pink Panther** (`pink-panther`, light): blush page, white cards, plum-ink text, the deep plum title bar of the
     1963 film titles with the panther pink as a stripe; deep rose actions. Pink only as an accent.
   - **High contrast** (`high-contrast`, dark): pure black and white with a single yellow accent (actions, links,
-    selection, focus), no gradients, no shadows, no low-contrast grays (muted text
+    selection, focus), no gradients, no depth shadows, no low-contrast grays (muted text
     `#e6e6e6`, 16.8:1), 3 px focus ring, held to WCAG AAA (7:1 text).
 - The desktop app picks up the four from the same files (generated `desktop/themes_gen.go`), with the High contrast
   theme held to 7:1 in every color the desktop draws, like Crystal.

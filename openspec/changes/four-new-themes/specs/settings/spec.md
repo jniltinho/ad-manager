@@ -56,7 +56,8 @@ fills an area that holds text. Normal text reaches ≥ 4.5:1, at rest and under 
 
 ### Requirement: High contrast theme
 The theme registry SHALL include `high-contrast` (dark), an accessibility theme: black `#000000` surfaces, white
-`#ffffff` text, a single yellow `#ffff00` accent, no gradients and no depth shadows. It SHALL meet WCAG AAA text
+`#ffffff` text, a single yellow `#ffff00` accent, Matrix's structure (the 1 px window line, bars, tab marks) in that
+palette, no gradients and no depth shadows. It SHALL meet WCAG AAA text
 contrast (1.4.6) and 3:1 for components (1.4.11) on the web and on the desktop, with a solid 3 px focus ring.
 
 #### Scenario: Choose High contrast
@@ -78,7 +79,7 @@ contrast (1.4.6) and 3:1 for components (1.4.11) on the web and on the desktop, 
 
 #### Scenario: Current tab
 - **WHEN** a top, inner or card tab is current in High contrast
-- **THEN** it has the content's color (black) with yellow text and icon, white sides and a 3 px yellow bar on top,
+- **THEN** it has the content's color (black) with yellow text and icon, white sides and a 2 px yellow bar on top,
   like the folder tabs of the other themes, not a yellow block
 
 #### Scenario: Select arrow kept
@@ -87,16 +88,18 @@ contrast (1.4.6) and 3:1 for components (1.4.11) on the web and on the desktop, 
 
 #### Scenario: Flat look changes nothing
 - **WHEN** the flat look is turned on in High contrast
-- **THEN** the screen looks the same (the theme has no gradient or depth to remove), on the web and on the desktop
+- **THEN** the screen looks the same but for the thin lines the flat look removes in every theme (the window line,
+  the table-head and tab-strip lines, the card hover outline): the theme has no gradient or depth to remove, on the
+  web and on the desktop
 
 ### Requirement: Folder tabs in the new themes
 In `winamp`, `pink-panther` and `high-contrast` the current top, inner and card tab SHALL have the color of the
-content surface below it, the theme's accent on its text and icon and a 3 px accent bar on top, with thin
-separators around the other tabs, as in the existing folder-tab themes (Cone).
+content surface below it, the theme's accent on its text and icon and a 2–3 px accent bar on top, with thin
+separators around the other tabs, as in the existing folder-tab themes (Cone, Matrix).
 
 #### Scenario: Current tab connects to the content
 - **WHEN** a page is open in one of these themes
-- **THEN** its top tab has `--color-tab-on` equal to `--color-surface` and a 3 px accent bar on top
+- **THEN** its top tab has `--color-tab-on` equal to `--color-surface` and a 2–3 px accent bar on top
   (`--shadow-tab-on`), and the other tabs have thin separators (`--shadow-tab`)
 
 ### Requirement: New themes leave the others intact

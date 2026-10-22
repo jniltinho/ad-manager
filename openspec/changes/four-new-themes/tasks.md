@@ -4,7 +4,7 @@
       background and shadow role and the recipe parameters, square corners; imported in `frontend/src/style.css`
 - [x] 1.2 Registry `internal/server/themes.go` (ids, English labels, scheme); `openapi.yaml` theme enum (rule 8)
 - [x] 1.3 `frontend/src/themes/matrix.json`: `high-contrast` in `aaa`; the contrast test passes for the four with no
-      pending recipe (High contrast: black current tabs with yellow text and a yellow top bar, the selected-tab recipes
+      pending recipe (High contrast: Matrix's structure; black current tabs with yellow text and a yellow top bar, the selected-tab recipes
       `segmentedOnly`, black `nav-on` with yellow text, solid login focus, error text `#ffa3a3`)
 - [x] 1.4 pt-BR labels in `frontend/src/locales/pt-BR/common.js` (and fix the stale keys of the existing labels)
 

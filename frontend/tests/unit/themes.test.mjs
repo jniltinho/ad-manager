@@ -143,11 +143,11 @@ const box = { borderTopLeftRadius: 0 }
 })
 
 describe('folder tabs (four-new-themes)', () => {
-  test('the current tab has the content color and a 3 px accent bar on top, the others thin separators', () => {
+  test('the current tab has the content color and a 2–3 px accent bar on top, the others thin separators', () => {
     for (const id of ['cone', 'winamp', 'pink-panther', 'high-contrast']) {
       const m = merged(id)
       expect(m.get('--color-tab-on'), id).toBe(m.get('--color-surface'))
-      expect(m.get('--shadow-tab-on'), id).toMatch(/inset 0 3px #[0-9a-f]{6}$/)
+      expect(m.get('--shadow-tab-on'), id).toMatch(/inset 0 [23]px #[0-9a-f]{6}$/)
       expect(m.get('--shadow-tab'), id).not.toBe('0 0 #0000')
     }
   })

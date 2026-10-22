@@ -1,11 +1,12 @@
 /* "High contrast" theme (dark): an accessibility theme for maximum legibility (WCAG AAA: normal text >= 7:1, large
- * text >= 4.5:1, components >= 3:1; listed in matrix.json "aaa"). Pure black and white with one accent, yellow
- * #ffff00, for what acts or is current: the primary action, links, the selected row, the current tab and focus (a
- * solid 3 px ring). No gradients, no depth shadows and no low-contrast grays, so the flat look changes nothing; every
- * box is framed in white or light gray instead. Only role values and recipe parameters of the contract in style.css;
- * square corners. */
+ * text >= 4.5:1, components >= 3:1; listed in matrix.json "aaa"). Black and white with one accent, yellow #ffff00,
+ * where something acts, is current or has the focus (the primary action, links, the selected row, the current tab's
+ * bar, card-title bars, focus: a solid 3 px ring). The structure is Matrix's: the same 1 px line around the window
+ * (light gray, no glow; cards, dialogs and the login box are framed by their border), the same bars and tab marks; no
+ * gradients and no depth, so the flat look only removes the thin lines it removes in every theme (window, table head,
+ * tab strip, card hover). Only role values and recipe parameters of the contract in style.css; square corners. */
 
-/* High contrast: #000000 / #ffffff, accent #ffff00; states ok #5cff5c, error #ff8a8a, warning #ffc04d */
+/* High contrast: #000000 / #ffffff, accent #ffff00; states ok #5cff5c, error #ffa3a3, warning #ffc04d */
 :root[data-theme='high-contrast'] {
   --color-fg: #ffffff;
   --color-on-page: #ffffff;
@@ -67,7 +68,7 @@
   --color-err-soft: #2a0000;
   --color-on-err-soft: #ffb3b3;
   --color-neutral-fill: #e6e6e6;
-  --color-strong-fill: #ffffff;
+  --color-strong-fill: #ffff00;
   --color-ok-soft: #002a00;
   --color-on-ok-soft: #a3ffa3;
   --color-warn-soft: #2a1d00;
@@ -99,7 +100,7 @@
   --color-tab-on-icon: #ffff00;
   --color-footer-top: #000000;
   --color-footer: #000000;
-  --color-footer-bar: #ffffff;
+  --color-footer-bar: #bfbfbf;
   --color-on-footer: #ffffff;
   --color-footer-strong: #ffffff;
   --color-nav-on: #000000;
@@ -107,7 +108,7 @@
   --color-nav-on-line: #bfbfbf;
   --color-card-head-top: #000000;
   --color-card-head: #000000;
-  --color-card-head-bar: #ffffff;
+  --color-card-head-bar: #ffff00;
   --color-on-card-head: #ffffff;
   --color-table-head-top: #262626;
   --color-table-head: #262626;
@@ -116,13 +117,13 @@
   --color-on-dialog: #ffffff;
   --color-dialog-head-top: #000000;
   --color-dialog-head: #000000;
-  --color-dialog-head-bar: #ffffff;
+  --color-dialog-head-bar: #ffff00;
   --color-on-dialog-head: #ffffff;
   --color-backdrop: rgba(0, 0, 0, 0.75);
   --color-pop-line: #ffffff;
   --color-tooltip: #000000;
   --color-on-tooltip: #ffffff;
-  --color-tooltip-bar: #ffffff;
+  --color-tooltip-bar: #ffff00;
   --color-on-pop: #ffffff;
   --color-on-selection-muted: #000000;
   --color-card-hover-line: #ffff00;
@@ -140,12 +141,12 @@
   --color-subtab-hover: #262626;
   --color-subtab-on: #000000;
   --color-on-subtab-on: #ffff00;
-  --color-chart-1: #ffffff;
+  --color-chart-1: #ffff00;
   --color-decor-ok: #5cff5c;
   --color-decor-err: #ff8a8a;
   --color-decor-warn: #ffc04d;
   --color-decor-muted: #bfbfbf;
-  --color-decor-strong: #ffffff;
+  --color-decor-strong: #ffff00;
   --color-scroll-thumb: #ffffff;
   --color-scroll-track: #000000;
   --color-login-page: #000000;
@@ -160,7 +161,6 @@
   --color-login-field-line: #ffffff;
   --color-login-focus: #ffff00; /* AAA: solid, 3 px (--focus-ring-w) */
   --color-logo-plate: #ffffff;
-  /* no gradients: every band is one color (the flat look changes nothing) */
   --bg-page: none;
   --bg-header: none;
   --bg-tabs: none;
@@ -176,36 +176,35 @@
   --bg-dialog-foot: none;
   --bg-footer: none;
   --bg-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23ffffff'/%3E%3C/svg%3E");
-  /* no depth: only hard state outlines (focus, invalid) and the tab frames */
   --shadow-btn: 0 0 #0000;
   --shadow-btn-2: 0 0 #0000;
   --shadow-brand-action: 0 0 #0000;
   --shadow-btn-danger: 0 0 #0000;
   --shadow-field-focus: 0 0 0 3px #ffff00;
-  --shadow-invalid: 0 0 0 3px #ff8a8a;
+  --shadow-invalid: 0 0 0 3px #ffa3a3;
   --shadow-card: 0 0 #0000;
   --shadow-field: 0 0 #0000;
-  --shadow-table-head: 0 0 #0000;
+  --shadow-table-head: inset 0 -1px 0 #bfbfbf;
   --shadow-dialog: 0 0 #0000;
-  --shadow-pop: 0 0 #0000;
-  --shadow-tip: 0 0 #0000;
-  --shadow-app: 0 0 #0000;
-  --shadow-tabs: inset 0 -1px #ffffff;
-  --shadow-tab-on: inset 1px 0 #ffffff, inset -1px 0 #ffffff, inset 0 3px #ffff00;
-  --shadow-subtab-on: inset 1px 0 #ffffff, inset -1px 0 #ffffff, inset 0 3px #ffff00;
-  --shadow-card-hover: 0 0 #0000;
-  --shadow-nav-on: inset 4px 0 0 #ffff00;
+  --shadow-pop: 0 0 0 1px #ffffff;
+  --shadow-tip: 0 0 0 1px #ffffff;
+  --shadow-app: 0 0 0 1px #bfbfbf; /* the window line, as Matrix (cards, dialogs and the login box have their own border) */
+  --shadow-tabs: inset 0 -1px #bfbfbf;
+  --shadow-tab-on: inset 1px 0 #ffffff, inset -1px 0 #ffffff, inset 0 2px #ffff00;
+  --shadow-subtab-on: inset 1px 0 #ffffff, inset -1px 0 #ffffff, inset 0 2px #ffff00;
+  --shadow-card-hover: 0 0 0 1px #ffff00;
+  --shadow-nav-on: inset 3px 0 0 #ffff00;
   --shadow-login-box: 0 0 #0000;
   --font-sans: 'Inter', Tahoma, Verdana, Arial, sans-serif;
   --font-size-base: 13px;
-  --card-head-bar-w: 0px;
+  --card-head-bar-w: 2px; /* the bar before each card title, as Matrix */
   --card-head-size: 13px;
   --card-head-weight: 600;
   --card-head-transform: none;
   --card-stripe: 2px;
-  --btn-hover-filter: brightness(0.85); /* the hover of a one-color button: yellow #d9d900, black text still 14:1 */
+  --btn-hover-filter: brightness(0.85);
   --shadow-btn-active: none;
-  --shadow-tab: inset 1px 0 #808080, inset -1px 0 #808080, inset 0 1px #808080, inset 0 -1px #ffffff;
+  --shadow-tab: inset 1px 0 #808080, inset -1px 0 #808080, inset 0 1px #808080, inset 0 -1px #bfbfbf;
   --tab-gap: 2px;
   --tab-inset-top: 3px;
   --tabs-pad: 6px;
@@ -218,7 +217,7 @@
   --cardtabs-pad: 6px;
   --cardtabs-gap: 2px;
   --shadow-cardtab: inset 1px 0 #808080, inset -1px 0 #808080, inset 0 1px #808080;
-  --shadow-cardtab-on: inset 1px 0 #ffffff, inset -1px 0 #ffffff, inset 0 3px #ffff00;
+  --shadow-cardtab-on: inset 1px 0 #ffffff, inset -1px 0 #ffffff, inset 0 2px #ffff00;
   --cardtab-inset-top: 3px;
   --cardtab-on-overlap: 1px;
   --cardtab-bar-w: 0px;
@@ -226,19 +225,18 @@
   --placeholder-color: var(--color-fg-muted);
   --preview-logo-dark-ink: none;
   --preview-logo-light-ink: block;
-  --dialog-line-w: 2px;
+  --dialog-line-w: 1px;
   --dialog-head-bar-w: 1px;
-  --dialog-head-size: 15px;
+  --dialog-head-size: 14px;
   --dialog-head-pad: 0.75rem 1rem;
   --toast-head-mix: 0%;
-  --toast-line-w: 2px;
-  --toast-bar-w: 4px;
-  --focus-ring-w: 3px;
+  --toast-line-w: 1px;
+  --toast-bar-w: 3px;
   --logo-plate-pad: 4px 6px;
   --header-logo-dark-ink: none;
   --header-logo-light-ink: block;
   --login-logo-dark-ink: none;
   --login-logo-light-ink: block;
-  --login-shadow-img: none; /* no glow under the login box */
-  --footer-bar-w: 1px;
+  --login-shadow-img: none;
+  --focus-ring-w: 3px;
 }

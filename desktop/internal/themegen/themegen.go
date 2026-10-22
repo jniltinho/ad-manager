@@ -203,9 +203,11 @@ func Load(root string) ([]Theme, error) {
 				*f.to = insetShadows(v)
 			}
 		}
-		t.Depthless = true
+		t.Depthless = true // a 1 px line around the box (no blur, no offset: High contrast) is a frame, not depth
 		for _, n := range []string{"--shadow-btn", "--shadow-card", "--shadow-login-box"} {
-			if v, err := resolve(vals, n, 0); err != nil || outerShadow(v).Color[3] != 0 || len(insetShadows(v)) > 0 {
+			v, err := resolve(vals, n, 0)
+			o := outerShadow(v)
+			if err != nil || (o.Color[3] != 0 && (o.Blur > 0 || o.DX != 0 || o.DY != 0)) || len(insetShadows(v)) > 0 {
 				t.Depthless = false
 			}
 		}
