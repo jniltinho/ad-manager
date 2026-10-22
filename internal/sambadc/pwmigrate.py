@@ -227,25 +227,28 @@ def decrypt_secrets(drs, obj, rid):
 
 
 def inspect_supplemental(supp, realm):
-    """Classify the decrypted supplementalCredentials: (has_cleartext, kerberos_ok, reason). A Primary:CLEARTEXT
-    package is a rejection; the Kerberos keys count as transferable only when their salt names the destination
-    realm. Any layout this helper cannot parse (no Kerberos package, a WDigest-only blob, an unreadable package, a
-    malformed blob) is NOT an error — it yields kerberos_ok=False with a sanitized reason, so the user falls back to
-    NTLM-only. The reason never contains a key, hash or salt value."""
+    """Classify the decrypted supplementalCredentials: (has_cleartext, kerberos_ok, reason, kerb_blob).
+
+    A Primary:CLEARTEXT package is a rejection. The Kerberos keys count as transferable only when their salt names
+    the destination realm. When they do, kerb_blob is a REBUILT supplementalCredentials blob containing ONLY the
+    allowlisted Kerberos packages (WDigest, the Packages listing and anything else are dropped — the allowlist), so
+    nothing outside the allowlist is copied to the target. Any layout this helper cannot parse (no Kerberos package,
+    a WDigest-only blob, an unreadable blob, a non-matching salt) is NOT an error — kerberos_ok=False with a
+    sanitized reason, so the user falls back to NTLM-only. The reason never contains a key, hash or salt value."""
     from samba.dcerpc import drsblobs
-    from samba.ndr import ndr_unpack
+    from samba.ndr import ndr_unpack, ndr_pack
     if not supp:
-        return False, False, "no supplementalCredentials (NTLM only)"
+        return False, False, "no supplementalCredentials (NTLM only)", None
     try:
         scb = ndr_unpack(drsblobs.supplementalCredentialsBlob, supp)
         packages = [p for p in scb.sub.packages]
     except Exception as e:
-        return False, False, "supplementalCredentials unreadable: %s (NTLM only)" % type(e).__name__
+        return False, False, "supplementalCredentials unreadable: %s (NTLM only)" % type(e).__name__, None
     has_cleartext = any(p.name == "Primary:CLEARTEXT" for p in packages)
     names = [p.name for p in packages]
     kerb = [p for p in packages if p.name in KERBEROS_PACKAGES]
     if not kerb:
-        return has_cleartext, False, "no Kerberos package (have: %s) → NTLM only" % (", ".join(names) or "none")
+        return has_cleartext, False, "no Kerberos package (have: %s) → NTLM only" % (", ".join(names) or "none"), None
     # prefer Newer-Keys; fall back to the older Primary:Kerberos
     for name in ("Primary:Kerberos-Newer-Keys", "Primary:Kerberos"):
         p = next((x for x in kerb if x.name == name), None)
@@ -259,14 +262,30 @@ def inspect_supplemental(supp, realm):
             kp = ndr_unpack(drsblobs.package_PrimaryKerberosBlob, raw)
             salt = kp.ctr.salt.string or ""
         except Exception as e:
-            return has_cleartext, False, "%s parse failed: %s → NTLM only" % (name, type(e).__name__)
+            return has_cleartext, False, "%s parse failed: %s → NTLM only" % (name, type(e).__name__), None
         if not salt:
-            return has_cleartext, False, "%s has no salt → NTLM only" % name
+            return has_cleartext, False, "%s has no salt → NTLM only" % name, None
         # the default salt is REALM + the principal name; a salt naming the source realm would not transfer
-        if realm.upper() in salt.upper():
-            return has_cleartext, True, None
-        return has_cleartext, False, "%s salt does not name realm %s → NTLM only" % (name, realm)
-    return has_cleartext, False, "no usable Kerberos package → NTLM only"
+        if realm.upper() not in salt.upper():
+            return has_cleartext, False, "%s salt does not name realm %s → NTLM only" % (name, realm), None
+        # transferable: rebuild the blob with only the allowlisted Kerberos packages. Samba's write path requires
+        # the non-secret "Packages" index (a NUL-joined list of the Primary:* names) and checks
+        # num_packages == num_names + 1, so rebuild that index to name only the kept Kerberos packages and drop
+        # WDigest (and anything else) — nothing outside the allowlist is copied.
+        try:
+            kerb_names = [x.name for x in packages if x.name in KERBEROS_PACKAGES]
+            index = next((x for x in packages if x.name == "Packages"), None)
+            keep = [x for x in packages if x.name in KERBEROS_PACKAGES]
+            if index is not None:
+                index.data = "\0".join(kerb_names).encode("utf-16-le").hex().upper()
+                keep.append(index)
+            scb.sub.packages = keep
+            scb.sub.num_packages = len(keep)
+            kerb_blob = ndr_pack(scb)
+        except Exception as e:
+            return has_cleartext, False, "could not rebuild Kerberos-only blob: %s → NTLM only" % type(e).__name__, None
+        return has_cleartext, True, None, kerb_blob
+    return has_cleartext, False, "no usable Kerberos package → NTLM only", None
 
 
 def write_material(samdb, dn, nt_hash, supp):
@@ -309,30 +328,33 @@ def set_user(samdb, dn, nt_hash, supp, copy_kerberos):
             write_material(samdb, dn, nt_hash, supp)
             return True, None
         except Exception as e:
-            text = " ".join(str(a) for a in getattr(e, "args", ()) if isinstance(a, str))
-            if "supplementalCredentials" not in text:
-                raise  # an unrelated write failure stays an error
+            # Any failure writing the Kerberos blob (Samba's byte-identical memcmp, a key-count/salt validation,
+            # etc.) falls back to the NT hash only: the production password still works for NTLM/LDAP logon and the
+            # Kerberos keys rebuild on the next change. Only if the NT-only write ALSO fails is it a real error.
+            why = sanitize_reason(reason_of(e))
             write_material(samdb, dn, nt_hash, None)
-            return False, "Samba rejected the copied Kerberos keys (%s) → NTLM only" % text.strip()
+            return False, "Samba rejected the copied Kerberos keys (%s) → NTLM only" % why
     write_material(samdb, dn, nt_hash, None)
     return False, None
 
 
 def current_state(samdb, dn):
-    """The local user's current NT hash and whether it already carries Kerberos keys, to detect a full 'same'. The
-    NT hash is unreadable without privilege; a system-session search on the local sam.ldb returns it. Returns
-    (nt_hash bytes|None, has_kerberos bool)."""
+    """The local user's current NT hash and stored supplementalCredentials, to detect a full 'same'. The NT hash is
+    unreadable without privilege; a system-session search on the local sam.ldb returns it. Returns
+    (nt_hash bytes|None, supp bytes|None). A successful Kerberos 'set' stores the source blob verbatim (Samba's
+    memcmp requires it), so a later run can compare the stored blob to decide 'same'."""
     import ldb
     nt_hash = None
-    has_kerberos = False
+    supp = None
     try:
         res = samdb.search(base=dn, scope=ldb.SCOPE_BASE, attrs=["unicodePwd", "supplementalCredentials"])
         if "unicodePwd" in res[0]:
             nt_hash = bytes(res[0]["unicodePwd"][0])
-        has_kerberos = "supplementalCredentials" in res[0] and len(res[0]["supplementalCredentials"][0]) > 0
+        if "supplementalCredentials" in res[0] and len(res[0]["supplementalCredentials"][0]) > 0:
+            supp = bytes(res[0]["supplementalCredentials"][0])
     except Exception:
         pass
-    return nt_hash, has_kerberos
+    return nt_hash, supp
 
 
 def apply(req, lp):
@@ -381,18 +403,21 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
     try:
         if nt_hash is None:
             return "error", "no NT hash in the replicated object"
-        has_cleartext, kerberos_ok, kerb_reason = inspect_supplemental(supp, realm)
+        has_cleartext, kerberos_ok, kerb_reason, kerb_blob = inspect_supplemental(supp, realm)
         if has_cleartext:
             return "rejected", "source stores a reversible/cleartext password (Primary:CLEARTEXT)"
-        # full-state idempotency: skip only an NTLM-only user whose state already matches — pwdLastSet non-zero, the
-        # NT hash equal, and no Kerberos keys present (so none to add and none stale). When we would copy Kerberos
-        # keys we cannot cheaply prove the stored keys/salt are identical, so we re-apply (reporting "set") rather
-        # than risk a false "same" that leaves stale keys.
-        if not kerberos_ok:
-            cur_hash, cur_kerberos = current_state(samdb, lu["dn"])
-            if lu["pwd_last_set"] != 0 and cur_hash is not None and cur_hash == nt_hash and not cur_kerberos:
-                return "same", None
-        copied, fb_reason = set_user(samdb, lu["dn"], nt_hash, supp if kerberos_ok else None, kerberos_ok)
+        # full-state idempotency: skip when pwdLastSet is non-zero, the NT hash matches, and the stored
+        # supplementalCredentials already equals the intended state — for a Kerberos user that means the stored
+        # blob equals the source blob (a successful 'set' stores it verbatim), and for an NTLM-only user it means
+        # no Kerberos keys are present (none to add, none stale).
+        if lu["pwd_last_set"] != 0:
+            cur_hash, cur_supp = current_state(samdb, lu["dn"])
+            if cur_hash is not None and cur_hash == nt_hash:
+                if kerberos_ok and cur_supp == kerb_blob:
+                    return "same", None
+                if not kerberos_ok and not cur_supp:
+                    return "same", None
+        copied, fb_reason = set_user(samdb, lu["dn"], nt_hash, kerb_blob if kerberos_ok else None, kerberos_ok)
         if copied:
             return "set", None
         # not copied: either we never had transferable keys, or Samba rejected the blob and we fell back to NT-only
@@ -402,13 +427,41 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
         del supp
 
 
+def _secretish(tok):
+    """True for a token that looks like encoded key/hash material: long and either base64 (has +/=), mixed
+    letters+digits, or an all-hex run. Plain words and short codes (e.g. 'supplementalCredentialsBlob', 'c:681')
+    are not secretish."""
+    if len(tok) < 16:
+        return False
+    if any(c in "+/=" for c in tok):
+        return True
+    if not all(c.isalnum() for c in tok):
+        return False
+    has_digit = any(c.isdigit() for c in tok)
+    has_alpha = any(c.isalpha() for c in tok)
+    if has_digit and has_alpha:
+        return True  # mixed alnum run (base64-ish / hash)
+    if len(tok) >= 24 and all(c in "0123456789abcdefABCDEF" for c in tok):
+        return True  # long all-hex run (e.g. an NT hash in hex)
+    return False
+
+
+def sanitize_reason(text):
+    """Keep a reason secret-free: redact any token that could be encoded key/hash material, keep plain words and
+    short codes, and bound the length. Never emits a hash, key, salt or password even if a Samba/ldb message
+    happened to embed one."""
+    if not text:
+        return ""
+    return " ".join("<redacted>" if _secretish(tok) else tok for tok in str(text).split())[:200]
+
+
 def reason_of(e):
-    """A short, secret-free reason for a per-user failure: the error class and, for a Samba status error, its status
-    text (a code/name, never a replicated value). Never includes a hash, key or password."""
+    """A short, secret-free reason for a per-user failure: the error class and its status text, sanitized so no
+    encoded secret can ride along. Never includes a hash, key, salt or password."""
     name = type(e).__name__
     try:
         if e.args and isinstance(e.args[-1], str) and e.args[-1]:
-            return "%s: %s" % (name, e.args[-1])
+            return sanitize_reason("%s: %s" % (name, e.args[-1]))
     except Exception:
         pass
     return name

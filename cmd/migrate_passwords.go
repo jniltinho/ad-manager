@@ -133,6 +133,11 @@ Replicating Directory Changes and …All on the source. The DC agent's token: AG
 			}); err != nil {
 				return err
 			}
+			// a non-zero exit when any user failed (e.g. missing replication rights produce error rows), so
+			// automation does not read a failed migration as success
+			if res.Counts["error"] > 0 {
+				return exitCode(2)
+			}
 			return nil
 		}}
 	f := c.Flags()
