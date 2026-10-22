@@ -63,9 +63,19 @@ path over LDAP; storing the extracted material.
    when the NT hash, the Kerberos keys and `pwdLastSet` all already match — never on the NT hash alone.
 8. **Authenticated DRS connectivity checked before apply.** The preflight's port-135 probe does not prove the
    negotiated DRS endpoint; before `apply`, the destination agent tests an authenticated DRS bind to the source.
-9. **Credentials.** The source replication account is read like the import's source password
-   (`AD_SOURCE_PASSWORD_FILE` 0600 or stdin), never an argument; it needs *Replicating Directory Changes* **and**
-   *…All*. The extracted secrets live only in the agent's memory for the call.
+9. **Source credential — more than one source.** The replication account (which needs *Replicating Directory
+   Changes* **and** *…All*) can be supplied either way, both never as a command argument:
+   - **Panel**: the source `url`, `domain`, `user` (the login) **and** `password` the operator types in the
+     "From another AD" form — both the login and the password — sent in the request body exactly as the import
+     already sends the source login and password for objects/DNS/shares, and handed by the server to the DC agent.
+     Not stored, not logged, not audited.
+   - **Env/config (CLI, automation)**: `AD_SOURCE_PASSWORD_FILE` (0600) or stdin, or a configured source profile.
+   The gate credential is separate (decision 5) and is only the authorization switch. The extracted secrets live only
+   in the agent's memory for the call.
+10. **One more option of the "From another AD" import.** The migration is exposed as a `Passwords` checkbox beside
+    Objects/GPOs/DNS/Shares, folded into `POST /api/import/ad/plan|apply` with `passwords: true`, reusing that
+    flow's source credential and the server→agent path (as GPOs and shares already do). The standalone
+    `POST /api/import/ad/passwords`, the CLI and the MCP tool remain for automation.
 
 ## Risks / Trade-offs
 

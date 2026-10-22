@@ -198,6 +198,8 @@ working without everyone changing their password. The DC agent, in its dedicated
 (`password_migration_user`), reads the source's hashes over a **sealed, read-only DRSUAPI** and sets them on this
 domain's matching users — never over LDAP, never as plaintext, never creating a user, leaving the source unchanged.
 Only for the new-domain cutover; a `dc-join` already replicates the hashes. See [migration-runbook.md](migration-runbook.md).
+In the panel this is the **Passwords** option of *Import/export → From another AD* (beside Objects/GPOs/DNS/Shares),
+which reuses the form's source login and password; the CLI below is for automation.
 
 ```bash
 ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' \

@@ -50,6 +50,17 @@ audited as `password.migrate` with counts only.
 - **WHEN** the DC agent is not in its dedicated password-migration write mode
 - **THEN** the operation is refused with a clear error (the panel shows 503) and nothing is read from the source
 
+#### Scenario: Driven from the "From another AD" import
+- **WHEN** the operator ticks the `Passwords` option in the "From another AD" import (beside Objects, GPOs, DNS and
+  Shares) and runs it with the source URL, domain, user and password entered in that form
+- **THEN** the server hands that source credential to the DC agent and the password migration runs, with no separate
+  credential file required; the typed password is not stored, logged or audited
+
+#### Scenario: Credential from env or config
+- **WHEN** the migration is run from the CLI or an automation with the source credential in `AD_SOURCE_PASSWORD_FILE`
+  (0600), stdin or a configured source profile instead of the form
+- **THEN** it runs the same way, and in no case does the source credential appear as a command argument
+
 #### Scenario: Source left unchanged
 - **WHEN** the plan and the apply have run against the source
 - **THEN** the source directory metadata is unchanged (no `repsTo`/`UpdateRefs` write), confirmed by comparing it

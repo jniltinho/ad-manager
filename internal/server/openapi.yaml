@@ -829,6 +829,7 @@ components:
               dns: { type: boolean, default: false, description: "A, CNAME and PTR records read over LDAP; never records of domain controllers, SOA, NS, SRV, _msdcs or the zone root" }
               include_dynamic: { type: boolean, default: false, description: "dns: also the records clients registered (timestamp)" }
               create_zones: { type: boolean, default: false, description: "dns: a zone missing here becomes zone.create (a primary zone integrated with the directory, secure updates; never _msdcs), created through MS-DNSP with the operator's credential before its records; audited as import.zone.create" }
+              passwords: { type: boolean, default: false, description: "new-domain cutover: migrate the users' password hashes. The DC agent (dedicated password-migration mode) reads the source hashes over a sealed, read-only DRSUAPI using the url/user/password of this form and sets them on matching users (NTLM, and Kerberos when the salt transfers); plan classifies, apply sets. The source is left unchanged; nothing is stored, logged or audited beyond counts (password.migrate). Returns per-user rows of kind 'password' (outcome in detail)" }
               shares:
                 type: object
                 properties:

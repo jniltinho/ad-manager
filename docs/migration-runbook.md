@@ -148,7 +148,10 @@ Order: **objects and DNS → passwords → applications tested with the real pas
 1. **Objects and DNS** — panel → Import/export → *From another AD* (or `ad-manager import ad --apply`). This also
    carries each object's last-logon and the computers' operating system, so the inactivity view and the OS column
    match the source right away.
-2. **Passwords** — turn on the dedicated, default-off write mode on the DC agent (separate from the GPO restore):
+2. **Passwords** — the simplest path is the panel: in **Import/export → From another AD**, tick the **Passwords**
+   option (beside Objects/GPOs/DNS/Shares) and run it with the source URL, user and password already in that form —
+   the server hands that credential to the DC agent, no separate file needed. The CLI below is for automation. Either
+   way, turn on the dedicated, default-off write mode on the DC agent first (separate from the GPO restore):
 
    ```toml
    [agent]

@@ -42,6 +42,10 @@ export default {
     'Só estrutura e permissões: cada compartilhamento vira uma pasta vazia com as ACLs dos grupos e usuários, publicada no Samba pelo agente. Não copia arquivos e nunca remove compartilhamentos.',
   'Saved profiles': 'Perfis salvos',
   'Delete the profile {name}?': 'Excluir o perfil {name}?',
+  Passwords: 'Senhas',
+  Password: 'Senha',
+  'New-domain cutover only: the DC agent reads the source password hashes over a read-only DRSUAPI and sets them on matching users, using the login and password entered above. Needs the agent password-migration mode on; the source is left unchanged.':
+    'Somente na migração para novo domínio: o agente do DC lê os hashes de senha da origem por um DRSUAPI somente leitura e os define nos usuários correspondentes, usando o login e a senha informados acima. Exige o modo de migração de senhas ligado no agente; a origem não é alterada.',
   'Importing the objects…': 'Importando os objetos…',
   'Writing to the domain…': 'Gravando no domínio…',
   'Sending to the server…': 'Enviando para o servidor…',

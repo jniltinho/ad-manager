@@ -20,15 +20,23 @@ chosen restricted path; SAMR can also set an NT hash) — never over LDAP.
   DRSUAPI (a "DCSync", with an account holding *Replicating Directory Changes (All)*) and sets them on the matching
   users of the ad-manager-managed domain, so each user keeps their production password. Never over LDAP, never as
   plaintext.
-- It runs through the **DC agent's explicit write mode** (like the GPO restore), on the Samba DC that owns the
-  database; the panel/API/CLI/MCP ask for it and audit it (`password.migrate`) without any secret.
+- It is **one more option of the "From another AD" import** — a `Passwords` checkbox next to Objects, GPOs, DNS and
+  Shares — driven by the **source URL, domain, user and password the operator already types in that form**. The
+  server hands that credential to the DC agent (the same way the import already passes the source password for
+  objects, DNS and shares); there is no separate credential file in the panel flow. A `migrate passwords` CLI stays
+  for automation.
+- It runs through the **DC agent's dedicated write mode** (a default-off gate, like the GPO restore's pattern but
+  its own), on the Samba DC that owns the database, and is audited (`password.migrate`) without any secret.
 - Users are matched by `sAMAccountName`; a user missing in the target is listed, not created (run the object import
   first). "Change at next sign-in" is cleared for the users whose hash was set.
 - Both NTLM and the Kerberos keys are migrated when each principal's stored salt and key types transfer to the new
   domain; otherwise only NTLM is set, reported per user, and the Kerberos keys are regenerated on the next password
   change. A source that stores reversible/cleartext passwords (`Primary:CLEARTEXT`) is rejected, not copied.
-- The **"From another AD" import also carries the last-logon timestamp** of users and computers, so the new domain's
-  inactivity view ("no logon for 90+ days") is meaningful right after the migration.
+- The **"From another AD" import also carries the last-logon timestamp** of users and computers and the
+  `operatingSystem` of computers, so the inactivity view ("no logon for 90+ days") and the OS column are meaningful
+  right after the migration.
+- UI: a trash icon with a confirmation popup to delete a saved import profile, and the import's log/progress modal is
+  a rectangle.
 - Out of scope: creating users (the object import does that), `dc-join` (which replicates everything already),
   reading or storing plaintext passwords, migrating `krbtgt`/trust/machine-account secrets, and any path over LDAP.
 

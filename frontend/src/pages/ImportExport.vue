@@ -37,7 +37,7 @@ get('/agents')
   .catch(() => {})
 const source = ref({ url: 'ldap://', domain: '', user: '', password: '', insecure: true, save_as: '' })
 // what "From another AD" brings: objects (users, groups, OUs, computers), GPOs, the shares of one file server
-const what = ref({ objects: true, gpos: false, dns: false, dynamic: false, zones: false, shares: false })
+const what = ref({ objects: true, gpos: false, dns: false, dynamic: false, zones: false, shares: false, passwords: false })
 const shareSrc = ref({ host: '', agent: null, map: 'E:\\=/srv/shares' })
 // "· source: 24 users, 57 groups, …" with what was read
 const sourceSummary = computed(() => {
@@ -63,6 +63,7 @@ function adRequest() {
     dns: what.value.dns,
     include_dynamic: what.value.dynamic,
     create_zones: what.value.zones,
+    passwords: what.value.passwords,
   }
   if (what.value.shares) body.shares = { ...shareSrc.value, agent: shareSrc.value.agent || server.value }
   return body
@@ -156,6 +157,7 @@ const kindNames = {
   'share.create': 'Create share',
   'share.update': 'Update share',
   'gpo.import': 'Import GPO',
+  password: 'Password',
   'dns.add': 'Add DNS record',
   'dns.conflict': 'DNS conflict',
   'zone.missing': 'Missing zone',
@@ -420,7 +422,15 @@ function downloadPasswords() {
               <label class="flex items-center gap-1.5"><input v-model="what.gpos" type="checkbox" /> GPOs</label>
               <label class="flex items-center gap-1.5"><input v-model="what.dns" type="checkbox" /> DNS</label>
               <label class="flex items-center gap-1.5"><input v-model="what.shares" type="checkbox" /> {{ t('Shares') }}</label>
+              <label class="flex items-center gap-1.5"><input v-model="what.passwords" type="checkbox" /> {{ t('Passwords') }}</label>
             </div>
+            <p v-if="what.passwords" class="mt-1 text-[11px] text-fg-muted">
+              {{
+                t(
+                  'New-domain cutover only: the DC agent reads the source password hashes over a read-only DRSUAPI and sets them on matching users, using the login and password entered above. Needs the agent password-migration mode on; the source is left unchanged.',
+                )
+              }}
+            </p>
             <p v-if="what.gpos" class="mt-1 text-[11px] text-fg-muted">
               {{ t('New GPOs, not linked, created by the agent of a DC in its GPO restore mode; names already in use are skipped.') }}
             </p>
@@ -457,7 +467,10 @@ function downloadPasswords() {
             <label class="lbl" for="os">{{ t('Save as profile (without the password)') }}</label
             ><input id="os" v-model.trim="source.save_as" class="inp" :placeholder="t('e.g. legacy-2008')" />
           </div>
-          <button class="btn w-full justify-center" :disabled="busy || (!what.objects && !what.gpos && !what.dns && !what.shares)">
+          <button
+            class="btn w-full justify-center"
+            :disabled="busy || (!what.objects && !what.gpos && !what.dns && !what.shares && !what.passwords)"
+          >
             <PlugZap :size="14" /> {{ busy && !plan ? t('Reading the source AD…') : t('Connect and preview') }}
           </button>
           <p class="text-[11px] text-fg-muted">
@@ -524,12 +537,7 @@ function downloadPasswords() {
     </section>
 
     <!-- Live log/status of a running import (CSV, From another AD, Folders) -->
-    <dialog
-      v-if="syncLog"
-      ref="dlgLog"
-      class="pnl w-fit max-w-[min(680px,94vw)]"
-      @cancel.prevent="syncLog.status !== 'running' && logClose()"
-    >
+    <dialog v-if="syncLog" ref="dlgLog" class="pnl w-[min(680px,94vw)]" @cancel.prevent="syncLog.status !== 'running' && logClose()">
       <div class="pnl-head flex items-center gap-2">
         <span
           class="inline-block h-2.5 w-2.5"

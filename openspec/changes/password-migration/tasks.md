@@ -15,9 +15,10 @@
 
 ## 3. Import UI and metadata
 
-- [x] 3.1 "From another AD" import carries `lastLogonTimestamp` of users and computers and `operatingSystem` of computers to the target
-- [x] 3.2 A never-logged-on object sets no last-logon and is not an error; the inactivity view matches the source
-- [x] 3.3 Saved-profile delete in the panel: a trash icon per profile with an `askConfirm` popup, calling `DELETE /api/ad-sources/{id}` (API already exists); `frontend/src/pages/ImportExport.vue`
+- [x] 3.1 `Passwords` option in the "From another AD" import (beside Objects/GPOs/DNS/Shares): fold into `POST /api/import/ad/plan|apply` with `passwords: true`, reusing the form's source credential and the server→agent path; `internal/server/extras.go`, `frontend/src/pages/ImportExport.vue`
+- [x] 3.2 Source credential from either the form (panel) or `AD_SOURCE_PASSWORD_FILE`/stdin/source profile (CLI); never an argument; not stored/logged/audited
+- [x] 3.3 Import carries `lastLogonTimestamp` of users and computers and `operatingSystem` of computers; a never-logged-on object sets nothing and is not an error
+- [x] 3.4 Saved-profile delete: a trash icon per profile with an `askConfirm` popup, calling `DELETE /api/ad-sources/{id}` (API exists); the import log/progress modal is a rectangle; `frontend/src/pages/ImportExport.vue`
 
 ## 5. Interfaces
 
