@@ -134,7 +134,13 @@ function logFromPlan(planArr, applied) {
   if (!syncLog.value) return
   const steps = (planArr || [])
     .filter((a) => a.kind !== 'skip')
-    .map((a) => ({ label: kindName(a.kind), target: a.target, detail: applied ? a.result : a.detail, ok: !applied || a.ok }))
+    // password rows carry "outcome — reason" in detail; keep it (and the reason) so the modal/tooltip explain why
+    .map((a) => ({
+      label: kindName(a.kind),
+      target: a.target,
+      detail: a.kind === 'password' || !applied ? a.detail : a.result,
+      ok: !applied || a.ok,
+    }))
   const errors = applied ? steps.filter((s) => !s.ok).length : 0
   Object.assign(syncLog.value, { steps, status: errors ? 'error' : 'done', ok: steps.length - errors, errors, phase: '' })
 }
@@ -524,8 +530,10 @@ function downloadPasswords() {
               <tr v-for="(a, i) in visible" :key="i" :class="a.kind === 'skip' ? 'text-fg-subtle' : ''">
                 <td class="whitespace-nowrap">{{ kindName(a.kind) }}</td>
                 <td class="font-semibold">{{ a.target }}</td>
-                <td class="break-all">{{ serverText(a.detail) }}</td>
-                <td v-if="applied" :class="a.ok || a.kind === 'skip' ? 'text-ok' : 'text-err'">{{ serverText(a.result) }}</td>
+                <td class="break-all" :title="serverText(a.detail)">{{ serverText(a.detail) }}</td>
+                <td v-if="applied" :class="a.ok || a.kind === 'skip' ? 'text-ok' : 'text-err'" :title="serverText(a.detail)">
+                  {{ serverText(a.result) }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -565,7 +573,7 @@ function downloadPasswords() {
                 <td class="px-2 py-1 whitespace-nowrap font-mono" :class="s.ok ? 'text-ok' : 'text-err'">{{ s.ok ? '✓' : '✗' }}</td>
                 <td class="px-2 py-1 whitespace-nowrap">{{ s.label }}</td>
                 <td class="px-2 py-1 font-mono">{{ s.target }}</td>
-                <td class="px-2 py-1 text-fg-muted">{{ serverText(s.detail) }}</td>
+                <td class="px-2 py-1 text-fg-muted" :title="serverText(s.detail)">{{ serverText(s.detail) }}</td>
               </tr>
             </tbody>
           </table>

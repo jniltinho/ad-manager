@@ -269,23 +269,22 @@ def inspect_supplemental(supp, realm):
     return has_cleartext, False, "no usable Kerberos package → NTLM only"
 
 
-def set_user(samdb, dn, nt_hash, supp, copy_kerberos):
-    """Set the password material on the local user in one transaction: the NT hash and, when copy_kerberos, the
-    Kerberos keys verbatim; otherwise the destination's supplementalCredentials is cleared so stale Kerberos keys
-    (from the object import's generated password) cannot authenticate with the new NT hash. The bypass control
-    stores the values verbatim and pwdLastSet is set non-zero."""
+def write_material(samdb, dn, nt_hash, supp):
+    """One atomic write of the password material by the bypass control: the NT hash and, when supp is given, the
+    Kerberos keys verbatim; supp=None clears supplementalCredentials so stale keys (from the object import's
+    generated password) cannot authenticate with the new NT hash. pwdLastSet is set non-zero."""
     import ldb
+    import time
     from samba import dsdb
     msg = ldb.Message()
     msg.dn = ldb.Dn(samdb, dn)
     msg["unicodePwd"] = ldb.MessageElement(nt_hash, ldb.FLAG_MOD_REPLACE, "unicodePwd")
-    if copy_kerberos and supp:
+    if supp:
         msg["supplementalCredentials"] = ldb.MessageElement(supp, ldb.FLAG_MOD_REPLACE, "supplementalCredentials")
     else:
         msg["supplementalCredentials"] = ldb.MessageElement([], ldb.FLAG_MOD_REPLACE, "supplementalCredentials")
     # an explicit current FILETIME (non-zero): the bypass control skips the module's "-1 means now" conversion, so
     # "-1" would be stored verbatim as an invalid timestamp. This means "no change at next sign-in".
-    import time
     now_ft = int((time.time() + 11644473600) * 10_000_000)
     msg["pwdLastSet"] = ldb.MessageElement(str(now_ft), ldb.FLAG_MOD_REPLACE, "pwdLastSet")
     # ldb takes an arbitrary control as "local_oid:<oid>:<critical>" (bare OIDs are rejected), as Samba's own tests do
@@ -297,6 +296,26 @@ def set_user(samdb, dn, nt_hash, supp, copy_kerberos):
     except Exception:
         samdb.transaction_cancel()
         raise
+
+
+def set_user(samdb, dn, nt_hash, supp, copy_kerberos):
+    """Set the password material, returning (copied_kerberos, reason). When copying the source's Kerberos keys, the
+    bypass path re-serializes the supplementalCredentials blob and requires it byte-identical (password_hash.c):
+    a foreign blob that does not round-trip is rejected ("supplementalCredentialsBlob ... differ"). Rather than fail
+    the user, retry with the NT hash only — the production password still works for NTLM/LDAP/Kerberos-less logon,
+    and the Kerberos keys rebuild on the next password change. Any other write error is raised (→ error)."""
+    if copy_kerberos and supp:
+        try:
+            write_material(samdb, dn, nt_hash, supp)
+            return True, None
+        except Exception as e:
+            text = " ".join(str(a) for a in getattr(e, "args", ()) if isinstance(a, str))
+            if "supplementalCredentials" not in text:
+                raise  # an unrelated write failure stays an error
+            write_material(samdb, dn, nt_hash, None)
+            return False, "Samba rejected the copied Kerberos keys (%s) → NTLM only" % text.strip()
+    write_material(samdb, dn, nt_hash, None)
+    return False, None
 
 
 def current_state(samdb, dn):
@@ -373,8 +392,11 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
             cur_hash, cur_kerberos = current_state(samdb, lu["dn"])
             if lu["pwd_last_set"] != 0 and cur_hash is not None and cur_hash == nt_hash and not cur_kerberos:
                 return "same", None
-        set_user(samdb, lu["dn"], nt_hash, supp if kerberos_ok else None, kerberos_ok)
-        return ("set", None) if kerberos_ok else ("ntlm_only", kerb_reason)
+        copied, fb_reason = set_user(samdb, lu["dn"], nt_hash, supp if kerberos_ok else None, kerberos_ok)
+        if copied:
+            return "set", None
+        # not copied: either we never had transferable keys, or Samba rejected the blob and we fell back to NT-only
+        return "ntlm_only", fb_reason or kerb_reason
     finally:
         del nt_hash
         del supp

@@ -45,6 +45,9 @@ class FakeDB(ldb.Ldb):
         self.writes.append((msg, controls))
         if self.fail:
             raise RuntimeError("synthetic failure")
+        # mimic Samba's bypass consistency check: reject a modify that carries a Kerberos blob
+        if getattr(self, "kerb_reject", False) and "supplementalCredentials" in msg and len(msg["supplementalCredentials"]) > 0:
+            raise Exception(53, "supplementalCredentialsBlob memcmp differ at source4/dsdb/samdb/ldb_modules/password_hash.c:681")
 
     def search(self, **kw):
         return [self.entry]
@@ -88,6 +91,28 @@ def main():
     except RuntimeError:
         pass
     check(db.events == ["start", "rollback"], "failed set_user rolls back")
+
+    # 3. Kerberos copy: accepted → set (copied True)
+    db = FakeDB()
+    copied, reason = ns["set_user"](db, "CN=ana", b"x" * 16, b"FAKEKERBBLOB", True)
+    check(copied is True and reason is None, "set_user copies Kerberos when Samba accepts the blob")
+
+    # 4. Kerberos blob rejected by Samba's memcmp → fall back to NT-only (ntlm_only), never error
+    db = FakeDB()
+    db.kerb_reject = True
+    copied, reason = ns["set_user"](db, "CN=ana", b"x" * 16, b"FAKEKERBBLOB", True)
+    check(copied is False, "set_user falls back to NT-only when Samba rejects the Kerberos blob")
+    check(bool(reason) and "NTLM only" in reason, "fallback carries a sanitized reason")
+    last = db.writes[-1][0]
+    check(len(last["supplementalCredentials"]) == 0, "fallback re-wrote NT hash only (supplementalCredentials cleared)")
+
+    # 5. an UNRELATED write error is not swallowed (stays an error)
+    db = FakeDB(fail=True)
+    try:
+        ns["set_user"](db, "CN=ana", b"x" * 16, b"FAKEKERBBLOB", True)
+        check(False, "unrelated write error must propagate")
+    except RuntimeError:
+        check(True, "unrelated write error propagates (not masked as ntlm_only)")
 
     print("pwmigrate self-check passed")
 
