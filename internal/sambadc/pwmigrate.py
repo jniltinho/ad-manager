@@ -331,7 +331,7 @@ def set_user(samdb, dn, nt_hash, supp, copy_kerberos):
             # Any failure writing the Kerberos blob (Samba's byte-identical memcmp, a key-count/salt validation,
             # etc.) falls back to the NT hash only: the production password still works for NTLM/LDAP logon and the
             # Kerberos keys rebuild on the next change. Only if the NT-only write ALSO fails is it a real error.
-            why = sanitize_reason(reason_of(e))
+            why = reason_of(e)
             write_material(samdb, dn, nt_hash, None)
             return False, "Samba rejected the copied Kerberos keys (%s) → NTLM only" % why
     write_material(samdb, dn, nt_hash, None)
@@ -413,9 +413,14 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
         if lu["pwd_last_set"] != 0:
             cur_hash, cur_supp = current_state(samdb, lu["dn"])
             if cur_hash is not None and cur_hash == nt_hash:
+                # already migrated and matching:
+                #  - set: the dest stores exactly the rebuilt Kerberos blob;
+                #  - ntlm_only (terminal): the NT hash matches and the dest has no Kerberos — either there were no
+                #    transferable keys, or Samba rejected them before (deterministic), so a re-apply would not
+                #    change the outcome. Either way nothing to write.
                 if kerberos_ok and cur_supp == kerb_blob:
                     return "same", None
-                if not kerberos_ok and not cur_supp:
+                if not cur_supp:
                     return "same", None
         copied, fb_reason = set_user(samdb, lu["dn"], nt_hash, kerb_blob if kerberos_ok else None, kerberos_ok)
         if copied:
@@ -427,43 +432,39 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
         del supp
 
 
-def _secretish(tok):
-    """True for a token that looks like encoded key/hash material: long and either base64 (has +/=), mixed
-    letters+digits, or an all-hex run. Plain words and short codes (e.g. 'supplementalCredentialsBlob', 'c:681')
-    are not secretish."""
-    if len(tok) < 16:
-        return False
-    if any(c in "+/=" for c in tok):
-        return True
-    if not all(c.isalnum() for c in tok):
-        return False
-    has_digit = any(c.isdigit() for c in tok)
-    has_alpha = any(c.isalpha() for c in tok)
-    if has_digit and has_alpha:
-        return True  # mixed alnum run (base64-ish / hash)
-    if len(tok) >= 24 and all(c in "0123456789abcdefABCDEF" for c in tok):
-        return True  # long all-hex run (e.g. an NT hash in hex)
-    return False
-
-
-def sanitize_reason(text):
-    """Keep a reason secret-free: redact any token that could be encoded key/hash material, keep plain words and
-    short codes, and bound the length. Never emits a hash, key, salt or password even if a Samba/ldb message
-    happened to embed one."""
-    if not text:
-        return ""
-    return " ".join("<redacted>" if _secretish(tok) else tok for tok in str(text).split())[:200]
+# Allowlisted, secret-free descriptions keyed by a marker that may appear in a Samba/ldb error message. The reason
+# emitted to the API/journal is ONLY one of these descriptions plus the exception class name — never the raw
+# message, so no hash/key/salt/password (however it was quoted or encoded) can ride along.
+_KNOWN_ERRORS = (
+    ("supplementalcredentialsblob", "Samba rejected the supplementalCredentials blob"),
+    ("supplementalcredentials", "Samba rejected the supplementalCredentials blob"),
+    ("memcmp", "Samba rejected the supplementalCredentials blob"),
+    ("num_names", "supplementalCredentials package index mismatch"),
+    ("num_packages", "supplementalCredentials package index mismatch"),
+    ("primary:packages", "supplementalCredentials package index missing"),
+    ("num_keys", "unexpected Kerberos key count"),
+    ("kerberos", "Kerberos package error"),
+    ("logon_failure", "source authentication failed"),
+    ("access_denied", "access denied by the source"),
+    ("werr_access", "access denied by the source"),
+    ("werr_ds_dra", "directory replication error"),
+    ("constraint", "directory constraint violation"),
+)
 
 
 def reason_of(e):
-    """A short, secret-free reason for a per-user failure: the error class and its status text, sanitized so no
-    encoded secret can ride along. Never includes a hash, key, salt or password."""
+    """A short, secret-free reason for a per-user failure: an allowlisted description (matched by a marker in the
+    error text) plus the exception class name. The raw exception text is never forwarded, so no hash, key, salt or
+    password can leak into the reason regardless of how a Samba/ldb message quoted it."""
     name = type(e).__name__
+    text = ""
     try:
-        if e.args and isinstance(e.args[-1], str) and e.args[-1]:
-            return sanitize_reason("%s: %s" % (name, e.args[-1]))
+        text = " ".join(str(a) for a in getattr(e, "args", ()) if isinstance(a, str)).lower()
     except Exception:
-        pass
+        text = ""
+    for marker, desc in _KNOWN_ERRORS:
+        if marker in text:
+            return "%s (%s)" % (desc, name)
     return name
 
 
