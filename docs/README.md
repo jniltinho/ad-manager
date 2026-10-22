@@ -15,6 +15,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 | Install and configure the panel by hand (`.deb` package, services, TLS, existing AD) | [deployment.md](deployment.md) |
 | Set up a new Samba domain, an additional DC or a file server from the command line | [samba-install.md](samba-install.md) |
 | Migrate a Windows DC to Samba (cutover, gates, rollback) | [migration-runbook.md](migration-runbook.md) |
+| Preserve the users' passwords on a new-domain cutover | [password-migration.md](password-migration.md) |
 | Create folders and shares on the file servers | [agent.md](agent.md) |
 | Use Samba as DC and file server on the same machine | [dc-file-server.md](dc-file-server.md) |
 | Bring folders over from another server (SMB) and restore files from quarantine | [sync.md](sync.md) |

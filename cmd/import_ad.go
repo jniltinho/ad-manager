@@ -34,6 +34,7 @@ type adImport struct {
 	opts    adImportOpts
 	data    ad.ImportData
 	objects []ad.Action
+	meta    []importad.MetaEntry // non-secret metadata carried after the objects (last-logon, OS)
 	dns     importad.DNSPlan
 	counts  map[string]int
 }
@@ -67,6 +68,9 @@ func planADImport(c *ad.Conn, o adImportOpts, password string) (*adImport, error
 		p.data = ad.SetToData(set)
 		p.counts["users"], p.counts["groups"], p.counts["ous"], p.counts["computers"] = len(set.Users), len(set.Groups), len(set.OUs), len(set.Computers)
 		if p.objects, err = c.Plan(p.data); err != nil {
+			return nil, err
+		}
+		if p.meta, err = src.Metadata(); err != nil {
 			return nil, err
 		}
 	}
@@ -113,6 +117,12 @@ func applyADImport(ctx context.Context, c *ad.Conn, p *adImport, actor, ip strin
 		for _, a := range p.objects {
 			if a.Kind != "skip" {
 				audit.Log(actor, ip, "import."+a.Kind, a.Target, okErr(a))
+			}
+		}
+		// carry the non-secret metadata (last-logon, OS) to the objects just imported
+		for _, m := range p.meta {
+			if err := c.SetImportMetadata(m.Sam, m.LastLogon, m.OS, m.OSVersion); err != nil {
+				audit.Log(actor, ip, "import.metadata", m.Sam, err)
 			}
 		}
 	}

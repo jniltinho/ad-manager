@@ -211,6 +211,7 @@ func registerTools(s *mcp.Server, write bool) {
 			}{cs}, err
 		})
 	registerImportTools(s, write)
+	registerPasswordTool(s, write)
 	registerBackupTools(s, write)
 	if !write {
 		return

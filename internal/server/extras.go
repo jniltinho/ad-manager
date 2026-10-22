@@ -91,6 +91,7 @@ func (s *Server) extras(e *echo.Echo, p *echo.Group) {
 	})
 	p.POST("/import/ad/plan", s.importAD(false))
 	p.POST("/import/ad/apply", s.importAD(true))
+	p.POST("/import/ad/passwords", s.importADPasswords)
 
 	// asynqmon with its original layout, only for a logged-in administrator.
 	if s.cfg.Redis.Addr != "" {
@@ -108,8 +109,18 @@ func (s *Server) extras(e *echo.Echo, p *echo.Group) {
 }
 
 // dcAgent is the first registered agent whose health says dc with this panel's realm (GPO GUIDs, the default ones,
-// repeat across domains) and, with restore, GPO restore on (its explicit write mode).
+// repeat across domains) and, when restore is set, GPO restore on (its explicit write mode).
 func (s *Server) dcAgent(ctx context.Context, restore bool) (*store.Agent, error) {
+	need := ""
+	if restore {
+		need = "gpo_restore"
+	}
+	return s.dcAgentCap(ctx, need)
+}
+
+// dcAgentCap is the first registered agent on a domain controller of this panel's realm that has the named
+// capability on (its dedicated write mode): "gpo_restore", "password_migration", or "" for any DC.
+func (s *Server) dcAgentCap(ctx context.Context, need string) (*store.Agent, error) {
 	list, err := s.store.Agents()
 	if err != nil {
 		return nil, err
@@ -118,16 +129,118 @@ func (s *Server) dcAgent(ctx context.Context, restore bool) (*store.Agent, error
 		a := &list[i]
 		st, out, err := agentDo(ctx, a, http.MethodGet, a.URL+"/api/health", nil)
 		var h struct {
-			DC         bool
-			Realm      string
-			GPORestore bool `json:"gpo_restore"`
+			DC                bool
+			Realm             string
+			GPORestore        bool `json:"gpo_restore"`
+			PasswordMigration bool `json:"password_migration"`
 		}
-		if err == nil && st == http.StatusOK && json.Unmarshal(out, &h) == nil && h.DC && strings.EqualFold(h.Realm, s.cfg.AD.Domain) &&
-			(h.GPORestore || !restore) {
-			return a, nil
+		if err != nil || st != http.StatusOK || json.Unmarshal(out, &h) != nil || !h.DC || !strings.EqualFold(h.Realm, s.cfg.AD.Domain) {
+			continue
 		}
+		switch need {
+		case "gpo_restore":
+			if !h.GPORestore {
+				continue
+			}
+		case "password_migration":
+			if !h.PasswordMigration {
+				continue
+			}
+		}
+		return a, nil
 	}
 	return nil, nil
+}
+
+// importADPasswords handles POST /api/import/ad/passwords: the password-material migration of a new-domain
+// cutover. It finds the DC agent of this domain with the dedicated password-migration write mode on and forwards
+// the request; plan reads no secret, apply reads the source hashes over a sealed read-only DRSUAPI and sets them on
+// this domain's matching users. The source replication password travels to the agent in the JSON body (TLS) and
+// never leaves its memory; the answer and the audit (password.migrate) carry only counts, never any secret.
+func (s *Server) importADPasswords(c *echo.Context) error {
+	var in struct {
+		URL      string `json:"url"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+		Apply    bool   `json:"apply"`
+	}
+	if err := c.Bind(&in); err != nil || in.URL == "" || in.User == "" || in.Password == "" {
+		return c.JSON(http.StatusBadRequest, msg("enter the source DC URL, the replication account and its password"))
+	}
+	u, err := url.Parse(in.URL)
+	if err != nil || u.Hostname() == "" {
+		return c.JSON(http.StatusBadRequest, msg("invalid source DC URL"))
+	}
+	if s.store == nil {
+		return noStore(c)
+	}
+	if in.Apply { // one object at a time over DRS: the answer must outlive the server's 60 s write timeout
+		_ = http.NewResponseController(c.Response()).SetWriteDeadline(time.Now().Add(35 * time.Minute))
+	}
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 32*time.Minute)
+	defer cancel()
+	// pin the destination by its domain SID, read through the operator's own authenticated connection — independent
+	// of the agent, which is selected only by realm (the two domains share it)
+	var destSID string
+	if err := s.with(c, func(d directory) error {
+		var e error
+		destSID, e = d.DomainSID()
+		return e
+	}); err != nil {
+		audit.Log(sess(c).user, c.RealIP(), "password.migrate", u.Hostname(), err)
+		return fail(c, err)
+	}
+	res, err := s.runPasswordMigration(c, ctx, u.Hostname(), in.User, in.Password, destSID, in.Apply)
+	if err != nil {
+		if errors.Is(err, errNoPwAgent) {
+			return c.JSON(http.StatusServiceUnavailable, msg(err.Error()))
+		}
+		return c.JSON(http.StatusBadGateway, msg(err.Error()))
+	}
+	return c.JSON(http.StatusOK, map[string]any{"users": res.Users, "counts": res.Counts, "applied": in.Apply})
+}
+
+// errNoPwAgent is returned when no DC agent of this domain has the password-migration write mode on.
+var errNoPwAgent = errors.New("no agent on a domain controller of this domain with the password migration mode on (password_migration_user)")
+
+// runPasswordMigration finds the DC agent of this domain with the password-migration write mode on and runs the
+// plan (apply=false) or apply there over a sealed read-only DRSUAPI. The source replication password travels to the
+// agent in the TLS body and never leaves its memory; the audit (password.migrate) records only counts, never a
+// secret. destSID pins the destination, read independently through the operator's own connection. It is shared by
+// the standalone route and the "From another AD" import.
+func (s *Server) runPasswordMigration(c *echo.Context, ctx context.Context, host, user, password, destSID string, apply bool) (*sambadc.PwResult, error) {
+	if s.store == nil {
+		err := errors.New("local database (db.path) not configured")
+		audit.Log(sess(c).user, c.RealIP(), "password.migrate", host, err)
+		return nil, err
+	}
+	a, err := s.dcAgentCap(ctx, "password_migration")
+	if err == nil && a == nil {
+		err = errNoPwAgent
+	}
+	if err != nil {
+		audit.Log(sess(c).user, c.RealIP(), "password.migrate", host, err)
+		return nil, err
+	}
+	body, _ := json.Marshal(map[string]any{"source": map[string]string{"host": host, "user": user},
+		"password": password, "apply": apply, "dest_sid": destSID})
+	st, out, err := agentDo(ctx, a, http.MethodPost, a.URL+"/api/dc/passwords/migrate", body)
+	if err == nil && st != http.StatusOK {
+		err = agentErr(st, out)
+	}
+	var res sambadc.PwResult
+	if err == nil && json.Unmarshal(out, &res) != nil {
+		err = errors.New("invalid answer")
+	}
+	target := host
+	if err == nil { // counts only, never a user's secret or even a per-user list in the audit
+		target = fmt.Sprintf("%s → this domain (%v)", host, res.Counts)
+	}
+	audit.Log(sess(c).user, c.RealIP(), "password.migrate", target, err)
+	if err != nil {
+		return nil, fmt.Errorf("server %s: %w", a.Name, err)
+	}
+	return &res, nil
 }
 
 // agentErr is the error of an agent's non-200 answer.
@@ -432,18 +545,19 @@ func agentDo(ctx context.Context, a *store.Agent, method, target string, body []
 func (s *Server) importAD(apply bool) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		var in struct {
-			URL      string `json:"url"`
-			Domain   string `json:"domain"`
-			User     string `json:"user"`
-			Password string `json:"password"`
-			Insecure bool   `json:"insecure"`
-			SaveAs   string `json:"save_as"`
-			Objects  *bool  `json:"objects"` // default true
-			GPOs     bool   `json:"gpos"`
-			DNS      bool   `json:"dns"`
-			Dynamic  bool   `json:"include_dynamic"` // DNS: also the records clients registered
-			Zones    bool   `json:"create_zones"`    // DNS: create the zones missing here (zone.create)
-			Shares   struct {
+			URL       string `json:"url"`
+			Domain    string `json:"domain"`
+			User      string `json:"user"`
+			Password  string `json:"password"`
+			Insecure  bool   `json:"insecure"`
+			SaveAs    string `json:"save_as"`
+			Objects   *bool  `json:"objects"` // default true
+			GPOs      bool   `json:"gpos"`
+			DNS       bool   `json:"dns"`
+			Dynamic   bool   `json:"include_dynamic"` // DNS: also the records clients registered
+			Zones     bool   `json:"create_zones"`    // DNS: create the zones missing here (zone.create)
+			Passwords bool   `json:"passwords"`       // new-domain cutover: migrate the users' password hashes (DC agent, DRSUAPI)
+			Shares    struct {
 				Host  string `json:"host"`  // file server of the source domain
 				Agent int64  `json:"agent"` // target agent
 				Map   string `json:"map"`   // E:\=/srv/shares
@@ -453,9 +567,10 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, msg("enter the source AD URL, domain, user and password"))
 		}
 		objects := in.Objects == nil || *in.Objects
-		if apply && (in.GPOs || in.DNS) { // the DC agent copies GPOs for up to 15 minutes and each DNS record is
-			// one RPC call: the answer (results, passwords) must outlive the server's 60 s write timeout
-			_ = http.NewResponseController(c.Response()).SetWriteDeadline(time.Now().Add(20 * time.Minute))
+		if (apply && (in.GPOs || in.DNS)) || in.Passwords { // the DC agent copies GPOs for up to 15 minutes, each DNS
+			// record is one RPC call, and the password migration replicates one object at a time: the answer must
+			// outlive the server's 60 s write timeout
+			_ = http.NewResponseController(c.Response()).SetWriteDeadline(time.Now().Add(35 * time.Minute))
 		}
 		withShares := in.Shares.Host != ""
 		var winPre, linuxDst string
@@ -466,7 +581,7 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 				return c.JSON(http.StatusBadRequest, msg(`shares: source server (name or address), target server and the map E:\=/srv/shares`))
 			}
 		}
-		if !objects && !in.GPOs && !in.DNS && !withShares {
+		if !objects && !in.GPOs && !in.DNS && !withShares && !in.Passwords {
 			return c.JSON(http.StatusBadRequest, msg("choose what to import"))
 		}
 		src, err := importad.Open(in.URL, in.Domain, in.User, in.Password, in.Insecure)
@@ -565,6 +680,18 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 							audit.Log(sess(c).user, c.RealIP(), "import."+a.Kind, a.Target, aerr)
 						}
 					}
+					// carry the non-secret metadata (last-logon of users/computers, OS of computers) to the
+					// objects just imported, so the inactivity view and the OS column match the source
+					meta, err := src.Metadata()
+					if err != nil {
+						audit.Log(sess(c).user, c.RealIP(), "import.metadata", "", err)
+					}
+					for _, m := range meta {
+						if e := d.SetImportMetadata(m.Sam, m.LastLogon, m.OS, m.OSVersion); e != nil {
+							audit.Log(sess(c).user, c.RealIP(), "import.metadata", m.Sam, e)
+						}
+					}
+					counts["metadata"] = len(meta)
 				}
 				if in.GPOs {
 					s.applyGPOs(c, gpoPlan, src.Host(), sourceUser(in.User, src.NetBIOS()), in.Password)
@@ -576,7 +703,44 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 					s.applyDNS(c, d, dnsPlan)
 				}
 			}
-			plan := append(append(append(append([]ad.Action{}, objPlan...), gpoPlan...), sharePlan...), dnsPlan.Actions...)
+			// password migration (new-domain cutover): the DC agent reads the source hashes over a sealed read-only
+			// DRSUAPI and sets them here. plan classifies (reads no secret), apply sets. The source credential is the
+			// one typed in this form; nothing is stored or logged. Runs for both plan and apply (the agent plan is
+			// read-only). A failure here is reported as one row, not a failure of the whole import.
+			var pwPlan []ad.Action
+			if in.Passwords {
+				// renew the response write deadline: earlier stages (objects, GPOs, DNS) may have used much of the
+				// first budget, and the migration replicates one object at a time
+				_ = http.NewResponseController(c.Response()).SetWriteDeadline(time.Now().Add(35 * time.Minute))
+				pctx, cancel := context.WithTimeout(c.Request().Context(), 33*time.Minute)
+				defer cancel()
+				// a failure in this stage is reported as its own row — it never discards the objects/GPOs/DNS/shares
+				// results already written above (and their one-time generated passwords)
+				destSID, e := d.DomainSID()
+				if e != nil {
+					pwPlan = append(pwPlan, ad.Action{Kind: "password", Target: src.Host(), Detail: "destination SID: " + e.Error()})
+				} else if res, e := s.runPasswordMigration(c, pctx, src.Host(), sourceUser(in.User, src.NetBIOS()), in.Password, destSID, apply); e != nil {
+					pwPlan = append(pwPlan, ad.Action{Kind: "password", Target: src.Host(), Detail: e.Error()})
+				} else {
+					for _, u := range res.Users {
+						ok := u.Outcome != "error" && u.Outcome != "rejected"
+						detail := u.Outcome
+						if u.Reason != "" { // show the sanitized reason (why ntlm_only/error/rejected), never a secret
+							detail = u.Outcome + " — " + u.Reason
+						}
+						pwPlan = append(pwPlan, ad.Action{Kind: "password", Target: u.Sam, Detail: detail, OK: ok, Result: u.Outcome})
+						// a user whose production password was set no longer uses the generated one: drop it from
+						// the download so no invalid credential is handed out
+						if apply && (u.Outcome == "set" || u.Outcome == "ntlm_only" || u.Outcome == "same") {
+							delete(pw, u.Sam)
+						}
+					}
+					for k, v := range res.Counts {
+						counts["pw_"+k] = v
+					}
+				}
+			}
+			plan := append(append(append(append(append([]ad.Action{}, objPlan...), gpoPlan...), sharePlan...), dnsPlan.Actions...), pwPlan...)
 			return c.JSON(http.StatusOK, map[string]any{"plan": plan, "passwords": pw, "counts": counts})
 		})
 	}

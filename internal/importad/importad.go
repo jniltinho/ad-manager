@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"ad-manager/internal/ad"
 )
@@ -56,6 +57,41 @@ func (s *Source) GPOs() ([]ad.GPO, error) {
 
 // Inventory reads users, groups and memberships (share access is worked out from them).
 func (s *Source) Inventory() (*ad.Inventory, error) { return s.c.Inventory("import") }
+
+// MetaEntry is one object's non-secret metadata carried after the objects are
+// imported: the last-logon timestamp (users and computers) and the operating
+// system (computers), matched on the destination by Sam.
+type MetaEntry struct {
+	Sam       string
+	LastLogon time.Time
+	OS        string
+	OSVersion string
+}
+
+// Metadata reads the source objects whose non-secret metadata the import
+// carries: the last-logon of users and computers and the OS of computers. A
+// DC computer is skipped (DCs are not imported) and so is an object with
+// nothing to carry (never logged on and no OS), so applying every entry writes
+// something.
+func (s *Source) Metadata() ([]MetaEntry, error) {
+	inv, err := s.Inventory()
+	if err != nil {
+		return nil, err
+	}
+	var out []MetaEntry
+	for _, u := range inv.Users {
+		if !u.LastLogon.IsZero() {
+			out = append(out, MetaEntry{Sam: u.Sam, LastLogon: u.LastLogon})
+		}
+	}
+	for _, m := range inv.Computers {
+		if m.IsDC || (m.LastLogon.IsZero() && m.OS == "") {
+			continue
+		}
+		out = append(out, MetaEntry{Sam: m.Sam, LastLogon: m.LastLogon, OS: m.OS, OSVersion: m.OSVersion})
+	}
+	return out, nil
+}
 
 // DNSRecords reads the records of the AD-integrated zones.
 func (s *Source) DNSRecords() ([]ad.DNSRecord, int, error) { return s.c.DNSRecords() }

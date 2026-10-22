@@ -147,6 +147,23 @@ func (c *Conn) CreateComputer(name, dns, ouDN string, enabled bool) error {
 	return mapErr(c.add(req))
 }
 
+// DomainSID returns this domain's SID (the objectSid of the domain root), used to pin the destination of a
+// password migration independently of the agent (which is selected only by realm).
+func (c *Conn) DomainSID() (string, error) {
+	es, err := c.search(c.cfg.Base(), ldap.ScopeBaseObject, "(objectClass=*)", []string{"objectSid"})
+	if err != nil {
+		return "", err
+	}
+	if len(es) == 0 {
+		return "", ErrNotFound
+	}
+	sid := sidString(es[0].GetRawAttributeValue("objectSid"))
+	if sid == "" {
+		return "", fmt.Errorf("%w: domain SID unreadable", ErrWrongInput)
+	}
+	return sid, nil
+}
+
 // SetDescription changes the description of a user, group or computer.
 func (c *Conn) SetDescription(sam, description string) error {
 	e, err := c.object(sam)

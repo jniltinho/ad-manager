@@ -2,11 +2,11 @@
 // Export/import OUs, groups, users, computers and the file servers' folders and
 // permissions as CSV (Excel style: ";" + BOM). Import only creates and updates:
 // it never deletes nor removes members; folders are created empty (no files).
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { toast } from '../toasts'
-import { auth, get, post } from '../api'
+import { auth, del, get, post } from '../api'
 import { serverText, t } from '../i18n'
-import { DatabaseZap, Download, Eye, FolderOpen, KeyRound, PlugZap } from 'lucide-vue-next'
+import { DatabaseZap, Download, Eye, FolderOpen, KeyRound, PlugZap, Trash2 } from 'lucide-vue-next'
 import { askConfirm } from '../dialogs'
 import { downloadCsv } from '../util'
 
@@ -37,7 +37,7 @@ get('/agents')
   .catch(() => {})
 const source = ref({ url: 'ldap://', domain: '', user: '', password: '', insecure: true, save_as: '' })
 // what "From another AD" brings: objects (users, groups, OUs, computers), GPOs, the shares of one file server
-const what = ref({ objects: true, gpos: false, dns: false, dynamic: false, zones: false, shares: false })
+const what = ref({ objects: true, gpos: false, dns: false, dynamic: false, zones: false, shares: false, passwords: false })
 const shareSrc = ref({ host: '', agent: null, map: 'E:\\=/srv/shares' })
 // "· source: 24 users, 57 groups, …" with what was read
 const sourceSummary = computed(() => {
@@ -63,6 +63,7 @@ function adRequest() {
     dns: what.value.dns,
     include_dynamic: what.value.dynamic,
     create_zones: what.value.zones,
+    passwords: what.value.passwords,
   }
   if (what.value.shares) body.shares = { ...shareSrc.value, agent: shareSrc.value.agent || server.value }
   return body
@@ -79,8 +80,18 @@ function switchMode(k) {
 function useProfile(p) {
   Object.assign(source.value, { url: p.url, domain: p.domain, user: p.user, insecure: p.insecure, save_as: p.name, password: '' })
 }
+async function removeProfile(p) {
+  if (!(await askConfirm(t('Delete the profile {name}?', { name: p.name })))) return
+  try {
+    await del('/ad-sources/' + p.id)
+    profiles.value = profiles.value.filter((x) => x.id !== p.id)
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
 async function sendAD(apply) {
   busy.value = true
+  if (apply) logStart(t('From another AD'), t('Importing the objects…'))
   try {
     const data = await post('/import/ad/' + (apply ? 'apply' : 'plan'), adRequest())
     plan.value = data.plan || []
@@ -88,8 +99,10 @@ async function sendAD(apply) {
     applied.value = apply
     passwords.value = data.passwords && Object.keys(data.passwords).length ? data.passwords : null
     if (source.value.save_as) get('/ad-sources').then((r) => (profiles.value = r))
+    logFromPlan(plan.value, apply)
     if (apply) toast.success(t('Import finished.'))
   } catch (e) {
+    logError(e.message)
     toast.error(e.message)
   }
   busy.value = false
@@ -99,6 +112,45 @@ const applied = ref(false)
 const passwords = ref(null)
 const busy = ref(false)
 const kind = ref('')
+
+// Live log/status modal for a running import (CSV, From another AD, Folders): a phase while the request runs, then
+// the per-action result and the final status. The request returns the whole plan at once, so the detailed log
+// appears when it finishes; the phase shows the stage while it is in flight.
+const syncLog = ref(null) // { title, phase, status: 'running'|'done'|'error', steps:[{label,target,detail,ok}], ok, errors, error }
+const dlgLog = ref(null)
+watch(syncLog, async (v) => {
+  if (v) {
+    await nextTick()
+    if (!dlgLog.value?.open) dlgLog.value?.showModal()
+  }
+})
+function logStart(title, phase) {
+  syncLog.value = { title, phase, status: 'running', steps: [], ok: 0, errors: 0, error: '' }
+}
+function logPhase(phase) {
+  if (syncLog.value) syncLog.value.phase = phase
+}
+function logFromPlan(planArr, applied) {
+  if (!syncLog.value) return
+  const steps = (planArr || [])
+    .filter((a) => a.kind !== 'skip')
+    // password rows carry "outcome — reason" in detail; keep it (and the reason) so the modal/tooltip explain why
+    .map((a) => ({
+      label: kindName(a.kind),
+      target: a.target,
+      detail: a.kind === 'password' || !applied ? a.detail : a.result,
+      ok: !applied || a.ok,
+    }))
+  const errors = applied ? steps.filter((s) => !s.ok).length : 0
+  Object.assign(syncLog.value, { steps, status: errors ? 'error' : 'done', ok: steps.length - errors, errors, phase: '' })
+}
+function logError(msg) {
+  if (syncLog.value) Object.assign(syncLog.value, { status: 'error', error: msg, phase: '' })
+}
+function logClose() {
+  dlgLog.value?.close()
+  syncLog.value = null
+}
 
 const kindNames = {
   'ou.create': 'Create OU',
@@ -111,6 +163,7 @@ const kindNames = {
   'share.create': 'Create share',
   'share.update': 'Update share',
   'gpo.import': 'Import GPO',
+  password: 'Password',
   'dns.add': 'Add DNS record',
   'dns.conflict': 'DNS conflict',
   'zone.missing': 'Missing zone',
@@ -132,6 +185,7 @@ async function send(apply) {
   const fd = new FormData()
   for (const [k, f] of Object.entries(files.value)) if (f) fd.append(k, f)
   busy.value = true
+  if (apply) logStart(t('Import CSV'), t('Writing to the domain…'))
   try {
     const r = await fetch('/api/import/' + (apply ? 'apply' : 'plan'), { method: 'POST', body: fd, credentials: 'same-origin' })
     if (r.status === 401) auth.user = null
@@ -140,12 +194,14 @@ async function send(apply) {
     plan.value = data.plan || []
     applied.value = apply
     passwords.value = data.passwords && Object.keys(data.passwords).length ? data.passwords : null
+    logFromPlan(plan.value, apply)
     if (apply) {
       const errors = plan.value.filter((a) => a.kind !== 'skip' && !a.ok).length
       if (errors) toast.warn(t('Import finished with {n} error(s).', { n: errors }))
       else toast.success(t('Import finished.'))
     }
   } catch (e) {
+    logError(e.message)
     toast.error(e.message)
   }
   busy.value = false
@@ -159,6 +215,7 @@ async function sendFolders(apply) {
   const fd = new FormData()
   fd.append('shares', foldersFile.value)
   busy.value = true
+  if (apply) logStart(t('Folders'), t('Sending to the server…'))
   try {
     const r = await fetch(`/api/agents/${server.value}/import/${apply ? 'apply' : 'plan'}`, {
       method: 'POST',
@@ -171,8 +228,10 @@ async function sendFolders(apply) {
     plan.value = data.plan || []
     applied.value = apply
     passwords.value = null
+    logFromPlan(plan.value, apply)
     if (apply) toast.success(t("Shares sent to the server's queue."))
   } catch (e) {
+    logError(e.message)
     toast.error(e.message)
   }
   busy.value = false
@@ -325,15 +384,21 @@ function downloadPasswords() {
         <form v-else class="space-y-3 p-3" @submit.prevent="sendAD(false)">
           <div v-if="profiles.length">
             <span class="lbl">{{ t('Saved profiles') }}</span>
-            <button
+            <span
               v-for="p in profiles"
               :key="p.id"
-              type="button"
-              class="tag mr-1 cursor-pointer border border-line bg-surface-3 text-fg-strong"
-              @click="useProfile(p)"
+              class="tag mr-1 inline-flex items-center gap-1 border border-line bg-surface-3 text-fg-strong"
             >
-              {{ p.name }}
-            </button>
+              <button type="button" class="cursor-pointer" @click="useProfile(p)">{{ p.name }}</button>
+              <button
+                type="button"
+                class="cursor-pointer text-fg-muted hover:text-danger"
+                :title="t('Delete the profile {name}?', { name: p.name })"
+                @click="removeProfile(p)"
+              >
+                <Trash2 class="h-3.5 w-3.5" />
+              </button>
+            </span>
           </div>
           <div>
             <label class="lbl" for="ou">{{ t('Source DC URL') }}</label
@@ -363,7 +428,15 @@ function downloadPasswords() {
               <label class="flex items-center gap-1.5"><input v-model="what.gpos" type="checkbox" /> GPOs</label>
               <label class="flex items-center gap-1.5"><input v-model="what.dns" type="checkbox" /> DNS</label>
               <label class="flex items-center gap-1.5"><input v-model="what.shares" type="checkbox" /> {{ t('Shares') }}</label>
+              <label class="flex items-center gap-1.5"><input v-model="what.passwords" type="checkbox" /> {{ t('Passwords') }}</label>
             </div>
+            <p v-if="what.passwords" class="mt-1 text-[11px] text-fg-muted">
+              {{
+                t(
+                  'New-domain cutover only: the DC agent reads the source password hashes over a read-only DRSUAPI and sets them on matching users, using the login and password entered above. Needs the agent password-migration mode on; the source is left unchanged.',
+                )
+              }}
+            </p>
             <p v-if="what.gpos" class="mt-1 text-[11px] text-fg-muted">
               {{ t('New GPOs, not linked, created by the agent of a DC in its GPO restore mode; names already in use are skipped.') }}
             </p>
@@ -400,7 +473,10 @@ function downloadPasswords() {
             <label class="lbl" for="os">{{ t('Save as profile (without the password)') }}</label
             ><input id="os" v-model.trim="source.save_as" class="inp" :placeholder="t('e.g. legacy-2008')" />
           </div>
-          <button class="btn w-full justify-center" :disabled="busy || (!what.objects && !what.gpos && !what.dns && !what.shares)">
+          <button
+            class="btn w-full justify-center"
+            :disabled="busy || (!what.objects && !what.gpos && !what.dns && !what.shares && !what.passwords)"
+          >
             <PlugZap :size="14" /> {{ busy && !plan ? t('Reading the source AD…') : t('Connect and preview') }}
           </button>
           <p class="text-[11px] text-fg-muted">
@@ -419,7 +495,14 @@ function downloadPasswords() {
         }}</span>
         <span v-if="plan && mode === 'ad' && sourceCounts" class="font-normal normal-case text-fg-muted">{{ sourceSummary }}</span>
       </div>
-      <div v-if="!plan" class="p-6 text-center text-fg-muted">{{ t('Choose the files and click preview.') }}</div>
+      <!-- computing the plan: an indeterminate bar until the preview is ready -->
+      <div v-if="!plan && busy" class="p-6 text-center text-fg-muted">
+        <p class="mb-2 text-[13px]">{{ mode === 'ad' ? t('Reading the source AD…') : t('Analyzing…') }}</p>
+        <div class="mx-auto h-1 w-40 overflow-hidden bg-surface-3" role="progressbar" :aria-label="t('Analyzing…')">
+          <div class="pm-bar h-full bg-warn"></div>
+        </div>
+      </div>
+      <div v-else-if="!plan" class="p-6 text-center text-fg-muted">{{ t('Choose the files and click preview.') }}</div>
       <template v-else>
         <div class="flex flex-wrap items-center gap-2 p-3">
           <button
@@ -454,8 +537,10 @@ function downloadPasswords() {
               <tr v-for="(a, i) in visible" :key="i" :class="a.kind === 'skip' ? 'text-fg-subtle' : ''">
                 <td class="whitespace-nowrap">{{ kindName(a.kind) }}</td>
                 <td class="font-semibold">{{ a.target }}</td>
-                <td class="break-all">{{ serverText(a.detail) }}</td>
-                <td v-if="applied" :class="a.ok || a.kind === 'skip' ? 'text-ok' : 'text-err'">{{ serverText(a.result) }}</td>
+                <td class="break-all" :title="serverText(a.detail)">{{ serverText(a.detail) }}</td>
+                <td v-if="applied" :class="a.ok || a.kind === 'skip' ? 'text-ok' : 'text-err'" :title="serverText(a.detail)">
+                  {{ serverText(a.result) }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -465,5 +550,74 @@ function downloadPasswords() {
         </p>
       </template>
     </section>
+
+    <!-- Live log/status of a running import (CSV, From another AD, Folders) -->
+    <dialog v-if="syncLog" ref="dlgLog" class="pnl w-[min(680px,94vw)]" @cancel.prevent="syncLog.status !== 'running' && logClose()">
+      <div class="pnl-head flex items-center gap-2">
+        <span
+          class="inline-block h-2.5 w-2.5"
+          :class="{
+            'animate-pulse bg-warn': syncLog.status === 'running',
+            'bg-ok': syncLog.status === 'done',
+            'bg-err': syncLog.status === 'error',
+          }"
+        ></span>
+        {{ t('Import') }} — {{ syncLog.title }}
+      </div>
+      <div class="pnl-body">
+        <template v-if="syncLog.status === 'running'">
+          <p class="mb-1 text-[13px] text-fg-muted">{{ syncLog.phase }}</p>
+          <!-- indeterminate progress bar while the import runs (stops when it finishes) -->
+          <div class="mb-2 h-1 w-full overflow-hidden bg-surface-3" role="progressbar" :aria-label="syncLog.phase">
+            <div class="pm-bar h-full bg-warn"></div>
+          </div>
+        </template>
+        <p v-else class="mb-2 text-[13px]" :class="syncLog.status === 'error' ? 'text-err' : 'text-ok'">
+          {{
+            syncLog.status === 'error'
+              ? syncLog.error || t('Finished with {n} error(s).', { n: syncLog.errors })
+              : t('Finished: {n} action(s).', { n: syncLog.ok })
+          }}
+        </p>
+        <div v-if="syncLog.steps.length" class="max-h-[46vh] overflow-auto border border-line">
+          <table class="w-full text-[12px]">
+            <tbody>
+              <tr v-for="(s, i) in syncLog.steps" :key="i" class="border-b border-line/60 last:border-0">
+                <td class="px-2 py-1 whitespace-nowrap font-mono" :class="s.ok ? 'text-ok' : 'text-err'">{{ s.ok ? '✓' : '✗' }}</td>
+                <td class="px-2 py-1 whitespace-nowrap">{{ s.label }}</td>
+                <td class="px-2 py-1 font-mono">{{ s.target }}</td>
+                <td class="px-2 py-1 text-fg-muted" :title="serverText(s.detail)">{{ serverText(s.detail) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="pnl-foot">
+        <button type="button" class="btn" :disabled="syncLog.status === 'running'" @click="logClose()">{{ t('Close') }}</button>
+      </div>
+    </dialog>
   </div>
 </template>
+
+<style scoped>
+/* indeterminate progress: a segment sliding across the track while an import runs */
+.pm-bar {
+  width: 40%;
+  animation: pm-indeterminate 1.1s ease-in-out infinite;
+}
+@keyframes pm-indeterminate {
+  0% {
+    margin-left: -40%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+</style>

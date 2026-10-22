@@ -158,6 +158,23 @@ func (a *Agent) gpoRestoreReady() error {
 	return nil
 }
 
+// passwordMigrationReady tells whether the dedicated password-migration write mode is set up: a target-admin
+// account and its password file, a regular file not readable by group or others. It is a separate gate from the GPO
+// restore: having GPO restore on does not enable this, and vice versa.
+func (a *Agent) passwordMigrationReady() error {
+	if a.cfg.PasswordMigrationUser == "" || a.cfg.PasswordMigrationPasswordFile == "" {
+		return errors.New("password migration is off on this agent (password_migration_user and password_migration_password_file)")
+	}
+	fi, err := os.Stat(a.cfg.PasswordMigrationPasswordFile)
+	if err != nil {
+		return fmt.Errorf("password migration: %w", err)
+	}
+	if !fi.Mode().IsRegular() || fi.Mode().Perm()&0o077 != 0 {
+		return errors.New("password migration: the password file must be a regular file with mode 0600")
+	}
+	return nil
+}
+
 // testparm reads one smb.conf parameter from testparm's standard output (its notices go to stderr).
 func testparm(ctx context.Context, name string) string {
 	out, err := exec.CommandContext(ctx, "testparm", "-s", "--parameter-name="+name).Output()
@@ -512,7 +529,8 @@ func (a *Agent) Routes() *echo.Echo {
 	e.GET("/api/health", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]any{"status": "ok", "queue": a.cfg.Queue, "version": buildinfo.Version,
 			"nt_acl": a.caps.Usable(), "samba": a.caps.Samba, "dc": a.role == roleDC, "read_only": a.readOnly(), "realm": a.realm,
-			"gpo_restore": a.role == roleDC && a.gpoRestoreReady() == nil, "files": a.files, "files_why": a.why})
+			"gpo_restore":        a.role == roleDC && a.gpoRestoreReady() == nil,
+			"password_migration": a.role == roleDC && a.passwordMigrationReady() == nil, "files": a.files, "files_why": a.why})
 	})
 	api := e.Group("/api", a.bearer)
 	api.GET("/shares", func(c *echo.Context) error {
@@ -741,6 +759,43 @@ func (a *Agent) Routes() *echo.Echo {
 			out = append(out, r)
 		}
 		return c.JSON(http.StatusOK, out)
+	}, dcOnly)
+	// password-material migration (docs/migration-runbook.md), in the dedicated write mode: read the named
+	// source's password hashes over a sealed, read-only DRSUAPI and set them on the local directory. plan reads no
+	// secret; apply reads and writes per user. The source password reaches the helper through a 0600 file removed
+	// at the end, never an argument or a log; the answer carries only outcomes and the domain SIDs.
+	api.POST("/dc/passwords/migrate", func(c *echo.Context) error {
+		if err := a.passwordMigrationReady(); err != nil {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		var in struct {
+			Source   sambadc.PwSource `json:"source"`
+			Password string           `json:"password"`
+			Apply    bool             `json:"apply"`
+			DestSID  string           `json:"dest_sid"`
+		}
+		if err := json.NewDecoder(io.LimitReader(c.Request().Body, 1<<20)).Decode(&in); err != nil ||
+			in.Source.Host == "" || in.Source.User == "" || in.Password == "" || strings.ContainsAny(in.Password, "\r\n") || in.DestSID == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		}
+		ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Minute)
+		defer cancel()
+		// the source password goes to the helper on stdin only — never written to disk, so a crash leaves nothing
+		// behind. The interpreter is the agent's python3 (empty → /usr/bin/python3, as the Samba bridge uses);
+		// a.caps.Python is a version string, not a path, so it must not be passed here.
+		res, err := sambadc.MigratePasswords(ctx, "", in.Apply, in.Source, in.Password, in.DestSID)
+		if err != nil {
+			return c.JSON(http.StatusBadGateway, map[string]string{"error": err.Error()})
+		}
+		slog.Info("password migration", "source", in.Source.Host, "apply", in.Apply, "counts", res.Counts)
+		// a per-user line in the agent's own journal (sam, outcome and the sanitized reason) to diagnose errors and
+		// ntlm_only — never a hash, key or password
+		for _, u := range res.Users {
+			if u.Outcome == "error" || u.Outcome == "ntlm_only" || u.Outcome == "rejected" {
+				slog.Info("password migration user", "sam", u.Sam, "outcome", u.Outcome, "reason", u.Reason)
+			}
+		}
+		return c.JSON(http.StatusOK, res)
 	}, dcOnly)
 	api.GET("/samba/logs", sambalog.ListHandler(a.logDir))
 	api.GET("/samba/logs/:name", sambalog.ReadHandler(a.logDir, "name"))

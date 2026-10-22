@@ -135,6 +135,48 @@ as the destination for the DNS application partition, even though Samba has it. 
   DNS records and its SPNs, not just the replication, and so it is **not** suitable for an `old-dc` that is still in
   use. Afterwards, `samba-tool dbcheck --cross-ncs --fix --yes`.
 
+## Alternative — new-domain cutover (no dc-join)
+
+When a `dc-join` is not wanted (a dirty legacy directory, an unsupported schema, a clean break on a **new SID**
+keeping the same realm), the new Samba domain is built fresh and the source is copied in with the panel's
+**"From another AD"** import. The import brings objects over LDAP, which never exposes the password hashes
+(`unicodePwd`/`supplementalCredentials` are write-only), so without the step below every user would get a generated
+password with "change at next sign-in" — breaking LDAP/Kerberos apps (Gitea and the like) until each user changes it.
+
+Order: **objects and DNS → passwords → applications tested with the real passwords.**
+
+1. **Objects and DNS** — panel → Import/export → *From another AD* (or `ad-manager import ad --apply`). This also
+   carries each object's last-logon and the computers' operating system, so the inactivity view and the OS column
+   match the source right away.
+2. **Passwords** — the simplest path is the panel: in **Import/export → From another AD**, tick the **Passwords**
+   option (beside Objects/GPOs/DNS/Shares) and run it with the source URL, user and password already in that form —
+   the server hands that credential to the DC agent, no separate file needed. The CLI below is for automation. Either
+   way, turn on the dedicated, default-off write mode on the DC agent first (separate from the GPO restore):
+
+   ```toml
+   [agent]
+   password_migration_user          = "administrator@example.local"   # a target-domain administrator
+   password_migration_password_file = "/etc/ad-manager/pwmigrate.pass" # 0600, root only; never in the config
+   ```
+
+   Then preview and apply (the source replication account needs *Replicating Directory Changes* **and** *…All*; its
+   password comes from `AD_SOURCE_PASSWORD_FILE` or the terminal, never an argument):
+
+   ```bash
+   ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://dc:9443          # preview
+   AD_SOURCE_PASSWORD_FILE=/root/src.pass ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://dc:9443 --apply
+   ```
+
+   The agent reads the hashes over a **sealed, read-only DRSUAPI** (`GetNCChanges` with the per-object secret op; no
+   `UpdateRefs`, no replica, the source is left unchanged) and sets them on this domain's matching users by
+   `sAMAccountName`: the NT hash always, the Kerberos keys when their salt transfers (otherwise the user is
+   `ntlm_only` and the keys rebuild on the next password change). Built-ins (RID 500/501/502), trust and machine
+   accounts are never touched; a user missing here is `missing` (import the objects first), and a source that stores
+   reversible passwords (`Primary:CLEARTEXT`) is `rejected`. Nothing is written to a file, a log, the API or the
+   audit (`password.migrate` records counts only); re-running is idempotent (`same` when the full state matches).
+3. **Applications** — sign in to the LDAP/Kerberos apps (Gitea, etc.) with a real production password to confirm
+   the material carried over before handing the domain to users.
+
 ## Rollback
 
 | When | How to go back |

@@ -336,6 +336,24 @@ paths:
       description: "As the preview, then writes: objects to this domain (generated passwords in passwords), GPOs through the agent of a DC of this domain in its GPO restore mode (samba-tool gpo backup from the source DC, restore as a new GPO; result: the new GUID), shares as tasks queued on the target agent. Every action is audited (import.<kind>)."
       requestBody: { $ref: "#/components/requestBodies/ImportAD" }
       responses: { "200": { description: "plan with result and ok per action, passwords, counts" }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/import/ad/passwords:
+    post:
+      tags: [Import/export]
+      summary: Migrate the users' password hashes from a source domain (new-domain cutover)
+      description: "Preserves the production passwords on a new-domain cutover (not needed with a dc-join). The DC agent of this domain, in its dedicated password-migration write mode, reads the source's password hashes over a sealed, read-only DRSUAPI (never UpdateRefs, never a replica) and sets them on this domain's matching users by sAMAccountName (NTLM, and Kerberos when the salt transfers). Never over LDAP, never as plaintext, never creating a user; the source is left unchanged. The destination is pinned by its domain SID, read through the operator's own connection (independent of the agent), and the agent refuses a source whose SID equals the destination's. apply=false previews (connectivity and non-secret metadata only); apply=true reads and sets per user with rollback. The source replication password travels in the body (TLS) and never leaves the agent's memory; the answer and the audit (password.migrate) carry only per-user outcomes (would_set, set, ntlm_only, same, missing, builtin, rejected) and counts, never a secret."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, user, password]
+              properties:
+                url: { type: string, description: "source DC URL (ldaps://old-dc; ldap:// only for 2008)" }
+                user: { type: string, description: "replication account on the source (Replicating Directory Changes + …All)" }
+                password: { type: string, description: "the replication account's password (never logged or stored)" }
+                apply: { type: boolean, description: "read the hashes and set them (otherwise preview only)" }
+      responses: { "200": { description: "users (sam, outcome) and counts" }, "400": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } }
 
   /api/agents:
     get:
@@ -811,6 +829,7 @@ components:
               dns: { type: boolean, default: false, description: "A, CNAME and PTR records read over LDAP; never records of domain controllers, SOA, NS, SRV, _msdcs or the zone root" }
               include_dynamic: { type: boolean, default: false, description: "dns: also the records clients registered (timestamp)" }
               create_zones: { type: boolean, default: false, description: "dns: a zone missing here becomes zone.create (a primary zone integrated with the directory, secure updates; never _msdcs), created through MS-DNSP with the operator's credential before its records; audited as import.zone.create" }
+              passwords: { type: boolean, default: false, description: "new-domain cutover: migrate the users' password hashes. The DC agent (dedicated password-migration mode) reads the source hashes over a sealed, read-only DRSUAPI using the url/user/password of this form and sets them on matching users (NTLM, and Kerberos when the salt transfers); plan classifies, apply sets. The source is left unchanged; nothing is stored, logged or audited beyond counts (password.migrate). Returns per-user rows of kind 'password' (outcome in detail)" }
               shares:
                 type: object
                 properties:

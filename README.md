@@ -42,7 +42,7 @@ shares with Windows permissions, backups and migrations — behind one fast, aud
   </tr>
   <tr>
     <td valign="top"><b>🧭 Setup wizard</b><br>Turn a fresh Ubuntu server into a domain controller or file server — from the browser.</td>
-    <td valign="top"><b>🚚 Windows → Samba</b><br>Inventory, compare, import users, groups, DNS and shares, and join a Samba DC.</td>
+    <td valign="top"><b>🚚 Windows → Samba</b><br>Inventory, compare, import users, groups, DNS, shares and <b>passwords</b>, and join a Samba DC.</td>
     <td valign="top"><b>🔐 Secure by design</b><br>No service account: LDAPS with the signed-in admin's credentials, <i>Domain Admins</i> only, every change audited.</td>
   </tr>
   <tr>
