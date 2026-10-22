@@ -495,7 +495,14 @@ function downloadPasswords() {
         }}</span>
         <span v-if="plan && mode === 'ad' && sourceCounts" class="font-normal normal-case text-fg-muted">{{ sourceSummary }}</span>
       </div>
-      <div v-if="!plan" class="p-6 text-center text-fg-muted">{{ t('Choose the files and click preview.') }}</div>
+      <!-- computing the plan: an indeterminate bar until the preview is ready -->
+      <div v-if="!plan && busy" class="p-6 text-center text-fg-muted">
+        <p class="mb-2 text-[13px]">{{ mode === 'ad' ? t('Reading the source AD…') : t('Analyzing…') }}</p>
+        <div class="mx-auto h-1 w-40 overflow-hidden bg-surface-3" role="progressbar" :aria-label="t('Analyzing…')">
+          <div class="pm-bar h-full bg-warn"></div>
+        </div>
+      </div>
+      <div v-else-if="!plan" class="p-6 text-center text-fg-muted">{{ t('Choose the files and click preview.') }}</div>
       <template v-else>
         <div class="flex flex-wrap items-center gap-2 p-3">
           <button
