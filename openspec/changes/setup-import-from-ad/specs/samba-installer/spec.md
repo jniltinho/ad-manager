@@ -32,5 +32,5 @@ finished.
 
 #### Scenario: Agent registration fails
 - **WHEN** registering the DC agent in the panel fails during a wizard setup
-- **THEN** the panel is not restarted, the wizard shows the installation stopped with the error, and a re-run goes on
-  from there
+- **THEN** the panel is not restarted and the wizard shows the installation stopped with the error; for a new domain,
+  a re-run goes on from the already provisioned domain

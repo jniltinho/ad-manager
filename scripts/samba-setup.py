@@ -765,11 +765,18 @@ password_migration_password_file = "{file}"
 
 
 def write_secret(path, text):
-    """A root-only file: 0600 from its creation (never readable by others, even for a moment)."""
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "w") as f:
-        os.fchmod(f.fileno(), 0o600)
-        f.write(text)
+    """A file only its creator (root) reads: a new 0600 file renamed over the old one, so no earlier owner, mode or
+    open descriptor of the old file ever sees the new content."""
+    tmp = f"{path}.{os.getpid()}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), 0o600)
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def import_gates(args):
@@ -785,12 +792,13 @@ def import_gates(args):
         fail(f"--admin {args.admin}: letters, digits, '.', '_' or '-' only")
     write_secret(IMPORT_PASS, args.admin_pw + "\n")
     text = CONFIG.read_text()
-    if re.search(r"^\s*gpo_restore_user\s*=", text, re.M):
-        return
-    tables = re.findall(r"^\s*\[+([^\]]+)\]", text, re.M)
-    if not tables or tables[-1].strip() != "agent":
-        fail(f"{CONFIG}: [agent] is not the last section; add the import keys by hand (docs/password-migration.md)")
-    write_config(text.rstrip("\n") + "\n" + IMPORT_GATES.format(admin=args.admin, realm=args.realm.lower(), file=IMPORT_PASS))
+    if not re.search(r"^\s*gpo_restore_user\s*=", text, re.M):
+        tables = re.findall(r"^\s*\[+([^\]]+)\]", text, re.M)
+        if not tables or tables[-1].strip() != "agent":
+            fail(f"{CONFIG}: [agent] is not the last section; add the import keys by hand (docs/password-migration.md)")
+        write_config(text.rstrip("\n") + "\n" + IMPORT_GATES.format(admin=args.admin, realm=args.realm.lower(), file=IMPORT_PASS))
+    if not JSON_LOG:  # the wizard's agent restarts at its end; from the command line it reloads the modes now
+        sh("systemctl", "restart", "ad-manager-agent")
 
 
 def agent(args):
