@@ -37,9 +37,7 @@ look, and SHALL hold `high-contrast` to 7:1 in every text color it draws, like t
 #### Scenario: Accepted differences
 - **WHEN** a new theme is shown on the web and on the desktop
 - **THEN** the only differences are the documented ones: the page pattern, the colored glow, Winamp's green field
-  text and its sunken field and pressed relief, High contrast's current inner tab (black with white text, white sides
-  and a yellow top bar on the desktop; yellow with black text on the web), Fyne's text-selection highlight, the
-  font, the footer stripe (the desktop footer has none in any theme) and the hover tone of one-color buttons
+  text and its sunken field and pressed relief, Fyne's text-selection highlight, the font, the footer stripe (the desktop footer has none in any theme) and the hover tone of one-color buttons
 
 ## MODIFIED Requirements
 

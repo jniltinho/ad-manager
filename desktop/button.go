@@ -147,7 +147,7 @@ func (b *volButton) CreateRenderer() fyne.WidgetRenderer {
 	r.label.TextSize = 13
 	r.content = container.NewHBox(r.icon, r.label)
 	r.Refresh()
-	return newRingRenderer(r, &b.focused)
+	return newRingRenderer(r, &b.focused, b)
 }
 
 type volRenderer struct {

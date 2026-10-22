@@ -204,8 +204,7 @@ selection. In every theme the desktop footer has no stripe. Desktop buttons take
 theme's ring and are pressed with Space or Enter, as on the web (the sidebar items, inner tabs and the password
 reveal button stay mouse-only). A theme with no shadow on buttons, cards and the
 login box (High contrast) is always drawn flat on the desktop, as its web look has no depth, and its dialogs are
-framed in the dialog line (2 px); its current inner tab is black on the desktop (white sides, yellow top bar), yellow on
-the web. Checked by
+framed in the dialog line (2 px). Checked by
 `TestVolumeDrawn` (volume drawn outside the flat look, 98's bevel, nothing in flat), `TestFocusRing` and by the
 residue-free theme switch in the visual suite. The visual suite (Playwright) runs locally with
 `scripts/visual-ci.sh`, outside CI (decision in commit `d208bad`). The mosaic below is the web home screen (visual

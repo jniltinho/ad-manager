@@ -52,9 +52,14 @@ rain animation: the page pattern is static, and the flat look removes it).
    `brightness(1.1)` would drop it to about 4.4:1); selection `#f6d3e2` with plum text. Inter 13 px. The saturated
    pink `#e98bb2` never fills an area with text; the blush page and the pale selection do, at ≥ 12:1.
 5. **High contrast** — `#000000` surfaces, text `#ffffff` (muted `#e6e6e6`, 16.8:1), lines `#bfbfbf`, fields black
-   with a white frame, single accent yellow `#ffff00` (19.6:1): primary action with black text, links, selected row
-   with black text, current top tab, inner tab and card tab (yellow with black ink, so the `aaaOnly` recipes
-   `subtab-on/subtab` and `cardtab-on/cardtab` reach 19.6:1), header and footer stripes, focus. The current side-list
+   with a white frame, single accent yellow `#ffff00` (19.6:1) only where something acts, is current or has the
+   focus: primary action with black text, links, selected row with black text, the header mark, focus, and the
+   current tab. Tabs follow the folder pattern of the other themes (Cone): the current top, inner and card tab has the
+   content's color (black) with yellow text and icon, white sides and a 3 px yellow bar on top; the others are framed
+   in gray. The `aaaOnly` recipes `subtab-on/subtab` and `cardtab-on/cardtab` are now `segmentedOnly` in
+   `matrix.json` (a segmented control, Crystal, marks the selected tab by its fill alone; a folder tab marks it with
+   the bar). To keep it sober, decorations are white or gray, not yellow: no bar left of card titles, a 2 px Home
+   tile stripe, white chart bars and strong tags, 1 px white footer and dialog-title lines. The current side-list
    item (`nav-on`) is black with yellow text and a 4 px yellow bar, so the yellow focus ring still reads on it
    (`focus/nav-on`). The login focus is solid yellow, 3 px (`login-focus/login-box`). States: ok `#5cff5c`, error
    text `#ffa3a3` (≥ 7:1 on the `#262626` row hover too), error fill `#ff8a8a`, warning `#ffc04d`, all with black
@@ -71,9 +76,8 @@ rain animation: the page pattern is static, and the flat look removes it).
    `--shadow-btn`, `--shadow-card` and `--shadow-login-box` have no visible layer (only High contrast), and
    `applyLook` always draws a depthless theme in the flat look; for the same reason its dialogs are framed in
    `dialog-line` at 2 px (`modal.go`; `dialog-line` is added to the generated roles, the other themes keep their 1 px
-   frame in `dialog-head`). High contrast's current inner tab also gets white sides and a yellow top bar
-   (`--shadow-subtab-on`), the mark the desktop draws on a non-segmented current tab (whose fill is the content's,
-   black with white text: an accepted difference from the web's yellow tab). `TestVolumeDrawn` accepts one-color bands where the
+   frame in `dialog-head`). Since the current inner tab has the content's color on the web too, the desktop draws it
+   the same way (black, yellow text, white sides and the yellow top bar). `TestVolumeDrawn` accepts one-color bands where the
    palette's top and base are equal. `theme_test.go` checks the four ids and schemes, High contrast's `minText` 7,
    3 px ring and depthlessness (and that no other theme is depthless), Winamp's bevel; `TestFocusRing` adds High
    contrast and Matrix.

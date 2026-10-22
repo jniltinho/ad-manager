@@ -145,3 +145,18 @@ func TestFocusScrollsIntoView(t *testing.T) {
 		t.Errorf("in a dialog: focused last button not scrolled into view (offset %v)", scroll.Offset.Y)
 	}
 }
+
+// TestRingRefreshBeforeLayout: a button sized before its renderer exists keeps its content inside it after a refresh
+// (the ring once laid the widget out at zero size, hiding the Home page's Open button and moving its icon).
+func TestRingRefreshBeforeLayout(t *testing.T) {
+	test.NewApp()
+	b := newButton("Open", nil, nil)
+	b.Resize(fyne.NewSize(120, 32))
+	r := test.WidgetRenderer(b)
+	r.Refresh()
+	for _, o := range r.Objects() {
+		if c, ok := o.(*fyne.Container); ok && (c.Position().X < 0 || c.Position().Y < 0) {
+			t.Errorf("content at %v, outside the button", c.Position())
+		}
+	}
+}

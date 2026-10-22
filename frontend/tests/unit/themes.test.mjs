@@ -142,6 +142,17 @@ const box = { borderTopLeftRadius: 0 }
   })
 })
 
+describe('folder tabs (four-new-themes)', () => {
+  test('the current tab has the content color and a 3 px accent bar on top, the others thin separators', () => {
+    for (const id of ['cone', 'winamp', 'pink-panther', 'high-contrast']) {
+      const m = merged(id)
+      expect(m.get('--color-tab-on'), id).toBe(m.get('--color-surface'))
+      expect(m.get('--shadow-tab-on'), id).toMatch(/inset 0 3px #[0-9a-f]{6}$/)
+      expect(m.get('--shadow-tab'), id).not.toBe('0 0 #0000')
+    }
+  })
+})
+
 describe('flat look', () => {
   test('turns off every gradient over any theme (more specific than :root[data-theme])', () => {
     const rule = contract().root.nodes.find((n) => n.selector === ":root[data-flat='true'][data-theme]")
@@ -179,8 +190,11 @@ describe('contrast', () => {
       // the aaa themes (Cristal): normal text 7:1, large text 4.5:1 (WCAG 1.4.6); components stay at 3:1 (1.4.11)
       const aaa = (matrix.aaa || []).includes(id)
       const min = (r) => (r.size === 'normal' ? (aaa ? 7 : 4.5) : r.size === 'large' ? (aaa ? 4.5 : 3) : 3)
+      const zero = (k) => ['0', '0px'].includes((merged(id).get(k) || '').trim())
+      const segmented = zero('--subtabs-gap') && zero('--subtab-inset-top') // as desktop/internal/themegen
       const failing = matrix.recipes
         .filter((r) => aaa || !r.aaaOnly)
+        .filter((r) => segmented || !r.segmentedOnly)
         .filter((r) => contrastOf(merged(id), r.fg, r.bg) < min(r))
         .map((r) => r.id)
         .sort()

@@ -76,6 +76,11 @@ contrast (1.4.6) and 3:1 for components (1.4.11) on the web and on the desktop, 
 - **WHEN** the current item of a side list receives focus in High contrast
 - **THEN** the item is black with yellow text and a yellow bar, and the yellow ring stays visible around it
 
+#### Scenario: Current tab
+- **WHEN** a top, inner or card tab is current in High contrast
+- **THEN** it has the content's color (black) with yellow text and icon, white sides and a 3 px yellow bar on top,
+  like the folder tabs of the other themes, not a yellow block
+
 #### Scenario: Select arrow kept
 - **WHEN** a select is shown in High contrast
 - **THEN** it has a white arrow (the icon is not removed with the gradients)
@@ -83,6 +88,16 @@ contrast (1.4.6) and 3:1 for components (1.4.11) on the web and on the desktop, 
 #### Scenario: Flat look changes nothing
 - **WHEN** the flat look is turned on in High contrast
 - **THEN** the screen looks the same (the theme has no gradient or depth to remove), on the web and on the desktop
+
+### Requirement: Folder tabs in the new themes
+In `winamp`, `pink-panther` and `high-contrast` the current top, inner and card tab SHALL have the color of the
+content surface below it, the theme's accent on its text and icon and a 3 px accent bar on top, with thin
+separators around the other tabs, as in the existing folder-tab themes (Cone).
+
+#### Scenario: Current tab connects to the content
+- **WHEN** a page is open in one of these themes
+- **THEN** its top tab has `--color-tab-on` equal to `--color-surface` and a 3 px accent bar on top
+  (`--shadow-tab-on`), and the other tabs have thin separators (`--shadow-tab`)
 
 ### Requirement: New themes leave the others intact
 Adding `matrix`, `winamp`, `pink-panther` and `high-contrast` SHALL NOT change any role or parameter of the other

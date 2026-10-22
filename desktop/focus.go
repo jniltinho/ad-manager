@@ -23,11 +23,11 @@ type ringRenderer struct {
 	fyne.WidgetRenderer
 	bars    [4]*canvas.Rectangle // top, bottom, left, right
 	focused *bool
-	size    fyne.Size
+	w       fyne.Widget // its size: a refresh before the first layout must not lay the widget out at zero size
 }
 
-func newRingRenderer(r fyne.WidgetRenderer, focused *bool) *ringRenderer {
-	rr := &ringRenderer{WidgetRenderer: r, focused: focused}
+func newRingRenderer(r fyne.WidgetRenderer, focused *bool, w fyne.Widget) *ringRenderer {
+	rr := &ringRenderer{WidgetRenderer: r, focused: focused, w: w}
 	for i := range rr.bars {
 		rr.bars[i] = canvas.NewRectangle(nil)
 		rr.bars[i].Hide()
@@ -45,7 +45,6 @@ func (r *ringRenderer) Objects() []fyne.CanvasObject {
 
 func (r *ringRenderer) Layout(s fyne.Size) {
 	r.WidgetRenderer.Layout(s)
-	r.size = s
 	w := look.p.focusRing
 	for i, g := range [4][4]float32{
 		{-w, -w, s.Width + 2*w, w}, {-w, s.Height, s.Width + 2*w, w}, {-w, 0, w, s.Height}, {s.Width, 0, w, s.Height},
@@ -57,7 +56,7 @@ func (r *ringRenderer) Layout(s fyne.Size) {
 
 func (r *ringRenderer) Refresh() {
 	r.WidgetRenderer.Refresh()
-	r.Layout(r.size) // the width may have changed with the theme
+	r.Layout(r.w.Size()) // the width may have changed with the theme
 	for _, b := range r.bars {
 		b.FillColor, b.Hidden = col("focus"), !*r.focused
 		b.Refresh()
@@ -165,7 +164,7 @@ func newMultiLineEntry() *ringEntry {
 }
 
 func (e *ringEntry) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(e.Entry.CreateRenderer(), &e.focused)
+	return newRingRenderer(e.Entry.CreateRenderer(), &e.focused, e)
 }
 
 func (e *ringEntry) FocusGained() {
@@ -191,7 +190,7 @@ func newSelect(options []string, changed func(string)) *ringSelect {
 }
 
 func (s *ringSelect) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(s.Select.CreateRenderer(), &s.focused)
+	return newRingRenderer(s.Select.CreateRenderer(), &s.focused, s)
 }
 
 func (s *ringSelect) FocusGained() {
@@ -216,7 +215,7 @@ func newCheck(label string, changed func(bool)) *ringCheck {
 }
 
 func (c *ringCheck) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(c.Check.CreateRenderer(), &c.focused)
+	return newRingRenderer(c.Check.CreateRenderer(), &c.focused, c)
 }
 
 func (c *ringCheck) FocusGained() {
@@ -242,7 +241,7 @@ func newSelectEntry(options []string) *ringSelectEntry {
 }
 
 func (e *ringSelectEntry) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(e.SelectEntry.CreateRenderer(), &e.focused)
+	return newRingRenderer(e.SelectEntry.CreateRenderer(), &e.focused, e)
 }
 
 func (e *ringSelectEntry) FocusGained() {
@@ -333,7 +332,7 @@ type radioItem struct {
 func (it *radioItem) CreateRenderer() fyne.WidgetRenderer {
 	it.icon = widget.NewIcon(it.iconRes())
 	text := newText(it.label, col("fg"), 13, false)
-	return newRingRenderer(widget.NewSimpleRenderer(container.NewBorder(nil, nil, it.icon, nil, text)), &it.focused)
+	return newRingRenderer(widget.NewSimpleRenderer(container.NewBorder(nil, nil, it.icon, nil, text)), &it.focused, it)
 }
 
 func (it *radioItem) iconRes() fyne.Resource {
