@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 )
 
 // TestFocusRing: a focused entry, select, check, select entry, radio and button get the theme's ring (3 px on Cristal and High
@@ -87,5 +88,50 @@ func TestButtonKeyboard(t *testing.T) {
 	test.Tap(b) // a click presses it without focusing it (the web's :focus-visible)
 	if presses != 4 || b.focused {
 		t.Errorf("click: presses %d (want 4), focused %v (want false)", presses, b.focused)
+	}
+	w.Canvas().Focus(b) // a click on a button focused from the keyboard drops the ring too
+	test.Tap(b)
+	if presses != 5 || b.focused {
+		t.Errorf("click on the focused button: presses %d (want 5), focused %v (want false)", presses, b.focused)
+	}
+}
+
+// TestFocusScrollsIntoView: a button that Tab reaches below the visible part of a scroll (the Groups list of a user)
+// is scrolled into view with its ring, and back up for the first one.
+func TestFocusScrollsIntoView(t *testing.T) {
+	a := test.NewApp()
+	defer a.Quit()
+	defer applyLook(nil, "default", false)
+	applyLook(a, "high-contrast", false) // 3 px ring
+	rows := container.NewVBox()
+	var btns []*volButton
+	for range 20 {
+		b := newButton("remove", nil, nil)
+		btns = append(btns, b)
+		rows.Add(container.NewBorder(nil, nil, nil, b, widget.NewLabel("group")))
+	}
+	scroll := container.NewVScroll(ringRoom(rows)) // as the Groups list
+	scroll.SetMinSize(fyne.NewSize(0, 130))
+	w := a.NewWindow("t")
+	defer w.Close()
+	w.SetContent(container.NewBorder(newEntry(), nil, nil, nil, scroll))
+	w.Resize(fyne.NewSize(300, 200))
+	d := a.Driver()
+	visible := func(b *volButton) bool {
+		y := d.AbsolutePositionForObject(b).Y - d.AbsolutePositionForObject(scroll).Y
+		ring := look.p.focusRing
+		return y-ring >= 0 && y+b.Size().Height+ring <= scroll.Size().Height
+	}
+	last := btns[len(btns)-1]
+	if visible(last) {
+		t.Fatal("the last button is visible before the focus: the test does not overflow")
+	}
+	w.Canvas().Focus(last)
+	if !visible(last) || scroll.Offset.Y == 0 {
+		t.Errorf("focused last button not scrolled into view (offset %v)", scroll.Offset.Y)
+	}
+	w.Canvas().Focus(btns[0])
+	if !visible(btns[0]) {
+		t.Errorf("focused first button not scrolled back into view (offset %v)", scroll.Offset.Y)
 	}
 }

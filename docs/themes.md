@@ -201,7 +201,8 @@ bar and dialogs), the page pattern (the dots, Matrix's rain, Winamp's brushing: 
 colored glow of Matrix (the desktop casts its neutral shadow), the field text (Fyne draws it in `fg`: Winamp's LCD green
 is web only, the black field stays; its sunken fields and pressed relief are web only too) and Fyne's translucent text
 selection. In every theme the desktop footer has no stripe. Desktop buttons take the keyboard focus (Tab) with the
-theme's ring and are pressed with Space or Enter, as on the web. A theme with no shadow on buttons, cards and the
+theme's ring and are pressed with Space or Enter, as on the web (the sidebar items, inner tabs and the password
+reveal button stay mouse-only). A theme with no shadow on buttons, cards and the
 login box (High contrast) is always drawn flat on the desktop, as its web look has no depth, and its dialogs are
 framed in the dialog line (2 px); its current inner tab is black on the desktop (white sides, yellow top bar), yellow on
 the web. Checked by

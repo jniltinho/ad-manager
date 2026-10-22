@@ -9,7 +9,10 @@ only press one with the mouse.
 
 - `volButton` (`desktop/button.go`) becomes focusable: Tab reaches it (a disabled button is skipped), it shows the
   theme's focus ring (the same ring the desktop draws around entries, selects and checks: `--focus-ring-w` in
-  `--color-focus`), and Space or Enter press it. A click does not focus it, as the web's `:focus-visible`.
+  `--color-focus`), and Space or Enter press it. A click does not focus it (and drops a keyboard focus), as the
+  web's `:focus-visible`. A control that takes the focus inside a scroll is scrolled into view with its ring (Fyne
+  does not), and the user's Groups list leaves 3 px around its rows for the ring.
+- Not covered: the sidebar items, the inner tabs and the password reveal button stay mouse-only (a later change).
 - `docs/themes.md` and the `four-new-themes` change drop "no keyboard focus on buttons" from the accepted differences.
 
 ## Capabilities
@@ -24,5 +27,5 @@ None.
 
 ## Impact
 
-`desktop/button.go`, `desktop/focus_test.go`, `docs/themes.md`. No API, setting or web change. The look of an
+`desktop/button.go`, `desktop/focus.go`, `desktop/page_users.go`, `desktop/focus_test.go`, `docs/themes.md`. No API, setting or web change. The look of an
 unfocused button does not change in any theme.

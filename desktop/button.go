@@ -41,19 +41,27 @@ func (b *volButton) SetText(s string) { b.Text = s; b.Refresh() }
 // SetIcon changes the icon.
 func (b *volButton) SetIcon(r fyne.Resource) { b.Icon = r; b.Refresh() }
 
+// Tapped is a click: it also drops the focus the button may have from the keyboard (the ring is for keyboard use).
 func (b *volButton) Tapped(*fyne.PointEvent) {
+	if c := fyne.CurrentApp().Driver().CanvasForObject(b); c != nil && c.Focused() == b {
+		c.Unfocus()
+	}
+	b.press()
+}
+
+func (b *volButton) press() {
 	if !b.Disabled() && b.OnTapped != nil {
 		b.OnTapped()
 	}
 }
-func (b *volButton) FocusGained()   { b.focused = true; b.Refresh() }
+func (b *volButton) FocusGained()   { b.focused = true; b.Refresh(); scrollIntoView(b) }
 func (b *volButton) FocusLost()     { b.focused = false; b.Refresh() }
 func (b *volButton) TypedRune(rune) {}
 
 // TypedKey presses the button with Space or Enter (Fyne sends Space as a key, not as a rune).
 func (b *volButton) TypedKey(k *fyne.KeyEvent) {
 	if k.Name == fyne.KeySpace || k.Name == fyne.KeyReturn || k.Name == fyne.KeyEnter {
-		b.Tapped(nil)
+		b.press()
 	}
 }
 
