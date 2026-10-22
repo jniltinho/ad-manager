@@ -11,7 +11,7 @@ require (
 	github.com/hibiken/asynq v0.26.0
 	github.com/hibiken/asynqmon v0.7.2
 	github.com/jcmturner/gokrb5/v8 v8.4.4
-	github.com/labstack/echo/v5 v5.4.0
+	github.com/labstack/echo/v5 v5.4.1
 	github.com/miekg/dns v1.1.73
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oiweiwei/go-msrpc v1.6.4

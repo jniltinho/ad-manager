@@ -39,6 +39,7 @@ from pathlib import Path
 
 OPT = Path("/opt/ad-manager")
 CONFIG = OPT / "config.toml"
+IMPORT_PASS = OPT / "import.pass"  # --import-ready: the administrator password of both import write modes
 SAM_LDB = Path("/var/lib/samba/private/sam.ldb")
 SAMBA_CA = Path("/var/lib/samba/private/tls/ca.pem")
 PACKAGES = ("samba samba-ad-dc samba-ad-provision winbind libnss-winbind libpam-winbind krb5-user smbclient "
@@ -320,6 +321,8 @@ def dc_new(args):
     auto_interfaces(args)
     hosts_dc(args)
     pw = read_password(args)
+    if args.import_ready:
+        args.admin_pw = pw  # for import_gates: stdin is read once
     if have:
         log(f"{args.realm} is already provisioned here: going on to the service")
         # a run that stopped after the provisioning left the temporary password: the chosen one is set again
@@ -557,7 +560,7 @@ def write_config(text):
     """Write /opt/ad-manager/config.toml (root:ad-manager 0640), keeping a backup."""
     if CONFIG.exists() and not DRY and CONFIG.read_text() != text:
         shutil.copy2(CONFIG, CONFIG.with_suffix(".toml.bak"))
-        log(f"previous config saved in {CONFIG}.bak")
+        print(f"previous config saved in {CONFIG}.bak", flush=True)  # a note, not a step of the wizard's progress
     write(CONFIG, text, 0o640)
     sh("chown", "root:ad-manager", str(CONFIG))
 
@@ -590,8 +593,9 @@ log_dir = "/var/log/samba"
 """
 
 
-def panel(args):
-    """ad-manager panel on this DC: LDAPS with the Samba CA, Kerberos (password links) is local."""
+def panel(args, start=True):
+    """ad-manager panel on this DC: LDAPS with the Samba CA, Kerberos (password links) is local. start=False leaves
+    the (re)start to panel_start, after the DC's other steps: the wizard reads the panel leaving setup mode as the end."""
     need(args, "realm")
     if not SAM_LDB.exists() and not DRY:
         fail("this host is not a Samba DC (run new-dc or dc-join first)")
@@ -608,6 +612,13 @@ def panel(args):
     sh("install", "-m", "0644", str(SAMBA_CA), str(OPT / "tls/samba-ca.pem"))
     name = fqdn(args.realm)
     write_config(PANEL_CONF.format(fqdn=name, realm=args.realm.lower(), samba_ca=SAMBA_CA, port=args.port))
+    if start:
+        panel_start(args)
+
+
+def panel_start(args):
+    """Enable and restart the panel, then check its port and LDAPS."""
+    name = fqdn(args.realm)
     sh("systemctl", "enable", "--now", "ad-manager", quiet=True)
     sh("systemctl", "restart", "ad-manager")
     if not DRY:
@@ -746,6 +757,50 @@ def dc_files(args):
         sh("systemctl", "restart", "ad-manager-agent")
 
 
+IMPORT_GATES = """gpo_restore_user = "{admin}"
+gpo_restore_password_file = "{file}"
+password_migration_user = "{admin}@{realm}"
+password_migration_password_file = "{file}"
+"""
+
+
+def write_secret(path, text):
+    """A file only its creator (root) reads: a new 0600 file renamed over the old one, so no earlier owner, mode or
+    open descriptor of the old file ever sees the new content."""
+    tmp = f"{path}.{os.getpid()}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), 0o600)
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def import_gates(args):
+    """--import-ready: this DC agent's GPO-import and password-migration write modes, for the "From another AD"
+    import right after the setup (docs/password-migration.md). The administrator password goes to one root-only file
+    both modes point to; deleting it turns both off."""
+    log(f"write modes for the import from an existing AD (delete {IMPORT_PASS} after the import)")
+    if DRY:
+        print(f"[dry-run] write {IMPORT_PASS} (0600)")
+        print(f"[dry-run] [agent] gpo_restore_* and password_migration_* in {CONFIG}")
+        return
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", args.admin):
+        fail(f"--admin {args.admin}: letters, digits, '.', '_' or '-' only")
+    write_secret(IMPORT_PASS, args.admin_pw + "\n")
+    text = CONFIG.read_text()
+    if not re.search(r"^\s*gpo_restore_user\s*=", text, re.M):
+        tables = re.findall(r"^\s*\[+([^\]]+)\]", text, re.M)
+        if not tables or tables[-1].strip() != "agent":
+            fail(f"{CONFIG}: [agent] is not the last section; add the import keys by hand (docs/password-migration.md)")
+        write_config(text.rstrip("\n") + "\n" + IMPORT_GATES.format(admin=args.admin, realm=args.realm.lower(), file=IMPORT_PASS))
+    if not JSON_LOG:  # the wizard's agent restarts at its end; from the command line it reloads the modes now
+        sh("systemctl", "restart", "ad-manager-agent")
+
+
 def agent(args):
     """ad-manager agent on this file server: queue on a local Redis, token shown once."""
     need(args, "realm", "dns-dc")
@@ -870,6 +925,8 @@ def main():
     # the second name of each flag is the old Portuguese one, still accepted
     p.add_argument("--panel", "--painel", dest="panel", action="store_true", help="with new-dc/dc-join: install the panel on this DC")
     p.add_argument("--agent", "--agente", dest="agent", action="store_true", help="with member: install the agent on this server")
+    p.add_argument("--import-ready", dest="import_ready", action="store_true",
+                   help="with new-dc --panel --files: turn on this DC agent's GPO-import and password-migration write modes")
     p.add_argument("--files", "--arquivos", dest="files", action="store_true",
                    help="with new-dc/dc-join --panel: this DC also serves files (--share-root)")
     p.add_argument("--deb", help="the ad-manager_X.Y.Z_amd64.deb package")
@@ -881,6 +938,8 @@ def main():
     DRY = args.dry_run
     if args.files and not (args.panel and args.role in ("new-dc", "dc-join", "restore-dc")):
         fail("--files goes with new-dc/dc-join/restore-dc --panel (the DC's agent is registered in the local panel)")
+    if args.import_ready and not (args.role == "new-dc" and args.panel and args.files):
+        fail("--import-ready goes with new-dc --panel --files (the write modes are this DC agent's)")
     sys.stdout.reconfigure(line_buffering=True)  # keep the order with stderr and subprocess output
     if args.role == "diagnose":
         diagnose(args)
@@ -892,9 +951,12 @@ def main():
         log("warning: tested on Ubuntu 26.04")
     {
         "packages": packages,
-        "new-dc": lambda a: (a.files and check_dc_root(a.share_root), dc_new(a), a.panel and panel(a), a.files and dc_files(a)),
-        "dc-join": lambda a: (a.files and check_dc_root(a.share_root), dc_join(a), a.panel and panel(a), a.files and dc_files(a)),
-        "restore-dc": lambda a: (a.files and check_dc_root(a.share_root), dc_restore(a), a.panel and panel(a), a.files and dc_files(a)),
+        "new-dc": lambda a: (a.files and check_dc_root(a.share_root), dc_new(a), a.panel and panel(a, start=False),
+                             a.files and dc_files(a), a.import_ready and import_gates(a), a.panel and panel_start(a)),
+        "dc-join": lambda a: (a.files and check_dc_root(a.share_root), dc_join(a), a.panel and panel(a, start=False),
+                             a.files and dc_files(a), a.panel and panel_start(a)),
+        "restore-dc": lambda a: (a.files and check_dc_root(a.share_root), dc_restore(a), a.panel and panel(a, start=False),
+                             a.files and dc_files(a), a.panel and panel_start(a)),
         "member": lambda a: (member(a), a.agent and agent(a)),
         "panel": panel,
         "agent": agent,

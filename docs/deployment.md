@@ -2,7 +2,9 @@
 
 > **Easiest way:** install the `.deb`, enable the services and let the **setup wizard** in the browser configure
 > the server automatically — Samba, the domain, the panel and the agent, or just the connection to an existing AD.
-> See [installation.md](installation.md). This page covers installing and configuring the panel **by hand**.
+> See [installation.md](installation.md). This page covers installing and configuring the panel **by hand**; the
+> [installation guide](install-guide.md) has every component (panel, agent, desktop) from the `.deb` and from the
+> binary, with upgrade and removal.
 
 ad-manager works for **any company** with Active Directory, whether **Windows Server** or
 **Samba 4**: nothing in the binary is tied to a domain. Domain, DC and certificates come from
@@ -126,44 +128,13 @@ On each file server that is a domain member: install the same package, set `[age
 **Shares → File servers** with the URL `https://fs01.example.local:9443` and the token. Details in
 [agent.md](agent.md).
 
-## Upgrade and remove
+## Upgrade, remove and install without the package
 
-```bash
-sudo apt install --no-install-recommends ./ad-manager_NEW_amd64.deb && sudo systemctl restart ad-manager
-sudo apt remove ad-manager     # stops and disables the services; config, data/ and logs/ remain
-sudo apt purge ad-manager      # also removes config, tls/, env and token; data/ and logs/ remain for auditing
-```
+Upgrading (`.deb` or binary), removing, migrating from an installation up to 0.2.x and installing from the release
+tarball (with `deploy/install.sh` and the units from the same tag) are in the
+[installation guide](install-guide.md#upgrade), which covers the panel, the agent and the desktop app.
 
-### Migrate from an `ad-manager` installation (up to 0.2.x)
-
-```bash
-sudo apt install --no-install-recommends ./ad-manager_X.Y.Z_amd64.deb
-sudo systemctl disable --now ad-manager
-O=/opt/ad-manager
-sudo install -m 0640 -o root -g ad-manager /etc/ad-manager/tls.key $O/tls/
-sudo install -m 0644 /etc/ad-manager/tls.crt /etc/ad-manager/samba-ca.pem $O/tls/
-sudo sed -e "s|/etc/ad-manager/|$O/tls/|; s|/var/log/ad-manager/|$O/logs/|; s|/var/lib/ad-manager/ad-manager.db|$O/data/ad-manager.db|" \
-  /etc/ad-manager/config.toml | sudo tee $O/config.toml >/dev/null
-sudo install -m 0600 -o ad-manager -g ad-manager /var/lib/ad-manager/ad-manager.db $O/data/ad-manager.db
-sudo install -m 0600 -o ad-manager -g ad-manager /var/log/ad-manager/audit.log $O/logs/audit.log
-sudo apt purge ad-manager && sudo systemctl enable --now ad-manager
-```
-
-On the agent, change `token_file` to `/opt/ad-manager/agent.token` and copy `/etc/ad-manager/agent.token`.
-
-## Without the package
-
-```bash
-tar xzf ad-manager_vX.Y.Z_linux_amd64.tar.gz
-sudo install -d -m 0755 /opt/ad-manager
-sudo cp config.toml.example /opt/ad-manager/config.toml     # adjust [ad] and [server]
-sudo deploy/install.sh ./ad-manager panel.example.local
-```
-
-`deploy/install.sh` creates the `ad-manager` user, builds the same `/opt/ad-manager` layout, generates a
-self-signed certificate in `tls/` (if none exists) and installs and starts `ad-manager.service`.
-
-### Self-signed certificate
+## Self-signed certificate
 
 Without `cert_file`, `self_signed = true` (or `AD_SELF_SIGNED=true`) makes the panel and the agent generate an
 ECDSA certificate with the machine's name and IPs in `/opt/ad-manager/data/selfsigned.{crt,key}` (key `0600`),
@@ -171,7 +142,7 @@ reused on later starts and renewed 30 days before it expires. The fingerprint ap
 (`sha256=…`) so you can verify it on first access. In the panel, register the agent with "Accept self-signed
 certificate"; in the desktop app, `insecure = true`.
 
-### Behind a TLS proxy (Nginx/Caddy)
+## Behind a TLS proxy (Nginx/Caddy)
 
 ```toml
 [server]

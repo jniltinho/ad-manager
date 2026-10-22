@@ -29,6 +29,7 @@ tags:
   - name: File servers
   - name: Logs
   - name: Settings
+  - name: Setup
 
 paths:
   /api/health:
@@ -800,16 +801,65 @@ paths:
       requestBody: { content: { multipart/form-data: { schema: { type: object, properties: { logo: { type: string, format: binary } } } } } }
       responses: { "204": { description: Saved } }
     delete: { tags: [Settings], summary: Remove the logo, responses: { "204": { description: Removed } } }
+  /api/setup/login:
+    post:
+      tags: [Setup]
+      summary: Sign in to the setup wizard with the one-time setup token (setup mode only)
+      description: "Only while config.toml has setup = true (a fresh .deb install): every other /api route answers 503. The token is in /opt/ad-manager/data/setup-token (root only), valid 24 h, 5 attempts per 15 min, spent on the first good sign-in. Sets the adc_setup cookie (1 h, sliding). Audited as setup.login."
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, properties: { token: { type: string } } } } } }
+      responses: { "204": { description: Signed in }, "401": { $ref: "#/components/responses/Error" }, "403": { $ref: "#/components/responses/Error" }, "429": { $ref: "#/components/responses/Error" } }
+  /api/setup/diagnose:
+    get:
+      tags: [Setup]
+      summary: Diagnose this server for the setup (setup mode only)
+      security: [{ setup: [] }]
+      responses: { "200": { description: "hostname, fqdn, os, ips, packages (name → installed), samba_role, realm, samba_files, ports_in_use, clock_synced, disk_free_mib, services" }, "401": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } }
+  /api/setup/plan:
+    post:
+      tags: [Setup]
+      summary: Dry run of the setup plan (setup mode only; nothing changes)
+      security: [{ setup: [] }]
+      requestBody: { $ref: "#/components/requestBodies/SetupPlan" }
+      responses: { "200": { description: "lines: the samba-setup.py --dry-run output (JSON step/error lines and [dry-run] commands)" }, "400": { $ref: "#/components/responses/Error" }, "401": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } }
+  /api/setup/run:
+    post:
+      tags: [Setup]
+      summary: Run the setup (setup mode only)
+      description: "Backs up an existing Samba first, then runs samba-setup.py as a transient unit with the password on its standard input (never an argument, never logged). Audited as setup.run with the role, realm and import_ad, never the password."
+      security: [{ setup: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/SetupPlan"
+                - type: object
+                  properties:
+                    password: { type: string, format: password, description: "the domain administrator's (not for connect nor restore-dc)" }
+      responses: { "202": { description: Started }, "400": { $ref: "#/components/responses/Error" }, "401": { $ref: "#/components/responses/Error" }, "409": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } }
+  /api/setup/status:
+    get:
+      tags: [Setup]
+      summary: Progress of the setup run (setup mode only)
+      security: [{ setup: [] }]
+      parameters: [{ name: from, in: query, description: first log line to return, schema: { type: integer } }]
+      responses: { "200": { description: "state (idle, backup, running, ok, error), backup, error, lines (password and agent token masked), next, log_file, finished" }, "401": { $ref: "#/components/responses/Error" }, "503": { $ref: "#/components/responses/Error" } }
 
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: adc_session, description: Set by POST /api/login }
+    setup: { type: apiKey, in: cookie, name: adc_setup, description: Set by POST /api/setup/login (setup mode only) }
   parameters:
     sam: { name: sam, in: path, required: true, description: "sAMAccountName (computers end with $)", schema: { type: string } }
     id: { name: id, in: path, required: true, schema: { type: integer } }
     q: { name: q, in: query, description: Text filter, schema: { type: string } }
     limit: { name: limit, in: query, schema: { type: integer, maximum: 5000 } }
   requestBodies:
+    SetupPlan:
+      required: true
+      content: { application/json: { schema: { $ref: "#/components/schemas/SetupPlan" } } }
     ImportAD:
       required: true
       content:
@@ -841,6 +891,24 @@ components:
       description: Error
       content: { application/json: { schema: { type: object, properties: { error: { type: string } } } } }
   schemas:
+    SetupPlan:
+      type: object
+      required: [role, realm]
+      properties:
+        role: { type: string, enum: [new-dc, dc-join, restore-dc, member, connect] }
+        realm: { type: string, example: example.local }
+        domain: { type: string, description: "NetBIOS name (not for connect nor restore-dc)", example: EXAMPLE }
+        ip: { type: string, description: "this DC's IPv4 (new-dc, dc-join, restore-dc)" }
+        src_dc: { type: string, description: "dc-join: IPv4 of an existing DC" }
+        dns_dc: { type: string, description: "member: IPv4 of a DC used as DNS" }
+        url: { type: string, description: "connect: ldaps://dc01.example.local" }
+        insecure: { type: boolean, description: "connect: accept a self-signed certificate" }
+        admin: { type: string, default: Administrator }
+        forwarder: { type: string, default: 1.1.1.1 }
+        share_root: { type: string, default: /srv/shares }
+        files: { type: boolean, description: "new-dc, dc-join, restore-dc: this DC also serves files (its agent registered in the panel)" }
+        backup: { type: string, description: "restore-dc: the DC backup (.tar.bz2) on this server" }
+        import_ad: { type: boolean, default: false, description: "new-dc with files only: turn on this DC agent's GPO-import and password-migration write modes for the administrator (password in /opt/ad-manager/import.pass, 0600 root; delete it to turn both off), for the From another AD import after the setup. Otherwise refused with setup: invalid import_ad" }
     UserInput:
       type: object
       properties:

@@ -5,12 +5,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+**Four new panel themes, and import from an existing AD during setup with an installation guide.**
+
 ### Added
 - **Four new themes**, identical in the web panel and the desktop app: **Matrix** (green phosphor on a black-green
   terminal, monospace, a static "digital rain" on the page and a soft green glow), **Winamp** (the Winamp 2 skin:
   brushed dark-steel chrome with a 1 px bevel, the LCD readout in fields and the current tab, amber buttons, the
   playlist's blue selected row), **Pink Panther** (blush page, plum title bars with a panther-pink stripe, deep rose
   actions) and **High contrast** (black and white with a single yellow accent, 3 px focus ring, no depth, WCAG AAA).
+- The setup wizard's **New domain** ends with **Import from an existing AD**, which opens *Import/export → From
+  another AD* after the Domain Admin signs in (the same import, options and source credential as in the panel). An
+  optional **Prepare the import of GPOs and passwords** (with "This DC also serves files"; `samba-setup.py new-dc
+  --panel --files --import-ready`) turns on this DC agent's GPO-import and password-migration write modes with the
+  administrator password in `/opt/ad-manager/import.pass` (0600 root); `sudo rm` it after the import to turn both
+  off, and `apt purge` removes it. The setup-mode API (`/api/setup/*`) is documented in `openapi.yaml`.
+- **Installation guide** (`docs/install-guide.md`): the panel and the agent from the `.deb` or the tarball, and the
+  desktop app on Linux, Windows and macOS — prerequisites, config keys, TLS, tokens, write-mode gates, verification,
+  upgrade and uninstall. `config.toml.example` lists every key the binary reads, and a test keeps it so.
+
+### Changed
+- The DC roles of `samba-setup.py` start the panel last, so the wizard no longer reports success before the DC agent
+  part has run (a failure there now shows in the wizard); the config-backup notice no longer counts as a wizard step.
 
 ### Fixed
 - The pt-BR names of the Breeze, Violet, Crystal and Graphite dark themes in Settings → Theme (stale catalog keys).

@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/labstack/echo/v5"
 )
 
 // TestSwagger: /swagger is switched on in Settings and, like /asynqmon, needs a
@@ -50,12 +53,16 @@ func TestAgentToken(t *testing.T) {
 // be missing from the router. Fix it in internal/server/openapi.yaml.
 func TestOpenAPICoversRoutes(t *testing.T) {
 	s, _ := newTestStore(t)
-	e := s.routes()
+	// and the routes of a fresh install's setup mode (the wizard), but its catch-all /api/*
+	setup, _ := newTest(t, true)
+	setup.cfg.Setup, setup.cfg.DB.Path = true, filepath.Join(t.TempDir(), "t.db")
 	param := regexp.MustCompile(`:(\w+)`)
 	routes := map[string]bool{}
-	for _, r := range e.Router().Routes() {
-		if strings.HasPrefix(r.Path, "/api/") && !strings.HasPrefix(r.Method, "echo_") { // echo_route_not_found is internal
-			routes[strings.ToLower(r.Method)+" "+param.ReplaceAllString(r.Path, "{$1}")] = true
+	for _, e := range []*echo.Echo{s.routes(), setup.routes()} {
+		for _, r := range e.Router().Routes() {
+			if strings.HasPrefix(r.Path, "/api/") && !strings.HasPrefix(r.Method, "echo_") && !strings.Contains(r.Path, "*") { // echo_route_not_found is internal
+				routes[strings.ToLower(r.Method)+" "+param.ReplaceAllString(r.Path, "{$1}")] = true
+			}
 		}
 	}
 	documented := map[string]bool{}

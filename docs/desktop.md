@@ -47,6 +47,8 @@ Fields, selects and checkboxes show the theme's focus ring outside (3 px in Crys
 dialogs) follow the theme's tab pattern, like the panel's inner tabs; on Home, alerts show up with a colored tag and a
 link to the page that solves them (password policy, users).
 
+Download, install, upgrade and removal on each system: [install-guide.md](install-guide.md#3-desktop-app).
+
 ## Configure
 
 On first run the app opens the **Configure** screen: panel URL (with **Test connection**), self-signed certificate,
@@ -60,8 +62,9 @@ Lookup order:
 1. `ad-manager-desktop --config /path/desktop.toml`
 2. variable `AD_MANAGER_DESKTOP=/path/desktop.toml`
 3. `.config/desktop.toml` next to the executable
-4. `~/.config/ad-manager/desktop.toml` (Windows: `%AppData%\ad-manager\desktop.toml`), the location used up to 0.3,
-   if it is filled in
+4. the user's configuration folder, the location used up to 0.3, if it is filled in: `~/.config/ad-manager/desktop.toml`
+   (Linux), `~/Library/Application Support/ad-manager/desktop.toml` (macOS), `%AppData%\ad-manager\desktop.toml`
+   (Windows)
 
 If the executable's folder is not writable (`Program Files`, `/usr/bin`) or in the macOS `.app`, the new file goes to
 the location of item 4. On Windows the permission follows the folder's: keep the app in a folder of your own.

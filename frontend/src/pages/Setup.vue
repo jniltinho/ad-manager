@@ -4,6 +4,7 @@
 // with a live progress. The agent on this server does the work.
 import {
   ArchiveRestore,
+  ArrowLeftRight,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -200,10 +201,15 @@ const plan = ref({
   share_root: '/srv/shares',
   files: true,
   backup: '',
+  import_ad: false,
 })
 const roleInfo = computed(() => ROLES.find((r) => r.id === plan.value.role))
 const isDC = computed(() => DC_ROLES.includes(plan.value.role))
 const needsPassword = computed(() => roleNeedsPassword(plan.value.role))
+const IMPORT_PASS = '/opt/ad-manager/import.pass' // samba-setup.py --import-ready
+// the import write modes are this DC agent's: only a new domain whose DC also serves files can have them
+const importReady = computed(() => plan.value.role === 'new-dc' && plan.value.files && plan.value.import_ad)
+const sent = computed(() => ({ ...plan.value, import_ad: importReady.value }))
 function chooseRole() {
   if (!plan.value.ip && diag.value?.ips?.length) plan.value.ip = diag.value.ips[0]
   step.value = 'details'
@@ -301,7 +307,7 @@ async function toReview() {
   }
   busy.value = true
   try {
-    const r = await call('POST', '/plan', plan.value)
+    const r = await call('POST', '/plan', sent.value)
     review.value = r.lines || []
     step.value = 'review'
   } catch (e) {
@@ -338,6 +344,13 @@ const summary = computed(() => {
   if (needsPassword.value) s.push(t('With the domain administrator {admin}.', p))
   if (p.role === 'new-dc' || p.role === 'dc-join') s.push(t('Names outside the domain are asked to {fw}.', { fw: p.forwarder }))
   if (p.role === 'member' || (isDC.value && p.files)) s.push(t('The shared folders stay in {root}.', { root: p.share_root }))
+  if (importReady.value)
+    s.push(
+      t(
+        "This DC's agent gets the write modes to import GPOs and passwords from an existing AD, with the administrator password in {file} (root only) until you delete it.",
+        { file: IMPORT_PASS },
+      ),
+    )
   if (diag.value?.samba_files) s.push(t('Before any change, the Samba already here is backed up (shown under Backup).'))
   return s
 })
@@ -363,7 +376,7 @@ const current = computed(() => {
 async function run() {
   busy.value = true
   try {
-    await call('POST', '/run', { ...plan.value, password: needsPassword.value ? password.value : '' })
+    await call('POST', '/run', { ...sent.value, password: needsPassword.value ? password.value : '' })
     password.value = confirm.value = ''
     lines.value = []
     done.value = false
@@ -587,6 +600,19 @@ function retry() {
           <label v-if="isDC" class="flex items-center gap-2 text-[12px] md:col-span-2">
             <input v-model="plan.files" type="checkbox" /> {{ t('This DC also serves files (shares)') }}
           </label>
+          <div v-if="plan.role === 'new-dc' && plan.files" class="text-[12px] md:col-span-2">
+            <label class="flex items-center gap-2">
+              <input v-model="plan.import_ad" type="checkbox" aria-describedby="h-import_ad" />
+              {{ t('Prepare the import of GPOs and passwords from an existing AD') }}
+            </label>
+            <p id="h-import_ad" class="mt-1 text-[11px] text-fg-muted">
+              {{
+                t(
+                  "Turns on this DC agent's write modes for the import (Import/export → From another AD) with the administrator password kept in a root-only file; delete it after the import.",
+                )
+              }}
+            </p>
+          </div>
           <label v-if="plan.role === 'connect'" class="flex items-center gap-2 text-[12px] md:col-span-2">
             <input v-model="plan.insecure" type="checkbox" /> {{ t('Accept self-signed certificate') }}
           </label>
@@ -743,6 +769,12 @@ function retry() {
           <p class="font-semibold">{{ t('Next steps') }}</p>
           <ol class="mt-1 list-decimal space-y-0.5 pl-5 text-[12px]">
             <li>{{ t('Open the panel and sign in with the domain administrator.') }}</li>
+            <li v-if="plan.role === 'new-dc'">
+              {{ t('To bring users, groups, DNS, GPOs, shares and passwords from an existing AD: Import/export → From another AD.') }}
+            </li>
+            <li v-if="importReady">
+              {{ t('After the import, turn the write modes off: {cmd}', { cmd: `sudo rm ${IMPORT_PASS}` }) }}
+            </li>
             <li v-if="isDC">{{ t('Point the DNS of the computers to {ip} and join them to the domain.', { ip: plan.ip }) }}</li>
             <li v-if="plan.role === 'member' || (isDC && plan.files)">{{ t('Create the shared folders in Shares.') }}</li>
             <li>{{ t('In Backup, check the first backup and its schedule.') }}</li>
@@ -766,7 +798,12 @@ function retry() {
         <button v-if="failed" type="button" class="btn-ghost" @click="retry">
           <ChevronLeft :size="14" /> {{ t('Back to the details') }}
         </button>
-        <a v-else href="/" class="btn">{{ t('Open the panel') }} <ChevronRight :size="14" /></a>
+        <template v-else>
+          <a v-if="plan.role === 'new-dc'" href="/import-export?mode=ad" :class="importReady ? 'btn' : 'btn-ghost'">
+            <ArrowLeftRight :size="14" /> {{ t('Import from an existing AD') }}
+          </a>
+          <a href="/" :class="importReady ? 'btn-ghost' : 'btn'">{{ t('Open the panel') }} <ChevronRight :size="14" /></a>
+        </template>
       </div>
     </section>
   </main>
