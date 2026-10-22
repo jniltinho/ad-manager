@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.17.0] — 2026-10-22
+
 **Four new panel themes, and import from an existing AD during setup with an installation guide.**
 
 ### Added
@@ -26,6 +30,7 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - The DC roles of `samba-setup.py` start the panel last, so the wizard no longer reports success before the DC agent
   part has run (a failure there now shows in the wizard); the config-backup notice no longer counts as a wizard step.
+- Updated the Echo web framework to v5.4.1.
 
 ### Fixed
 - The pt-BR names of the Breeze, Violet, Crystal and Graphite dark themes in Settings → Theme (stale catalog keys).
