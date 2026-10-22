@@ -5,7 +5,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+**Password migration for a new-domain cutover.**
+
+### Added
+- **Password-material migration** (`docs/password-migration.md`): on a new-domain cutover (the "From another AD"
+  import, not a `dc-join`), preserve the users' production passwords. The DC agent, in a dedicated default-off
+  `password_migration` write mode, reads the source's password hashes over a sealed, **read-only** DRSUAPI
+  (`GetNCChanges`, `REPL_OBJ`; never `UpdateRefs`/`DRS_ADD_REF`/join — the source is left unchanged) and sets them on
+  this domain's matching users by `sAMAccountName`: the NT hash always, the Kerberos keys when their salt transfers
+  (otherwise NTLM-only, rebuilt on the next password change). Never over LDAP, never as plaintext, never creating a
+  user; `Primary:CLEARTEXT` sources are rejected and built-ins (RID 500/501/502), trust and machine accounts are
+  skipped. Per-user outcome `set`/`ntlm_only`/`same`/`missing`/`builtin`/`rejected`/`error` with a sanitized reason
+  (shown as a tooltip in the panel; never a secret). Available as the **Passwords** option of *Import/export → From
+  another AD* (reusing the form's source login and password), the CLI `migrate passwords` and the MCP
+  `ad_password_migrate`; the source credential is taken from the form, `AD_SOURCE_PASSWORD_FILE` (0600) or stdin,
+  never an argument. `POST /api/import/ad/passwords` and the `passwords` flag of `POST /api/import/ad/plan|apply`.
+- The "From another AD" import also carries the `lastLogonTimestamp` of users and computers and the
+  `operatingSystem` of computers (never moving a last-logon backwards, never clearing a value it did not receive).
+- Import/export: a per-profile trash button (with a confirmation) deletes a saved source profile, and a log/status
+  modal shows each import's progress and result.
 
 ## [0.15.1] — 2026-10-19
 
