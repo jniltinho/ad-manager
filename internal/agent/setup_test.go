@@ -137,8 +137,10 @@ m.sh = lambda *a, **k: ""
 os.umask(0)
 m.CONFIG.write_text("[server]\nlisten = 1\n[agent]\ndc_file_server = true\n")
 m.IMPORT_PASS.write_text("old"); os.chmod(m.IMPORT_PASS, 0o644)
+held = open(m.IMPORT_PASS)  # a reader of the old file must never see the new password
 a = argparse.Namespace(admin="Administrator", realm="example.local", admin_pw="S3cret pw")
 m.import_gates(a); m.import_gates(a)
+print("held", repr(held.read()))
 text = m.CONFIG.read_text()
 print(oct(os.stat(m.IMPORT_PASS).st_mode & 0o777), repr(m.IMPORT_PASS.read_text()), text.count("_user ="), text.rfind("[agent]") < text.find("gpo_restore_user"))
 print('password_migration_user = "Administrator@example.local"' in text, text.count(str(m.IMPORT_PASS)))
@@ -146,8 +148,44 @@ m.CONFIG.write_text("[agent]\nlisten = 1\n[samba]\nlog_dir = 2\n")
 m.import_gates(a)
 `
 	out, err := exec.Command(py, "-I", "-c", prog, script, dir).CombinedOutput()
-	if err == nil || !strings.Contains(string(out), "0o600 'S3cret pw\\n' 2 True\nTrue 2\n") ||
+	if err == nil || !strings.Contains(string(out), "held 'old'\n0o600 'S3cret pw\\n' 2 True\nTrue 2\n") ||
 		!strings.Contains(string(out), "[agent] is not the last section") {
 		t.Fatalf("import_gates: %v\n%s", err, out)
+	}
+}
+
+// A DC role starts the panel last: when the DC agent part fails, the panel is never (re)started, so the wizard (still
+// served by the setup-mode panel) shows the error instead of a finished setup.
+func TestSetupScriptPanelLast(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not installed")
+	}
+	script, _ := filepath.Abs("../../scripts/samba-setup.py")
+	const prog = `
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("setup", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+calls = []
+def rec(name, fail=False):
+    def f(*a, **k):
+        calls.append(name + ("(start=False)" if k.get("start") is False else ""))
+        if fail: m.fail("registering the agent in the panel: boom")
+    return f
+for n in ("check_dc_root", "dc_new", "panel", "import_gates", "panel_start"): setattr(m, n, rec(n))
+m.dc_files = rec("dc_files", fail=sys.argv[2] == "fail")
+sys.argv = ["samba-setup.py", "new-dc", "--realm", "e.local", "--domain", "E", "--ip", "10.0.0.2", "--panel", "--files", "--import-ready", "--dry-run"]
+try:
+    m.main()
+finally:
+    print("CALLS", calls)
+`
+	for _, tt := range []struct{ mode, want string }{
+		{"ok", "CALLS ['check_dc_root', 'dc_new', 'panel(start=False)', 'dc_files', 'import_gates', 'panel_start']"},
+		{"fail", "CALLS ['check_dc_root', 'dc_new', 'panel(start=False)', 'dc_files']"},
+	} {
+		out, _ := exec.Command(py, "-I", "-c", prog, script, tt.mode).CombinedOutput()
+		if !strings.Contains(string(out), tt.want) {
+			t.Fatalf("%s: want %s\n%s", tt.mode, tt.want, out)
+		}
 	}
 }
