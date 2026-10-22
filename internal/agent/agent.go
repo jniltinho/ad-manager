@@ -780,8 +780,10 @@ func (a *Agent) Routes() *echo.Echo {
 		}
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Minute)
 		defer cancel()
-		// the source password goes to the helper on stdin only — never written to disk, so a crash leaves nothing behind
-		res, err := sambadc.MigratePasswords(ctx, a.caps.Python, in.Apply, in.Source, in.Password, in.DestSID)
+		// the source password goes to the helper on stdin only — never written to disk, so a crash leaves nothing
+		// behind. The interpreter is the agent's python3 (empty → /usr/bin/python3, as the Samba bridge uses);
+		// a.caps.Python is a version string, not a path, so it must not be passed here.
+		res, err := sambadc.MigratePasswords(ctx, "", in.Apply, in.Source, in.Password, in.DestSID)
 		if err != nil {
 			return c.JSON(http.StatusBadGateway, map[string]string{"error": err.Error()})
 		}
