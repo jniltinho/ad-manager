@@ -47,6 +47,8 @@ Fields, selects and checkboxes show the theme's focus ring outside (3 px in Crys
 dialogs) follow the theme's tab pattern, like the panel's inner tabs; on Home, alerts show up with a colored tag and a
 link to the page that solves them (password policy, users).
 
+Download, install, upgrade and removal on each system: [install-guide.md](install-guide.md#3-desktop-app).
+
 ## Configure
 
 On first run the app opens the **Configure** screen: panel URL (with **Test connection**), self-signed certificate,

@@ -64,7 +64,8 @@ When the import is done, turn them off:
 sudo rm /opt/ad-manager/import.pass
 ```
 
-Prefer doing it by hand? The same installation from the command line is in [samba-install.md](samba-install.md)
+Prefer doing it by hand? Every component from the `.deb` or the binary, with upgrade and removal, is in the
+[installation guide](install-guide.md). The same installation from the command line is in [samba-install.md](samba-install.md)
 (`scripts/samba-setup.py`), and installing and configuring the panel manually against an existing AD is in
 [deployment.md](deployment.md).
 

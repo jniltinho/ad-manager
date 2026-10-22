@@ -17,7 +17,7 @@ panel /asynqmon (logged-in admin only) ────────────┘  
 ## Install
 
 ```bash
-sudo apt install ./ad-manager_X.Y.Z_amd64.deb redis-server acl python3-samba   # see docs/deployment.md
+sudo apt install ./ad-manager_X.Y.Z_amd64.deb redis-server acl python3-samba   # binary, upgrade, removal: install-guide.md
 sudo ad-manager agent check           # Samba Python API, acl_xattr, permissions mode
 sudo ad-manager agent token           # shows the token ONCE; stores only the SHA-256
 sudo systemctl enable --now ad-manager-agent
