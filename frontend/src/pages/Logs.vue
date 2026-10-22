@@ -99,8 +99,8 @@ const visible = computed(() => {
         </button>
       </div>
     </div>
-    <div class="max-h-[calc(var(--view-h)-260px)] overflow-auto">
-      <table class="grid-t">
+    <div class="max-h-[calc(var(--view-h)-260px)] overflow-auto border border-line">
+      <table class="grid-t border-0">
         <thead>
           <tr>
             <th>{{ t('Date') }}</th>

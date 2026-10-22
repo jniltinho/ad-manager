@@ -480,6 +480,8 @@ body {
   .lbl {
     @apply mb-1 block text-[11px] font-semibold tracking-wide text-fg-muted uppercase;
   }
+  /* a list that scrolls (overflow-auto) puts the frame on its wrapper and uses .grid-t with border-0: the outer half
+     of a collapsed table border lies outside the table and the scrolling box clips it (no left and right lines) */
   .grid-t {
     @apply w-full border-collapse border border-line text-[12px];
   }

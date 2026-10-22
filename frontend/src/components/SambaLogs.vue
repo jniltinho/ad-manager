@@ -105,8 +105,8 @@ const levelClass = (l) =>
         </button>
       </form>
       <p v-if="error" class="mb-2 border-l-4 border-err bg-err-soft px-3 py-2 text-[12px]">{{ error }}</p>
-      <div class="max-h-[calc(var(--view-h)-300px)] overflow-auto">
-        <table class="grid-t">
+      <div class="max-h-[calc(var(--view-h)-300px)] overflow-auto border border-line">
+        <table class="grid-t border-0">
           <thead>
             <tr>
               <th class="w-px">{{ t('Date') }}</th>

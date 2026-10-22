@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 - The pt-BR names of the Breeze, Violet, Crystal and Graphite dark themes in Settings → Theme (stale catalog keys).
+- The lists (Users, Groups, Computers, logs) lost their left and right lines once a scrollbar showed: the frame is
+  now on the scrolling box, not on the collapsed table border, in every theme.
 
 ## [0.16.0] — 2026-10-22
 

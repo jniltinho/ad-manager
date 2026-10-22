@@ -105,7 +105,8 @@ themes, on the web or in the desktop palettes.
 
 #### Scenario: Existing themes unchanged
 - **WHEN** the visual suite compares the 14 existing themes (`THEMES` set to their ids) with the base commit's build
-- **THEN** their screens are pixel-identical
+- **THEN** their screens are pixel-identical, except for the list frame moved to the scrolling wrapper (the
+  `list-frame` change, one pixel on the list screens of every theme)
 
 #### Scenario: Desktop palettes unchanged
 - **WHEN** `themes_gen.go` is regenerated
