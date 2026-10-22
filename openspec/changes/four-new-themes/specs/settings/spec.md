@@ -2,22 +2,23 @@
 
 ### Requirement: Matrix theme
 The theme registry SHALL include `matrix` (dark). With it, `color-scheme: dark`, the page is near-black `#010502`
-with a phosphor dot grid and faint scanlines, surfaces `#07130b`, text phosphor green `#a8f0b8`, the primary action
-`#00ff41` with dark text, a monospace font and a green glow around the window, focused fields and dialogs. Normal
+with a static rain of short phosphor strokes, surfaces `#07130b`, text phosphor green `#a8f0b8`, the primary action
+phosphor green (`#3dff6c → #00e03a`) with dark text, a monospace font and a green glow around the window, focused fields and dialogs. Normal
 text reaches ≥ 4.5:1.
 
 #### Scenario: Choose Matrix
 - **WHEN** the administrator chooses "Matrix (dark)" and saves
 - **THEN** `brand.theme` is `matrix`, the panel and the login turn dark with no light surface (except the customer
-  logo plate), the text is in a monospace font and the primary button is `#00ff41` with dark text
+  logo plate), the text is in a monospace font and the primary button is phosphor green with dark text
 
 #### Scenario: Pattern only outside the flat look
 - **WHEN** the `matrix` theme is active and the flat look is on
-- **THEN** the page has no dot grid or scanlines and the window no glow, and the colors stay the same
+- **THEN** the page has no rain pattern and the window no glow, and the colors stay the same
 
 ### Requirement: Winamp theme
 The theme registry SHALL include `winamp` (dark). With it, the header, tabs, table head and secondary buttons are
-dark brushed steel (`#3b3d52 → #23242f`) with a raised 1 px bevel, fields show the LCD readout (green `#2cf02c` on
+dark brushed steel (`#3b3d52 → #23242f`), buttons, cards, the table head, dialogs and the login box have a raised
+1 px bevel, fields show the LCD readout (green `#2cf02c` on
 black), the primary action is amber `#f4a51c` with dark text, the header stripe is gold `#d9a441` and the selected
 row is the playlist blue `#1f2fa8` with white text. Normal text reaches ≥ 4.5:1.
 
@@ -65,7 +66,8 @@ contrast (1.4.6) and 3:1 for components (1.4.11) on the web and on the desktop, 
 - **THEN** all normal text recipes reach 7:1, large text recipes 4.5:1 and component recipes 3:1
 
 #### Scenario: Focus ring
-- **WHEN** a field, button, select or checkbox receives focus in High contrast, on the web or on the desktop
+- **WHEN** a field, select or checkbox (on the web and on the desktop) or a button (on the web) receives focus in
+  High contrast
 - **THEN** a solid 3 px yellow ring surrounds it, ≥ 3:1 against black
 
 #### Scenario: Focus on the current item

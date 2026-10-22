@@ -157,7 +157,8 @@
   --color-login-title: #f6b6d0;
   --color-login-field-line: #b0849a;
   --color-login-focus: rgba(233, 139, 178, 0.55);
-  --color-logo-plate: transparent;
+  --color-logo-plate: #fdf0f6; /* a light plate behind a customer logo on the plum header and login box */
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px); /* soft rose dots */
   --bg-header: linear-gradient(to right in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
   --bg-tab-on: none;
@@ -200,6 +201,10 @@
   --card-stripe: 3px;
   --btn-hover-filter: none;
   --shadow-btn-active: none;
+  --shadow-tab: 0 0 #0000;
+  --shadow-subtab: 0 0 #0000;
+  --shadow-cardtab: 0 0 #0000;
+  --shadow-cardtab-on: 0 0 #0000;
   --cardtab-bar-w: 3px;
   --cardtab-transform: none;
   --placeholder-color: var(--color-fg-muted);
@@ -212,7 +217,7 @@
   --toast-head-mix: 0%;
   --toast-line-w: 1px;
   --toast-bar-w: 4px;
-  --logo-plate-pad: 0px;
+  --logo-plate-pad: 4px 6px;
   --header-logo-dark-ink: none;
   --header-logo-light-ink: block;
   --login-logo-dark-ink: none;

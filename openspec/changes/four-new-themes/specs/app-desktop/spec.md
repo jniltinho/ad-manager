@@ -20,6 +20,11 @@ look, and SHALL hold `high-contrast` to 7:1 in every text color it draws, like t
 - **THEN** the desktop draws it as the flat look (no button gloss or shadow, no card shadow, no login highlight or
   elliptic shadow), and every other theme keeps its depth
 
+#### Scenario: High contrast dialog frame
+- **WHEN** a dialog opens in High contrast on the desktop
+- **THEN** it is framed in the theme's dialog line (white), 2 px, since no shadow sets it apart; every other theme
+  keeps its 1 px frame in the dialog title color
+
 #### Scenario: High contrast drawn at AAA
 - **WHEN** a desktop button, field, label or focused select is drawn in High contrast, at rest, hovered or pressed,
   normal or flat
@@ -32,4 +37,6 @@ look, and SHALL hold `high-contrast` to 7:1 in every text color it draws, like t
 #### Scenario: Accepted differences
 - **WHEN** a new theme is shown on the web and on the desktop
 - **THEN** the only differences are the documented ones: the page pattern, the colored glow, Winamp's green field
-  text, Fyne's text-selection highlight and the font
+  text and its sunken field and pressed relief, Fyne's text-selection highlight, the font, the footer stripe (the
+  desktop footer has none in any theme), the hover tone of one-color buttons, and keyboard focus on buttons (the
+  desktop buttons take no focus in any theme)

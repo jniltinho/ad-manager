@@ -17,18 +17,20 @@
 - [x] 2.3 `desktop/theme_test.go` (`TestNewThemes`): ids, schemes, High contrast `minText` 7, 3 px ring, depthless
       (and only it), Winamp bevel; `TestVolumeDrawn` accepts one-color bands by design; `TestFocusRing` covers High
       contrast and Matrix; `TestFynePairsContrast` and `TestScreensInEveryTheme` pass for the four
+- [x] 2.4 A depthless theme frames its dialogs in `dialog-line`, 2 px (`modal.go`, `TestDepthlessDialogFrame`)
 
 ## 3. Docs and screenshots
 
-- [ ] 3.1 `docs/themes.md` (table, count, references, accepted differences), `docs/overview.md`, `README.md`,
+- [x] 3.1 `docs/themes.md` (table, count, references, accepted differences), `docs/overview.md`, `README.md`,
       `openspec/config.yaml` counts
-- [ ] 3.2 `scripts/theme-mosaics.py` lists 18 themes (web × desktop in three images); retake `themes.jpg` and
+- [x] 3.2 `scripts/theme-mosaics.py` lists 18 themes (web × desktop in three images); retake `themes.jpg` and
       `docs/img/conformity/web-desktop-*.jpg` at 2×
-- [ ] 3.3 Check the four in the browser (Home, Users, Settings, login, a dialog) and the desktop captures
+- [x] 3.3 Check the four in the browser (the visual suite's captures: Home, every page, login, dialogs) and the
+      desktop captures
 
 ## 4. Validation
 
-- [ ] 4.1 `make check && make test && make build`
-- [ ] 4.2 Visual suite: the 14 existing themes pixel-identical to the base commit (`THEMES=` their ids)
-- [ ] 4.3 Codex review of the diff (`codex exec --sandbox read-only`): token coverage, web/desktop parity, contrast,
+- [x] 4.1 `make check && make test && make build`
+- [x] 4.2 Visual suite: the 14 existing themes pixel-identical to the base commit (`THEMES=` their ids)
+- [x] 4.3 Codex review of the diff (`codex exec --sandbox read-only`): token coverage, web/desktop parity, contrast,
       no regression; fix what it raises

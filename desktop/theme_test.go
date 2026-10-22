@@ -240,3 +240,27 @@ func TestNewThemes(t *testing.T) {
 		t.Error("winamp: no bevel on buttons or the login box")
 	}
 }
+
+// TestDepthlessDialogFrame: a dialog in High contrast (no shadow) is framed in the web's dialog line, 2 px.
+func TestDepthlessDialogFrame(t *testing.T) {
+	a := test.NewApp()
+	defer a.Quit()
+	defer applyLook(nil, "default", false)
+	applyLook(a, "high-contrast", false)
+	w := a.NewWindow("t")
+	defer w.Close()
+	w.Resize(fyne.NewSize(600, 400))
+	u := &ui{a: a, w: w}
+	u.showModal("Modal", widget.NewLabel("body"), "OK", false, 400, nil)
+	img := w.Canvas().Capture()
+	y := img.Bounds().Dy() / 4 // across the dialog's body
+	line := color.NRGBAModel.Convert(col("dialog-line")).(color.NRGBA)
+	at := func(x int) color.NRGBA { return color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA) }
+	x := 0
+	for x < img.Bounds().Dx()/2 && at(x) != line {
+		x++
+	}
+	if at(x) != line || at(x+1) != line || at(x+2) == line {
+		t.Errorf("no 2 px frame in the dialog line %v left of the dialog (row %d: %v %v %v at %d)", line, y, at(x), at(x+1), at(x+2), x)
+	}
+}

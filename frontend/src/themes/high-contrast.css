@@ -192,7 +192,7 @@
   --shadow-app: 0 0 #0000;
   --shadow-tabs: 0 0 #0000;
   --shadow-tab-on: 0 0 #0000;
-  --shadow-subtab-on: 0 0 #0000;
+  --shadow-subtab-on: inset 1px 0 #ffffff, inset -1px 0 #ffffff, inset 0 3px #ffff00; /* the desktop's mark of the current inner tab */
   --shadow-card-hover: 0 0 #0000;
   --shadow-nav-on: inset 4px 0 0 #ffff00;
   --shadow-login-box: 0 0 #0000;

@@ -71,9 +71,14 @@ func (u *ui) showModal(title string, body fyne.CanvasObject, button string, dang
 		container.NewStack(footBg, container.New(layout.NewCustomPaddedLayout(8, 8, 12, 12), container.NewHBox(buttons...))))
 	content := container.NewStack(canvas.NewRectangle(col("surface")), container.New(layout.NewCustomPaddedLayout(14, 14, 16, 16), body))
 	inner := container.NewBorder(container.NewVBox(head, stripe), foot, nil, nil, content)
-	// 1 px dark outline: the box stands out from the dimmed background
-	card := container.NewStack(canvas.NewRectangle(col("dialog-head")),
-		container.New(layout.NewCustomPaddedLayout(1, 1, 1, 1), container.NewStack(canvas.NewRectangle(col("surface")), inner)))
+	// 1 px dark outline: the box stands out from the dimmed background; a theme without depth (High contrast) has
+	// no shadow to do that, so it draws the web's dialog frame (--color-dialog-line, 2 px)
+	frame, w := col("dialog-head"), float32(1)
+	if look.p.depthless {
+		frame, w = col("dialog-line"), 2
+	}
+	card := container.NewStack(canvas.NewRectangle(frame),
+		container.New(layout.NewCustomPaddedLayout(w, w, w, w), container.NewStack(canvas.NewRectangle(col("surface")), inner)))
 	pop = widget.NewModalPopUp(card, u.w.Canvas())
 	pop.Resize(fyne.NewSize(width, card.MinSize().Height))
 	// as the web: the top at 10% of the window height, centered across; Fyne does not move a popup shown at a

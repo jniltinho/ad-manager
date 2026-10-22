@@ -57,7 +57,8 @@ rain animation: the page pattern is static, and the flat look removes it).
    item (`nav-on`) is black with yellow text and a 4 px yellow bar, so the yellow focus ring still reads on it
    (`focus/nav-on`). The login focus is solid yellow, 3 px (`login-focus/login-box`). States: ok `#5cff5c`, error
    text `#ffa3a3` (≥ 7:1 on the `#262626` row hover too), error fill `#ff8a8a`, warning `#ffc04d`, all with black
-   text on fills. Every decorative `--bg-*` is `none` and the top/base pairs are equal; the select arrow
+   text on fills. Pink Panther's customer-logo plate is a light `#fdf0f6` with padding, since its header and login box
+   are dark plum. Every decorative `--bg-*` is `none` and the top/base pairs are equal; the select arrow
    (`--bg-select-arrow`) stays, in white, since it is an icon. Shadows are zero except the hard state outlines
    (`--shadow-field-focus: 0 0 0 3px #ffff00`, invalid) and the white tab frames; `--focus-ring-w: 3px`. Buttons have
    one color, so the hover is `--btn-hover-filter: brightness(0.85)` (yellow `#d9d900`, black text 14:1) and the
@@ -67,15 +68,20 @@ rain animation: the page pattern is static, and the flat look removes it).
    `brand.theme`. Because the desktop draws some depth of its own (button gloss and shadow, card shadow, the login's
    highlight and elliptic shadow) independently of the CSS shadows, the generator marks a theme **depthless** when
    `--shadow-btn`, `--shadow-card` and `--shadow-login-box` have no visible layer (only High contrast), and
-   `applyLook` always draws a depthless theme in the flat look. `TestVolumeDrawn` accepts one-color bands where the
+   `applyLook` always draws a depthless theme in the flat look; for the same reason its dialogs are framed in
+   `dialog-line` at 2 px (`modal.go`; `dialog-line` is added to the generated roles, the other themes keep their 1 px
+   frame in `dialog-head`). High contrast's current inner tab also gets white sides and a yellow top bar
+   (`--shadow-subtab-on`), the mark the desktop draws on a non-segmented current tab. `TestVolumeDrawn` accepts one-color bands where the
    palette's top and base are equal. `theme_test.go` checks the four ids and schemes, High contrast's `minText` 7,
    3 px ring and depthlessness (and that no other theme is depthless), Winamp's bevel; `TestFocusRing` adds High
    contrast and Matrix.
 7. **Accepted web × desktop differences** (added to `docs/themes.md`): the page pattern (Matrix rain, Winamp
    brushing, Pink Panther dots: the desktop page is one color, like Default's dots today), the colored glow (the
    desktop casts its own neutral shadow), the field text color (Fyne draws entry text in `fg`, so Winamp's LCD green
-   shows on the web only; the field stays black), Fyne's translucent text-selection highlight, and the monospace font
-   (system font × Fyne font, already accepted).
+   shows on the web only; the field stays black), Winamp's sunken field and pressed relief (the desktop draws the
+   raised bevel only), Fyne's translucent text-selection highlight, the monospace font (system font × Fyne font,
+   already accepted), and three gaps the desktop has in every theme: no footer stripe, its own hover tone for
+   one-color buttons, and no keyboard focus on buttons (a follow-up, not part of this change).
 8. **Labels**: `Matrix (dark)`, `Winamp (dark)`, `Pink Panther`, `High contrast (dark)`; pt-BR `Matrix (escuro)`,
    `Winamp (escuro)`, `Pantera Cor-de-Rosa`, `Alto contraste (escuro)` in the SPA catalog (the labels are rendered
    by the SPA through `t()`; the server and desktop never show them, so `internal/i18n` needs no entry). The stale
@@ -84,6 +90,9 @@ rain animation: the page pattern is static, and the flat look removes it).
    theme list in pt-BR.
 
 ## Risks / Trade-offs
+
+- [Disabled buttons are drawn at 50% opacity by the shared recipe: their text falls under 4.5:1 / 7:1] → inactive
+  controls are exempt from WCAG 1.4.3/1.4.6; unchanged, as in every theme.
 
 - [Monospace widens text: tables and tabs may truncate sooner in Matrix] → 12 px base and the existing ellipsis
   handling; checked on the Home, Users and Settings screens.
