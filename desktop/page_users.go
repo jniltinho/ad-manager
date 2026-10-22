@@ -351,7 +351,7 @@ func (u *ui) groupList(names, groups []string, add, remove func(g string) error)
 		render()
 	})
 	render()
-	scroll := container.NewVScroll(rows)
+	scroll := container.NewVScroll(ringRoom(rows))
 	scroll.SetMinSize(fyne.NewSize(0, 130))
 	return container.NewBorder(container.NewBorder(nil, nil, nil, addBtn, picker), nil, nil, nil, scroll),
 		func() []string { return groups }

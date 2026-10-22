@@ -1,11 +1,13 @@
 package main
 
 import (
+	"reflect"
 	"slices"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -21,11 +23,11 @@ type ringRenderer struct {
 	fyne.WidgetRenderer
 	bars    [4]*canvas.Rectangle // top, bottom, left, right
 	focused *bool
-	size    fyne.Size
+	w       fyne.Widget // its size: a refresh before the first layout must not lay the widget out at zero size
 }
 
-func newRingRenderer(r fyne.WidgetRenderer, focused *bool) *ringRenderer {
-	rr := &ringRenderer{WidgetRenderer: r, focused: focused}
+func newRingRenderer(r fyne.WidgetRenderer, focused *bool, w fyne.Widget) *ringRenderer {
+	rr := &ringRenderer{WidgetRenderer: r, focused: focused, w: w}
 	for i := range rr.bars {
 		rr.bars[i] = canvas.NewRectangle(nil)
 		rr.bars[i].Hide()
@@ -43,7 +45,6 @@ func (r *ringRenderer) Objects() []fyne.CanvasObject {
 
 func (r *ringRenderer) Layout(s fyne.Size) {
 	r.WidgetRenderer.Layout(s)
-	r.size = s
 	w := look.p.focusRing
 	for i, g := range [4][4]float32{
 		{-w, -w, s.Width + 2*w, w}, {-w, s.Height, s.Width + 2*w, w}, {-w, 0, w, s.Height}, {s.Width, 0, w, s.Height},
@@ -55,11 +56,76 @@ func (r *ringRenderer) Layout(s fyne.Size) {
 
 func (r *ringRenderer) Refresh() {
 	r.WidgetRenderer.Refresh()
-	r.Layout(r.size) // the width may have changed with the theme
+	r.Layout(r.w.Size()) // the width may have changed with the theme
 	for _, b := range r.bars {
 		b.FillColor, b.Hidden = col("focus"), !*r.focused
 		b.Refresh()
 	}
+}
+
+// scrollIntoView scrolls every scroll that holds o so that o and its focus ring show: Fyne moves the focus with Tab
+// into clipped children without scrolling to them.
+// shortcut: the path to o is found through containers and widgets with an exported Content (scrolls, cards, popups
+// and Fyne's overlay wrapper), not through other widgets' renderers; upgrade when a focusable control lives inside
+// another widget in a scroll.
+func scrollIntoView(o fyne.CanvasObject) {
+	d := fyne.CurrentApp().Driver()
+	c := d.CanvasForObject(o)
+	if c == nil {
+		return
+	}
+	roots := append([]fyne.CanvasObject{c.Content()}, c.Overlays().List()...)
+	for _, r := range roots {
+		for _, s := range scrollsHolding(r, o) {
+			ring := look.p.focusRing
+			y := d.AbsolutePositionForObject(o).Y - d.AbsolutePositionForObject(s.Content).Y
+			off := s.Offset.Y
+			if top := y - ring; top < off {
+				off = top
+			} else if bottom := y + o.Size().Height + ring; bottom > off+s.Size().Height {
+				off = bottom - s.Size().Height
+			}
+			if off != s.Offset.Y {
+				s.ScrollToOffset(fyne.NewPos(s.Offset.X, max(0, off)))
+			}
+		}
+	}
+}
+
+// ringRoom pads a scroll's content by the widest focus ring (3 px), so the ring of a control at its edge is not
+// clipped by the scroll.
+func ringRoom(o fyne.CanvasObject) fyne.CanvasObject {
+	return container.New(layout.NewCustomPaddedLayout(3, 3, 3, 3), o)
+}
+
+// scrollsHolding returns the scrolls on the path from root down to o (outermost first), or nil if o is not found.
+func scrollsHolding(root, o fyne.CanvasObject) []*container.Scroll {
+	if root == o {
+		return []*container.Scroll{}
+	}
+	var kids []fyne.CanvasObject
+	if c, ok := root.(*fyne.Container); ok {
+		kids = c.Objects
+	} else if v := reflect.ValueOf(root); v.Kind() == reflect.Pointer && v.Elem().Kind() == reflect.Struct {
+		// Scroll, Card, PopUp and the overlay wrapper Fyne puts a popup in (internal: no type to assert)
+		if f := v.Elem().FieldByName("Content"); f.IsValid() && f.CanInterface() {
+			if o, ok := f.Interface().(fyne.CanvasObject); ok {
+				kids = []fyne.CanvasObject{o}
+			}
+		}
+	}
+	for _, k := range kids {
+		if k == nil {
+			continue
+		}
+		if path := scrollsHolding(k, o); path != nil {
+			if s, ok := root.(*container.Scroll); ok {
+				return append([]*container.Scroll{s}, path...)
+			}
+			return path
+		}
+	}
+	return nil
 }
 
 // ringEntry is a widget.Entry with the focus ring.
@@ -98,11 +164,16 @@ func newMultiLineEntry() *ringEntry {
 }
 
 func (e *ringEntry) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(e.Entry.CreateRenderer(), &e.focused)
+	return newRingRenderer(e.Entry.CreateRenderer(), &e.focused, e)
 }
 
-func (e *ringEntry) FocusGained() { e.focused = true; e.Entry.FocusGained(); e.Refresh() }
-func (e *ringEntry) FocusLost()   { e.focused = false; e.Entry.FocusLost(); e.Refresh() }
+func (e *ringEntry) FocusGained() {
+	e.focused = true
+	e.Entry.FocusGained()
+	e.Refresh()
+	scrollIntoView(e)
+}
+func (e *ringEntry) FocusLost() { e.focused = false; e.Entry.FocusLost(); e.Refresh() }
 
 // ringSelect is a widget.Select with the focus ring.
 type ringSelect struct {
@@ -119,11 +190,16 @@ func newSelect(options []string, changed func(string)) *ringSelect {
 }
 
 func (s *ringSelect) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(s.Select.CreateRenderer(), &s.focused)
+	return newRingRenderer(s.Select.CreateRenderer(), &s.focused, s)
 }
 
-func (s *ringSelect) FocusGained() { s.focused = true; s.Select.FocusGained(); s.Refresh() }
-func (s *ringSelect) FocusLost()   { s.focused = false; s.Select.FocusLost(); s.Refresh() }
+func (s *ringSelect) FocusGained() {
+	s.focused = true
+	s.Select.FocusGained()
+	s.Refresh()
+	scrollIntoView(s)
+}
+func (s *ringSelect) FocusLost() { s.focused = false; s.Select.FocusLost(); s.Refresh() }
 
 // ringCheck is a widget.Check with the focus ring.
 type ringCheck struct {
@@ -139,11 +215,16 @@ func newCheck(label string, changed func(bool)) *ringCheck {
 }
 
 func (c *ringCheck) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(c.Check.CreateRenderer(), &c.focused)
+	return newRingRenderer(c.Check.CreateRenderer(), &c.focused, c)
 }
 
-func (c *ringCheck) FocusGained() { c.focused = true; c.Check.FocusGained(); c.Refresh() }
-func (c *ringCheck) FocusLost()   { c.focused = false; c.Check.FocusLost(); c.Refresh() }
+func (c *ringCheck) FocusGained() {
+	c.focused = true
+	c.Check.FocusGained()
+	c.Refresh()
+	scrollIntoView(c)
+}
+func (c *ringCheck) FocusLost() { c.focused = false; c.Check.FocusLost(); c.Refresh() }
 
 // ringSelectEntry is a widget.SelectEntry (a field with a list of suggestions) with the focus ring.
 type ringSelectEntry struct {
@@ -160,11 +241,16 @@ func newSelectEntry(options []string) *ringSelectEntry {
 }
 
 func (e *ringSelectEntry) CreateRenderer() fyne.WidgetRenderer {
-	return newRingRenderer(e.SelectEntry.CreateRenderer(), &e.focused)
+	return newRingRenderer(e.SelectEntry.CreateRenderer(), &e.focused, e)
 }
 
-func (e *ringSelectEntry) FocusGained() { e.focused = true; e.SelectEntry.FocusGained(); e.Refresh() }
-func (e *ringSelectEntry) FocusLost()   { e.focused = false; e.SelectEntry.FocusLost(); e.Refresh() }
+func (e *ringSelectEntry) FocusGained() {
+	e.focused = true
+	e.SelectEntry.FocusGained()
+	e.Refresh()
+	scrollIntoView(e)
+}
+func (e *ringSelectEntry) FocusLost() { e.focused = false; e.SelectEntry.FocusLost(); e.Refresh() }
 
 // checkList is a widget.CheckGroup made of ringChecks: Fyne's group keeps the focus in items of its own, without
 // the ring. Selected and SetSelected work as the group's; the screen shows its Container (Fyne only walks a
@@ -246,7 +332,7 @@ type radioItem struct {
 func (it *radioItem) CreateRenderer() fyne.WidgetRenderer {
 	it.icon = widget.NewIcon(it.iconRes())
 	text := newText(it.label, col("fg"), 13, false)
-	return newRingRenderer(widget.NewSimpleRenderer(container.NewBorder(nil, nil, it.icon, nil, text)), &it.focused)
+	return newRingRenderer(widget.NewSimpleRenderer(container.NewBorder(nil, nil, it.icon, nil, text)), &it.focused, it)
 }
 
 func (it *radioItem) iconRes() fyne.Resource {
@@ -270,7 +356,7 @@ func (it *radioItem) Tapped(*fyne.PointEvent) {
 	it.list.SetSelected(it.label)
 }
 
-func (it *radioItem) FocusGained() { it.focused = true; it.Refresh() }
+func (it *radioItem) FocusGained() { it.focused = true; it.Refresh(); scrollIntoView(it) }
 func (it *radioItem) FocusLost()   { it.focused = false; it.Refresh() }
 func (it *radioItem) TypedRune(r rune) {
 	if r == ' ' {

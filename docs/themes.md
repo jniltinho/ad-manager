@@ -155,7 +155,7 @@ public pages (e.g. the password change link).
 
 ## 6. Selectable panel themes
 
-The web panel has 14 themes, chosen in **Settings → Theme** (applies to every operator and to the login
+The web panel has 18 themes, chosen in **Settings → Theme** (applies to every operator and to the login
 screen). The default is **Default**; the desktop app uses the same themes.
 The **Flat look** checkbox removes gradients and shadows from any theme.
 
@@ -171,8 +171,13 @@ The **Flat look** checkbox removes gradients and shadows from any theme.
 | Classic blue (XP) | `classic-blue` | light | Windows XP (Luna) |
 | Classic gray (98) | `classic-gray` | light | Windows 98, with 3D bevels |
 | Graphite (dark) | `graphite` | dark | Grafana 11 |
+| Matrix (dark) | `matrix` | dark | the film's green phosphor terminal: monospace, a static "digital rain" of strokes on the page, a soft green glow |
+| Winamp (dark) | `winamp` | dark | the Winamp 2 skin: brushed steel with a 1 px bevel, LCD readout (green on black) in fields, amber buttons, the playlist's blue selection |
+| Pink Panther | `pink-panther` | light | the 1963 film titles: plum title bars with the panther-pink stripe, blush page, deep rose actions; pink only as an accent |
+| High contrast (dark) | `high-contrast` | dark | accessibility: black and white, one yellow accent, 3 px focus ring, no gradients or depth shadows (WCAG AAA); Matrix's structure (window line, bars, tab marks) in that palette |
 
-All have square corners and pass the WCAG contrast matrix (`frontend/src/themes/matrix.json`). Reference colors
+All have square corners and pass the WCAG contrast matrix (`frontend/src/themes/matrix.json`); Crystal, Crystal
+(dark) and High contrast are held to AAA (normal text 7:1). Reference colors
 adjusted for contrast are noted in the header comment of each theme file. In dark themes (and
 in those with a dark header) the product logo switches to the light-ink version, and the customer logo gets a
 light plate behind it.
@@ -190,13 +195,22 @@ card titles (`card-head`, strip of `--card-head-bar-w`), table header (`table-he
 flat look, decorative gradients, shadows and bevels disappear (cards, buttons, including pressed ones, headers, the
 98's footer panels); only the state markers remain — current tab, selected item, focus, invalid field —, on both
 sides. Accepted differences: top tabs on the web × side navigation on the desktop (the position; the colors are the
-same, except in Crystal, where the sidebar is Crystal AAA+'s Finder list), system font × Fyne font, language choice at
-the web login × "Configure" on the desktop, blur, and the desktop without toasts (status bar and dialogs). Checked by
+same, except in Crystal, where the sidebar is Crystal AAA+'s Finder list), system font × Fyne font (Matrix's monospace
+included), language choice at the web login × "Configure" on the desktop, blur, the desktop without toasts (status
+bar and dialogs), the page pattern (the dots, Matrix's rain, Winamp's brushing: the desktop page is one color), the
+colored glow of Matrix (the desktop casts its neutral shadow), the field text (Fyne draws it in `fg`: Winamp's LCD green
+is web only, the black field stays; its sunken fields and pressed relief are web only too) and Fyne's translucent text
+selection. In every theme the desktop footer has no stripe. Desktop buttons take the keyboard focus (Tab) with the
+theme's ring and are pressed with Space or Enter, as on the web (the sidebar items, inner tabs and the password
+reveal button stay mouse-only). A theme with no shadow on buttons, cards and the
+login box (High contrast) is always drawn flat on the desktop, as its web look has no depth, and its dialogs are
+framed in the dialog line (2 px). Checked by
 `TestVolumeDrawn` (volume drawn outside the flat look, 98's bevel, nothing in flat), `TestFocusRing` and by the
 residue-free theme switch in the visual suite. The visual suite (Playwright) runs locally with
 `scripts/visual-ci.sh`, outside CI (decision in commit `d208bad`). The mosaic below is the web home screen (visual
 suite) next to the desktop home screen (`SCREEN_SHOTS=<dir> go test -run TestScreensInEveryTheme` in `desktop/`, with
 a sample panel).
 
-![Web × desktop home screen, themes 1 to 7](img/conformity/web-desktop-1.jpg)
-![Web × desktop home screen, themes 8 to 14](img/conformity/web-desktop-2.jpg)
+![Web × desktop home screen, themes 1 to 6](img/conformity/web-desktop-1.jpg)
+![Web × desktop home screen, themes 7 to 12](img/conformity/web-desktop-2.jpg)
+![Web × desktop home screen, themes 13 to 18](img/conformity/web-desktop-3.jpg)

@@ -1,5 +1,5 @@
 {
-  "comment": "Contrast recipes (theme-base): text role over the background roles where it appears (layers top→bottom). size: normal 4.5:1, large/ui 3:1. pending: the pairs a theme may still fail (empty since phase B of openspec/changes/theme-base); the test fails unless this list is exactly the failing set. aaa: themes held to enhanced contrast (WCAG 1.4.6: normal text 7:1, large 4.5:1; components 1.4.11 3:1). aaaOnly: a recipe only the aaa themes are held to (the selected segment, the solid login focus ring).",
+  "comment": "Contrast recipes (theme-base): text role over the background roles where it appears (layers top→bottom). size: normal 4.5:1, large/ui 3:1. pending: the pairs a theme may still fail (empty since phase B of openspec/changes/theme-base); the test fails unless this list is exactly the failing set. aaa: themes held to enhanced contrast (WCAG 1.4.6: normal text 7:1, large 4.5:1; components 1.4.11 3:1). aaaOnly: a recipe only the aaa themes are held to (the selected segment, the solid login focus ring). segmentedOnly: only where the tabs are a segmented control (--subtabs-gap and --subtab-inset-top 0: Crystal), whose fill is the only mark of the selected tab; folder tabs (High contrast) mark it with the bar on top instead.",
   "recipes": [
     {
       "id": "text/page",
@@ -588,7 +588,8 @@
       "fg": "subtab-on",
       "bg": ["subtab"],
       "size": "ui",
-      "aaaOnly": true
+      "aaaOnly": true,
+      "segmentedOnly": true
     },
     {
       "id": "login-focus/login-box",
@@ -614,7 +615,8 @@
       "fg": "cardtab-on",
       "bg": ["cardtab"],
       "size": "ui",
-      "aaaOnly": true
+      "aaaOnly": true,
+      "segmentedOnly": true
     },
     {
       "id": "subtle/row-hover",
@@ -624,5 +626,5 @@
     }
   ],
   "pending": {},
-  "aaa": ["crystal", "crystal-dark"]
+  "aaa": ["crystal", "crystal-dark", "high-contrast"]
 }

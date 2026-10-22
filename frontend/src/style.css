@@ -8,6 +8,10 @@
 @import './themes/cone.css';
 @import './themes/classics.css';
 @import './themes/graphite.css';
+@import './themes/matrix.css';
+@import './themes/winamp.css';
+@import './themes/pink-panther.css';
+@import './themes/high-contrast.css';
 
 /* Default theme — tokens of the original skin (site kit).
    No border-radius anywhere: square corners. */
@@ -476,6 +480,8 @@ body {
   .lbl {
     @apply mb-1 block text-[11px] font-semibold tracking-wide text-fg-muted uppercase;
   }
+  /* a list that scrolls (overflow-auto) puts the frame on its wrapper and uses .grid-t with border-0: the outer half
+     of a collapsed table border lies outside the table and the scrolling box clips it (no left and right lines) */
   .grid-t {
     @apply w-full border-collapse border border-line text-[12px];
   }
