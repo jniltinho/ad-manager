@@ -30,7 +30,7 @@
 
 - [x] 6.1 Tests: no secret in API/logs/audit/files; idempotent on full state; missing user skipped; rights required; dedicated-gate; source unchanged
 - [x] 6.2 `docs/migration-runbook.md` (new-domain cutover: objects → passwords → apps) and `docs/cli.md`
-- [ ] 6.3 Validate against the Samba lab (`vagrant/labs`): a user signs in with the source password after the migration
+- [x] 6.3 Validated end-to-end in a clean all-in-one Docker lab (two Samba 4.23.6 DCs): the user signs in on the destination with the source password after the migration
 
 ## 7. Validation
 
