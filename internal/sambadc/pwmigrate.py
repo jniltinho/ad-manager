@@ -67,7 +67,9 @@ def source_creds(lp, user, password):
     from samba.credentials import Credentials, DONT_USE_KERBEROS
     creds = Credentials()
     creds.guess(lp)
-    creds.set_username(user)
+    # parse_string handles both DOMAIN\user and user@realm and sets the domain (set_username alone does not, which
+    # makes a cross-domain NTLM bind fail with LOGON_FAILURE).
+    creds.parse_string(user)
     creds.set_password(password)
     # NTLM is enough and works against a 2008 R2 source without a shared realm.
     creds.set_kerberos_state(DONT_USE_KERBEROS)
@@ -172,15 +174,17 @@ def drs_unbind(drs, handle):
         pass
 
 
-def get_ncchanges_secret(drs, drs_handle, src_dsa_inv, guid):
-    """One object's attributes over a sealed GetNCChanges with the REPL_SECRET extended op: read only, makes us no
-    replica (replica_flags = 0), never UpdateRefs/DRS_ADD_REF. Returns the DsReplicaObjectListItemEx or None."""
+def get_ncchanges_secret(drs, drs_handle, src_dsa_inv, dn, guid):
+    """One object's attributes over a sealed GetNCChanges with the REPL_OBJ extended op (the canonical single-object
+    DCSync): read only, makes us no replica (replica_flags = 0), never UpdateRefs/DRS_ADD_REF. The object is named by
+    its GUID (with the DN alongside). Returns the DsReplicaObjectListItemEx or None."""
     from samba.dcerpc import drsuapi, misc
     req8 = drsuapi.DsGetNCChangesRequest8()
     req8.destination_dsa_guid = misc.GUID()
     req8.source_dsa_invocation_id = src_dsa_inv
     nc = drsuapi.DsReplicaObjectIdentifier()
-    nc.guid = misc.GUID(guid)  # pull this one object by GUID (REPL_SECRET extended op)
+    nc.dn = dn
+    nc.guid = misc.GUID(guid)  # REPL_OBJ names the one object by GUID
     req8.naming_context = nc
     hwm = drsuapi.DsReplicaHighWaterMark()
     hwm.tmp_highest_usn = 0
@@ -188,10 +192,10 @@ def get_ncchanges_secret(drs, drs_handle, src_dsa_inv, guid):
     hwm.highest_usn = 0
     req8.highwatermark = hwm
     req8.uptodateness_vector = None
-    req8.replica_flags = 0  # REPL_SECRET: no WRIT_REP, no ADD_REF — we are not becoming a replica
+    req8.replica_flags = 0  # no WRIT_REP, no ADD_REF — we are not becoming a replica
     req8.max_object_count = 1
     req8.max_ndr_size = 402116
-    req8.extended_op = drsuapi.DRSUAPI_EXOP_REPL_SECRET
+    req8.extended_op = drsuapi.DRSUAPI_EXOP_REPL_OBJ
     req8.fsmo_info = 0
     req8.partial_attribute_set = None
     req8.partial_attribute_set_ex = None
@@ -267,7 +271,8 @@ def set_user(samdb, dn, nt_hash, supp, copy_kerberos):
     import time
     now_ft = int((time.time() + 11644473600) * 10_000_000)
     msg["pwdLastSet"] = ldb.MessageElement(str(now_ft), ldb.FLAG_MOD_REPLACE, "pwdLastSet")
-    controls = [dsdb.DSDB_CONTROL_BYPASS_PASSWORD_HASH_OID]
+    # ldb takes an arbitrary control as "local_oid:<oid>:<critical>" (bare OIDs are rejected), as Samba's own tests do
+    controls = ["local_oid:%s:0" % dsdb.DSDB_CONTROL_BYPASS_PASSWORD_HASH_OID]
     samdb.transaction_start()
     try:
         samdb.modify(msg, controls=controls)
@@ -329,7 +334,7 @@ def apply(req, lp):
 
 def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
     """Extract one user's secrets and set them; returns the outcome. Secrets live only in these locals."""
-    obj = get_ncchanges_secret(drs, drs_handle, src_inv, u["guid"])
+    obj = get_ncchanges_secret(drs, drs_handle, src_inv, u["dn"], u["guid"])
     if obj is None:
         return "error"
     nt_hash, supp = decrypt_secrets(drs, obj, u["rid"])
