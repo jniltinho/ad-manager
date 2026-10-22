@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.16.0] — 2026-10-22
+
 **Password migration for a new-domain cutover.**
 
 ### Added
