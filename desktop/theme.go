@@ -25,6 +25,7 @@ type palette struct {
 	subtab      []boxShadow // inset layers of an inner tab (--shadow-subtab), first on top
 	subtabOn    []boxShadow // of the current inner tab (--shadow-subtab-on: its bar or relief)
 	tabOn       []boxShadow // of the current top tab (--shadow-tab-on): the mark of the current sidebar item
+	depthless   bool        // no depth by design (High contrast: no shadow on buttons, cards, login): always flat
 	c           map[string]color.NRGBA
 }
 
@@ -59,13 +60,14 @@ var (
 	accent                                           color.Color // stripes and bars
 )
 
-// applyLook switches to theme id (unknown: Default) and the flat look, for the Fyne widgets too.
+// applyLook switches to theme id (unknown: Default) and the flat look (always on a depthless theme), for the Fyne
+// widgets too.
 func applyLook(a fyne.App, id string, flat bool) {
 	p, ok := palettes[id]
 	if !ok {
 		id, p = themeOrder[0], palettes[themeOrder[0]]
 	}
-	look.id, look.p, look.flat = id, p, flat
+	look.id, look.p, look.flat = id, p, flat || p.depthless
 	strongText, mutedText = col("fg-strong"), col("fg-muted")
 	okText, errText, warnText = col("ok"), col("err"), col("warn")
 	accent = col("accent")

@@ -20,9 +20,9 @@ func close(a, b color.Color, d int) bool {
 
 // TestVolumeDrawn (theme-conformity): what the desktop draws, in every theme and look. Roles: the header, the card
 // title and the table head are drawn in the web's roles (header*, card-head*, table-head*: top and base colors).
-// Volume: outside the flat look the primary button and those bands go from one color to another, and in the
-// Classic gray theme the button and the bands carry the 98 relief; in the flat look they are one color and a card casts
-// no shadow.
+// Volume: outside the flat look the primary button and those bands go from one color to another (unless the theme
+// gives them one color by design: High contrast), and in the Classic gray theme the button and the bands carry the 98
+// relief; in the flat look they are one color and a card casts no shadow.
 func TestVolumeDrawn(t *testing.T) {
 	a := test.NewApp()
 	defer a.Quit()
@@ -65,6 +65,9 @@ func TestVolumeDrawn(t *testing.T) {
 					bottom = s.Height - 10 // above the line under the header
 				}
 				hi, lo := px(o, x, 4), px(o, x, bottom)
+				// a theme without volume by design (High contrast: every band one color) has top == base
+				role := map[string]string{"header": "header", "button": "action", "card head": "card-head", "table head": "table-head"}[name]
+				oneColor := col(role+"-top") == col(role)
 				switch {
 				case relief98:
 					if l, r := px(o, 1.5, s.Height/2), px(o, s.Width-1.5, s.Height/2); name != "header" && lum(l) <= lum(r) {
@@ -72,11 +75,10 @@ func TestVolumeDrawn(t *testing.T) {
 					}
 				case flat && !near(hi, lo):
 					t.Errorf("%s flat %s: top %v ≠ bottom %v", id, name, hi, lo)
-				case !flat && name != "header" && near(hi, lo):
+				case !flat && name != "header" && !oneColor && near(hi, lo):
 					t.Errorf("%s %s: flat (top %v, bottom %v)", id, name, hi, lo)
 				}
-				role := map[string]string{"header": "header", "card head": "card-head", "table head": "table-head"}[name]
-				if role != "" && !relief98 {
+				if name != "button" && !relief98 {
 					top, base := pair(role)
 					if !close(hi, top, 24) || !close(lo, base, 24) {
 						t.Errorf("%s flat %v %s: drawn %v → %v, roles %s %v → %v", id, flat, name, hi, lo, role, top, base)

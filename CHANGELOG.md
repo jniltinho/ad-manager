@@ -5,7 +5,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Added
+- **Four new themes**, identical in the web panel and the desktop app: **Matrix** (green phosphor on a black-green
+  terminal, monospace, a static "digital rain" on the page and a soft green glow), **Winamp** (the Winamp 2 skin:
+  brushed dark-steel chrome with a 1 px bevel, the LCD readout in fields and the current tab, amber buttons, the
+  playlist's blue selected row), **Pink Panther** (blush page, plum title bars with a panther-pink stripe, deep rose
+  actions) and **High contrast** (black and white with a single yellow accent, 3 px focus ring, no depth, WCAG AAA).
+
+### Fixed
+- The pt-BR names of the Breeze, Violet, Crystal and Graphite dark themes in Settings → Theme (stale catalog keys).
 
 ## [0.16.0] — 2026-10-22
 

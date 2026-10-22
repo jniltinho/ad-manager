@@ -8,6 +8,10 @@
 @import './themes/cone.css';
 @import './themes/classics.css';
 @import './themes/graphite.css';
+@import './themes/matrix.css';
+@import './themes/winamp.css';
+@import './themes/pink-panther.css';
+@import './themes/high-contrast.css';
 
 /* Default theme — tokens of the original skin (site kit).
    No border-radius anywhere: square corners. */

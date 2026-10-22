@@ -50,6 +50,7 @@ type Theme struct {
 	Subtab      []Shadow            // inset layers of an inner tab (--shadow-subtab), first on top
 	SubtabOn    []Shadow            // the same of the current inner tab (--shadow-subtab-on: its bar or relief)
 	TabOn       []Shadow            // the same of the current top tab (--shadow-tab-on: the mark of the sidebar)
+	Depthless   bool                // no shadow on buttons, cards or the login box (High contrast): always the flat look
 }
 
 // Shadow is one outer box-shadow layer: offsets and blur in px, and its color.
@@ -200,6 +201,12 @@ func Load(root string) ([]Theme, error) {
 		}{{"--shadow-subtab", &t.Subtab}, {"--shadow-subtab-on", &t.SubtabOn}, {"--shadow-tab-on", &t.TabOn}} {
 			if v, err := resolve(vals, f.name, 0); err == nil {
 				*f.to = insetShadows(v)
+			}
+		}
+		t.Depthless = true
+		for _, n := range []string{"--shadow-btn", "--shadow-card", "--shadow-login-box"} {
+			if v, err := resolve(vals, n, 0); err != nil || outerShadow(v).Color[3] != 0 || len(insetShadows(v)) > 0 {
+				t.Depthless = false
 			}
 		}
 		t.MinText = 4.5
@@ -442,6 +449,9 @@ func Generate(root string) ([]byte, error) {
 			b.WriteString("},")
 		}
 		fmt.Fprintf(&b, " segmented: %v, minText: %g, focusRing: %g, cardBarW: %g, dialogBarW: %g, cardStripe: %g,", t.Segmented, t.MinText, t.FocusRing, t.CardBarW, t.DialogBarW, t.CardStripe)
+		if t.Depthless {
+			b.WriteString(" depthless: true,")
+		}
 		b.WriteString(" c: map[string]color.NRGBA{\n")
 		keys := make([]string, 0, len(t.Colors))
 		for k := range t.Colors {

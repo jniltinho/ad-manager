@@ -2,8 +2,8 @@
 # Builds the theme mosaics of the docs from the home screen of every theme:
 #   web:     frontend: BASELINE=1 npx playwright test          → .run/visual/baseline/home-<id>.png
 #   desktop: desktop: SCREEN_SHOTS=../.run/desk-themes go test -run TestScreensInEveryTheme
-# Writes docs/screenshots/themes.jpg (web, two per row) and docs/img/conformity/web-desktop-{1,2}.jpg (web beside
-# desktop, seven themes each). Needs Pillow.
+# Writes docs/screenshots/themes.jpg (web, two per row) and docs/img/conformity/web-desktop-{1,2,3}.jpg (web beside
+# desktop, six themes each). Needs Pillow.
 import os
 from PIL import Image, ImageDraw, ImageFont
 
@@ -13,7 +13,9 @@ DESK = os.path.join(ROOT, '.run/desk-themes/desktop-home-{}-false.png')
 THEMES = [('default', 'Default'), ('admanager', 'ADManager'), ('breeze', 'Breeze'), ('breeze-dark', 'Breeze (dark)'),
           ('violet', 'Violet'), ('violet-dark', 'Violet (dark)'), ('aurora', 'Aurora'), ('aurora-dark', 'Aurora (dark)'),
           ('crystal', 'Crystal'), ('crystal-dark', 'Crystal (dark)'), ('cone', 'Cone (dark)'),
-          ('classic-blue', 'Classic blue (XP)'), ('classic-gray', 'Classic gray (98)'), ('graphite', 'Graphite (dark)')]
+          ('classic-blue', 'Classic blue (XP)'), ('classic-gray', 'Classic gray (98)'), ('graphite', 'Graphite (dark)'),
+          ('matrix', 'Matrix (dark)'), ('winamp', 'Winamp (dark)'), ('pink-panther', 'Pink Panther'),
+          ('high-contrast', 'High contrast (dark)')]
 LABEL = 26
 
 
@@ -62,6 +64,6 @@ def grid(cells, cols, width, out, quality):
 
 grid([('%s (%s)' % (label, tid), [WEB.format(tid)]) for tid, label in THEMES], 2, 1200,
      os.path.join(ROOT, 'docs/screenshots/themes.jpg'), 92)
-for n, part in enumerate((THEMES[:7], THEMES[7:]), 1):
+for n, part in enumerate((THEMES[:6], THEMES[6:12], THEMES[12:]), 1):
     grid([('%s — web × desktop' % tid, [WEB.format(tid), DESK.format(tid)]) for tid, _ in part], 1, 1384,
          os.path.join(ROOT, 'docs/img/conformity/web-desktop-%d.jpg' % n), 90)

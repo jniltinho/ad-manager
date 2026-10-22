@@ -2,7 +2,7 @@ schema: spec-driven
 
 context: |
   ad-manager: web panel + CLI + MCP in Go (Cobra, Echo v5, go-ldap/v3) with an embedded Vue 3 SPA
-  (Vite+, Tailwind 4, 14 themes, square corners) for any Active Directory (Windows Server or
+  (Vite+, Tailwind 4, 18 themes, square corners) for any Active Directory (Windows Server or
   Samba 4), desktop app (Fyne), file server agent and migration tooling for Samba 4.23.
   Text and specs in English (Portuguese only in the pt-BR translation catalogs). Operations always
   use the operator's credential, over LDAPS.

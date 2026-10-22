@@ -143,6 +143,9 @@ func TestScreensInEveryTheme(t *testing.T) {
 	defer applyLook(nil, "default", false)
 	w := a.NewWindow("t")
 	defer w.Close()
+	if os.Getenv("SCREEN_SHOTS") != "" {
+		w.Canvas().(test.WindowlessCanvas).SetScale(2) // the mosaic captures at 2×, like the docs screenshots
+	}
 	cfg := &config{}
 	cfg.Panel.URL = "http://127.0.0.1:9" // no panel: the public theme request fails at once
 	u := &ui{a: a, w: w, cfg: cfg, panel: newAPI(cfg.Panel.URL, "", false), status: newText("", col("footer-strong"), 11, false)}
@@ -203,10 +206,37 @@ func TestScreensInEveryTheme(t *testing.T) {
 			u.brand.theme, u.brand.flat = id, flat
 			u.brandFor = cfg.Panel.URL // the login screen keeps this theme (no request)
 			u.login()
-			if look.id != id || look.flat != flat {
+			if look.id != id || look.flat != (flat || look.p.depthless) {
 				t.Errorf("login screen: theme %s flat %v, want %s %v", look.id, look.flat, id, flat)
 			}
 			u.setup(nil)
 		}
+	}
+}
+
+// TestNewThemes (four-new-themes): Matrix, Winamp, Pink Panther and High contrast reach the desktop from the panel's
+// choice with their scheme; High contrast is held to AAA with a 3 px ring, Winamp carries its bevel.
+func TestNewThemes(t *testing.T) {
+	defer applyLook(nil, "default", false)
+	for id, scheme := range map[string]string{"matrix": "dark", "winamp": "dark", "pink-panther": "light", "high-contrast": "dark"} {
+		applyLook(nil, id, false)
+		if look.id != id || look.p.scheme != scheme {
+			t.Errorf("%s: look %s, scheme %s (want %s)", id, look.id, look.p.scheme, scheme)
+		}
+	}
+	if p := palettes["high-contrast"]; p.minText != 7 || p.focusRing != 3 || !p.depthless {
+		t.Errorf("high-contrast: minText %v, focus ring %v, depthless %v (want 7, 3, true)", p.minText, p.focusRing, p.depthless)
+	}
+	for _, id := range themeOrder { // only High contrast has no depth: every other theme keeps its shadows
+		if palettes[id].depthless != (id == "high-contrast") {
+			t.Errorf("%s: depthless %v", id, palettes[id].depthless)
+		}
+	}
+	applyLook(nil, "high-contrast", false)
+	if !look.flat {
+		t.Error("high-contrast: not drawn flat (it has no depth)")
+	}
+	if len(palettes["winamp"].bevel) == 0 || len(palettes["winamp"].loginRelief) == 0 {
+		t.Error("winamp: no bevel on buttons or the login box")
 	}
 }

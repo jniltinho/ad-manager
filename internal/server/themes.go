@@ -27,6 +27,10 @@ var themes = []Theme{
 	{ID: "classic-blue", Label: "Classic blue (XP)", Scheme: "light"},
 	{ID: "classic-gray", Label: "Classic gray (98)", Scheme: "light"},
 	{ID: "graphite", Label: "Graphite (dark)", Scheme: "dark"},
+	{ID: "matrix", Label: "Matrix (dark)", Scheme: "dark"},
+	{ID: "winamp", Label: "Winamp (dark)", Scheme: "dark"},
+	{ID: "pink-panther", Label: "Pink Panther", Scheme: "light"},
+	{ID: "high-contrast", Label: "High contrast (dark)", Scheme: "dark"},
 }
 
 // themeByID returns the registered theme, or the default one and false.

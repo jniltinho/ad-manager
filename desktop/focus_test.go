@@ -9,13 +9,13 @@ import (
 	"fyne.io/fyne/v2/test"
 )
 
-// TestFocusRing: a focused entry, select, check and select entry get the theme's ring (3 px on Cristal, 2 px elsewhere) just
-// outside their bounds, in the focus color; it goes away with the focus.
+// TestFocusRing: a focused entry, select, check and select entry get the theme's ring (3 px on Cristal and High
+// contrast, 2 px elsewhere) just outside their bounds, in the focus color; it goes away with the focus.
 func TestFocusRing(t *testing.T) {
 	a := test.NewApp()
 	defer a.Quit()
 	defer applyLook(nil, "default", false)
-	for _, th := range []string{"crystal", "default"} {
+	for _, th := range []string{"crystal", "high-contrast", "matrix", "default"} {
 		applyLook(a, th, false)
 		e, s, c, se, r := newEntry(), newSelect([]string{"a"}, nil), newCheck("c", nil), newSelectEntry([]string{"b"}), newRadioList([]string{"r"})
 		w := a.NewWindow("t")
