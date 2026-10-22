@@ -34,7 +34,7 @@ invalid attribute, no size — gives way to the AD Manager one), the error below
 an ellipsis), to fit an 800 × 600 window. The window is never narrower than the box with its shadow (532 px), so the
 web width rule (window − 32 px) is not needed.
 
-**Same theme as the panel**: the app uses the theme and the flat look chosen in the web panel's **Settings** (the 14
+**Same theme as the panel**: the app uses the theme and the flat look chosen in the web panel's **Settings** (the 18
 themes). It opens in Default, reads the panel's public theme (`/api/health`) for the sign-in screen and applies the
 session's one (`/api/me`) on sign-in; without a response from the panel, it stays in Default. A change in **Settings**
 takes effect from the next sign-in. The colors come from the same theme files as the web (`desktop/themes_gen.go`,
