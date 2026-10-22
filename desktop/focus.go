@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"slices"
 
 	"fyne.io/fyne/v2"
@@ -65,8 +66,9 @@ func (r *ringRenderer) Refresh() {
 
 // scrollIntoView scrolls every scroll that holds o so that o and its focus ring show: Fyne moves the focus with Tab
 // into clipped children without scrolling to them.
-// shortcut: the path to o is found through containers, scrolls, cards and popups only (a button inside another
-// widget's renderer is not found); upgrade when a focusable control lives inside another widget in a scroll.
+// shortcut: the path to o is found through containers and widgets with an exported Content (scrolls, cards, popups
+// and Fyne's overlay wrapper), not through other widgets' renderers; upgrade when a focusable control lives inside
+// another widget in a scroll.
 func scrollIntoView(o fyne.CanvasObject) {
 	d := fyne.CurrentApp().Driver()
 	c := d.CanvasForObject(o)
@@ -103,15 +105,15 @@ func scrollsHolding(root, o fyne.CanvasObject) []*container.Scroll {
 		return []*container.Scroll{}
 	}
 	var kids []fyne.CanvasObject
-	switch v := root.(type) {
-	case *fyne.Container:
-		kids = v.Objects
-	case *container.Scroll:
-		kids = []fyne.CanvasObject{v.Content}
-	case *widget.Card:
-		kids = []fyne.CanvasObject{v.Content}
-	case *widget.PopUp:
-		kids = []fyne.CanvasObject{v.Content}
+	if c, ok := root.(*fyne.Container); ok {
+		kids = c.Objects
+	} else if v := reflect.ValueOf(root); v.Kind() == reflect.Pointer && v.Elem().Kind() == reflect.Struct {
+		// Scroll, Card, PopUp and the overlay wrapper Fyne puts a popup in (internal: no type to assert)
+		if f := v.Elem().FieldByName("Content"); f.IsValid() && f.CanInterface() {
+			if o, ok := f.Interface().(fyne.CanvasObject); ok {
+				kids = []fyne.CanvasObject{o}
+			}
+		}
 	}
 	for _, k := range kids {
 		if k == nil {

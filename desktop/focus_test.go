@@ -134,4 +134,14 @@ func TestFocusScrollsIntoView(t *testing.T) {
 	if !visible(btns[0]) {
 		t.Errorf("focused first button not scrolled back into view (offset %v)", scroll.Offset.Y)
 	}
+	// the same list inside a dialog (Fyne wraps the popup in an internal overlay container)
+	scroll.ScrollToTop()
+	w.SetContent(container.NewVBox())
+	w.Resize(fyne.NewSize(600, 500))
+	u := &ui{a: a, w: w}
+	u.showModal("Groups", container.NewBorder(newEntry(), nil, nil, nil, scroll), "OK", false, 280, nil)
+	w.Canvas().Focus(last)
+	if !visible(last) || scroll.Offset.Y == 0 {
+		t.Errorf("in a dialog: focused last button not scrolled into view (offset %v)", scroll.Offset.Y)
+	}
 }
