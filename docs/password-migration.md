@@ -42,6 +42,13 @@ set **NTLM-only**; Kerberos keys rebuild on the next password change.
 | `rejected` | The source stores a reversible/cleartext password (`Primary:CLEARTEXT`) — not read into the target. |
 | `error` | A genuine extraction/decrypt/write failure. |
 
+The **NT hash is always preserved**, so NTLM and LDAP simple-bind logons — and Kerberos clients that fall back to
+NTLM — work immediately with the production password, whatever the source OS. The **Kerberos keys** are copied
+(`set`) only when the source and destination **realms are identical** and Samba accepts the re-serialized keys; a
+legacy or foreign `supplementalCredentials` layout that Samba will not store verbatim falls back to `ntlm_only`,
+and those keys rebuild on the next password change. (In practice Samba → Samba transfers cleanly; a Windows source
+may end up `ntlm_only` for accounts whose stored blob Samba cannot reproduce byte-for-byte.)
+
 Each row carries a **sanitized reason** (shown as a tooltip in the panel, in the CLI `REASON` column, and in the
 agent's journal) explaining an `ntlm_only`, `rejected` or `error` — never a hash, key, salt or password.
 
