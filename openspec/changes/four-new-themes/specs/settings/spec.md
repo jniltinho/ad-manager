@@ -16,11 +16,14 @@ text reaches ≥ 4.5:1.
 - **THEN** the page has no rain pattern and the window no glow, and the colors stay the same
 
 ### Requirement: Winamp theme
-The theme registry SHALL include `winamp` (dark). With it, the header, tabs, table head and secondary buttons are
-dark brushed steel (`#3b3d52 → #23242f`), buttons, cards, the table head, dialogs and the login box have a raised
-1 px bevel, fields show the LCD readout (green `#2cf02c` on
-black), the primary action is amber `#f4a51c` with dark text, the header stripe is gold `#d9a441` and the selected
-row is the playlist blue `#1f2fa8` with white text. Normal text reaches ≥ 4.5:1.
+The theme registry SHALL include `winamp` (dark): dark brushed-steel chrome (header and dialog titles
+`#3b3d52 → #23242f`), a raised 1 px bevel, fields as the LCD readout (green `#2cf02c` on black), the primary action
+amber `#f4a51c` with dark text, a gold `#d9a441` header stripe and the playlist blue `#1f2fa8` selected row with white
+text. Normal text reaches ≥ 4.5:1.
+
+#### Scenario: Bevel on the raised parts
+- **WHEN** the `winamp` theme is active and the look is not flat
+- **THEN** buttons, cards, the table head, dialogs and the login box have the raised bevel, and fields are sunken
 
 #### Scenario: Choose Winamp
 - **WHEN** the administrator chooses "Winamp (dark)" and saves
@@ -92,4 +95,33 @@ themes, on the web or in the desktop palettes.
 
 #### Scenario: Desktop palettes unchanged
 - **WHEN** `themes_gen.go` is regenerated
-- **THEN** the entries of the 14 existing themes are byte-identical and none of them is depthless
+- **THEN** the entries of the 14 existing themes keep every value they had (they only gain the `dialog-line` role)
+  and none of them is depthless
+
+## MODIFIED Requirements
+
+### Requirement: Classic themes
+The theme registry SHALL include `classic-blue` and `classic-gray`. In `classic-blue`, the top bar has a blue
+`#0054e3 → #1f6ee0` gradient with bold white text, the background is `#ece9d8` and the action is green `#2f7d2f` with
+white text. In `classic-gray`, the background is `#7fbfbf` (lightened teal), windows and cards are `#c0c0c0` with a 3D
+bevel (`--bevel-raised`), fields are sunken white (`--bevel-sunken`) and the top bar has a `#000080 → #1060a8`
+gradient with white text.
+
+#### Scenario: Choose Classic blue
+- **WHEN** the administrator chooses "Classic blue (XP)" and saves
+- **THEN** `brand.theme` is `classic-blue`, the top bar is blue with bold white text and the selected row is
+  `#316ac5` with white text
+
+#### Scenario: Choose Classic gray
+- **WHEN** the administrator chooses "Classic gray (98)" and saves
+- **THEN** buttons, table headers and cards appear raised, fields appear sunken, and all corners stay square
+
+#### Scenario: Text over the 98 background
+- **WHEN** the `classic-gray` theme is active and there is text directly over the background (titles outside cards,
+  "Loading…")
+- **THEN** that text is black (`color-on-page`), with ≥ 4.5:1 contrast, like the secondary text
+
+#### Scenario: Bevel does not leak
+- **WHEN** any theme other than `classic-gray` and `winamp` (which has its own 1 px steel bevel) is active
+- **THEN** `--bevel-raised`, `--bevel-sunken` and `--bevel-pressed` are empty shadows (`0 0 #0000`) and the look of
+  those themes does not change

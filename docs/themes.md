@@ -202,7 +202,8 @@ colored glow of Matrix (the desktop casts its neutral shadow), the field text (F
 is web only, the black field stays; its sunken fields and pressed relief are web only too) and Fyne's translucent text
 selection. In every theme the desktop footer has no stripe and its buttons take no keyboard focus. A theme with no shadow on buttons, cards and
 the login box (High contrast) is always drawn flat on the desktop, as its web look has no depth, and its dialogs are
-framed in the dialog line (2 px). Checked by
+framed in the dialog line (2 px); its current inner tab is black on the desktop (white sides, yellow top bar), yellow on
+the web. Checked by
 `TestVolumeDrawn` (volume drawn outside the flat look, 98's bevel, nothing in flat), `TestFocusRing` and by the
 residue-free theme switch in the visual suite. The visual suite (Playwright) runs locally with
 `scripts/visual-ci.sh`, outside CI (decision in commit `d208bad`). The mosaic below is the web home screen (visual

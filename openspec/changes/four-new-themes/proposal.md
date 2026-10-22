@@ -9,15 +9,16 @@ blues by design.
 
 - Four new themes in the theme registry (`internal/server/themes.go`), each a complete set of role tokens in its own
   file under `frontend/src/themes/`, square corners, and the flat look like every theme:
-  - **Matrix** (`matrix`, dark): green phosphor on a black-green terminal; monospace type; a character-cell dot grid
-    with faint scanlines on the page; a subtle green glow on the window, focus and dialogs.
+  - **Matrix** (`matrix`, dark): green phosphor on a black-green terminal; monospace type; a static rain of short
+    phosphor strokes on the page; a subtle green glow on the window, focus and dialogs.
   - **Winamp** (`winamp`, dark): the Winamp 2 skin — brushed dark-steel chrome with a raised bevel, the LCD readout
     (green on black) in fields and the current tab, amber actions, gold title-bar stripe, and the playlist's blue
     selected row.
   - **Pink Panther** (`pink-panther`, light): blush page, white cards, plum-ink text, the deep plum title bar of the
     1963 film titles with the panther pink as a stripe; deep rose actions. Pink only as an accent.
   - **High contrast** (`high-contrast`, dark): pure black and white with a single yellow accent (actions, links,
-    selection, focus), no gradients, no shadows, no muted grays, 3 px focus ring, held to WCAG AAA (7:1 text).
+    selection, focus), no gradients, no shadows, no low-contrast grays (muted text
+    `#e6e6e6`, 16.8:1), 3 px focus ring, held to WCAG AAA (7:1 text).
 - The desktop app picks up the four from the same files (generated `desktop/themes_gen.go`), with the High contrast
   theme held to 7:1 in every color the desktop draws, like Crystal.
 - Settings → Theme lists them (the labels are translated to pt-BR in the SPA catalog), the `theme` enum in

@@ -36,7 +36,8 @@ rain animation: the page pattern is static, and the flat look removes it).
    (`'Cascadia Mono', 'JetBrains Mono', 'DejaVu Sans Mono', Consolas, 'Liberation Mono', 'Courier New', monospace`),
    12 px; card titles with a 2 px phosphor bar (a cursor).
    *Alternative rejected:* a moving rain — motion on a work screen, and no desktop equivalent.
-3. **Winamp** — chrome `#3b3d52 → #23242f` (header, tabs, table head, card titles, secondary buttons); a 1 px
+3. **Winamp** — chrome `#3b3d52 → #23242f` (header, card and dialog titles), with tabs `#2b2c3a → #1d1e27`, table
+   head `#45475e → #2e3040` and secondary buttons `#4a4c63 → #2b2c3a` in the same steel family; a 1 px
    light-top/dark-bottom bevel through `--bevel-raised` on what the recipes already bevel: buttons, cards, table head,
    dialogs and the login box (fields sunken through `--bevel-sunken`; the header has no bevel consumer and stays a
    gradient); faint horizontal brushing on the page (`--bg-page`, one layer); surfaces `#1b1c25`; silver text
@@ -71,7 +72,8 @@ rain animation: the page pattern is static, and the flat look removes it).
    `applyLook` always draws a depthless theme in the flat look; for the same reason its dialogs are framed in
    `dialog-line` at 2 px (`modal.go`; `dialog-line` is added to the generated roles, the other themes keep their 1 px
    frame in `dialog-head`). High contrast's current inner tab also gets white sides and a yellow top bar
-   (`--shadow-subtab-on`), the mark the desktop draws on a non-segmented current tab. `TestVolumeDrawn` accepts one-color bands where the
+   (`--shadow-subtab-on`), the mark the desktop draws on a non-segmented current tab (whose fill is the content's,
+   black with white text: an accepted difference from the web's yellow tab). `TestVolumeDrawn` accepts one-color bands where the
    palette's top and base are equal. `theme_test.go` checks the four ids and schemes, High contrast's `minText` 7,
    3 px ring and depthlessness (and that no other theme is depthless), Winamp's bevel; `TestFocusRing` adds High
    contrast and Matrix.
