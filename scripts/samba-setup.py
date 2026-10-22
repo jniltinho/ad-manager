@@ -560,7 +560,7 @@ def write_config(text):
     """Write /opt/ad-manager/config.toml (root:ad-manager 0640), keeping a backup."""
     if CONFIG.exists() and not DRY and CONFIG.read_text() != text:
         shutil.copy2(CONFIG, CONFIG.with_suffix(".toml.bak"))
-        log(f"previous config saved in {CONFIG}.bak")
+        print(f"previous config saved in {CONFIG}.bak", flush=True)  # a note, not a step of the wizard's progress
     write(CONFIG, text, 0o640)
     sh("chown", "root:ad-manager", str(CONFIG))
 
