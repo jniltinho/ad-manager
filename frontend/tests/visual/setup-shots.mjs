@@ -43,6 +43,8 @@ const STEPS = [
   'provisioning domain.local (DOMAIN)',
   'administrator password',
   'ad-manager and dependencies',
+  'this DC also serves files: root /srv/shares',
+  'write modes for the import from an existing AD (delete /opt/ad-manager/import.pass after the import)',
   'panel: https://192.168.10.20:8443  (sign in with a Domain Admins user)',
 ]
 const PLAN = STEPS.flatMap((s, i) => [JSON.stringify({ step: s }), `[dry-run] command ${i + 1} of ${s.split(' ')[0]} …`])
@@ -94,6 +96,7 @@ try {
     await page.locator('#f-realm').fill('domain.local')
     await page.locator('#f-password').fill('Strong-pass-2026')
     await page.locator('#f-confirm').fill('Strong-pass-2026')
+    await page.getByLabel(/Prepare the import of GPOs and passwords/).check()
     await shot('5-details')
     await page.getByRole('button', { name: 'Review', exact: true }).click()
     await page.getByRole('button', { name: /Install now/ }).waitFor()

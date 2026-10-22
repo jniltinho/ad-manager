@@ -166,7 +166,11 @@ func (s *Server) setupRoutes(api *echo.Group) {
 		var p agent.SetupPlan
 		_ = json.Unmarshal(body, &p) // the audit line: the plan, never the password
 		err = s.toSetupAgent(c, http.MethodPost, "/setup/run", body)
-		audit.Log("setup", c.RealIP(), "setup.run", p.Role+" "+p.Realm, nil)
+		target := p.Role + " " + p.Realm
+		if p.ImportAD {
+			target += " import_ad"
+		}
+		audit.Log("setup", c.RealIP(), "setup.run", target, nil)
 		return err
 	})
 	api.Any("/*", func(c *echo.Context) error {

@@ -1,7 +1,10 @@
 package agent
 
 import (
+	"os/exec"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -74,5 +77,77 @@ func TestSetupPlanOldRoleNames(t *testing.T) {
 		if p.needsPassword() != (want == "new-dc" || want == "member") {
 			t.Fatalf("%s: needsPassword = %v", old, p.needsPassword())
 		}
+	}
+}
+
+// import_ad (the import write modes) goes only with a new domain whose DC also serves files.
+func TestSetupPlanImportAD(t *testing.T) {
+	t.Parallel()
+	dc := func(role string, files bool) SetupPlan {
+		return SetupPlan{Role: role, Realm: "e.local", Domain: "E", IP: "10.0.0.2", SrcDC: "10.0.0.1", Files: files, ImportAD: true}
+	}
+	for _, tt := range []struct {
+		name string
+		plan SetupPlan
+		ok   bool
+	}{
+		{"new domain with files", dc("new-dc", true), true},
+		{"new domain without files", dc("new-dc", false), false},
+		{"additional DC", dc("dc-join", true), false},
+		{"member", SetupPlan{Role: "member", Realm: "e.local", Domain: "E", DNSDC: "10.0.0.1", ImportAD: true}, false},
+	} {
+		args, err := tt.plan.Args()
+		if (err == nil) != tt.ok || (tt.ok && !slices.Contains(args, "--import-ready")) {
+			t.Fatalf("%s: Args() = %q, %v", tt.name, args, err)
+		}
+		if !tt.ok && err.Error() != "setup: invalid import_ad" {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+	}
+	if args, _ := dc("new-dc", true).withoutImport().Args(); slices.Contains(args, "--import-ready") {
+		t.Fatalf("off by default: %q", args)
+	}
+}
+
+func (p SetupPlan) withoutImport() SetupPlan { p.ImportAD = false; return p }
+
+// samba-setup.py --import-ready: refused outside new-dc --panel --files; import_gates writes one 0600 file (even over
+// a looser one, whatever the umask) and the [agent] keys once, and refuses a config whose last table is not [agent].
+func TestSetupScriptImportReady(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not installed")
+	}
+	script, _ := filepath.Abs("../../scripts/samba-setup.py")
+	for _, args := range [][]string{
+		{"dc-join", "--realm", "e.local", "--panel", "--files", "--import-ready", "--dry-run"},
+		{"new-dc", "--realm", "e.local", "--panel", "--import-ready", "--dry-run"},
+	} {
+		out, err := exec.Command(py, append([]string{"-I", script}, args...)...).CombinedOutput()
+		if err == nil || !strings.Contains(string(out), "--import-ready goes with new-dc --panel --files") {
+			t.Fatalf("%q: %v %s", args, err, out)
+		}
+	}
+	dir := t.TempDir()
+	const prog = `
+import importlib.util, os, sys, argparse
+spec = importlib.util.spec_from_file_location("setup", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+m.CONFIG, m.IMPORT_PASS = m.Path(sys.argv[2]) / "config.toml", m.Path(sys.argv[2]) / "import.pass"
+m.sh = lambda *a, **k: ""
+os.umask(0)
+m.CONFIG.write_text("[server]\nlisten = 1\n[agent]\ndc_file_server = true\n")
+m.IMPORT_PASS.write_text("old"); os.chmod(m.IMPORT_PASS, 0o644)
+a = argparse.Namespace(admin="Administrator", realm="example.local", admin_pw="S3cret pw")
+m.import_gates(a); m.import_gates(a)
+text = m.CONFIG.read_text()
+print(oct(os.stat(m.IMPORT_PASS).st_mode & 0o777), repr(m.IMPORT_PASS.read_text()), text.count("_user ="), text.rfind("[agent]") < text.find("gpo_restore_user"))
+print('password_migration_user = "Administrator@example.local"' in text, text.count(str(m.IMPORT_PASS)))
+m.CONFIG.write_text("[agent]\nlisten = 1\n[samba]\nlog_dir = 2\n")
+m.import_gates(a)
+`
+	out, err := exec.Command(py, "-I", "-c", prog, script, dir).CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "0o600 'S3cret pw\\n' 2 True\nTrue 2\n") ||
+		!strings.Contains(string(out), "[agent] is not the last section") {
+		t.Fatalf("import_gates: %v\n%s", err, out)
 	}
 }

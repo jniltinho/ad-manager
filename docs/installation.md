@@ -47,6 +47,23 @@ valid for 24 hours, accepts 5 attempts every 15 minutes and stops working when t
 |---|---|
 | ![Installing](screenshots/setup-7-installing.png) | ![Done](screenshots/setup-8-done.png) |
 
+## Import from an existing AD
+
+Replacing an existing domain with a new one (a new-domain cutover)? The **New domain** setup ends with **Import from
+an existing AD**: after you sign in as the domain administrator it opens *Import/export → From another AD*, the same
+import as later in the panel — users, groups, OUs, computers, DNS, GPOs, shares and passwords, with the source's URL,
+user and password typed in that form (nothing of the source is kept by the setup).
+
+Objects and DNS need nothing else. **GPOs and passwords** go through this DC's agent in its two write modes
+([gpo.md](gpo.md), [password-migration.md](password-migration.md)): tick **Prepare the import of GPOs and passwords**
+in *Details* (shown with *This DC also serves files*) and the setup turns both on, with the administrator password in
+`/opt/ad-manager/import.pass` (0600, root only). The agent restarts with them a few seconds after the end of the setup.
+When the import is done, turn them off:
+
+```bash
+sudo rm /opt/ad-manager/import.pass
+```
+
 Prefer doing it by hand? The same installation from the command line is in [samba-install.md](samba-install.md)
 (`scripts/samba-setup.py`), and installing and configuring the panel manually against an existing AD is in
 [deployment.md](deployment.md).

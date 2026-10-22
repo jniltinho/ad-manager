@@ -67,6 +67,12 @@ password_migration_user          = "administrator@example.local"   # a target-do
 password_migration_password_file = "/etc/ad-manager/pwmigrate.pass" # 0600, root only; never in the config
 ```
 
+**Set up by the setup wizard.** A new domain created in the setup wizard with *This DC also serves files* and
+**Prepare the import of GPOs and passwords** (`samba-setup.py new-dc --panel --files --import-ready`) already has this
+mode and the GPO-import mode on: both point to `/opt/ad-manager/import.pass` (the administrator password, 0600 root).
+Run the import, then turn both off on that DC with `sudo rm /opt/ad-manager/import.pass` (another DC agent with its own
+gates stays as it is) — see [installation.md](installation.md#import-from-an-existing-ad).
+
 With the mode on (`/api/health` reports `password_migration: true`), run it one of three ways — `plan` first (reads
 no secret material), then `apply`:
 

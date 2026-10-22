@@ -3,6 +3,7 @@
 // permissions as CSV (Excel style: ";" + BOM). Import only creates and updates:
 // it never deletes nor removes members; folders are created empty (no files).
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { toast } from '../toasts'
 import { auth, del, get, post } from '../api'
 import { serverText, t } from '../i18n'
@@ -10,7 +11,8 @@ import { DatabaseZap, Download, Eye, FolderOpen, KeyRound, PlugZap, Trash2 } fro
 import { askConfirm } from '../dialogs'
 import { downloadCsv } from '../util'
 
-const mode = ref('csv') // csv | ad | folders
+// csv | ad | folders; ?mode= opens on a tab (the setup wizard links to ?mode=ad)
+const mode = ref(['ad', 'folders'].includes(useRoute().query.mode) ? useRoute().query.mode : 'csv')
 const files = ref({ ous: null, groups: null, users: null, computers: null })
 const exportables = [
   ['ous', 'OUs'],
