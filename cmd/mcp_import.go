@@ -6,11 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"sync"
 	"time"
 
 	"ad-manager/internal/ad"
+	"ad-manager/internal/audit"
+	"ad-manager/internal/sambadc"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -131,6 +134,61 @@ func registerImportTools(s *mcp.Server, write bool) {
 			if applyErr != nil {
 				return nil, out, fmt.Errorf("%w (generated passwords: %s)", applyErr, out.PasswordsFile)
 			}
+			return nil, out, nil
+		})
+}
+
+type pwMigrateIn struct {
+	URL   string `json:"url" jsonschema:"source DC URL (ldaps://old-dc; ldap:// only for 2008)"`
+	User  string `json:"user" jsonschema:"replication account on the source (Replicating Directory Changes + …All); the password comes from AD_SOURCE_PASSWORD_FILE, never from the tool"`
+	Apply bool   `json:"apply,omitempty" jsonschema:"read the hashes and set them on this domain's users (otherwise preview only)"`
+}
+
+type pwMigrateOut struct {
+	Users  []sambadc.PwUser `json:"users"`
+	Counts map[string]int   `json:"counts"`
+}
+
+// registerPasswordTool adds ad_password_migrate (write mode only): the password-material migration through the DC
+// agent. The source password comes from AD_SOURCE_PASSWORD_FILE and the agent from AGENT_URL/AGENT_TOKEN; the
+// answer carries only outcomes, never a secret.
+func registerPasswordTool(s *mcp.Server, write bool) {
+	if !write {
+		return
+	}
+	mcp.AddTool(s, &mcp.Tool{Name: "ad_password_migrate", Description: "Migrate the users' password hashes from a source domain to this one (new-domain cutover), through the DC " +
+		"agent's dedicated write mode: sealed read-only DRSUAPI on the source, set on the matching users here. Never over LDAP, never plaintext. apply=false previews. Returns per-user outcomes only"},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in pwMigrateIn) (*mcp.CallToolResult, pwMigrateOut, error) {
+			var out pwMigrateOut
+			agentURL, token := os.Getenv("AGENT_URL"), os.Getenv("AGENT_TOKEN")
+			if agentURL == "" || token == "" {
+				return nil, out, errors.New("set AGENT_URL and AGENT_TOKEN (this domain's DC agent) in the MCP server's environment")
+			}
+			u, err := url.Parse(in.URL)
+			if err != nil || u.Hostname() == "" {
+				return nil, out, errors.New("invalid source DC URL")
+			}
+			pass, err := mcpSourcePassword()
+			if err != nil {
+				return nil, out, err
+			}
+			// the destination's domain SID, read through our own authenticated connection (independent of the agent)
+			dst, err := dial()
+			if err != nil {
+				return nil, out, err
+			}
+			destSID, err := dst.DomainSID()
+			dst.Close()
+			if err != nil {
+				return nil, out, err
+			}
+			res, err := callAgentPasswords(ctx, agentURL, token, u.Hostname(), in.User, pass, destSID, os.Getenv("AGENT_INSECURE") == "1", in.Apply)
+			if err != nil {
+				audit.Log("mcp", "mcp", "password.migrate", u.Hostname(), err)
+				return nil, out, err
+			}
+			audit.Log("mcp", "mcp", "password.migrate", fmt.Sprintf("%s → this domain (%v)", u.Hostname(), res.Counts), nil)
+			out = pwMigrateOut{Users: res.Users, Counts: res.Counts}
 			return nil, out, nil
 		})
 }

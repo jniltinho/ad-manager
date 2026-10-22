@@ -2,6 +2,7 @@ package ad
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -387,6 +388,48 @@ func sidString(b []byte) string {
 		s += fmt.Sprintf("-%d", binary.LittleEndian.Uint32(b[i:]))
 	}
 	return s
+}
+
+// toFileTime converts a time into an AD FILETIME string (100ns ticks since
+// 1601); the zero time returns "" (nothing to write).
+func toFileTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return strconv.FormatInt((t.UTC().Unix()+11644473600)*1e7+int64(t.Nanosecond())/100, 10)
+}
+
+// SetImportMetadata carries the source's non-secret object metadata to the
+// matching local object (by sAMAccountName): the last-logon timestamp of a
+// user or computer and, for a computer, its operating system. Only the values
+// present are written; a zero last-logon (never logged on) and an empty OS
+// write nothing. An object missing locally (not imported) is skipped, not an
+// error, so the import can run objects first and this after.
+func (c *Conn) SetImportMetadata(sam string, lastLogon time.Time, os, osVersion string) error {
+	e, err := c.object(sam)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	m := ldap.NewModifyRequest(e.DN, nil)
+	n := 0
+	if ft := toFileTime(lastLogon); ft != "" {
+		m.Replace("lastLogonTimestamp", []string{ft})
+		n++
+	}
+	if os != "" {
+		m.Replace("operatingSystem", []string{os})
+		n++
+		if osVersion != "" {
+			m.Replace("operatingSystemVersion", []string{osVersion})
+		}
+	}
+	if n == 0 {
+		return nil
+	}
+	return mapErr(c.modify(m))
 }
 
 // fileTime converts a FILETIME (100ns since 1601) into a time; 0 or "never"

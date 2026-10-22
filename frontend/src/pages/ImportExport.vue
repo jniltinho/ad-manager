@@ -2,11 +2,11 @@
 // Export/import OUs, groups, users, computers and the file servers' folders and
 // permissions as CSV (Excel style: ";" + BOM). Import only creates and updates:
 // it never deletes nor removes members; folders are created empty (no files).
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { toast } from '../toasts'
-import { auth, get, post } from '../api'
+import { auth, del, get, post } from '../api'
 import { serverText, t } from '../i18n'
-import { DatabaseZap, Download, Eye, FolderOpen, KeyRound, PlugZap } from 'lucide-vue-next'
+import { DatabaseZap, Download, Eye, FolderOpen, KeyRound, PlugZap, Trash2 } from 'lucide-vue-next'
 import { askConfirm } from '../dialogs'
 import { downloadCsv } from '../util'
 
@@ -79,8 +79,18 @@ function switchMode(k) {
 function useProfile(p) {
   Object.assign(source.value, { url: p.url, domain: p.domain, user: p.user, insecure: p.insecure, save_as: p.name, password: '' })
 }
+async function removeProfile(p) {
+  if (!(await askConfirm(t('Delete the profile {name}?', { name: p.name })))) return
+  try {
+    await del('/ad-sources/' + p.id)
+    profiles.value = profiles.value.filter((x) => x.id !== p.id)
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
 async function sendAD(apply) {
   busy.value = true
+  if (apply) logStart(t('From another AD'), t('Importing the objects…'))
   try {
     const data = await post('/import/ad/' + (apply ? 'apply' : 'plan'), adRequest())
     plan.value = data.plan || []
@@ -88,8 +98,10 @@ async function sendAD(apply) {
     applied.value = apply
     passwords.value = data.passwords && Object.keys(data.passwords).length ? data.passwords : null
     if (source.value.save_as) get('/ad-sources').then((r) => (profiles.value = r))
+    logFromPlan(plan.value, apply)
     if (apply) toast.success(t('Import finished.'))
   } catch (e) {
+    logError(e.message)
     toast.error(e.message)
   }
   busy.value = false
@@ -99,6 +111,39 @@ const applied = ref(false)
 const passwords = ref(null)
 const busy = ref(false)
 const kind = ref('')
+
+// Live log/status modal for a running import (CSV, From another AD, Folders): a phase while the request runs, then
+// the per-action result and the final status. The request returns the whole plan at once, so the detailed log
+// appears when it finishes; the phase shows the stage while it is in flight.
+const syncLog = ref(null) // { title, phase, status: 'running'|'done'|'error', steps:[{label,target,detail,ok}], ok, errors, error }
+const dlgLog = ref(null)
+watch(syncLog, async (v) => {
+  if (v) {
+    await nextTick()
+    if (!dlgLog.value?.open) dlgLog.value?.showModal()
+  }
+})
+function logStart(title, phase) {
+  syncLog.value = { title, phase, status: 'running', steps: [], ok: 0, errors: 0, error: '' }
+}
+function logPhase(phase) {
+  if (syncLog.value) syncLog.value.phase = phase
+}
+function logFromPlan(planArr, applied) {
+  if (!syncLog.value) return
+  const steps = (planArr || [])
+    .filter((a) => a.kind !== 'skip')
+    .map((a) => ({ label: kindName(a.kind), target: a.target, detail: applied ? a.result : a.detail, ok: !applied || a.ok }))
+  const errors = applied ? steps.filter((s) => !s.ok).length : 0
+  Object.assign(syncLog.value, { steps, status: errors ? 'error' : 'done', ok: steps.length - errors, errors, phase: '' })
+}
+function logError(msg) {
+  if (syncLog.value) Object.assign(syncLog.value, { status: 'error', error: msg, phase: '' })
+}
+function logClose() {
+  dlgLog.value?.close()
+  syncLog.value = null
+}
 
 const kindNames = {
   'ou.create': 'Create OU',
@@ -132,6 +177,7 @@ async function send(apply) {
   const fd = new FormData()
   for (const [k, f] of Object.entries(files.value)) if (f) fd.append(k, f)
   busy.value = true
+  if (apply) logStart(t('Import CSV'), t('Writing to the domain…'))
   try {
     const r = await fetch('/api/import/' + (apply ? 'apply' : 'plan'), { method: 'POST', body: fd, credentials: 'same-origin' })
     if (r.status === 401) auth.user = null
@@ -140,12 +186,14 @@ async function send(apply) {
     plan.value = data.plan || []
     applied.value = apply
     passwords.value = data.passwords && Object.keys(data.passwords).length ? data.passwords : null
+    logFromPlan(plan.value, apply)
     if (apply) {
       const errors = plan.value.filter((a) => a.kind !== 'skip' && !a.ok).length
       if (errors) toast.warn(t('Import finished with {n} error(s).', { n: errors }))
       else toast.success(t('Import finished.'))
     }
   } catch (e) {
+    logError(e.message)
     toast.error(e.message)
   }
   busy.value = false
@@ -159,6 +207,7 @@ async function sendFolders(apply) {
   const fd = new FormData()
   fd.append('shares', foldersFile.value)
   busy.value = true
+  if (apply) logStart(t('Folders'), t('Sending to the server…'))
   try {
     const r = await fetch(`/api/agents/${server.value}/import/${apply ? 'apply' : 'plan'}`, {
       method: 'POST',
@@ -171,8 +220,10 @@ async function sendFolders(apply) {
     plan.value = data.plan || []
     applied.value = apply
     passwords.value = null
+    logFromPlan(plan.value, apply)
     if (apply) toast.success(t("Shares sent to the server's queue."))
   } catch (e) {
+    logError(e.message)
     toast.error(e.message)
   }
   busy.value = false
@@ -325,15 +376,21 @@ function downloadPasswords() {
         <form v-else class="space-y-3 p-3" @submit.prevent="sendAD(false)">
           <div v-if="profiles.length">
             <span class="lbl">{{ t('Saved profiles') }}</span>
-            <button
+            <span
               v-for="p in profiles"
               :key="p.id"
-              type="button"
-              class="tag mr-1 cursor-pointer border border-line bg-surface-3 text-fg-strong"
-              @click="useProfile(p)"
+              class="tag mr-1 inline-flex items-center gap-1 border border-line bg-surface-3 text-fg-strong"
             >
-              {{ p.name }}
-            </button>
+              <button type="button" class="cursor-pointer" @click="useProfile(p)">{{ p.name }}</button>
+              <button
+                type="button"
+                class="cursor-pointer text-fg-muted hover:text-danger"
+                :title="t('Delete the profile {name}?', { name: p.name })"
+                @click="removeProfile(p)"
+              >
+                <Trash2 class="h-3.5 w-3.5" />
+              </button>
+            </span>
           </div>
           <div>
             <label class="lbl" for="ou">{{ t('Source DC URL') }}</label
@@ -465,5 +522,50 @@ function downloadPasswords() {
         </p>
       </template>
     </section>
+
+    <!-- Live log/status of a running import (CSV, From another AD, Folders) -->
+    <dialog
+      v-if="syncLog"
+      ref="dlgLog"
+      class="pnl w-fit max-w-[min(680px,94vw)]"
+      @cancel.prevent="syncLog.status !== 'running' && logClose()"
+    >
+      <div class="pnl-head flex items-center gap-2">
+        <span
+          class="inline-block h-2.5 w-2.5"
+          :class="{
+            'animate-pulse bg-warn': syncLog.status === 'running',
+            'bg-ok': syncLog.status === 'done',
+            'bg-err': syncLog.status === 'error',
+          }"
+        ></span>
+        {{ t('Import') }} — {{ syncLog.title }}
+      </div>
+      <div class="pnl-body">
+        <p v-if="syncLog.status === 'running'" class="mb-2 text-[13px] text-fg-muted">{{ syncLog.phase }}</p>
+        <p v-else class="mb-2 text-[13px]" :class="syncLog.status === 'error' ? 'text-err' : 'text-ok'">
+          {{
+            syncLog.status === 'error'
+              ? syncLog.error || t('Finished with {n} error(s).', { n: syncLog.errors })
+              : t('Finished: {n} action(s).', { n: syncLog.ok })
+          }}
+        </p>
+        <div v-if="syncLog.steps.length" class="max-h-[46vh] overflow-auto border border-line">
+          <table class="w-full text-[12px]">
+            <tbody>
+              <tr v-for="(s, i) in syncLog.steps" :key="i" class="border-b border-line/60 last:border-0">
+                <td class="px-2 py-1 whitespace-nowrap font-mono" :class="s.ok ? 'text-ok' : 'text-err'">{{ s.ok ? '✓' : '✗' }}</td>
+                <td class="px-2 py-1 whitespace-nowrap">{{ s.label }}</td>
+                <td class="px-2 py-1 font-mono">{{ s.target }}</td>
+                <td class="px-2 py-1 text-fg-muted">{{ serverText(s.detail) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="pnl-foot">
+        <button type="button" class="btn" :disabled="syncLog.status === 'running'" @click="logClose()">{{ t('Close') }}</button>
+      </div>
+    </dialog>
   </div>
 </template>

@@ -98,6 +98,8 @@ type directory interface {
 	Export() (*ad.CSVSet, error)
 	Plan(d ad.ImportData) ([]ad.Action, error)
 	Apply(plan []ad.Action, genPassword func() string) map[string]string
+	SetImportMetadata(sam string, lastLogon time.Time, os, osVersion string) error
+	DomainSID() (string, error)
 }
 
 // New builds the Echo instance with the API and the SPA. st may be nil.

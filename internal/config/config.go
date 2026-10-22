@@ -60,6 +60,12 @@ type Agent struct {
 	// that only root reads (never in the configuration)
 	GPORestoreUser         string `toml:"gpo_restore_user"`
 	GPORestorePasswordFile string `toml:"gpo_restore_password_file"`
+	// dedicated, default-off write mode for the password-material migration (docs/migration-runbook.md): a
+	// target-domain administrator and its password in a 0600 file that only root reads, authorizing the agent to
+	// read the source's password hashes over DRSUAPI and set them on the local directory. Separate from the GPO
+	// restore gate: the GPO account never authorizes this.
+	PasswordMigrationUser         string `toml:"password_migration_user"`
+	PasswordMigrationPasswordFile string `toml:"password_migration_password_file"`
 	// backups of this server (docs/backup.md): archives, manifests and schedules; default /var/backups/ad-manager
 	BackupDir string `toml:"backup_dir"`
 	// largest backup accepted by the upload (Backup page → send), in MiB; default 20480 (20 GiB)

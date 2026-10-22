@@ -41,6 +41,12 @@ export default {
   'Structure and permissions only: each share becomes an empty folder with the ACLs of the groups and users, published on Samba by the agent. It does not copy files and never removes shares.':
     'Só estrutura e permissões: cada compartilhamento vira uma pasta vazia com as ACLs dos grupos e usuários, publicada no Samba pelo agente. Não copia arquivos e nunca remove compartilhamentos.',
   'Saved profiles': 'Perfis salvos',
+  'Delete the profile {name}?': 'Excluir o perfil {name}?',
+  'Importing the objects…': 'Importando os objetos…',
+  'Writing to the domain…': 'Gravando no domínio…',
+  'Sending to the server…': 'Enviando para o servidor…',
+  'Finished: {n} action(s).': 'Concluído: {n} ação(ões).',
+  'Finished with {n} error(s).': 'Concluído com {n} erro(s).',
   'Source DC URL': 'URL do DC de origem',
   'Accept self-signed certificate': 'Aceitar certificado auto-assinado',
   'Save as profile (without the password)': 'Salvar como perfil (sem a senha)',

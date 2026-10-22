@@ -48,7 +48,7 @@ func TestMCPTools(t *testing.T) {
 			t.Errorf("write tool %s missing", name)
 		}
 	}
-	if len(ro) != 13 || len(rw) != 31 {
-		t.Errorf("tools: %d read-only, %d with write; want 13 and 31", len(ro), len(rw))
+	if len(ro) != 13 || len(rw) != 32 {
+		t.Errorf("tools: %d read-only, %d with write; want 13 and 32", len(ro), len(rw))
 	}
 }

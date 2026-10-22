@@ -191,6 +191,33 @@ AGENT_TOKEN=… ad-manager migrate shares --host 10.0.0.5 --inventory before.jso
 
 Deleted accounts and deny ACEs are not migrated and show up as warnings in the preview. Details in [agent.md](agent.md).
 
+### Passwords from a source domain (new-domain cutover)
+
+Preserves the users' production passwords after a *From another AD* import, so LDAP/Kerberos apps (Gitea, etc.) keep
+working without everyone changing their password. The DC agent, in its dedicated password-migration write mode
+(`password_migration_user`), reads the source's hashes over a **sealed, read-only DRSUAPI** and sets them on this
+domain's matching users — never over LDAP, never as plaintext, never creating a user, leaving the source unchanged.
+Only for the new-domain cutover; a `dc-join` already replicates the hashes. See [migration-runbook.md](migration-runbook.md).
+
+```bash
+ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' \
+  --agent https://dc:9443 --insecure                                         # preview (no secret read)
+AD_SOURCE_PASSWORD_FILE=/root/src.pass AGENT_TOKEN=… ad-manager migrate passwords \
+  --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://dc:9443 --insecure --apply
+```
+
+| Flag | |
+|---|---|
+| `--from` | source DC URL (`ldaps://old-dc`, or `ldap://` for 2008 with NTLM) |
+| `--user` | replication account on the source (*Replicating Directory Changes* **and** *…All*) |
+| `--agent URL` | this domain's DC agent (token in `AGENT_TOKEN`); `--insecure` accepts a self-signed certificate |
+| `--apply` | reads the hashes and sets them (otherwise preview only) |
+
+Source password: `AD_SOURCE_PASSWORD_FILE` (a 0600 file) or the terminal — never an argument. Per-user outcome:
+`would_set` (preview), `set`, `ntlm_only` (Kerberos salt did not transfer), `same`, `missing` (import the objects
+first), `builtin` (RID 500/501/502, trust/machine), `rejected` (`Primary:CLEARTEXT`). The audit (`password.migrate`)
+records counts only, never a secret.
+
 ## Script examples
 
 ```bash

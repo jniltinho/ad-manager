@@ -109,7 +109,7 @@ func TestSourceReadOnly(t *testing.T) {
 	for i := range tp.NumMethod() {
 		names = append(names, tp.Method(i).Name)
 	}
-	want := []string{"Close", "DCNames", "DNSRecords", "Export", "GPOs", "Host", "Inventory", "NetBIOS"}
+	want := []string{"Close", "DCNames", "DNSRecords", "Export", "GPOs", "Host", "Inventory", "Metadata", "NetBIOS"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("methods %v, want %v", names, want)
 	}

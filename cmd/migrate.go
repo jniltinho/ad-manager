@@ -15,7 +15,7 @@ import (
 
 // migrateCmd groups the DC migration helpers; errFound signals a non-empty diff.
 var (
-	migrateCmd = &cobra.Command{Use: "migrate", Short: "DC migration helpers (read the source; only shares --apply writes, on the destination)"}
+	migrateCmd = &cobra.Command{Use: "migrate", Short: "DC migration helpers (read the source; shares --apply and passwords --apply write on the destination)"}
 	invOut     string
 	errFound   = errors.New("differences found")
 )
