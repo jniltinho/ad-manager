@@ -114,6 +114,15 @@ def main():
     except RuntimeError:
         check(True, "unrelated write error propagates (not masked as ntlm_only)")
 
+    # 6. Kerberos salt ↔ realm matching is component-boundary aware (not a substring)
+    m = ns["realm_salt_matches"]
+    check(m("CRIARENET.NETjohn", "criarenet.net"), "same realm salt transfers")
+    check(m("criarenet.netjohn", "CRIARENET.NET"), "salt match is case-insensitive")
+    check(not m("CRIARENET.NET.BRjohn", "criarenet.net"), "criarenet.net.br is NOT the same realm")
+    check(not m("SUB.CRIARENET.NETjohn", "criarenet.net"), "sub.criarenet.net is NOT the same realm")
+    check(not m("OTHER.LOCALjohn", "criarenet.net"), "different realm → no transfer")
+    check(not m("", "criarenet.net") and not m("CRIARENET.NETjohn", ""), "empty salt/realm → no transfer")
+
     print("pwmigrate self-check passed")
 
 

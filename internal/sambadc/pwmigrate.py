@@ -226,6 +226,17 @@ def decrypt_secrets(drs, obj, rid):
     return nt_hash, supp
 
 
+def realm_salt_matches(salt, realm):
+    """Whether a Kerberos salt belongs to the destination realm. The default salt is the realm (upper case)
+    immediately followed by the principal name, so the salt must begin with the realm on a DNS component boundary:
+    it starts with the realm but not with realm + "." (which would be a longer realm like criarenet.net.br). A bare
+    substring or prefix test would wrongly accept criarenet.net.br or sub.criarenet.net. Case-insensitive."""
+    if not salt or not realm:
+        return False
+    s, r = salt.upper(), realm.upper()
+    return s.startswith(r) and not s.startswith(r + ".")
+
+
 def inspect_supplemental(supp, realm):
     """Classify the decrypted supplementalCredentials: (has_cleartext, kerberos_ok, reason, kerb_blob).
 
@@ -265,9 +276,11 @@ def inspect_supplemental(supp, realm):
             return has_cleartext, False, "%s parse failed: %s → NTLM only" % (name, type(e).__name__), None
         if not salt:
             return has_cleartext, False, "%s has no salt → NTLM only" % name, None
-        # the default salt is REALM + the principal name; a salt naming the source realm would not transfer
-        if realm.upper() not in salt.upper():
-            return has_cleartext, False, "%s salt does not name realm %s → NTLM only" % (name, realm), None
+        # the default salt is REALM + the principal name (no separator), so a transferable salt begins with the
+        # destination realm on a component boundary. A plain substring/prefix test would wrongly accept a different
+        # realm that merely contains it (criarenet.net.br, sub.criarenet.net), so require realm_salt_matches.
+        if not realm_salt_matches(salt, realm):
+            return has_cleartext, False, "%s salt does not match realm %s → NTLM only" % (name, realm), None
         # transferable: rebuild the blob with only the allowlisted Kerberos packages. Samba's write path requires
         # the non-secret "Packages" index (a NUL-joined list of the Primary:* names) and checks
         # num_packages == num_names + 1, so rebuild that index to name only the kept Kerberos packages and drop
