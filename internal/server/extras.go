@@ -724,7 +724,11 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 				} else {
 					for _, u := range res.Users {
 						ok := u.Outcome != "error" && u.Outcome != "rejected"
-						pwPlan = append(pwPlan, ad.Action{Kind: "password", Target: u.Sam, Detail: u.Outcome, OK: ok, Result: u.Outcome})
+						detail := u.Outcome
+						if u.Reason != "" { // show the sanitized reason (why ntlm_only/error/rejected), never a secret
+							detail = u.Outcome + " — " + u.Reason
+						}
+						pwPlan = append(pwPlan, ad.Action{Kind: "password", Target: u.Sam, Detail: detail, OK: ok, Result: u.Outcome})
 						// a user whose production password was set no longer uses the generated one: drop it from
 						// the download so no invalid credential is handed out
 						if apply && (u.Outcome == "set" || u.Outcome == "ntlm_only" || u.Outcome == "same") {

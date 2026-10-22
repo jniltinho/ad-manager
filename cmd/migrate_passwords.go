@@ -123,9 +123,9 @@ Replicating Directory Changes and …All on the source. The DC agent's token: AG
 			if err != nil {
 				return err
 			}
-			if err := show(cmd.OutOrStdout(), res.Users, "USER\tOUTCOME", func(t io.Writer) {
+			if err := show(cmd.OutOrStdout(), res.Users, "USER\tOUTCOME\tREASON", func(t io.Writer) {
 				for _, usr := range res.Users {
-					fmt.Fprintf(t, "%s\t%s\n", usr.Sam, tr(usr.Outcome))
+					fmt.Fprintf(t, "%s\t%s\t%s\n", usr.Sam, tr(usr.Outcome), tr(usr.Reason))
 				}
 				if !pwMigrateOpts.apply {
 					fmt.Fprintf(t, "\n%d user(s) — nothing was written. Run again with --apply.\n", res.Counts["would_set"])

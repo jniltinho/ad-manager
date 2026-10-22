@@ -131,9 +131,9 @@ def classify(samdb, susers):
         u = susers[key]
         lu = local_user(samdb, u["sam"])
         if lu is None:
-            users.append({"sam": u["sam"], "outcome": "missing"})
+            users.append({"sam": u["sam"], "outcome": "missing", "reason": "no matching user in this domain (import the objects first)"})
         elif lu["protected"]:
-            users.append({"sam": u["sam"], "outcome": "builtin"})
+            users.append({"sam": u["sam"], "outcome": "builtin", "reason": "built-in or machine/trust account (skipped)"})
         else:
             users.append({"sam": u["sam"], "outcome": "would_set"})
     return users
@@ -227,29 +227,46 @@ def decrypt_secrets(drs, obj, rid):
 
 
 def inspect_supplemental(supp, realm):
-    """Classify the decrypted supplementalCredentials: (has_cleartext, kerberos_ok). A Primary:CLEARTEXT package is
-    a rejection; the Kerberos keys count as transferable only when their salt names the destination realm."""
+    """Classify the decrypted supplementalCredentials: (has_cleartext, kerberos_ok, reason). A Primary:CLEARTEXT
+    package is a rejection; the Kerberos keys count as transferable only when their salt names the destination
+    realm. Any layout this helper cannot parse (no Kerberos package, a WDigest-only blob, an unreadable package, a
+    malformed blob) is NOT an error — it yields kerberos_ok=False with a sanitized reason, so the user falls back to
+    NTLM-only. The reason never contains a key, hash or salt value."""
     from samba.dcerpc import drsblobs
     from samba.ndr import ndr_unpack
     if not supp:
-        return False, False
-    scb = ndr_unpack(drsblobs.supplementalCredentialsBlob, supp)
-    has_cleartext = False
-    kerberos_ok = False
-    for p in scb.sub.packages:
-        if p.name == "Primary:CLEARTEXT":
-            has_cleartext = True
-        elif p.name in KERBEROS_PACKAGES:
-            try:
-                data = p.data.decode() if isinstance(p.data, bytes) else p.data  # the package data is a hex string
-                raw = bytes.fromhex(data)
-                kp = ndr_unpack(drsblobs.package_PrimaryKerberosBlob, raw)
-                salt = kp.ctr.salt.string or ""
-                # the default salt is REALM + the principal name; a salt naming the source realm would not match
-                kerberos_ok = realm.upper() in salt.upper()
-            except Exception:
-                kerberos_ok = False
-    return has_cleartext, kerberos_ok
+        return False, False, "no supplementalCredentials (NTLM only)"
+    try:
+        scb = ndr_unpack(drsblobs.supplementalCredentialsBlob, supp)
+        packages = [p for p in scb.sub.packages]
+    except Exception as e:
+        return False, False, "supplementalCredentials unreadable: %s (NTLM only)" % type(e).__name__
+    has_cleartext = any(p.name == "Primary:CLEARTEXT" for p in packages)
+    names = [p.name for p in packages]
+    kerb = [p for p in packages if p.name in KERBEROS_PACKAGES]
+    if not kerb:
+        return has_cleartext, False, "no Kerberos package (have: %s) → NTLM only" % (", ".join(names) or "none")
+    # prefer Newer-Keys; fall back to the older Primary:Kerberos
+    for name in ("Primary:Kerberos-Newer-Keys", "Primary:Kerberos"):
+        p = next((x for x in kerb if x.name == name), None)
+        if p is None:
+            continue
+        try:
+            data = p.data.decode() if isinstance(p.data, bytes) else p.data  # the package data is a hex string
+            raw = bytes.fromhex(data)
+            # both Primary:Kerberos (v3) and Primary:Kerberos-Newer-Keys (v4) unpack as this blob; the ctr union
+            # resolves to ctr3/ctr4 by version once the real data sets it, and both carry .salt.string
+            kp = ndr_unpack(drsblobs.package_PrimaryKerberosBlob, raw)
+            salt = kp.ctr.salt.string or ""
+        except Exception as e:
+            return has_cleartext, False, "%s parse failed: %s → NTLM only" % (name, type(e).__name__)
+        if not salt:
+            return has_cleartext, False, "%s has no salt → NTLM only" % name
+        # the default salt is REALM + the principal name; a salt naming the source realm would not transfer
+        if realm.upper() in salt.upper():
+            return has_cleartext, True, None
+        return has_cleartext, False, "%s salt does not name realm %s → NTLM only" % (name, realm)
+    return has_cleartext, False, "no usable Kerberos package → NTLM only"
 
 
 def set_user(samdb, dn, nt_hash, supp, copy_kerberos):
@@ -316,15 +333,17 @@ def apply(req, lp):
             out = {"sam": u["sam"]}
             lu = local_user(samdb, u["sam"])
             if lu is None:
-                out["outcome"] = "missing"
+                out["outcome"], reason = "missing", "no matching user in this domain (import the objects first)"
             elif lu["protected"]:
-                out["outcome"] = "builtin"
+                out["outcome"], reason = "builtin", "built-in or machine/trust account (skipped)"
             else:
                 try:
-                    out["outcome"] = apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm)
-                except Exception:
+                    out["outcome"], reason = apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm)
+                except Exception as e:
                     # one user's failure (its own transaction already rolled back in set_user) never aborts the rest
-                    out["outcome"] = "error"
+                    out["outcome"], reason = "error", reason_of(e)
+            if reason:
+                out["reason"] = reason
             counts[out["outcome"]] = counts.get(out["outcome"], 0) + 1
             users.append(out)
     finally:
@@ -333,17 +352,19 @@ def apply(req, lp):
 
 
 def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
-    """Extract one user's secrets and set them; returns the outcome. Secrets live only in these locals."""
+    """Extract one user's secrets and set them; returns (outcome, reason). reason is a short, secret-free note (no
+    key, hash or salt value) explaining an ntlm_only/rejected classification, or None. Secrets live only in these
+    locals and are discarded in the finally."""
     obj = get_ncchanges_secret(drs, drs_handle, src_inv, u["dn"], u["guid"])
     if obj is None:
-        return "error"
+        return "error", "source returned no object for this user"
     nt_hash, supp = decrypt_secrets(drs, obj, u["rid"])
     try:
         if nt_hash is None:
-            return "error"
-        has_cleartext, kerberos_ok = inspect_supplemental(supp, realm)
+            return "error", "no NT hash in the replicated object"
+        has_cleartext, kerberos_ok, kerb_reason = inspect_supplemental(supp, realm)
         if has_cleartext:
-            return "rejected"
+            return "rejected", "source stores a reversible/cleartext password (Primary:CLEARTEXT)"
         # full-state idempotency: skip only an NTLM-only user whose state already matches — pwdLastSet non-zero, the
         # NT hash equal, and no Kerberos keys present (so none to add and none stale). When we would copy Kerberos
         # keys we cannot cheaply prove the stored keys/salt are identical, so we re-apply (reporting "set") rather
@@ -351,12 +372,24 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm):
         if not kerberos_ok:
             cur_hash, cur_kerberos = current_state(samdb, lu["dn"])
             if lu["pwd_last_set"] != 0 and cur_hash is not None and cur_hash == nt_hash and not cur_kerberos:
-                return "same"
+                return "same", None
         set_user(samdb, lu["dn"], nt_hash, supp if kerberos_ok else None, kerberos_ok)
-        return "set" if kerberos_ok else "ntlm_only"
+        return ("set", None) if kerberos_ok else ("ntlm_only", kerb_reason)
     finally:
         del nt_hash
         del supp
+
+
+def reason_of(e):
+    """A short, secret-free reason for a per-user failure: the error class and, for a Samba status error, its status
+    text (a code/name, never a replicated value). Never includes a hash, key or password."""
+    name = type(e).__name__
+    try:
+        if e.args and isinstance(e.args[-1], str) and e.args[-1]:
+            return "%s: %s" % (name, e.args[-1])
+    except Exception:
+        pass
+    return name
 
 
 # net is imported once (replicate_init/replicate_decrypt live on the module).

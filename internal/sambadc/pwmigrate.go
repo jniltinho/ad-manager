@@ -25,6 +25,9 @@ type PwSource struct {
 type PwUser struct {
 	Sam     string `json:"sam"`
 	Outcome string `json:"outcome"`
+	// Reason is a short, secret-free explanation of the outcome (e.g. why a user is ntlm_only or error); it never
+	// contains a key, hash, salt or password.
+	Reason string `json:"reason,omitempty"`
 }
 
 // PwResult is the result of a password-material plan or apply: the domain SIDs

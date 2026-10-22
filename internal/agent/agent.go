@@ -788,6 +788,13 @@ func (a *Agent) Routes() *echo.Echo {
 			return c.JSON(http.StatusBadGateway, map[string]string{"error": err.Error()})
 		}
 		slog.Info("password migration", "source", in.Source.Host, "apply", in.Apply, "counts", res.Counts)
+		// a per-user line in the agent's own journal (sam, outcome and the sanitized reason) to diagnose errors and
+		// ntlm_only — never a hash, key or password
+		for _, u := range res.Users {
+			if u.Outcome == "error" || u.Outcome == "ntlm_only" || u.Outcome == "rejected" {
+				slog.Info("password migration user", "sam", u.Sam, "outcome", u.Outcome, "reason", u.Reason)
+			}
+		}
 		return c.JSON(http.StatusOK, res)
 	}, dcOnly)
 	api.GET("/samba/logs", sambalog.ListHandler(a.logDir))
