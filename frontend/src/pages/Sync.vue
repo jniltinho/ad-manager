@@ -6,7 +6,7 @@ import { Archive, Eye, FolderSync, Pencil, Play, Plus, RefreshCw, ScrollText, Sq
 import { computed, onUnmounted, ref } from 'vue'
 import { del, enc, get, post } from '../api'
 import { confirmTyped } from '../dialogs'
-import { serverText, t } from '../i18n'
+import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
 import { agentHost, formatDate } from '../util'
 import BackupTabs from '../components/BackupTabs.vue'
@@ -104,6 +104,23 @@ const phaseText = (p) => {
   }
 }
 const lastRun = (id) => data.value?.runs?.find((r) => r.job === id)
+// how long a run took, short: 38s, 4m38s, 1h02m
+const elapsed = (sec) => {
+  const n = Math.max(0, Math.round(sec))
+  const h = Math.floor(n / 3600)
+  const m = Math.floor((n % 3600) / 60)
+  const pad = (v) => String(v).padStart(2, '0')
+  return h ? `${h}h${pad(m)}m` : m ? `${m}m${pad(n % 60)}s` : `${n}s`
+}
+// when a run ended (with the date when not the day it started) and how long it took; none while it goes on
+const finished = (r) => {
+  if (!r.finished || r.status === 'running' || r.status === 'queued') return '—'
+  const s = new Date(r.started)
+  const f = new Date(r.finished)
+  const at =
+    s.toDateString() === f.toDateString() ? f.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : formatDate(r.finished)
+  return isNaN(s) ? at : `${at} · ${elapsed((f - s) / 1000)}`
+}
 
 // ── new and edit: the wizard
 const wizard = ref(null) // { job } (null job: a new one)
@@ -264,6 +281,7 @@ const details = ref(null)
               <thead>
                 <tr>
                   <th>{{ t('Date') }}</th>
+                  <th class="whitespace-nowrap">{{ t('Finished') }}</th>
                   <th>{{ t('Job') }}</th>
                   <th>{{ t('Kind') }}</th>
                   <th class="w-full">{{ t('Status') }}</th>
@@ -276,6 +294,7 @@ const details = ref(null)
               <tbody>
                 <tr v-for="r in data?.runs || []" :key="r.id">
                   <td class="whitespace-nowrap" :title="r.id">{{ formatDate(r.started) }}</td>
+                  <td class="whitespace-nowrap tabular-nums" :title="r.finished ? formatDate(r.finished) : ''">{{ finished(r) }}</td>
                   <td class="max-w-56 truncate whitespace-nowrap" :title="jobName(r.job)">{{ jobName(r.job) }}</td>
                   <td class="text-fg-muted">{{ r.preview ? t('preview') : r.origin === 'schedule' ? t('scheduled') : t('run') }}</td>
                   <td class="max-w-0 truncate whitespace-nowrap" :class="statusClass(r.status)" :title="r.error ? serverText(r.error) : ''">
@@ -309,9 +328,9 @@ const details = ref(null)
                     </button>
                   </td>
                 </tr>
-                <LoadingRow v-if="!data && !error && (loading || !agentsLoaded)" :cols="8" />
+                <LoadingRow v-if="!data && !error && (loading || !agentsLoaded)" :cols="9" />
                 <tr v-if="data && !data.runs?.length">
-                  <td colspan="8" class="py-3 text-center text-fg-muted">{{ t('No runs yet.') }}</td>
+                  <td colspan="9" class="py-3 text-center text-fg-muted">{{ t('No runs yet.') }}</td>
                 </tr>
               </tbody>
             </table>

@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The **Sync** page's Runs table has a **Finished** column: when each run ended and how long it took
+  (`12:14 AM · 4m38s`, with the date when it ended on another day), on one line; empty while the run goes on.
+
 ### Changed
 - Reapplying a folder's **Windows inheritance** is much faster on a domain controller. Every item is still read
   through Samba, but Samba's write (~180 ms per item on a DC, where each SID goes through idmap) runs once per
