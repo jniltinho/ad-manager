@@ -20,7 +20,9 @@ also runs with `context.WithoutCancel`, so Stop/Cancel cannot interrupt it.
   path — on a first run the transferred set is the whole tree anyway, so the common incremental case touches only the
   delta.
 - The ACL phase is surfaced as run progress (`progress.phase = "acl"` with the item count) so a long pass is no longer
-  indistinguishable from a hang.
+  indistinguishable from a hang. The whole run reports its phase (preparing → copying, with the files done out of the
+  plan total → applying Windows permissions → finalizing) in the same `progress` field, shown on the Sync page, so a
+  running sync never looks like an opaque "running".
 - The ACL phase honors cancellation: it runs under the run's cancellable context, so Stop terminates the helper walk
   and the run records "cancelled".
 

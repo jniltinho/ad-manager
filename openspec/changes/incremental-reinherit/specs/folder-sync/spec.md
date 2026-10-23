@@ -27,3 +27,16 @@ The ACL phase SHALL run under the run's cancellable context and SHALL surface it
 - **WHEN** the ACL phase is running
 - **THEN** the run progress shows the ACL phase and the number of items being re-inherited, so a long pass is not
   indistinguishable from a hang
+
+### Requirement: Run phase in progress
+A running sync SHALL report which phase it is in — preparing, copying (with the files transferred and the planned
+total), applying Windows permissions, or finalizing — so the panel never shows an opaque "running"; a finished run
+SHALL show its summary, not a phase.
+
+#### Scenario: Phase reflects the work
+- **WHEN** the panel polls a running sync
+- **THEN** its progress names the current phase (and, while copying, the files done out of the planned total)
+
+#### Scenario: Finished run
+- **WHEN** a run finishes
+- **THEN** it shows its status and summary (files, size, quarantine), with no leftover phase
