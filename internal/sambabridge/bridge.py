@@ -11,8 +11,8 @@
 # registry configuration (the one `net conf` edits) through its smbconf API,
 # one transaction per change.
 #
-# Request:  {"op": "capabilities" | "get_acl" | "get_acls" | "set_folder_acl" | "set_acl_sddl" | "list_shares" | "set_share" |
-#            "delete_share", "args": {...}}
+# Request:  {"op": "capabilities" | "get_acl" | "get_acls" | "set_folder_acl" | "set_acl_sddl" | "reinherit_paths" |
+#            "list_shares" | "set_share" | "delete_share", "args": {...}}
 # Response: {"ok": true, "result": ...} or {"ok": false, "error": "...", "code": "..."}
 #
 # The folder is passed as an open file descriptor (sent with the request by the
@@ -254,6 +254,29 @@ def store(fdpath, sd, args, smbd, security, system_session_unix):
     return out
 
 
+def reinherit_paths(args):
+    """Reapply Windows inheritance to the given folder-relative paths and the dirs on the way to them, parents before
+    children — the files a sync just wrote — instead of walking the whole tree. The folder's own ACL (the template) is
+    left as it is; each target gets only the inherited ACEs (reset_unstored), so it ends as a full reinherit would."""
+    checked_folder(args)  # validates the top descriptor and the roots
+    rels = args.get("rels")
+    if not isinstance(rels, list) or not rels:
+        raise BridgeError("rels missing")
+    only = set()
+    for r in rels:
+        if not isinstance(r, str) or not r or r.startswith("/") or "\0" in r or ".." in r.split("/"):
+            raise BridgeError("invalid relative path")
+        parts = os.path.normpath(r).split("/")
+        if parts == ["."]:
+            raise BridgeError("invalid relative path")
+        for i in range(1, len(parts) + 1):  # the target and every ancestor dir
+            only.add("/".join(parts[:i]))
+    s3param, smbd, security, system_session_unix = samba_modules()
+    loadparm(s3param)
+    done, skipped = propagate(smbd, security, system_session_unix, reset_unstored=True, only=only)
+    return {"propagated": done, "skipped": skipped}
+
+
 def inherited(parent, child, is_dir, security, keep_explicit=True):
     """child's descriptor with its inherited ACEs recomputed from parent (as Explorer does); a protected child keeps
     its own. keep_explicit False drops the child's explicit ACEs (ones Samba synthesized from the mode bits of a
@@ -313,20 +336,25 @@ def has_stored_acl(fd):
         return False
 
 
-def propagate(smbd, security, system_session_unix, reset_unstored=False):
+def propagate(smbd, security, system_session_unix, reset_unstored=False, only=None):
     """Recompute the inherited ACEs of everything under the folder (the request's first), parents before children. Each folder's
     children follow the ACL read from the very descriptor being walked (a folder swapped meanwhile passes on its own).
     Symbolic links, special files and other file systems are skipped; every entry counts toward MAX_ITEMS.
     reset_unstored: an entry with no stored Windows ACL (written without Samba: a sync) gets only the inherited
-    ACEs."""
+    ACEs. only: a set of folder-relative paths (each with its ancestor dirs) — when given, the walk descends only
+    into those dirs and applies only to those entries (the delta of a sync, not the whole tree)."""
     info = security.SECINFO_OWNER | security.SECINFO_GROUP | security.SECINFO_DACL
     session = system_session_unix()
     top = fd_at(0)
     dev = os.fstat(top).st_dev
     done = skipped = 0
     for _dirpath, dirnames, filenames, dirfd in os.fwalk(".", dir_fd=top, follow_symlinks=False):
+        if only is not None:  # descend only into the dirs that lead to a target (its ancestors are in the set)
+            dirnames[:] = [d for d in dirnames if os.path.normpath(os.path.join(_dirpath, d)) in only]
         parent = smbd.get_nt_acl("/proc/self/fd/%d" % dirfd, info, session)
         for name, is_dir in [(n, True) for n in list(dirnames)] + [(n, False) for n in filenames]:
+            if only is not None and os.path.normpath(os.path.join(_dirpath, name)) not in only:
+                continue
             if done + skipped >= MAX_ITEMS:
                 raise BridgeError("more than %d entries under the folder" % MAX_ITEMS, "samba")
             flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC | (os.O_DIRECTORY if is_dir else 0)
@@ -442,7 +470,7 @@ def delete_share(args):
 
 
 OPS = {"capabilities": capabilities, "get_acl": get_acl, "get_acls": get_acls, "set_folder_acl": set_folder_acl, "set_acl_sddl": set_acl_sddl,
-       "list_shares": list_shares, "set_share": set_share, "delete_share": delete_share}
+       "reinherit_paths": reinherit_paths, "list_shares": list_shares, "set_share": set_share, "delete_share": delete_share}
 
 
 def handle(body):

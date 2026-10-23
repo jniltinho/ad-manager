@@ -109,3 +109,78 @@ func TestNTACLParity(t *testing.T) {
 		t.Fatalf("batch differs (Go reads %d):\n helper %s\n  mixed %s", goReads.Load()-before, x, y)
 	}
 }
+
+// TestReinheritPathsParity: a partial reinherit over a set of paths leaves each directory in that set with the same
+// Windows ACL a full reinherit of the whole tree gives it. Two identical trees are built and seeded without Samba;
+// one gets the full Reapply, the other ReinheritPaths over all its items. Needs a real Samba root (as the parity run):
+//
+//	sudo NTACL_REINHERIT_ROOT=/srv/shares/Test ./parity.test -test.run TestReinheritPathsParity -test.v
+func TestReinheritPathsParity(t *testing.T) {
+	root := os.Getenv("NTACL_REINHERIT_ROOT")
+	if root == "" {
+		t.Skip("NTACL_REINHERIT_ROOT not set")
+	}
+	ctx := context.Background()
+	b := &Bridge{}
+	if c := b.Capabilities(ctx); !c.Usable() {
+		t.Skipf("Samba NT-ACL helper not usable here (needs acl_xattr and root): %+v", c)
+	}
+	roots := []string{root}
+	// seed one tree (dirs and files written by this process, i.e. without Samba) under base
+	seed := func(base string) {
+		for _, d := range []string{"", "sub", "sub/deep", "other"} {
+			if err := os.MkdirAll(filepath.Join(base, d), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, f := range []string{"top.txt", "sub/a.txt", "sub/deep/b.txt", "other/c.txt"} {
+			if err := os.WriteFile(filepath.Join(base, f), []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	open := func(p string) *os.File {
+		fd, err := syscall.Open(p, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
+		if err != nil {
+			t.Fatalf("open %s: %v", p, err)
+		}
+		return os.NewFile(uintptr(fd), p)
+	}
+
+	full := filepath.Join(root, "reinherit-full")
+	inc := filepath.Join(root, "reinherit-inc")
+	os.RemoveAll(full)
+	os.RemoveAll(inc)
+	t.Cleanup(func() { os.RemoveAll(full); os.RemoveAll(inc) })
+	seed(full)
+	seed(inc)
+
+	fullTop, incTop := open(full), open(inc)
+	defer fullTop.Close()
+	defer incTop.Close()
+	sddl, err := b.GetACL(ctx, fullTop, full, roots, "")
+	if err != nil {
+		t.Fatalf("read top ACL: %v", err)
+	}
+	if _, err := b.Reapply(ctx, fullTop, full, roots, sddl.SDDL); err != nil { // full tree
+		t.Fatalf("full reapply: %v", err)
+	}
+	rels := []string{"sub", "sub/deep", "other", "top.txt", "sub/a.txt", "sub/deep/b.txt", "other/c.txt"}
+	if _, err := b.ReinheritPaths(ctx, incTop, inc, roots, rels); err != nil { // only these paths (+ ancestors)
+		t.Fatalf("reinherit paths: %v", err)
+	}
+	// every directory in the set ends identical to the full reinherit (files follow the same per-item code path)
+	for _, d := range []string{"sub", "sub/deep", "other"} {
+		fa, ia := open(filepath.Join(full, d)), open(filepath.Join(inc, d))
+		af, aerr := b.GetACL(ctx, fa, filepath.Join(full, d), roots, "")
+		bf, berr := b.GetACL(ctx, ia, filepath.Join(inc, d), roots, "")
+		fa.Close()
+		ia.Close()
+		if aerr != nil || berr != nil {
+			t.Fatalf("%s: read %v / %v", d, aerr, berr)
+		}
+		if af.SDDL != bf.SDDL {
+			t.Fatalf("%s differs:\n full %s\n  inc %s", d, af.SDDL, bf.SDDL)
+		}
+	}
+}

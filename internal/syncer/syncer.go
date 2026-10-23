@@ -28,6 +28,7 @@ import (
 	"github.com/rclone/rclone/fs/filter"
 	"github.com/rclone/rclone/fs/operations"
 	rsync "github.com/rclone/rclone/fs/sync"
+	"github.com/rclone/rclone/lib/encoder"
 )
 
 // Modes.
@@ -234,7 +235,20 @@ type Result struct {
 	ContentVerified bool     `json:"content_verified"` // and the content, when asked
 	Quarantined     []string `json:"quarantined,omitempty"`
 	Seconds         float64  `json:"seconds"`
+	// Changed are the destination-relative paths rclone transferred (new and updated files), so the agent reapplies
+	// Windows inheritance only to those; ChangedCapped means there were more than reinheritCap and the list is partial
+	// (the agent then reinherits the whole tree).
+	Changed       []string `json:"changed,omitempty"`
+	ChangedCapped bool     `json:"changed_capped,omitempty"`
 }
+
+// reinheritCap bounds the transferred paths kept for the incremental reinherit; past it the agent walks the whole
+// tree (which a first or near-full run would do anyway). reinheritBytesCap keeps the paths well under the Samba
+// helper's 1 MiB request limit (leaving room for the JSON and the roots).
+const (
+	reinheritCap      = 5000
+	reinheritBytesCap = 512 << 10
+)
 
 // sampleMax bounds the names kept per group.
 const sampleMax = 50
@@ -404,6 +418,37 @@ func Run(ctx context.Context, sp Spec, progress func(map[string]any)) (Result, e
 	rci.BackupDir = sp.Quarantine
 	rctx = accounting.WithStatsGroup(rctx, "run")
 	stats := accounting.StatsGroup(rctx, "run")
+	// collect what rclone transfers (new and updated files, +/* sigils; deletes are MissingOnSrc, not these), so the
+	// agent reapplies Windows inheritance only to those; the logger runs from several copy goroutines. The path is
+	// turned back from rclone's encoded namespace into the on-disk name the Samba helper will walk. Past the item or
+	// byte cap the list is dropped (ChangedCapped) and the agent reinherits the whole tree instead.
+	var changedMu sync.Mutex
+	var changed []string
+	changedBytes := 0
+	capped := false
+	rctx = operations.WithLogger(rctx, func(_ context.Context, sigil operations.Sigil, src, dst rfs.DirEntry, _ error) {
+		if sigil != operations.MissingOnDst && sigil != operations.Differ {
+			return
+		}
+		// rclone writes the destination object under the source's remote (operations.Copy) and the matcher normalizes
+		// names to NFC, so the source spelling — not the old destination's — is what ends up on disk.
+		e := src
+		if e == nil {
+			e = dst
+		}
+		if e == nil {
+			return
+		}
+		name := encoder.OS.FromStandardPath(e.Remote()) // encoded remote → native filename the fwalk sees
+		changedMu.Lock()
+		if capped || len(changed) >= reinheritCap || changedBytes+len(name) > reinheritBytesCap {
+			capped = true
+		} else {
+			changed = append(changed, name)
+			changedBytes += len(name) + 2
+		}
+		changedMu.Unlock()
+	})
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	if progress != nil {
@@ -418,6 +463,8 @@ func Run(ctx context.Context, sp Spec, progress func(map[string]any)) (Result, e
 					return
 				case <-t.C:
 					if st, err := stats.RemoteStats(false); err == nil {
+						st["phase"] = "copying" // the panel shows which phase the run is in, not an opaque "running"
+						st["total"] = res.Plan.New + res.Plan.Changed
 						progress(map[string]any(st))
 					}
 				}
@@ -428,6 +475,9 @@ func Run(ctx context.Context, sp Spec, progress func(map[string]any)) (Result, e
 	close(done)
 	wg.Wait()
 	res.Transfers, res.Bytes, res.Errors = stats.GetTransfers(), stats.GetBytes(), stats.GetErrors()
+	changedMu.Lock()
+	res.Changed, res.ChangedCapped = changed, capped
+	changedMu.Unlock()
 	if err == nil && sp.Mode == ModeMirror {
 		res.Deleted, err = deletePlanned(ctx, fsrc, fdst, sp, res.Plan.deletes)
 	}
