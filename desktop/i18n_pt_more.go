@@ -86,6 +86,7 @@ func init() {
 		"%d of %d (newest first)":         "%d de %d (mais recentes primeiro)",
 		"Refresh":                         "Atualizar",
 		"Date":                            "Data",
+		"Finished":                        "Término",
 		"Operator":                        "Operador",
 		"Source":                          "Origem",
 		"Action":                          "Ação",

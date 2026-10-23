@@ -294,6 +294,7 @@ var ptBR = map[string]string{
 	"set AD_PANEL_URL (e.g. https://dc01.example.local:8443): this tool uses the panel":                "defina AD_PANEL_URL (ex.: https://dc01.example.local:8443): esta ferramenta usa o painel",
 	"AD_PANEL_URL must be https:// (http only on 127.0.0.1/localhost): the password goes in the login": "AD_PANEL_URL precisa ser https:// (http só em 127.0.0.1/localhost): a senha vai no login",
 	"this restore replaces what is in use":                                                             "esta restauração substitui o que está em uso",
+	"an earlier run left the Windows inheritance pending: reapplying it to the whole folder":           "uma execução anterior deixou a herança do Windows pendente: reaplicando-a na pasta inteira",
 }
 
 // ptPatterns cover parts that carry names or values ($1, $2 are the captures).
@@ -380,6 +381,8 @@ var ptPatterns = []pattern{
 	{`^the mirror would delete (\d+) of (\d+) files \(limit (\d+)%\): nothing was changed$`, "o espelho apagaria $1 de $2 arquivos (limite $3%): nada foi alterado"},
 	{`^Windows inheritance of (\S+) applied to (\d+) items$`, "herança do Windows de $1 aplicada a $2 itens"},
 	{`^Windows inheritance not applied: (.+)$`, "herança do Windows não aplicada: $1"},
+	{`^incremental Windows inheritance failed \((.+)\), reapplying to the whole folder$`, "a herança incremental do Windows falhou ($1), reaplicando na pasta inteira"},
+	{`^could not mark the Windows inheritance pending: (.+)$`, "não foi possível marcar a herança do Windows como pendente: $1"},
 	{`^zone not created: (.+)$`, "zona não criada: $1"},
 	{`^setup: invalid (\S+)$`, "configuração: $1 inválido"},
 	{`^diagnosis: (.+)$`, "diagnóstico: $1"},

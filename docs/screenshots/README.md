@@ -214,6 +214,13 @@ Everything runs locally, with passwords only in environment variables.
    (cd desktop && DOCS_URL=https://127.0.0.1:18443 DOCS_PASS="$AD_ADMIN_PASSWORD" DOCS_AGENT_URL=https://<container IP>:9443 DOCS_AGENT_TOKEN='<token>' DOCS_VERSION=$(git describe --tags) DOCS_SHOTS_DIR=../docs/screenshots go test -tags docsshots -run TestDocsShots -count=1 .)
    ```
 
+   The desktop Sync page (`desktop-15-sync.png`) comes from fixtures instead (a running run and finished ones with
+   their end and duration; no panel or agent), after the run above, which also writes it:
+
+   ```bash
+   (cd desktop && DOCS_SHOTS_DIR=../docs/screenshots DOCS_VERSION=$(git describe --tags --abbrev=0) go test -tags docsshots -run TestDocsSyncShot -count=1 .)
+   ```
+
 6. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`,
    `SCREEN_SHOTS=../.run/desk-themes go test -run TestScreensInEveryTheme` in `desktop/`, then
    `python3 scripts/theme-mosaics.py`.

@@ -27,13 +27,14 @@ type syncJobRow struct {
 }
 
 type syncRunRow struct {
-	ID      string    `json:"id"`
-	Job     string    `json:"job"`
-	Preview bool      `json:"preview"`
-	Started time.Time `json:"started"`
-	Status  string    `json:"status"`
-	Error   string    `json:"error"`
-	Result  *struct {
+	ID       string    `json:"id"`
+	Job      string    `json:"job"`
+	Preview  bool      `json:"preview"`
+	Started  time.Time `json:"started"`
+	Finished time.Time `json:"finished"`
+	Status   string    `json:"status"`
+	Error    string    `json:"error"`
+	Result   *struct {
 		Plan      struct{ New, Changed, Delete, Same int } `json:"plan"`
 		Transfers int64                                    `json:"transfers"`
 		Deleted   int64                                    `json:"deleted"`
@@ -55,6 +56,36 @@ func syncAgent(call func(method, path string, body, out any) error, name string)
 		}
 	}
 	return "", fmt.Errorf("server %q is not in the panel", name)
+}
+
+// runFinished is when a run ended (with the date when not the day it started) and how long it took; "—" while it
+// goes on.
+func runFinished(r syncRunRow) string {
+	if r.Finished.IsZero() || r.Status == "running" || r.Status == "queued" {
+		return "—"
+	}
+	s, f := r.Started.Local(), r.Finished.Local()
+	at := f.Format("15:04")
+	if s.Year() != f.Year() || s.YearDay() != f.YearDay() {
+		at = f.Format("2006-01-02 15:04")
+	}
+	if r.Started.IsZero() {
+		return at
+	}
+	return at + " · " + shortDuration(f.Sub(s))
+}
+
+// shortDuration is a run's length, short: 38s, 4m38s, 1h02m.
+func shortDuration(d time.Duration) string {
+	n := max(0, int(d.Round(time.Second)/time.Second))
+	h, m := n/3600, n%3600/60
+	switch {
+	case h > 0:
+		return fmt.Sprintf("%dh%02dm", h, m)
+	case m > 0:
+		return fmt.Sprintf("%dm%02ds", m, n%60)
+	}
+	return fmt.Sprintf("%ds", n)
 }
 
 var syncCmd = &cobra.Command{Use: "sync", Short: "Folder sync (through the panel: AD_PANEL_URL, AD_USER, AD_PASSWORD)"}
@@ -95,7 +126,7 @@ func init() {
 				return err
 			}
 			fmt.Fprintln(cmd.OutOrStdout())
-			return show(cmd.OutOrStdout(), d.Runs, "RUN\tJOB\tKIND\tSTATUS\tNEW/CHANGED/DELETE\tTRANSFERRED", func(t io.Writer) {
+			return show(cmd.OutOrStdout(), d.Runs, "RUN\tJOB\tKIND\tSTATUS\tFINISHED\tNEW/CHANGED/DELETE\tTRANSFERRED", func(t io.Writer) {
 				for _, r := range d.Runs[:min(len(d.Runs), 20)] {
 					kind, plan, done := "run", "—", "—"
 					if r.Preview {
@@ -109,7 +140,7 @@ func init() {
 					if r.Error != "" {
 						st += ": " + tr(r.Error)
 					}
-					fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%s\n", r.ID, r.Job, kind, st, plan, done)
+					fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", r.ID, r.Job, kind, st, runFinished(r), plan, done)
 				}
 			})
 		}}

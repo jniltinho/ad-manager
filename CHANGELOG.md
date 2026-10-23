@@ -5,9 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The desktop app's **Sync** page and `ad-manager sync list` show when each run finished and how long it took, as
+  the web panel does (`08:41 AM · 4m38s`; `—` while the run goes on).
+
 ### Changed
 - Releases publish the server only for Linux (the `.tar.gz` and the `.deb`) and the macOS desktop app only as the
   universal `.app` (Apple Silicon and Intel); on Windows only the desktop app is published.
+
+### Fixed
+- Three notes of a sync's Windows-inheritance pass (the incremental pass falling back to the whole folder, a pending
+  inheritance being repaired, a pending mark that could not be written) showed in English on a Portuguese panel.
 
 ## [0.19.0] — 2026-10-23
 

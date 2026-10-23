@@ -66,6 +66,7 @@ type syncRun struct {
 	Preview  bool      `json:"preview"`
 	Origin   string    `json:"origin"`
 	Started  time.Time `json:"started"`
+	Finished time.Time `json:"finished"`
 	Status   string    `json:"status"`
 	Error    string    `json:"error"`
 	Notes    []string  `json:"notes"`
@@ -168,7 +169,7 @@ func (u *ui) syncPage() fyne.CanvasObject {
 			}
 			return "—", mutedText
 		}, func(r int) { jobSel = r })
-	runs := newTable([]column{{t("Date"), 150, false}, {t("Job"), 200, false}, {t("Kind"), 100, false}, {t("Status"), 260, false}, {t("Files"), 80, true}, {t("Deleted"), 80, true}},
+	runs := newTable([]column{{t("Date"), 165, false}, {t("Finished"), 220, false}, {t("Job"), 160, false}, {t("Kind"), 90, false}, {t("Status"), 200, false}, {t("Files"), 80, true}, {t("Deleted"), 80, true}},
 		func() int { return len(data.Runs) },
 		func(r, c int) (string, color.Color) {
 			x := data.Runs[r]
@@ -176,19 +177,24 @@ func (u *ui) syncPage() fyne.CanvasObject {
 			case 0:
 				return x.Started.Local().Format(dateLayout()), strongText
 			case 1:
-				return jobName(x.Job), nil
+				if f := syncFinished(x); f != "—" {
+					return f, nil
+				}
+				return "—", mutedText
 			case 2:
+				return jobName(x.Job), nil
+			case 3:
 				if x.Preview {
 					return t("preview"), mutedText
 				}
 				return t("run"), mutedText
-			case 3:
+			case 4:
 				s, cl := syncStatusText(x.Status)
 				if x.Error != "" {
 					s += " · " + serverText(x.Error)
 				}
 				return s, cl
-			case 4:
+			case 5:
 				if x.Result == nil {
 					if x.Status == "running" {
 						return strconv.FormatInt(x.Progress.Transfers, 10), nil
@@ -401,4 +407,37 @@ func (u *ui) pickFrom(title string, items []string, pick func(string)) {
 		pick(items[sel])
 		return true
 	})
+}
+
+// syncFinished is when a run ended (with the date when not the day it started) and how long it took, as the panel
+// shows it; "—" while it goes on.
+func syncFinished(x syncRun) string {
+	if x.Finished.IsZero() || x.Status == "running" || x.Status == "queued" {
+		return "—"
+	}
+	s, f := x.Started.Local(), x.Finished.Local()
+	at := f.Format("15:04")
+	if lang == "en" {
+		at = f.Format("03:04 PM")
+	}
+	if s.Year() != f.Year() || s.YearDay() != f.YearDay() {
+		at = f.Format(dateLayout())
+	}
+	if x.Started.IsZero() {
+		return at
+	}
+	return at + " · " + shortDuration(f.Sub(s))
+}
+
+// shortDuration is a run's length, short: 38s, 4m38s, 1h02m.
+func shortDuration(d time.Duration) string {
+	n := max(0, int(d.Round(time.Second)/time.Second))
+	h, m := n/3600, n%3600/60
+	switch {
+	case h > 0:
+		return fmt.Sprintf("%dh%02dm", h, m)
+	case m > 0:
+		return fmt.Sprintf("%dm%02ds", m, n%60)
+	}
+	return fmt.Sprintf("%ds", n)
 }

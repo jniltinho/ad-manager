@@ -34,6 +34,7 @@
     "access denied: domain administrators only": "acesso negado: apenas administradores do domínio",
     "ad.url and ad.domain are required": "ad.url e ad.domain são obrigatórios",
     "agent": "agente",
+    "an earlier run left the Windows inheritance pending: reapplying it to the whole folder": "uma execução anterior deixou a herança do Windows pendente: reaplicando-a na pasta inteira",
     "an incremental backup cannot be sent alone: send the full backup of its chain": "um backup incremental não pode ser enviado sozinho: envie o backup completo da cadeia",
     "an object with this name already exists": "já existe um objeto com esse nome",
     "at most 660 × 220 px (width × height)": "no máximo 660 × 220 px (largura × altura)",
@@ -417,6 +418,11 @@
     ],
     ["^Windows inheritance of (\\S+) applied to (\\d+) items$", "herança do Windows de $1 aplicada a $2 itens"],
     ["^Windows inheritance not applied: (.+)$", "herança do Windows não aplicada: $1"],
+    [
+      "^incremental Windows inheritance failed \\((.+)\\), reapplying to the whole folder$",
+      "a herança incremental do Windows falhou ($1), reaplicando na pasta inteira"
+    ],
+    ["^could not mark the Windows inheritance pending: (.+)$", "não foi possível marcar a herança do Windows como pendente: $1"],
     ["^zone not created: (.+)$", "zona não criada: $1"],
     ["^setup: invalid (\\S+)$", "configuração: $1 inválido"],
     ["^diagnosis: (.+)$", "diagnóstico: $1"],

@@ -27,6 +27,12 @@ func TestT(t *testing.T) {
 		{"theme: default, admanager or graphite", "tema: default, admanager ou graphite"},
 		{"user or password refused: couldn't connect SMB: logon failure", "usuário ou senha recusados: couldn't connect SMB: logon failure"},
 		{"the server name does not resolve (check this server's DNS, or use the IP with user and password)", "o nome do servidor não resolve (confira o DNS deste servidor, ou use o IP com usuário e senha)"},
+		{"an earlier run left the Windows inheritance pending: reapplying it to the whole folder",
+			"uma execução anterior deixou a herança do Windows pendente: reaplicando-a na pasta inteira"},
+		{"incremental Windows inheritance failed (samba bridge: no answer (i/o timeout)), reapplying to the whole folder",
+			"a herança incremental do Windows falhou (samba bridge: no answer (i/o timeout)), reaplicando na pasta inteira"},
+		{"could not mark the Windows inheritance pending: open x: no space left on device",
+			"não foi possível marcar a herança do Windows como pendente: open x: no space left on device"},
 		{"something new", "something new"},
 	}
 	for _, tt := range tests {
