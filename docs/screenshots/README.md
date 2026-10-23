@@ -68,6 +68,10 @@ demo environment: the all-in-one image
 |---|---|
 | ![Source](31-sync-wizard.png) | ![What to copy](32-sync-wizard-what-to-copy.png) |
 
+| Run log (a long log scrolls inside the modal) |  |
+|---|---|
+| ![Run log](33-sync-log.png) |  |
+
 ### Policy, import and logs
 
 | Password policy (Users → Password policy) | Import/export |
@@ -192,6 +196,15 @@ Everything runs locally, with passwords only in environment variables.
    ```
 
    and copy `setup-classic-blue-N-*.png` as `setup-N-*.png`.
+
+   The sync run-log modal (`33-sync-log.png`) is captured the same way, from fixtures (a finished preview run with a
+   very long dry-run log, no agent is called), after `npm run build`:
+
+   ```bash
+   (cd frontend && node tests/visual/sync-log-shot.mjs ../docs/screenshots classic-blue)
+   ```
+
+   and rename `sync-classic-blue-log.png` to `33-sync-log.png`.
 
 5. Desktop app (the container's agent with a new token, also registered in the panel):
 
