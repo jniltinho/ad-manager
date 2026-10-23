@@ -1,0 +1,33 @@
+[package]
+name = "ad-manager-desktop-rs"
+description = "AD Manager desktop (Rust/egui): a client of the ad-manager panel API"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ad-manager-desktop-rs"
+path = "src/main.rs"
+
+[dependencies]
+adm-core.workspace = true
+adm-platform.workspace = true
+adm-ui.workspace = true
+eframe.workspace = true
+egui.workspace = true
+image.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+adm-platform-linux.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+adm-platform-windows.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+adm-platform-macos.workspace = true
+
+[lints]
+workspace = true

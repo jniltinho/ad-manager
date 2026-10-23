@@ -1,0 +1,36 @@
+[package]
+name = "adm-ui"
+description = "AD Manager desktop egui interface: shell, pages, dialogs and widgets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+adm-core.workspace = true
+adm-platform.workspace = true
+eframe.workspace = true
+egui.workspace = true
+egui_extras.workspace = true
+image.workspace = true
+resvg.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+regex.workspace = true
+rfd.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true
+secrecy.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+adm-core = { workspace = true, features = ["testkit"] }
+egui_kittest.workspace = true
+
+[lints]
+workspace = true

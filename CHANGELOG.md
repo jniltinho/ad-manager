@@ -5,7 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Added
+- A second desktop app in Rust (egui), `desktop-rust/`, at feature parity with the Fyne desktop, to measure whether
+  it is faster: the same panel API, `desktop.toml`, protections, pt-BR catalog and themes; its own CI and release
+  (tags `desktop-rust-v*`), and a benchmark against the Fyne app (`desktop-rust/docs/benchmark.md`). The Fyne app
+  stays the shipped desktop.
 
 ## [0.22.0] — 2026-10-23
 
