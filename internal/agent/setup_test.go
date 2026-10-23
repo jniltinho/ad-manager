@@ -154,6 +154,39 @@ m.import_gates(a)
 	}
 }
 
+// samba-setup.py: a file-serving DC's agent (beside the panel, registered as https://127.0.0.1:9443) listens on the
+// loopback only; a separate file server's listens on the network for its panel; an existing [agent] is kept.
+func TestSetupScriptAgentListen(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not installed")
+	}
+	script, _ := filepath.Abs("../../scripts/samba-setup.py")
+	dir := t.TempDir()
+	const prog = `
+import importlib.util, sys, argparse
+spec = importlib.util.spec_from_file_location("setup", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+d = m.Path(sys.argv[2])
+m.CONFIG, m.OPT = d / "config.toml", d
+(d / "agent.token").write_text("hash\n")
+m.sh = lambda *a, **k: ""
+m.smbconf_global = lambda *a, **k: None
+a = argparse.Namespace(share_root=str(d / "shares"), new_token=False)
+m.CONFIG.write_text('[server]\nlisten = "0.0.0.0:8443"\n')
+m.dc_files(a)
+print("dc", 'listen = "127.0.0.1:9443"' in m.CONFIG.read_text(), 'listen = "0.0.0.0:8443"' in m.CONFIG.read_text())
+m.CONFIG.write_text('[agent]\nlisten = "0.0.0.0:9443"\n')
+m.dc_files(a)
+print("kept", m.CONFIG.read_text() == '[agent]\nlisten = "0.0.0.0:9443"\n')
+print("fileserver", 'listen = "0.0.0.0:9443"' in m.AGENT_CONF)
+`
+	out, err := exec.Command(py, "-I", "-c", prog, script, dir).CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "dc True True\n") || !strings.Contains(string(out), "kept True\n") ||
+		!strings.Contains(string(out), "fileserver True\n") {
+		t.Fatalf("agent listen: %v\n%s", err, out)
+	}
+}
+
 // A DC role starts the panel last: when the DC agent part fails, the panel is never (re)started, so the wizard (still
 // served by the setup-mode panel) shows the error instead of a finished setup.
 func TestSetupScriptPanelLast(t *testing.T) {

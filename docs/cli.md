@@ -203,9 +203,9 @@ which reuses the form's source login and password; the CLI below is for automati
 
 ```bash
 ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' \
-  --agent https://dc:9443 --insecure                                         # preview (no secret read)
+  --agent https://127.0.0.1:9443 --insecure                                  # on the DC; preview (no secret read)
 AD_SOURCE_PASSWORD_FILE=/root/src.pass AGENT_TOKEN=… ad-manager migrate passwords \
-  --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://dc:9443 --insecure --apply
+  --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://127.0.0.1:9443 --insecure --apply
 ```
 
 | Flag | |

@@ -16,6 +16,9 @@ All notable changes to this project are documented here. The format follows
   (never the password) and opens the app signed in. A self-signed panel certificate is shown with its fingerprint and
   trusted only when you accept it (pinned), instead of turning certificate checks off; the app never follows a
   redirect from the panel.
+- `samba-setup.py` (and the setup wizard's "This DC also serves files") makes the DC's agent listen on
+  `127.0.0.1:9443` only: the panel beside it is the only one that reaches it, so its port is no longer open to the
+  network. A separate file server's agent keeps listening for its panel; an existing `[agent]` is left as it is.
 - Docs and diagrams: only the panel reaches an agent's port 9443 (the desktop goes through the panel); on the
   panel's own server the agent can listen on `127.0.0.1:9443` only, and a separate file server allows 9443 from the
   panel's IP alone.

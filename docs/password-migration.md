@@ -78,7 +78,7 @@ no secret material), then `apply`:
 
 - **Panel** — *Import/export → From another AD* → tick **Passwords** (beside Objects/GPOs/DNS/Shares) and run it
   with the source URL, user and password entered in that form.
-- **CLI** — `ad-manager migrate passwords --from … --user … --agent https://dc:9443 [--apply]`
+- **CLI** — on the DC: `ad-manager migrate passwords --from … --user … --agent https://127.0.0.1:9443 --insecure [--apply]`
   (`docs/cli.md`).
 - **MCP** — the `ad_password_migrate` tool (write mode only).
 
