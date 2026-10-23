@@ -9,8 +9,9 @@ All notable changes to this project are documented here. The format follows
 - Desktop app: the **Password policy** is a dialog opened from the button of the same name on the **Users** toolbar,
   as in the web panel, no longer an item of the side menu; Home's policy alert opens it over Users.
 - Desktop app: the Users toolbar takes as few lines as fit — on a wide window the search, filter, actions, Password
-  policy and Export CSV share one line (the search gives way first); narrower, the extras go behind a ⋯ menu, and only
-  then do the actions move to a second line.
+  policy and Export CSV share one line (the search is at most 360 px and gives way first, with room between the
+  actions and the extras); narrower, the extras go behind a ⋯ menu, and only then do the actions move to a second
+  line.
 - The desktop app reaches **only the panel**: the Shares page and the file servers' Samba logs list the servers
   registered in the panel and go through its proxy with your session, as Sync and Backup already did. The desktop
   no longer asks for, stores or sends a file-server agent token (that token is root on the file server), its

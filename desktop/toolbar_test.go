@@ -25,7 +25,8 @@ func TestToolbarRow(t *testing.T) {
 		width         float32
 		extras, lines int
 	}{
-		{1700, 1, 1}, // 220 + 200 + 760 + 270 + 3p fits
+		{2400, 1, 1}, // wide: the search stops at 360, the rest between the actions and the extras
+		{1700, 1, 1}, // 220 + 200 + 760 + 270 + 3p + 24 fits
 		{1300, 0, 1}, // without the extras: 220 + 200 + 760 + 40 + 3p
 		{900, 1, 2},  // the actions below, the extras on the first line: 220 + 200 + 270 + 2p
 		{600, 0, 2},  // the actions below, the extras behind ⋯
@@ -43,8 +44,12 @@ func TestToolbarRow(t *testing.T) {
 		if lines != c.lines || box.MinSize().Height != 30*float32(c.lines)+p*float32(c.lines-1) {
 			t.Fatalf("%v: %d lines, min height %v", c.width, lines, box.MinSize().Height)
 		}
-		if search.Size().Width < 220 {
-			t.Fatalf("%v: search %v wide", c.width, search.Size().Width)
+		if w := search.Size().Width; w < 220 || w > 360 {
+			t.Fatalf("%v: search %v wide", c.width, w)
+		}
+		if extras.Visible() && actions.Position().Y == extras.Position().Y &&
+			extras.Position().X-(actions.Position().X+actions.Size().Width) < 24 {
+			t.Fatalf("%v: no room between the actions and the extras", c.width)
 		}
 	}
 	if relayouts != 2 { // to two lines and back

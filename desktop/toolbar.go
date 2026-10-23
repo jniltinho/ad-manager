@@ -13,6 +13,7 @@ import (
 // the extras still on the first; narrowest: the second line and ⋯.
 type toolbarRow struct {
 	searchMin float32
+	searchMax float32         // beyond this the room left goes between the actions and the extras, as the web's toolbar
 	lines     int             // lines the last layout used (MinSize reports their height)
 	relayout  func()          // asks the window to lay out again when the number of lines changes
 	box       *fyne.Container // [search, info, actions, extras, more]
@@ -20,7 +21,7 @@ type toolbarRow struct {
 
 // newToolbarRow builds the toolbar; relayout is called when it changes between one and two lines.
 func newToolbarRow(search, info, actions, extras, more fyne.CanvasObject, relayout func()) fyne.CanvasObject {
-	l := &toolbarRow{searchMin: 220, lines: 1, relayout: relayout}
+	l := &toolbarRow{searchMin: 220, searchMax: 360, lines: 1, relayout: relayout}
 	l.box = container.New(l, search, info, actions, extras, more)
 	return l.box
 }
@@ -46,12 +47,13 @@ func (l *toolbarRow) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	p := theme.Padding()
 	line := l.height(objs)
 	iw, aw, ew, mw := info.MinSize().Width, actions.MinSize().Width, extras.MinSize().Width, more.MinSize().Width
+	const breath = 24 // at least this between the actions (or the count) and the extras: they are another group
 	lines, right := 1, ew
 	switch {
-	case size.Width >= l.searchMin+iw+aw+ew+3*p: // everything on one line
+	case size.Width >= l.searchMin+iw+aw+ew+3*p+breath: // everything on one line
 	case size.Width >= l.searchMin+iw+aw+mw+3*p: // one line, the extras behind ⋯
 		right = mw
-	case size.Width >= l.searchMin+iw+ew+2*p: // the actions on a second line, the extras stay on the first
+	case size.Width >= l.searchMin+iw+ew+2*p+breath: // the actions on a second line, the extras stay on the first
 		lines = 2
 	default: // the actions on a second line, the extras behind ⋯
 		lines, right = 2, mw
@@ -67,6 +69,10 @@ func (l *toolbarRow) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	if lines == 1 {
 		sw -= aw + p
 	}
+	if right == ew {
+		sw -= breath
+	}
+	sw = min(sw, l.searchMax)
 	place(search, 0, 0, sw)
 	place(info, sw+p, 0, iw)
 	if lines == 1 {
