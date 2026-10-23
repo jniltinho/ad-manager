@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.18.0] — 2026-10-22
+
+**Faster, clearer folder sync: incremental ACL re-inheritance, run phases, and a scrollable run-log.**
+
 ### Changed
 - After a folder sync, the agent now reapplies the destination's **Windows inheritance only to the files it
   transferred** (and the directories on the way to them) instead of walking the whole tree on every run — an
