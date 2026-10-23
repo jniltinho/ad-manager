@@ -2,7 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -11,6 +15,7 @@ import (
 	_ "image/jpeg" // logo decoding
 	_ "image/png"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -22,19 +27,107 @@ import (
 	"github.com/srwiley/rasterx"
 )
 
-// api talks to the panel (session cookie) or to a file-server agent (Bearer token).
+// api talks to the panel (session cookie). via(id) is the same session for one file server's agent API, through the
+// panel's proxy: the desktop never talks to an agent itself nor holds its token.
 type api struct {
-	base  string
-	token string // empty = panel (cookie session)
-	hc    *http.Client
+	base   string
+	token  string // a bearer token (tests); the app always uses the panel's session cookie
+	prefix string // via: "/api/agents/{id}", put in place of "/api" on every path
+	hc     *http.Client
 }
 
-// newAPI returns a client for base; token selects agent (Bearer) mode and
-// insecure skips TLS certificate verification.
+// via is a for the agent of the panel's file server id: "/api/shares" goes to "/api/agents/{id}/shares", and so on.
+func (a *api) via(id int64) *api {
+	c := *a
+	c.prefix = fmt.Sprintf("/api/agents/%d", id)
+	return &c
+}
+
+// newAPI returns a client for base; token sends a bearer token (tests) and insecure skips TLS certificate
+// verification (the legacy "accept any certificate" of a panel; panelAPI pins instead).
 func newAPI(base, token string, insecure bool) *api {
+	return newClient(base, token, &tls.Config{InsecureSkipVerify: insecure, MinVersion: tls.VersionTLS12}) //nolint:gosec // explicit legacy config option
+}
+
+func newClient(base, token string, tc *tls.Config) *api {
 	jar, _ := cookiejar.New(nil)
 	return &api{base: base, token: token, hc: &http.Client{Timeout: 20 * time.Second, Jar: jar,
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure, MinVersion: tls.VersionTLS12}}}} //nolint:gosec // explicit config option for self-signed certificates
+		Transport: &http.Transport{TLSClientConfig: tc},
+		// never followed: a redirect could send the password or the session elsewhere, or over plain HTTP
+		CheckRedirect: func(*http.Request, []*http.Request) error { return errRedirect }}}
+}
+
+// errRedirect is a panel answer that redirects: the desktop does not follow it.
+var errRedirect = errors.New("the panel answered with a redirect, which is not followed: check the panel URL")
+
+// panelAPI is the client of the configured panel: the system's certificate checks, or exactly the pinned certificate
+// of a self-signed panel, or (a config not saved since the pin came in) any certificate.
+func panelAPI(c *config) *api {
+	base := strings.TrimRight(c.Panel.URL, "/")
+	if c.Panel.Fingerprint != "" {
+		return newClient(base, "", pinnedTLS(c.Panel.Fingerprint))
+	}
+	return newAPI(base, "", c.Panel.Insecure)
+}
+
+// errCertChanged is a panel certificate other than the one the operator trusted in Configure.
+var errCertChanged = errors.New("the panel's certificate is not the one trusted in Configure (it changed): check it with the panel's administrator, then trust it again in Configure")
+
+// pinnedTLS accepts only the leaf certificate whose fingerprint is pin, on every connection (resumed ones too); no
+// request is sent to any other.
+func pinnedTLS(pin string) *tls.Config {
+	return &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true, //nolint:gosec // checked against the pin below
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			if len(cs.PeerCertificates) == 0 || certPin(cs.PeerCertificates[0].Raw) != pin {
+				return errCertChanged
+			}
+			return nil
+		}}
+}
+
+// certPin is the fingerprint pinned for a certificate: "sha256:" and the hex SHA-256 of its DER.
+func certPin(der []byte) string {
+	sum := sha256.Sum256(der)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// panelCert is the certificate a panel presents, read without trusting it, and whether the system trusts it for
+// that host name (then nothing needs pinning).
+type panelCert struct {
+	Pin, Subject, Issuer string
+	NotBefore, NotAfter  time.Time
+	Trusted              bool
+}
+
+// probeCert opens a TLS connection to the panel at base only to read its certificate (nothing is sent over it).
+func probeCert(base string) (*panelCert, error) {
+	u, err := url.Parse(base)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		return nil, errors.New("enter an https://server:port URL")
+	}
+	host := u.Host
+	if u.Port() == "" {
+		host = net.JoinHostPort(u.Hostname(), "443")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	d := tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12, ServerName: u.Hostname()}} //nolint:gosec // read only, verified below
+	conn, err := d.DialContext(ctx, "tcp", host)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		return nil, errors.New("the panel presented no certificate")
+	}
+	leaf, inter := certs[0], x509.NewCertPool()
+	for _, c := range certs[1:] {
+		inter.AddCert(c)
+	}
+	_, verr := leaf.Verify(x509.VerifyOptions{DNSName: u.Hostname(), Intermediates: inter})
+	return &panelCert{Pin: certPin(leaf.Raw), Subject: leaf.Subject.String(), Issuer: leaf.Issuer.String(),
+		NotBefore: leaf.NotBefore, NotAfter: leaf.NotAfter, Trusted: verr == nil}, nil
 }
 
 // withTimeout is a copy of a whose requests may take up to d (a folder count, a connection test).
@@ -56,6 +149,9 @@ func (a *api) do(method, path string, in, out any) error {
 		b, _ := json.Marshal(in)
 		body = bytes.NewReader(b)
 	}
+	if a.prefix != "" && strings.HasPrefix(path, "/api/") {
+		path = a.prefix + strings.TrimPrefix(path, "/api")
+	}
 	req, err := http.NewRequest(method, a.base+path, body)
 	if err != nil {
 		return err
@@ -65,6 +161,11 @@ func (a *api) do(method, path string, in, out any) error {
 		req.Header.Set("Authorization", "Bearer "+a.token)
 	}
 	resp, err := a.hc.Do(req)
+	for _, known := range []error{errCertChanged, errRedirect} {
+		if errors.Is(err, known) {
+			return errors.New(t(known.Error()))
+		}
+	}
 	if err != nil {
 		return err
 	}

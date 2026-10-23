@@ -51,9 +51,19 @@ func (u *ui) logsPage() fyne.CanvasObject {
 		tabs.Append(tabItem{label, theme.StorageIcon(), view})
 	}
 	addSamba(t("Samba — this server"), u.panel)
-	for _, ag := range u.cfg.Agents {
-		addSamba(tf("Samba — %s", ag.Name), newAPI(strings.TrimRight(ag.URL, "/"), ag.Token, ag.Insecure))
-	}
+	go func() { // each file server's logs through the panel's proxy; without the list (no store) only this server's
+		var agents []agent
+		if u.panel.do(http.MethodGet, "/api/agents", nil, &agents) != nil {
+			return
+		}
+		onUI(func() {
+			for _, ag := range agents {
+				if !ag.local() { // the agent beside the panel reads the same logs as "this server"
+					addSamba(tf("Samba — %s", ag.label()), u.panel.via(ag.ID))
+				}
+			}
+		})
+	}()
 	// Samba tabs load the first time they are opened (no request to every agent at login).
 	tabs.OnSelected = func(i int) {
 		if load, ok := loaders[i]; ok {

@@ -17,8 +17,7 @@ func TestShortDuration(t *testing.T) {
 }
 
 func TestSyncFinished(t *testing.T) {
-	defer func(l string) { lang = l }(lang)
-	lang = "en"
+	inLang(t, "en")
 	start := time.Date(2026, 10, 23, 8, 37, 14, 0, time.Local)
 	if got := syncFinished(syncRun{Status: "ok", Started: start, Finished: start.Add(4*time.Minute + 38*time.Second)}); got != "08:41 AM · 4m38s" {
 		t.Errorf("same day: %q", got)
@@ -35,7 +34,7 @@ func TestSyncFinished(t *testing.T) {
 	if got := syncFinished(syncRun{Status: "running", Started: start}); got != "—" {
 		t.Errorf("running: %q", got)
 	}
-	lang = "pt-BR"
+	onScreen(func() { lang = "pt-BR" })
 	if got := syncFinished(syncRun{Status: "error", Started: start, Finished: start.Add(51 * time.Second)}); got != "08:38 · 51s" {
 		t.Errorf("pt-BR: %q", got)
 	}

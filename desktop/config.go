@@ -11,25 +11,22 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// config is the desktop.toml file (mode 0600: it holds agent tokens); see
-// resolveConfigPath for where it lives. Files written by older versions use
-// Portuguese keys: decodeConfig still reads them (legacyConfig).
+// config is the desktop.toml file (mode 0600); see resolveConfigPath for where it lives. It holds no secret: the
+// password is asked on sign-in and the desktop reaches the file servers only through the panel. Files written by
+// older versions use Portuguese keys (legacyConfig) or still list [[agents]] with tokens: decodeConfig reads them, and
+// loadConfig rewrites a file that still has agent tokens without them.
 type config struct {
 	Panel struct {
 		URL      string `toml:"url"`
-		Insecure bool   `toml:"insecure"`
-		User     string `toml:"user"`
+		Insecure bool   `toml:"insecure,omitempty"` // legacy "accept any certificate": replaced by Fingerprint on the next Save
+		// Fingerprint pins a panel certificate that does not verify (self-signed): "sha256:" and the hex SHA-256 of
+		// the leaf certificate the operator accepted in Configure; only that certificate is accepted
+		Fingerprint string `toml:"fingerprint,omitempty"`
+		User        string `toml:"user"`
 	} `toml:"panel"`
-	Agents []agentConfig `toml:"agents"`
-	Lang   string        `toml:"lang,omitempty"` // "pt-BR" or "en"; empty = panel default
-}
+	Lang string `toml:"lang,omitempty"` // "pt-BR" or "en"; empty = panel default
 
-// agentConfig is a file server reached directly through its agent token.
-type agentConfig struct {
-	Name     string `toml:"name"`
-	URL      string `toml:"url"`
-	Token    string `toml:"token"`
-	Insecure bool   `toml:"insecure"`
+	hadAgents bool // the file still listed file servers ([[agents]] with tokens, no longer used)
 }
 
 // legacyConfig is desktop.toml as versions up to 0.x wrote it ([painel] usuario, [[agentes]] nome, idioma).
@@ -61,11 +58,13 @@ func decodeConfig(b []byte) (*config, error) {
 	if c.Panel.URL == "" && c.Panel.User == "" && !c.Panel.Insecure {
 		c.Panel.URL, c.Panel.Insecure, c.Panel.User = old.Panel.URL, old.Panel.Insecure, old.Panel.User
 	}
-	if len(c.Agents) == 0 {
-		for _, a := range old.Agents {
-			c.Agents = append(c.Agents, agentConfig{Name: a.Name, URL: a.URL, Token: a.Token, Insecure: a.Insecure})
-		}
+	var agents struct {
+		Agents []map[string]any `toml:"agents"`
 	}
+	if err := toml.Unmarshal(b, &agents); err != nil {
+		return nil, err
+	}
+	c.hadAgents = len(agents.Agents) > 0 || len(old.Agents) > 0
 	if c.Lang == "" {
 		c.Lang = old.Lang
 	}
@@ -149,10 +148,10 @@ func resolveConfigPath() (path string, create bool) {
 }
 
 // untouchedExample tells whether b is still an example written on first run by an earlier version: an example
-// panel URL and no agents.
+// panel URL and no file server.
 func untouchedExample(b []byte) bool {
 	c, err := decodeConfig(b)
-	return err == nil && len(c.Agents) == 0 && slices.Contains(exampleURLs, c.Panel.URL)
+	return err == nil && !c.hadAgents && slices.Contains(exampleURLs, c.Panel.URL)
 }
 
 // writableDir tells whether a file can be created in dir.
@@ -187,7 +186,7 @@ func loadConfig() (c *config, needsSetup bool, err error) {
 	}
 	// on Windows the os.Stat mode does not reflect the DACL (the user profile is already private)
 	if fi, err := os.Stat(p); err == nil && runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0 {
-		return nil, false, fmt.Errorf("%s holds tokens and has mode %v: run chmod 600", p, fi.Mode().Perm())
+		return nil, false, fmt.Errorf("%s must be private and has mode %v: run chmod 600", p, fi.Mode().Perm())
 	}
 	if c, err = decodeConfig(b); err != nil {
 		return nil, false, fmt.Errorf("%s: %w", p, err)
@@ -195,12 +194,25 @@ func loadConfig() (c *config, needsSetup bool, err error) {
 	if c.Panel.User == "" {
 		c.Panel.User = "administrator"
 	}
+	if c.hadAgents { // file-server tokens of an older version: off the disk now (the panel reaches the agents)
+		configNotice = "File-server tokens are no longer used: they were removed from the configuration file."
+		if err := saveConfig(p, c); err != nil {
+			configNotice = "File-server tokens are no longer used, but they could not be removed from the configuration file: "
+			configNoticeErr = err.Error()
+		}
+	}
 	return c, untouchedExample(b) || c.Panel.URL == "", nil
 }
+
+// configNotice is said once in the status line after sign-in (translated there), with configNoticeErr after it.
+var configNotice, configNoticeErr string
 
 // saveConfig writes c to path (0600, through a temp file and rename so a
 // crash never leaves half a file).
 func saveConfig(path string, c *config) error {
+	if real, err := filepath.EvalSymlinks(path); err == nil { // a --config link: rewrite the file it points to
+		path = real
+	}
 	b, err := toml.Marshal(c)
 	if err != nil {
 		return err

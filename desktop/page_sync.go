@@ -110,22 +110,7 @@ func syncStatusText(s string) (string, color.Color) {
 }
 
 func (u *ui) syncPage() fyne.CanvasObject {
-	type agent struct {
-		ID   int64  `json:"id"`
-		Name string `json:"name"`
-		URL  string `json:"url"`
-	}
-	// label tells apart servers with look-alike names: where each agent answers
-	label := func(a agent) string {
-		h := a.URL
-		if p, err := url.Parse(a.URL); err == nil {
-			h = p.Hostname()
-		}
-		if h == "127.0.0.1" || h == "localhost" || h == "::1" {
-			h = t("This server")
-		}
-		return a.Name + " · " + h
-	}
+	label := agent.label
 	var agents []agent
 	var cur agent
 	var data syncList
@@ -440,4 +425,32 @@ func shortDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm%02ds", m, n%60)
 	}
 	return fmt.Sprintf("%ds", n)
+}
+
+// agent is a file server registered in the panel (GET /api/agents); the desktop reaches it only through the panel.
+type agent struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+// local tells an agent on the panel's own machine (registered by a loopback URL).
+func (a agent) local() bool {
+	h := a.URL
+	if p, err := url.Parse(a.URL); err == nil {
+		h = p.Hostname()
+	}
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+}
+
+// label tells apart servers with look-alike names: where each agent answers.
+func (a agent) label() string {
+	if a.local() {
+		return a.Name + " · " + t("This server")
+	}
+	h := a.URL
+	if p, err := url.Parse(a.URL); err == nil {
+		h = p.Hostname()
+	}
+	return a.Name + " · " + h
 }

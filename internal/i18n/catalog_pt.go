@@ -383,6 +383,7 @@ var ptPatterns = []pattern{
 	{`^Windows inheritance not applied: (.+)$`, "herança do Windows não aplicada: $1"},
 	{`^incremental Windows inheritance failed \((.+)\), reapplying to the whole folder$`, "a herança incremental do Windows falhou ($1), reaplicando na pasta inteira"},
 	{`^could not mark the Windows inheritance pending: (.+)$`, "não foi possível marcar a herança do Windows como pendente: $1"},
+	{`^the answer is larger than (\d+) MiB$`, "a resposta é maior que $1 MiB"},
 	{`^zone not created: (.+)$`, "zona não criada: $1"},
 	{`^setup: invalid (\S+)$`, "configuração: $1 inválido"},
 	{`^diagnosis: (.+)$`, "diagnóstico: $1"},

@@ -208,17 +208,18 @@ Everything runs locally, with passwords only in environment variables.
    and rename `sync-classic-blue-page.png` to `30-sync.png` and `sync-classic-blue-log.png` to `33-sync-log.png`
    (`docs-shots.mjs` also takes a `30-sync`, from the container's real runs: keep the fixture one).
 
-5. Desktop app (the container's agent with a new token, also registered in the panel):
+5. Desktop app (signed in to the container's panel; the file servers through it):
 
    ```bash
-   (cd desktop && DOCS_URL=https://127.0.0.1:18443 DOCS_PASS="$AD_ADMIN_PASSWORD" DOCS_AGENT_URL=https://<container IP>:9443 DOCS_AGENT_TOKEN='<token>' DOCS_VERSION=$(git describe --tags) DOCS_SHOTS_DIR=../docs/screenshots go test -tags docsshots -run TestDocsShots -count=1 .)
+   (cd desktop && DOCS_URL=https://127.0.0.1:18443 DOCS_PASS="$AD_ADMIN_PASSWORD" DOCS_VERSION=$(git describe --tags) DOCS_SHOTS_DIR=../docs/screenshots go test -tags docsshots -run TestDocsShots -count=1 .)
    ```
 
-   The desktop Sync page (`desktop-15-sync.png`) comes from fixtures instead (a running run and finished ones with
-   their end and duration; no panel or agent), after the run above, which also writes it:
+   Configure (`desktop-02-configure.png`, a self-signed panel's certificate to trust), Shares
+   (`desktop-08-shares.png`) and Sync (`desktop-15-sync.png`) come from fixtures instead (a fake panel, no agent),
+   after the run above, which also writes them:
 
    ```bash
-   (cd desktop && DOCS_SHOTS_DIR=../docs/screenshots DOCS_VERSION=$(git describe --tags --abbrev=0) go test -tags docsshots -run TestDocsSyncShot -count=1 .)
+   (cd desktop && DOCS_SHOTS_DIR=../docs/screenshots DOCS_VERSION=$(git describe --tags --abbrev=0) go test -tags docsshots -run TestDocsFixtureShots -count=1 .)
    ```
 
 6. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`,

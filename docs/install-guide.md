@@ -38,7 +38,7 @@ sha256sum -c checksums.txt --ignore-missing
 | Panel | Linux amd64 (tested on **Ubuntu 26.04**); LDAPS (636) and Kerberos (TCP 88 and 464, for password links) to a DC; the browsers reach the panel port (8443); optional Redis (queues, the agent) |
 | Agent on a file server | a Samba domain member (`samba`, `winbind`, `acl`, `python3-samba`, `vfs objects = acl_xattr`); a Redis (`redis-server`, usually local); the panel reaches its port 9443 |
 | Agent on a DC | the Samba DC itself, with the panel ([dc-file-server.md](dc-file-server.md)); `tdb-tools` for DC backups |
-| Desktop app | a desktop session (Linux X11 or Wayland with OpenGL — `libgl1`; Windows 10+; macOS 12+); HTTPS to the panel and, for shares, to each agent |
+| Desktop app | a desktop session (Linux X11 or Wayland with OpenGL — `libgl1`; Windows 10+; macOS 12+); HTTPS to the panel only |
 | Setup wizard | a fresh Ubuntu 26.04 server, the `.deb`, `redis-server`, a synchronized clock and 2 GiB free (10 GiB for backups) |
 
 A domain that does not exist yet (a new domain, an additional DC or a file server) is created by the setup wizard
@@ -223,7 +223,7 @@ own certificate to `tls/`.
 - **Agent token.** `sudo ad-manager agent token` prints a new token and writes only its hash to `token_file`; or, in
   the panel, **Settings → File server agent token → Generate token** shows the token and the command that writes the
   hash on the server. The agent reads the hash at start: `sudo systemctl restart ad-manager-agent` after a new one.
-  One token per agent: a new one replaces the old one in the panel and in every desktop app.
+  One token per agent: a new one replaces the old one in the panel (the desktop app never holds it).
 - **Setup token.** Only on a fresh `.deb` install: `/opt/ad-manager/data/setup-token` (root only), valid 24 h, 5
   tries every 15 min, spent on the first good sign-in. For a new one (expired, lost or used): `sudo rm -f
   /opt/ad-manager/data/setup-token /opt/ad-manager/data/setup-token.used` and `sudo systemctl restart ad-manager`.
@@ -261,7 +261,7 @@ In the panel, the server appears under **Shares → File servers** with its vers
 
 ## 3. Desktop app
 
-The desktop app is a client of the panel's API (and, for shares, of each agent): nothing is installed on a server
+The desktop app is a client of the panel's API only (the file servers through the panel): nothing is installed on a server
 ([desktop.md](desktop.md)).
 
 | System | Install |
@@ -270,16 +270,17 @@ The desktop app is a client of the panel's API (and, for shares, of each agent):
 | Windows | unzip `ad-manager-desktop_vX.Y.Z_windows_amd64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` |
 | macOS | unzip `…_darwin_universal.zip` and move `ad-manager-desktop.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
 
-On the first run the **Configure** screen asks for the panel URL (**Test connection**), whether its certificate is
-self-signed, the default user and, optionally, the file servers (name, URL and agent token). It saves
-`.config/desktop.toml` beside the executable; when that folder is not writable (or inside the macOS `.app`), the user's
-configuration folder: `~/.config/ad-manager/desktop.toml` on Linux, `~/Library/Application Support/ad-manager/` on
-macOS, `%AppData%\ad-manager\` on Windows. On Linux and macOS the file is `0600` and the app refuses a looser one (it
-holds agent tokens); on Windows its protection is the folder's, so keep the app in a folder of your own.
-`--config` or `AD_MANAGER_DESKTOP` point to another file.
+On the first run the **Configure** screen asks for the panel URL, the user, the password and the language; **Test
+connection** signs in for real (a self-signed certificate is shown with its fingerprint, to trust once), and **Save**
+writes the file and opens the app signed in. The password is never saved. It saves `.config/desktop.toml` beside the
+executable; when that folder is not writable (or inside the macOS `.app`), the user's configuration folder:
+`~/.config/ad-manager/desktop.toml` on Linux, `~/Library/Application Support/ad-manager/` on macOS,
+`%AppData%\ad-manager\` on Windows. On Linux and macOS the file is `0600` and the app refuses a looser one; on
+Windows its protection is the folder's, so keep the app in a folder of your own. `--config` or `AD_MANAGER_DESKTOP`
+point to another file.
 
-**Verify:** sign in with a Domain Admins account; Home shows the totals, and Shares lists each configured agent's
-shares. The panel's audit log records the desktop's actions with the machine's IP.
+**Verify:** sign in with a Domain Admins account; Home shows the totals, and Shares lists the shares of each file
+server registered in the panel. The panel's audit log records the desktop's actions with the machine's IP.
 
 ## Upgrade
 
@@ -338,7 +339,7 @@ sudo rm -rf /opt/ad-manager/ad-manager /opt/ad-manager/config.toml /opt/ad-manag
 
 **Desktop app:** delete its folder (with its `.config/`) or the `.app`, and the user configuration folder if used:
 `~/.config/ad-manager/` (Linux), `~/Library/Application Support/ad-manager/` (macOS), `%AppData%\ad-manager` (Windows).
-They hold agent tokens.
+A file of an older version may still hold agent tokens (the current app removes them on start).
 
 Uninstalling never touches Samba, the domain, the shares or the backups in `/var/backups/ad-manager`; remove an agent
 from the panel under **Shares → File servers**.

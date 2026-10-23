@@ -470,6 +470,8 @@ func (s *Server) proxy(method, path, action string) echo.HandlerFunc {
 			var cancel context.CancelFunc // du on large folders, dbcheck on a large directory
 			ctx, cancel = context.WithTimeout(ctx, slow)
 			defer cancel()
+			// the server's WriteTimeout (60 s) would cut the answer before the agent's: this one may write until then
+			_ = http.NewResponseController(c.Response()).SetWriteDeadline(time.Now().Add(slow + 15*time.Second))
 		}
 		status, out, err := agentDo(ctx, a, method, target, body)
 		if action != "" {
@@ -535,9 +537,15 @@ func agentDo(ctx context.Context, a *store.Agent, method, target string, body []
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	out, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	out, err := io.ReadAll(io.LimitReader(resp.Body, maxAgentAnswer+1))
+	if err == nil && len(out) > maxAgentAnswer { // never pass on a cut JSON
+		return 0, nil, fmt.Errorf("the answer is larger than %d MiB", maxAgentAnswer>>20)
+	}
 	return resp.StatusCode, out, err
 }
+
+// maxAgentAnswer is the largest agent answer the panel reads into memory to pass on.
+const maxAgentAnswer = 4 << 20
 
 // importAD reads another AD and plans or applies on the current domain: its users, groups, OUs and computers
 // (objects, the default), its GPOs (new, unlinked GPOs made by the DC agent in its explicit write mode) and the

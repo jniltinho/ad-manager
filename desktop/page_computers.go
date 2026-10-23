@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -46,10 +47,23 @@ func (u *ui) inactiveDays() int {
 }
 
 // bgDo runs work off the UI thread, then shows its error or runs done on the UI thread.
+// uiMu orders the screen updates of background work (onUI) with tests that read the screen meanwhile (Fyne's test
+// driver runs fyne.Do at once, on the calling goroutine); in the app fyne.Do already runs them one at a time.
+var uiMu sync.Mutex
+
+// onUI runs f on the UI goroutine with uiMu held: how background work puts its result on the screen.
+func onUI(f func()) {
+	fyne.Do(func() {
+		uiMu.Lock()
+		defer uiMu.Unlock()
+		f()
+	})
+}
+
 func (u *ui) bgDo(work func() error, done func()) {
 	go func() {
 		err := work()
-		fyne.Do(func() {
+		onUI(func() {
 			if err != nil {
 				u.handleError(err)
 				return
