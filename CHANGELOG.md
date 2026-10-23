@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 —
 
+## [0.18.1] — 2026-10-23
+
+### Fixed
+- The **Sync** page's Runs table no longer wraps the **Files** and **Size** values onto two lines — those cells stay
+  on one line.
+
 ## [0.18.0] — 2026-10-22
 
 **Faster, clearer folder sync: incremental ACL re-inheritance, run phases, and a scrollable run-log.**
