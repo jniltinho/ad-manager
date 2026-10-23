@@ -288,7 +288,7 @@ method. Take a panel backup before a major upgrade (**Backup → panel**, [backu
 
 | Installed from | Upgrade |
 |---|---|
-| `.deb` (panel and/or agent) | `sudo apt install --no-install-recommends ./ad-manager_NEW_amd64.deb` then `sudo systemctl try-restart ad-manager ad-manager-agent` (the package restarts nothing itself) |
+| `.deb` (panel and/or agent) | `sudo apt install --no-install-recommends ./ad-manager_NEW_amd64.deb` (the package restarts the panel and the agent that are running; it never starts or enables one that is not) |
 | Binary (panel) | download the new tarball and its `deploy/` files at the new tag, then `sudo ./install.sh ./ad-manager` (replaces the binary and the unit, keeps the rest, restarts the panel) |
 | Binary (agent) | `sudo install -m 0755 ad-manager /opt/ad-manager/ad-manager`, refresh `/etc/systemd/system/ad-manager-agent.service` from the new tag, `sudo systemctl daemon-reload && sudo systemctl restart ad-manager-agent` |
 | Desktop app | replace the executable (or the `.app`) in its folder; `.config/desktop.toml` stays |

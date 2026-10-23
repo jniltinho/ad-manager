@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format follows
   Only with the `acl_xattr` VFS stack Samba's own configuration uses; otherwise every item goes through Samba as
   before. Used by a sync's ACL phase, a restore from quarantine and a folder ACL change applied to its contents.
 - The agent's Samba (python3) helper stops after 5 minutes without a request and starts again on the next one.
+- Upgrading the `.deb` restarts the panel and the agent that are running, so they run the new version right away
+  (before, they kept the old binary until restarted by hand). A fresh install still starts nothing, and an upgrade
+  never starts or enables a stopped service.
 
 ### Fixed
 - A sync whose Windows-inheritance pass failed, timed out or was cancelled — or that was cancelled or died after
