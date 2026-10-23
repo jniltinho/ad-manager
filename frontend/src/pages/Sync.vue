@@ -284,21 +284,23 @@ const details = ref(null)
                       · {{ phaseText(r.progress) }}</span
                     >
                   </td>
-                  <td class="text-right tabular-nums">
+                  <td class="text-right tabular-nums whitespace-nowrap">
                     {{
                       r.preview
                         ? (r.result?.plan?.New || 0) + (r.result?.plan?.Changed || 0)
                         : (r.result?.transfers ?? r.progress?.transfers ?? '—')
                     }}
                   </td>
-                  <td class="text-right tabular-nums">
+                  <td class="text-right tabular-nums whitespace-nowrap">
                     {{
                       r.preview
                         ? size((r.result?.plan?.NewBytes || 0) + (r.result?.plan?.ChangedBytes || 0))
                         : size(r.result?.bytes ?? r.progress?.bytes)
                     }}
                   </td>
-                  <td class="text-right tabular-nums">{{ r.preview ? (r.result?.plan?.Delete ?? '—') : (r.result?.deleted ?? '—') }}</td>
+                  <td class="text-right tabular-nums whitespace-nowrap">
+                    {{ r.preview ? (r.result?.plan?.Delete ?? '—') : (r.result?.deleted ?? '—') }}
+                  </td>
                   <td class="space-x-2 text-right whitespace-nowrap">
                     <button v-if="r.result" class="act px-0" :title="t('Details')" @click="details = r"><Eye :size="13" /></button>
                     <button class="act px-0" :title="t('Log')" @click="showLog(r)"><ScrollText :size="13" /></button>
