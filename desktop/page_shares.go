@@ -40,13 +40,7 @@ func splitList(s string) []string {
 }
 
 func (u *ui) sharesPage() fyne.CanvasObject {
-	if len(u.cfg.Agents) == 0 {
-		return container.NewPadded(card(t("Shares"), widget.NewLabel(tf("No file server configured in %s\n([[agents]] with name, url and token).", configPath))))
-	}
-	names := make([]string, len(u.cfg.Agents))
-	for i, a := range u.cfg.Agents {
-		names[i] = a.Name
-	}
+	var agents []agent // the panel's file servers (GET /api/agents), reached through its proxy
 	var ag *api
 	var agName string
 	var shares []shareRow
@@ -110,8 +104,8 @@ func (u *ui) sharesPage() fyne.CanvasObject {
 			var r struct {
 				Sizes map[string]int64 `json:"sizes"`
 			}
-			err := target.do(http.MethodGet, path, nil, &r)
-			fyne.Do(func() {
+			err := target.withTimeout(150*time.Second).do(http.MethodGet, path, nil, &r) // du of large folders: the panel waits 2 min
+			onUI(func() {
 				if target != ag {
 					return
 				}
@@ -132,7 +126,7 @@ func (u *ui) sharesPage() fyne.CanvasObject {
 		go func() {
 			var r []shareRow
 			err := target.do(http.MethodGet, "/api/shares", nil, &r)
-			fyne.Do(func() {
+			onUI(func() {
 				if target != ag {
 					return
 				}
@@ -152,34 +146,42 @@ func (u *ui) sharesPage() fyne.CanvasObject {
 			})
 		}()
 	}
-	picker := newSelect(names, func(n string) {
-		for _, a := range u.cfg.Agents {
-			if a.Name == n {
-				ag, agName, sizes = newAPI(strings.TrimRight(a.URL, "/"), a.Token, a.Insecure), n, nil
+	picker := newSelect(nil, func(n string) {
+		for _, a := range agents {
+			if a.label() == n {
+				ag, agName, sizes = u.panel.via(a.ID), a.Name, nil
 			}
 		}
 		reload(false)
 	})
 	// enqueue submits a task to the agent and polls it until it finishes.
 	enqueue := func(kind string, payload map[string]any, label string) {
-		target := ag
+		target, session := ag, u.panel // a session replaced meanwhile (Configure) is not this poll's to end
 		go func() {
 			var tk task
 			if err := target.do(http.MethodPost, "/api/tasks", map[string]any{"type": kind, "payload": payload}, &tk); err != nil {
-				fyne.Do(func() { u.handleError(err) })
+				onUI(func() { u.handleError(err) })
 				return
 			}
-			fyne.Do(func() { u.setStatus(label + ": " + t("queued")) })
+			onUI(func() { u.setStatus(label + ": " + t("queued")) })
 			// every second for 40 s, then every 5 s (24 h at most): a task waits for the ones queued before it, and
 			// each may take up to the agent's 30-minute limit
 			for i := range 40 + 17280 {
 				time.Sleep(map[bool]time.Duration{true: time.Second, false: 5 * time.Second}[i < 40])
 				var st task
-				if target.do(http.MethodGet, "/api/tasks/"+esc(tk.ID), nil, &st) != nil {
+				if err := target.do(http.MethodGet, "/api/tasks/"+esc(tk.ID), nil, &st); err != nil {
+					if errors.Is(err, errSessionExpired) { // signed out or the panel restarted: no point asking for 24 h
+						onUI(func() {
+							if u.panel == session {
+								u.handleError(err)
+							}
+						})
+						return
+					}
 					continue
 				}
 				if st.State == "completed" || st.State == "archived" {
-					fyne.Do(func() {
+					onUI(func() {
 						if st.State == "archived" {
 							u.showError(errors.New(label + ": " + serverText(st.LastErr)))
 						} else {
@@ -296,7 +298,19 @@ func (u *ui) sharesPage() fyne.CanvasObject {
 		})
 	})
 	remove.Importance = widget.DangerImportance
-	picker.SetSelectedIndex(0)
+	u.bgDo(func() error { return u.panel.do(http.MethodGet, "/api/agents", nil, &agents) }, func() {
+		var names []string
+		for _, a := range agents {
+			names = append(names, a.label())
+		}
+		picker.SetOptions(names)
+		if len(names) == 0 {
+			health.Text, health.Color = t("No file server registered in the panel (web panel: Shares → File servers → + new)."), mutedText
+			health.Refresh()
+			return
+		}
+		picker.SetSelectedIndex(0)
+	})
 	top := container.NewBorder(nil, nil, container.NewHBox(widget.NewIcon(theme.StorageIcon()), newText(t("Server"), strongText, 13, true)),
 		container.NewHBox(container.NewCenter(health), container.NewCenter(total),
 			newButton(t("Refresh"), theme.ViewRefreshIcon(), func() { reload(true) })), picker)

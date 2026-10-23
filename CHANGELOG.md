@@ -5,7 +5,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- The desktop app reaches **only the panel**: the Shares page and the file servers' Samba logs list the servers
+  registered in the panel and go through its proxy with your session, as Sync and Backup already did. The desktop
+  no longer asks for, stores or sends a file-server agent token (that token is root on the file server), its
+  actions there are audited under your name, and the workstation needs only the panel's port. A configuration file
+  of an older version that still lists `[[agents]]` with tokens is rewritten without them on start.
+- The desktop's **Configure** asks for the panel URL, user, password and language; **Test connection** signs in for
+  real and shows the panel's reason when it cannot (wrong password, not a Domain Admin); **Save** writes the file
+  (never the password) and opens the app signed in. A self-signed panel certificate is shown with its fingerprint and
+  trusted only when you accept it (pinned), instead of turning certificate checks off; the app never follows a
+  redirect from the panel.
+
+### Fixed
+- Measuring the shares' folder sizes through the panel (web and desktop) no longer fails after 60 seconds on large
+  folders: the panel waits for the agent's answer for up to 2 minutes. An agent answer larger than the panel passes
+  on is an error instead of a cut answer.
 
 ## [0.20.0] — 2026-10-23
 

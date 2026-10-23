@@ -6,7 +6,6 @@ package main
 // see docs/screenshots/README.md). The password comes from the environment only:
 //
 //	DOCS_URL=https://127.0.0.1:18443 DOCS_PASS=… DOCS_SHOTS_DIR=../docs/screenshots \
-//	  DOCS_AGENT_URL=https://<container IP>:9443 DOCS_AGENT_TOKEN=… \
 //	  go test -tags docsshots -run TestDocsShots -count=1 .
 
 import (
@@ -32,9 +31,6 @@ func TestDocsShots(t *testing.T) {
 	if !localURL(url, false) {
 		t.Fatal("only a local panel")
 	}
-	if a := os.Getenv("DOCS_AGENT_URL"); a != "" && !localURL(a, true) {
-		t.Fatal("only a local agent (loopback, or a container's private address)")
-	}
 	a := test.NewApp()
 	defer a.Quit()
 	w := a.NewWindow("AD Manager")
@@ -46,10 +42,7 @@ func TestDocsShots(t *testing.T) {
 		version = v
 	}
 	cfg := &config{}
-	cfg.Panel.URL, cfg.Panel.Insecure = url, true
-	if tok := os.Getenv("DOCS_AGENT_TOKEN"); tok != "" { // the Shares page talks to the file server's agent directly
-		cfg.Agents = []agentConfig{{Name: "dc1", URL: os.Getenv("DOCS_AGENT_URL"), Token: tok, Insecure: true}}
-	}
+	cfg.Panel.URL, cfg.Panel.Insecure = url, true // the Shares page reaches the file servers through this panel
 	u := &ui{a: a, w: w, cfg: cfg, panel: newAPI(url, "", true), status: newText("", col("footer-strong"), 11, false)}
 
 	shot := func(name string, wait time.Duration) {

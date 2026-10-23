@@ -33,6 +33,7 @@ func TestT(t *testing.T) {
 			"a herança incremental do Windows falhou (samba bridge: no answer (i/o timeout)), reaplicando na pasta inteira"},
 		{"could not mark the Windows inheritance pending: open x: no space left on device",
 			"não foi possível marcar a herança do Windows como pendente: open x: no space left on device"},
+		{"server fs1 unavailable: the answer is larger than 4 MiB", "servidor fs1 indisponível: a resposta é maior que 4 MiB"},
 		{"something new", "something new"},
 	}
 	for _, tt := range tests {

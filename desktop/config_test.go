@@ -34,8 +34,7 @@ url = "https://fs01.example.local:9443"
 token = "t"
 `
 	c, err := decodeConfig([]byte(old))
-	if err != nil || c.Panel.URL != "https://ad.example.local:8443" || c.Panel.User != "joe" || c.Lang != "pt-BR" ||
-		len(c.Agents) != 1 || c.Agents[0].Name != "fs01" || c.Agents[0].Token != "t" {
+	if err != nil || c.Panel.URL != "https://ad.example.local:8443" || c.Panel.User != "joe" || c.Lang != "pt-BR" || !c.hadAgents {
 		t.Fatalf("decodeConfig(old) = %+v, %v", c, err)
 	}
 	path := filepath.Join(t.TempDir(), "desktop.toml")
@@ -43,12 +42,12 @@ token = "t"
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(path)
-	for _, k := range []string{"painel", "usuario", "agentes", "nome", "idioma"} {
+	for _, k := range []string{"painel", "usuario", "agentes", "nome", "idioma", "agents", "token"} {
 		if strings.Contains(string(b), k) {
 			t.Fatalf("saved file has the old key %q:\n%s", k, b)
 		}
 	}
-	if again, err := decodeConfig(b); err != nil || again.Panel.User != "joe" || len(again.Agents) != 1 || again.Lang != "pt-BR" {
+	if again, err := decodeConfig(b); err != nil || again.Panel.User != "joe" || again.hadAgents || again.Lang != "pt-BR" {
 		t.Fatalf("decodeConfig(saved) = %+v, %v", again, err)
 	}
 	if !untouchedExample([]byte(exampleConfig)) || !untouchedExample([]byte("[panel]\nurl = \"https://panel.example.local:8443\"\n")) {
@@ -112,31 +111,18 @@ func TestResolveConfigPath(t *testing.T) {
 	}
 }
 
-func TestValidateAndSaveConfig(t *testing.T) {
-	ok := &config{Agents: []agentConfig{{Name: "fs01", URL: "https://fs01:9443", Token: "x"}}}
-	ok.Panel.URL = "https://painel:8443"
-	tests := []struct {
-		name string
-		mod  func(*config)
-		bad  bool
-	}{
-		{"valid", func(*config) {}, false},
-		{"panel over plain http", func(c *config) { c.Panel.URL = "http://painel:8443" }, true},
-		{"panel without host", func(c *config) { c.Panel.URL = "https://" }, true},
-		{"agent without token", func(c *config) { c.Agents[0].Token = "" }, true},
-		{"duplicated agent", func(c *config) { c.Agents = append(c.Agents, c.Agents[0]) }, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := *ok
-			c.Agents = append([]agentConfig(nil), ok.Agents...)
-			tt.mod(&c)
-			if got := validateConfig(&c); (got != "") != tt.bad {
-				t.Errorf("validateConfig() = %q, bad = %v", got, tt.bad)
-			}
-		})
+func TestCheckURLAndSaveConfig(t *testing.T) {
+	for _, tt := range []struct {
+		url string
+		bad bool
+	}{{"https://painel:8443", false}, {"http://painel:8443", true}, {"https://", true}} {
+		if got := checkURL("Panel URL", tt.url); (got != "") != tt.bad {
+			t.Errorf("checkURL(%q) = %q, bad = %v", tt.url, got, tt.bad)
+		}
 	}
 
+	ok := &config{}
+	ok.Panel.URL, ok.Panel.User, ok.Panel.Fingerprint = "https://painel:8443", "joe", "sha256:ab"
 	path := filepath.Join(t.TempDir(), ".config", "desktop.toml")
 	if err := saveConfig(path, ok); err != nil {
 		t.Fatal(err)
@@ -148,7 +134,55 @@ func TestValidateAndSaveConfig(t *testing.T) {
 	configFlag = path
 	t.Cleanup(func() { configFlag = "" })
 	got, needsSetup, err := loadConfig()
-	if err != nil || needsSetup || got.Panel.URL != ok.Panel.URL || len(got.Agents) != 1 || got.Agents[0].Token != "x" {
+	if err != nil || needsSetup || got.Panel.URL != ok.Panel.URL || got.Panel.Fingerprint != "sha256:ab" || got.Panel.Insecure {
 		t.Fatalf("round trip: %+v needsSetup=%v err=%v", got, needsSetup, err)
+	}
+}
+
+// TestLegacyAgentTokensRemoved: a config of an older version that still lists file servers with their tokens is read
+// without them and rewritten at once (0600) without them, keeping the rest.
+func TestLegacyAgentTokensRemoved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "desktop.toml")
+	legacy := "lang = \"en\"\n[panel]\nurl = \"https://panel.example.test:8443\"\ninsecure = true\nuser = \"joe\"\n\n" +
+		"[[agents]]\nname = \"fs01\"\nurl = \"https://fs01:9443\"\ntoken = \"secret-token\"\ninsecure = true\n"
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configFlag = path
+	t.Cleanup(func() { configFlag, configNotice, configNoticeErr = "", "", "" })
+	c, needsSetup, err := loadConfig()
+	if err != nil || needsSetup || c.Panel.URL != "https://panel.example.test:8443" || c.Panel.User != "joe" || !c.Panel.Insecure || c.Lang != "en" {
+		t.Fatalf("loadConfig = %+v needsSetup=%v err=%v", c, needsSetup, err)
+	}
+	b, _ := os.ReadFile(path)
+	if strings.Contains(string(b), "secret-token") || strings.Contains(string(b), "agents") {
+		t.Fatalf("the tokens stayed on disk:\n%s", b)
+	}
+	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 || configNotice == "" || configNoticeErr != "" {
+		t.Fatalf("mode %v, notice %q %q", fi.Mode().Perm(), configNotice, configNoticeErr)
+	}
+}
+
+// TestLegacyAgentTokensRemovedThroughLink: --config pointing to a link rewrites the file it points to (the tokens
+// leave the real file) and leaves the link in place.
+func TestLegacyAgentTokensRemovedThroughLink(t *testing.T) {
+	dir := t.TempDir()
+	real, link := filepath.Join(dir, "real.toml"), filepath.Join(dir, "link.toml")
+	legacy := "[panel]\nurl = \"https://panel.example.test:8443\"\nuser = \"joe\"\n[[agents]]\nname = \"fs01\"\nurl = \"https://fs01:9443\"\ntoken = \"secret-token\"\n"
+	if err := os.WriteFile(real, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip(err)
+	}
+	configFlag = link
+	t.Cleanup(func() { configFlag, configNotice, configNoticeErr = "", "", "" })
+	if _, _, err := loadConfig(); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(real)
+	fi, err := os.Lstat(link)
+	if strings.Contains(string(b), "secret-token") || err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("real file:\n%s\nlink %v %v", b, fi.Mode(), err)
 	}
 }

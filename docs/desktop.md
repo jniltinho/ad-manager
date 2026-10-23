@@ -1,8 +1,9 @@
 # Desktop app (Fyne)
 
-For the manager to use on their own machine (Linux, Windows or macOS), without a browser. It is a client: it talks to
-the **panel API** (sign-in with the domain account, same rules — *Domain Admins* only, audit with the machine's IP)
-and, for shares, **directly to the agents** of the file servers using each one's token.
+For the manager to use on their own machine (Linux, Windows or macOS), without a browser. It is a client of the
+**panel API** only (sign-in with the domain account, same rules — *Domain Admins* only, audit with the machine's IP):
+the file servers' shares and Samba logs go through the panel's proxy to each agent too, so the desktop needs only
+the panel's port and never holds an agent token.
 
 | Sign-in | Users |
 |---|---|
@@ -51,11 +52,23 @@ Download, install, upgrade and removal on each system: [install-guide.md](instal
 
 ## Configure
 
-On first run the app opens the **Configure** screen: panel URL (with **Test connection**), self-signed certificate,
-default user and, optionally, the file servers (name, URL and agent token). On save, it writes
-**`.config/desktop.toml` in the executable's folder** (permission `0600`). This way each copy of the app carries its
-own configuration, even on a USB stick. To change it later: **Configure** button on the sign-in screen or in the
-header. If the file has looser permissions, the app refuses to open (it stores tokens).
+On first run the app opens the **Configure** screen: panel URL, user, password and language. **Test connection**
+reads the panel's certificate, checks its health and signs in with that account (*Domain Admins*), showing the domain,
+the user and the panel version, or the panel's reason (wrong password, not a Domain Admin, panel being set up).
+**Save** is enabled after a successful test of the values on screen: it writes the configuration and opens the app
+already signed in, without asking for the password again. The password is used only for the test and the session and
+is never saved.
+
+**Self-signed certificate.** When this computer does not trust the panel's certificate (a fresh installation's own),
+Test shows its SHA-256 fingerprint, subject, issuer and validity. Compare the fingerprint with the panel's (the panel
+logs it at start: `journalctl -u ad-manager | grep sha256`) and click **Trust this certificate**: only that certificate
+is accepted from then on (`fingerprint` in the file). A renewed or replaced certificate is refused until it is trusted
+again in **Configure**. The app never follows a redirect from the panel.
+
+On save, it writes **`.config/desktop.toml` in the executable's folder** (permission `0600`). This way each copy of
+the app carries its own configuration, even on a USB stick. To change it later: **Configure** button on the sign-in
+screen or in the header (from the header, changing only the language keeps the session). If the file has looser
+permissions, the app refuses to open.
 
 Lookup order:
 
@@ -74,25 +87,15 @@ lang = "en"               # "pt-BR" or "en"; left out = the panel's default
 
 [panel]
 url = "https://panel.example.local:8443"
-insecure = false          # true only with a self-signed certificate
+fingerprint = "sha256:…"  # only for a self-signed certificate, written by Configure
 user = "administrator"    # the password is asked on sign-in and stays only in memory
-
-[[agents]]
-name = "fs01"
-url = "https://fs01.example.local:9443"
-token = "the agent token (see below)"
-insecure = false
 ```
 
-**Agent token.** Generate it in the web panel: **Settings → File server agent token → Generate token**. The panel
-shows the token once and a command to run on the file server (it writes the token's hash and restarts the agent).
-Use that same token in the panel (**Shares → File servers**, the server's entry) and here in **Configure**. On the
-server itself, `sudo ad-manager agent token` prints a new token and writes its hash; then restart the agent
-(`sudo systemctl restart ad-manager-agent`), which loads the hash only at start. An agent accepts a single token: a new one replaces the
-previous one, so update it in the panel and in every desktop that uses that server.
-
-Files written by earlier versions, with the Portuguese keys (`[painel]`, `usuario`, `[[agentes]]`, `nome`,
-`idioma`), are still read; saving in **Configure** rewrites them with the keys above.
+**File servers.** They are registered once in the web panel (**Shares → File servers → + new**, with the agent's
+token); the desktop lists them from the panel. Files written by earlier versions may still list `[[agents]]` with
+their tokens: the app ignores them and rewrites the file without them on start (it says so in the status line).
+Files with the Portuguese keys (`[painel]`, `usuario`, `idioma`) are still read; saving rewrites them with the keys
+above.
 
 
 ## Build

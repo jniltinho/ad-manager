@@ -69,7 +69,7 @@ func main() {
 		w.ShowAndRun()
 		return
 	}
-	u := &ui{a: a, w: w, cfg: cfg, panel: newAPI(strings.TrimRight(cfg.Panel.URL, "/"), "", cfg.Panel.Insecure),
+	u := &ui{a: a, w: w, cfg: cfg, panel: panelAPI(cfg),
 		status: newText("", col("footer-strong"), 11, false)}
 	setLang(cfg.Lang)
 	if needsSetup {
@@ -392,6 +392,10 @@ func (u *ui) shell() {
 	}
 	u.status.Color = col("footer-strong")
 	u.setStatus(t("Connected to ") + u.cfg.Panel.URL)
+	if configNotice != "" { // said once: an older config's file-server tokens were taken off the disk
+		u.setStatus(t(configNotice) + configNoticeErr)
+		configNotice, configNoticeErr = "", ""
+	}
 	settings := func() { u.setup(u.shell) }
 	u.w.SetContent(container.New(watchResize{u}, container.NewBorder(header(u.me.Domain, u.me.User, logout, settings), footer(u.status, version, u.me.Brand.Company), nil, nil, content)))
 }
