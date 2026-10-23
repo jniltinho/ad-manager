@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - Desktop app: the **Password policy** is a dialog opened from the button of the same name on the **Users** toolbar,
   as in the web panel, no longer an item of the side menu; Home's policy alert opens it over Users.
+- Desktop app: the Users table acts on each row in place, as the web panel — the login opens the edit form, the
+  status enables or disables the account, an **unlock** link sits beside a locked one, and one column per action
+  (**password**, **copy**, **move**, **delete**; move and delete not on built-in accounts nor your own). The toolbar
+  keeps only the search, filter, Password policy, Export CSV, New user and refresh, on one line. On a 1280 px window
+  the action links are icons; Enter on the selected row opens a menu of its actions.
 - Desktop app: the Users toolbar takes as few lines as fit — on a wide window the search, filter, actions, Password
   policy and Export CSV share one line (the search is at most 360 px and gives way first, with room between the
   actions and the extras); narrower, the extras go behind a ⋯ menu, and only then do the actions move to a second

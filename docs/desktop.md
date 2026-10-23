@@ -17,9 +17,12 @@ The day-to-day work of the web panel, with the session of your own sign-in (same
 
 - **Home**: totals (enabled, disabled, locked, inactive, groups, computers), alerts and quick password
   reset/unlock.
-- **Users**: filters (all, enabled, disabled, locked, inactive), new, copy as template, edit (data and groups),
-  password with a generator or a **single-use link** for the user to choose the new one, unlock, enable/disable, move
-  to another OU, delete (typing the login) and export CSV.
+- **Users**: filters (all, enabled, disabled, locked, inactive), new and export CSV; each row acts in place, as in
+  the web panel — the login opens the edit form (data and groups), the status enables/disables the account, **unlock**
+  beside a locked one, and the **password** (a generator or a **single-use link** for the user to choose the new
+  one), **copy** (as a template), **move** (to another OU) and **delete** (typing the login) links. Built-in accounts
+  and your own have no toggle, move or delete. On a 1280 px window the action links are icons (hovering one names it
+  in the status bar); Enter on the selected row opens a menu of its actions.
 - **Groups**: new, edit description, delete, members (add/remove).
 - **OUs**: list with a readable path, new OU and delete (empty).
 - **Computers**: filters (OS, no logon), enable/disable, move, delete and export CSV (DCs protected).

@@ -98,7 +98,6 @@ func (u *ui) groupNames() ([]string, error) {
 
 func (u *ui) usersPage() fyne.CanvasObject {
 	var all, visible []userDetail
-	sel := -1
 	days := u.inactiveDays()
 	search := newEntry()
 	search.SetPlaceHolder(t("Filter by login, name, e-mail…"))
@@ -113,47 +112,82 @@ func (u *ui) usersPage() fyne.CanvasObject {
 	filter := newSelect([]string{t("All"), t("Enabled"), t("Disabled"), t("Locked"), tf("Inactive for %d+ days", days)}, nil)
 	filter.SetSelectedIndex(0)
 	count := newText("", mutedText, 12, false)
-	var newBtn, copyBtn, editBtn, pwBtn, unlockBtn, toggleBtn, moveBtn, delBtn *volButton
-	current := func() (userDetail, bool) {
-		if sel < 0 || sel >= len(visible) {
-			return userDetail{}, false
-		}
-		return visible[sel], true
+	var reload func()
+	// editable: built-in accounts and the operator's own login are not disabled, moved or deleted here (the panel
+	// refuses to disable or delete them anyway), as the web Users page
+	editable := func(x userDetail) bool { return !x.Protected && !strings.EqualFold(x.Sam, u.me.User) }
+	// the row actions, each on the account it is given (the row it was tapped on, never the selected one)
+	act := func(x userDetail, verb, msg string) {
+		u.bgDo(func() error { return u.panel.do(http.MethodPost, "/api/users/"+esc(x.Sam)+"/"+verb, nil, nil) }, func() {
+			u.setStatus(tf(msg, x.Sam))
+			reload()
+		})
 	}
-	// built-in accounts and the operator's own login cannot be disabled, moved or deleted
-	updateButtons := func() {
-		x, ok := current()
-		editable := ok && !x.Protected && !strings.EqualFold(x.Sam, u.me.User)
-		enableIf(ok, copyBtn, editBtn, pwBtn)
-		enableIf(ok && x.Locked, unlockBtn)
-		enableIf(editable, toggleBtn, moveBtn, delBtn)
-		if ok && !x.Enabled {
-			toggleBtn.SetText(t("Enable"))
-			toggleBtn.SetIcon(theme.MediaPlayIcon())
-		} else {
-			toggleBtn.SetText(t("Disable"))
-			toggleBtn.SetIcon(theme.MediaPauseIcon())
-		}
+	edit := func(x userDetail) { u.editUserDialog(x.Sam, reload) }
+	password := func(x userDetail) { u.passwordDialog(x.user, reload) }
+	copyUser := func(x userDetail) {
+		var full userDetail // the list may lack the groups: read the template itself
+		u.bgDo(func() error { return u.panel.do(http.MethodGet, "/api/users/"+esc(x.Sam), nil, &full) }, func() {
+			u.newUserDialog(&full, reload)
+		})
 	}
-	tab := newTable([]column{{t("Login"), 140, false}, {t("Name"), 210, false}, {t("E-mail"), 200, false}, {t("OU"), 150, false},
-		{t("Status"), 105, true}, {"", 75, true}, {t("Last logon"), 130, false}},
+	unlock := func(x userDetail) { act(x, "unlock", "%s unlocked.") }
+	toggle := func(x userDetail) {
+		if !x.Enabled {
+			act(x, "enable", "%s enabled.")
+			return
+		}
+		u.confirm(t("Disable user"), tf("Disable %s (%s)? The user will no longer be able to log on.", x.Name, x.Sam), t("Disable"), true,
+			func() { act(x, "disable", "%s disabled.") })
+	}
+	move := func(x userDetail) { u.moveUserDialog(x, reload) }
+	remove := func(x userDetail) {
+		u.confirmTyped(t("Delete user"), tf("Delete the account %s? Prefer disabling it: deletion cannot be undone.", x.Name), x.Sam, func() {
+			u.bgDo(func() error { return u.panel.do(http.MethodDelete, "/api/users/"+esc(x.Sam), nil, nil) }, func() {
+				u.setStatus(tf("%s deleted.", x.Sam))
+				reload()
+			})
+		})
+	}
+	// the columns: one per action at the end, as the web's (move and delete blank on a non-editable account)
+	const colLogin, colStatus, colTag, colPassword, colCopy, colMove, colDelete = 0, 4, 5, 7, 8, 9, 10
+	tab := newTable([]column{{t("Login"), 130, false}, {t("Name"), 150, false}, {t("E-mail"), 175, false}, {t("OU"), 100, false},
+		{t("Status"), 105, true}, {"", 130, true}, {t("Last logon"), 140, false},
+		{"", 105, false}, {"", 90, false}, {"", 85, false}, {"", 90, false}},
 		func() int { return len(visible) },
 		func(r, c int) (string, color.Color) {
 			x := visible[r]
 			switch c {
-			case 0:
-				return x.Sam, strongText
+			case colLogin:
+				return x.Sam, nil
 			case 1:
 				return x.Name, nil
 			case 2:
 				return x.Mail, nil
 			case 3:
 				return ouPath(parentDN(x.DN)), mutedText
-			case 4:
+			case colStatus:
 				return userStatus(x.user)
-			case 5:
+			case colTag: // system and unlock are independent: a locked built-in account shows both
 				if x.Protected {
 					return t("system"), strongText
+				}
+				if x.Locked {
+					return t("unlock"), nil
+				}
+				return "", nil
+			case colPassword:
+				return t("password"), nil
+			case colCopy:
+				return t("copy"), nil
+			case colMove:
+				if editable(x) {
+					return t("move"), nil
+				}
+				return "", nil
+			case colDelete:
+				if editable(x) {
+					return t("delete"), errText
 				}
 				return "", nil
 			}
@@ -164,7 +198,73 @@ func (u *ui) usersPage() fyne.CanvasObject {
 				return dateOrDash(x.LastLogon), warnText
 			}
 			return dateOrDash(x.LastLogon), nil
-		}, func(r int) { sel = r; updateButtons() })
+		}, nil)
+	// compact (1280 px): the action links as icons, unlock too (its column keeps room for the system tag)
+	tab.actions = map[int]float32{colTag: 80, colPassword: compactWidth, colCopy: compactWidth, colMove: compactWidth, colDelete: compactWidth}
+	// the links of a cell, bound to the account drawn in it
+	tab.link = func(r, c int) *cellLink {
+		if r < 0 || r >= len(visible) {
+			return nil
+		}
+		x := visible[r]
+		on := func(f func(userDetail)) func() { return func() { f(x) } }
+		switch {
+		case c == colLogin:
+			return &cellLink{hint: tf("Edit %s", x.Sam), run: on(edit)}
+		case c == colStatus && editable(x):
+			hint := t("Click to disable")
+			if !x.Enabled {
+				hint = t("Click to enable")
+			}
+			return &cellLink{hint: hint, run: on(toggle)}
+		case c == colTag && x.Locked:
+			return &cellLink{icon: theme.MailReplyIcon(), hint: tf("Unlock %s", x.Sam), run: on(unlock), tag: x.Protected}
+		case c == colPassword:
+			return &cellLink{icon: theme.VisibilityIcon(), hint: tf("Set a password for %s", x.Sam), run: on(password)}
+		case c == colCopy:
+			return &cellLink{icon: theme.ContentCopyIcon(), hint: tf("New user copied from %s", x.Sam), run: on(copyUser)}
+		case c == colMove && editable(x):
+			return &cellLink{icon: theme.FolderOpenIcon(), hint: tf("Move %s to another OU", x.Sam), run: on(move)}
+		case c == colDelete && editable(x):
+			return &cellLink{icon: theme.DeleteIcon(), hint: tf("Delete %s", x.Sam), run: on(remove)}
+		}
+		return nil
+	}
+	saved := "" // the status line while a link's hint covers it
+	tab.hover = func(hint string) {
+		if hint != "" {
+			if saved == "" {
+				saved = u.status.Text
+			}
+			u.setStatus(hint)
+			return
+		}
+		u.setStatus(saved)
+		saved = ""
+	}
+	// Enter on the selected row: a menu of its actions (the same ones, the same rules), for the keyboard
+	tab.onEnter = func(r int) {
+		if r < 0 || r >= len(visible) {
+			return
+		}
+		x := visible[r]
+		on := func(f func(userDetail)) func() { return func() { f(x) } }
+		items := []*fyne.MenuItem{fyne.NewMenuItem(t("Edit"), on(edit)), fyne.NewMenuItem(t("Password"), on(password)),
+			fyne.NewMenuItem(t("Copy"), on(copyUser))}
+		if x.Locked {
+			items = append(items, fyne.NewMenuItem(t("Unlock"), on(unlock)))
+		}
+		if editable(x) {
+			toggleLabel := t("Disable")
+			if !x.Enabled {
+				toggleLabel = t("Enable")
+			}
+			items = append(items, fyne.NewMenuItem(toggleLabel, on(toggle)), fyne.NewMenuItem(t("Move"), on(move)),
+				fyne.NewMenuItem(t("Delete"), on(remove)))
+		}
+		pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(tab)
+		widget.ShowPopUpMenuAtPosition(fyne.NewMenu(x.Sam, items...), u.w.Canvas(), pos.Add(fyne.NewPos(24, 40)))
+	}
 	apply := func() {
 		q := strings.ToLower(strings.TrimSpace(search.Text))
 		keep := filters[max(filter.SelectedIndex(), 0)]
@@ -174,17 +274,15 @@ func (u *ui) usersPage() fyne.CanvasObject {
 				visible = append(visible, x)
 			}
 		}
-		sel = -1
 		tab.clearSelection()
 		count.Text = tf("%d of %d", len(visible), len(all))
 		count.Refresh()
-		updateButtons()
 	}
-	reload := func() {
+	reload = func() {
 		go func() {
 			var r []userDetail
 			err := u.panel.do(http.MethodGet, "/api/users", nil, &r)
-			fyne.Do(func() {
+			onUI(func() {
 				if err != nil {
 					u.handleError(err)
 					return
@@ -197,81 +295,17 @@ func (u *ui) usersPage() fyne.CanvasObject {
 	}
 	search.OnChanged = func(string) { apply() }
 	filter.OnChanged = func(string) { apply() }
-	act := func(verb, msg string) {
-		x, ok := current()
-		if !ok {
-			return
-		}
-		u.bgDo(func() error { return u.panel.do(http.MethodPost, "/api/users/"+esc(x.Sam)+"/"+verb, nil, nil) }, func() {
-			u.setStatus(tf(msg, x.Sam))
-			reload()
-		})
-	}
 
-	newBtn = newButton(t("New user"), theme.ContentAddIcon(), func() { u.newUserDialog(nil, reload) })
+	newBtn := newButton(t("New user"), theme.ContentAddIcon(), func() { u.newUserDialog(nil, reload) })
 	newBtn.Importance = widget.HighImportance
-	copyBtn = newButton(t("Copy"), theme.ContentCopyIcon(), func() {
-		if x, ok := current(); ok {
-			var full userDetail // the list may lack the groups: read the template itself
-			if err := u.panel.do(http.MethodGet, "/api/users/"+esc(x.Sam), nil, &full); err != nil {
-				u.handleError(err)
-				return
-			}
-			u.newUserDialog(&full, reload)
-		}
-	})
-	editBtn = newButton(t("Edit"), theme.DocumentCreateIcon(), func() {
-		if x, ok := current(); ok {
-			u.editUserDialog(x.Sam, reload)
-		}
-	})
-	pwBtn = newButton(t("Password"), theme.VisibilityIcon(), func() {
-		if x, ok := current(); ok {
-			u.passwordDialog(x.user, reload)
-		}
-	})
-	unlockBtn = newButton(t("Unlock"), theme.MailReplyIcon(), func() { act("unlock", "%s unlocked.") })
-	toggleBtn = newButton(t("Disable"), theme.MediaPauseIcon(), func() {
-		x, ok := current()
-		if !ok {
-			return
-		}
-		if !x.Enabled {
-			act("enable", "%s enabled.")
-			return
-		}
-		u.confirm(t("Disable user"), tf("Disable %s (%s)? The user will no longer be able to log on.", x.Name, x.Sam), t("Disable"), true,
-			func() { act("disable", "%s disabled.") })
-	})
-	moveBtn = newButton(t("Move"), theme.FolderOpenIcon(), func() {
-		if x, ok := current(); ok {
-			u.moveUserDialog(x, reload)
-		}
-	})
-	delBtn = newButton(t("Delete"), theme.DeleteIcon(), func() {
-		x, ok := current()
-		if !ok {
-			return
-		}
-		u.confirmTyped(t("Delete user"), tf("Delete the account %s? Prefer disabling it: deletion cannot be undone.", x.Name), x.Sam, func() {
-			u.bgDo(func() error { return u.panel.do(http.MethodDelete, "/api/users/"+esc(x.Sam), nil, nil) }, func() {
-				u.setStatus(tf("%s deleted.", x.Sam))
-				reload()
-			})
-		})
-	})
-	delBtn.Importance = widget.DangerImportance
-	export := newButton(t("Export CSV"), theme.DownloadIcon(), func() { u.downloadExport("users", t("users.csv")) })
-	policyBtn := newButton(t("Password policy"), theme.SettingsIcon(), u.policyDialog) // as the web Users toolbar
-	updateButtons()
+	export := func() { u.downloadExport("users", t("users.csv")) }
 	reload()
-	refresh := newButton("", theme.ViewRefreshIcon(), reload)
-	// one line when it fits (search, filter and count, the actions, the extras), as the web Users toolbar
-	toolbar := newToolbarRow(search, container.NewHBox(filter, container.NewCenter(count)),
-		container.NewHBox(newBtn, copyBtn, editBtn, widget.NewSeparator(), pwBtn, unlockBtn, toggleBtn, moveBtn, delBtn),
-		container.NewHBox(policyBtn, export, refresh),
-		u.moreButton(fyne.NewMenuItem(t("Password policy"), u.policyDialog),
-			fyne.NewMenuItem(t("Export CSV"), func() { u.downloadExport("users", t("users.csv")) }),
+	// one line: search, filter and count, then the extras on the right (behind ⋯ when narrow), as the web's
+	toolbar := newToolbarRow(search, container.NewHBox(filter, container.NewCenter(count)), container.NewHBox(),
+		container.NewHBox(newButton(t("Password policy"), theme.SettingsIcon(), u.policyDialog),
+			newButton(t("Export CSV"), theme.DownloadIcon(), export), newBtn, newButton("", theme.ViewRefreshIcon(), reload)),
+		u.moreButton(fyne.NewMenuItem(t("New user"), func() { u.newUserDialog(nil, reload) }),
+			fyne.NewMenuItem(t("Password policy"), u.policyDialog), fyne.NewMenuItem(t("Export CSV"), export),
 			fyne.NewMenuItem(t("Refresh"), reload)),
 		func() {
 			if c := u.w.Content(); c != nil { // laid out again with the toolbar's new height

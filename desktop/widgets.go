@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -265,29 +266,121 @@ type column struct {
 	badge bool
 }
 
+// cellLink makes a cell a link: an optional icon, the hint shown while hovering it and what a tap does. tag keeps
+// the column's tag style and text (an icon before a tag: unlock beside system) instead of drawing a plain link.
+type cellLink struct {
+	icon fyne.Resource
+	hint string
+	run  func()
+	tag  bool
+}
+
 // gridTable is a widget.Table styled like the web grid: navy header, zebra
 // rows separated by a thin line, the whole selected row highlighted, and the
-// last column stretched to the table width.
+// last column stretched to the table width. link, when set, says which cells are links (per cell, so a status can
+// be a link on one row and plain on the next); hover shows a link's hint ("" when the pointer leaves it); onEnter
+// receives the selected row when Enter is pressed (the keyboard's way to the row's actions). actions gives the
+// columns of row-action links their compact width: when the table is narrower than all its columns at full width,
+// they shrink to it and their links show only the icon (compact).
 type gridTable struct {
 	widget.Table
-	cols []column
-	sel  int
+	cols    []column
+	sel     int
+	link    func(row, col int) *cellLink
+	hover   func(hint string)
+	onEnter func(row int)
+	actions map[int]float32
+	compact bool // the action columns show only their icons
+}
+
+// compactWidth is an action column's width when it shows only its icon.
+const compactWidth = 34
+
+// TypedKey runs onEnter for the selected row on Enter; every other key is the table's.
+func (g *gridTable) TypedKey(ev *fyne.KeyEvent) {
+	if (ev.Name == fyne.KeyReturn || ev.Name == fyne.KeyEnter) && g.onEnter != nil && g.sel >= 0 {
+		g.onEnter(g.sel)
+		return
+	}
+	g.Table.TypedKey(ev)
+}
+
+// cellTap is the invisible layer of a link cell: it takes the tap (so the row selection stays as it is), shows the
+// pointer and the link's hint. It is rebound on every update: cells are reused for other rows and columns.
+type cellTap struct {
+	widget.BaseWidget
+	link  *cellLink
+	hover func(string)
+}
+
+func newCellTap() *cellTap {
+	c := &cellTap{}
+	c.ExtendBaseWidget(c)
+	return c
+}
+
+func (c *cellTap) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
+}
+
+func (c *cellTap) Tapped(*fyne.PointEvent) {
+	if c.link != nil && c.link.run != nil {
+		c.link.run()
+	}
+}
+
+func (c *cellTap) Cursor() desktop.Cursor { return desktop.PointerCursor }
+
+func (c *cellTap) MouseIn(*desktop.MouseEvent) {
+	if c.hover != nil && c.link != nil {
+		c.hover(c.link.hint)
+	}
+}
+
+func (c *cellTap) MouseMoved(*desktop.MouseEvent) {}
+
+func (c *cellTap) MouseOut() {
+	if c.hover != nil {
+		c.hover("")
+	}
 }
 
 const scrollbarRoom = 14 // keeps the last column clear of the vertical scrollbar
 
-// Resize stretches the last column to fill the width.
+// Resize stretches the last column to fill the width; when the columns do not fit at full width, the action columns
+// shrink to their icons.
 func (g *gridTable) Resize(size fyne.Size) {
-	used := float32(0)
-	for _, c := range g.cols[:len(g.cols)-1] {
-		used += c.width
+	full := float32(0)
+	for _, c := range g.cols {
+		full += c.width
 	}
-	last := g.cols[len(g.cols)-1].width
+	compact := size.Width > 0 && size.Width < full+scrollbarRoom
+	if compact != g.compact {
+		g.compact = compact
+		for i := range g.cols {
+			if g.actions[i] > 0 {
+				g.SetColumnWidth(i, g.width(i))
+			}
+		}
+	}
+	used := float32(0)
+	for i := range g.cols[:len(g.cols)-1] {
+		used += g.width(i)
+	}
+	last := g.width(len(g.cols) - 1)
 	if w := size.Width - used - scrollbarRoom; w > last {
 		last = w
 	}
 	g.SetColumnWidth(len(g.cols)-1, last)
 	g.Table.Resize(size)
+}
+
+// width is column i's width before the stretch of the last one: an action column's icon width while compact.
+func (g *gridTable) width(i int) float32 {
+	if w := g.actions[i]; g.compact && w > 0 {
+		return w
+	}
+	return g.cols[i].width
 }
 
 // selected returns the selected row (-1 for none).
@@ -314,13 +407,19 @@ func newTable(cols []column, rows func() int, cell func(row, col int) (string, c
 		// minW gives badges the same width in a column (text centered), like the web tags
 		minW := canvas.NewRectangle(color.Transparent)
 		badge := container.NewStack(minW, tag, container.New(layout.NewCustomPaddedLayout(1, 1, 6, 6), lbl))
-		content := container.New(layout.NewCustomPaddedLayout(6, 6, 8, 8), container.NewHBox(badge))
-		return container.NewStack(bg, container.NewBorder(nil, line, nil, nil), content)
+		icon := widget.NewIcon(nil)
+		icon.Hide()
+		content := container.New(layout.NewCustomPaddedLayout(6, 6, 8, 8), container.NewHBox(icon, badge))
+		tap := newCellTap()
+		tap.Hide()
+		return container.NewStack(bg, container.NewBorder(nil, line, nil, nil), content, tap)
 	}
 	g.UpdateCell = func(id widget.TableCellID, o fyne.CanvasObject) {
 		st := o.(*fyne.Container)
 		bg := st.Objects[0].(*canvas.Rectangle)
-		badge := st.Objects[2].(*fyne.Container).Objects[0].(*fyne.Container).Objects[0].(*fyne.Container)
+		row := st.Objects[2].(*fyne.Container).Objects[0].(*fyne.Container)
+		icon, badge := row.Objects[0].(*widget.Icon), row.Objects[1].(*fyne.Container)
+		tap := st.Objects[3].(*cellTap)
 		minW := badge.Objects[0].(*canvas.Rectangle)
 		tag := badge.Objects[1].(*canvas.Rectangle)
 		lbl := badge.Objects[2].(*fyne.Container).Objects[0].(*canvas.Text)
@@ -333,15 +432,37 @@ func newTable(cols []column, rows func() int, cell func(row, col int) (string, c
 			bg.FillColor = col("surface")
 		}
 		txt, c := cell(id.Row, id.Col)
+		// a link cell (rebound on every update: the cell may have shown another row or column): its layer takes the
+		// tap; its icon goes before the text, and alone in a compact action column
+		var lk *cellLink
+		if g.link != nil {
+			lk = g.link(id.Row, id.Col)
+		}
+		tap.link, tap.hover = lk, g.hover
+		showIf(lk != nil, tap)
+		room := g.colWidth(id.Col)
+		if lk != nil && lk.icon != nil {
+			icon.SetResource(lk.icon)
+			icon.Show()
+			room -= theme.IconInlineSize() + 4
+			if g.compact && g.actions[id.Col] > 0 && !lk.tag {
+				txt = ""
+			}
+		} else {
+			icon.Hide()
+		}
+		if lk != nil && c == nil && !lk.tag {
+			c = col("link")
+		}
 		// truncate with an ellipsis to the column width (canvas.Text does not truncate by itself)
-		if limit := int(g.colWidth(id.Col)/7.2) - 2; limit > 3 && len([]rune(txt)) > limit {
+		if limit := int(room/7.2) - 2; limit > 3 && len([]rune(txt)) > limit {
 			txt = string([]rune(txt)[:limit-1]) + "…"
 		}
 		if c == nil {
 			c = theme.Color(theme.ColorNameForeground)
 		}
 		lbl.Text, lbl.TextStyle = txt, fyne.TextStyle{}
-		if cols[id.Col].badge && txt != "" {
+		if cols[id.Col].badge && txt != "" && (lk == nil || lk.icon == nil || lk.tag) { // an icon link is a plain link
 			tag.FillColor, lbl.Color = badgeColors(c)
 			lbl.TextSize, lbl.TextStyle.Bold, lbl.Alignment = 11, true, fyne.TextAlignCenter
 			minW.SetMinSize(fyne.NewSize(min(cols[id.Col].width-22, 92), 0))
@@ -401,15 +522,15 @@ func (g *gridTable) colWidth(c int) float32 {
 	if c == len(g.cols)-1 {
 		if w := g.Size().Width; w > 0 {
 			used := float32(0)
-			for _, x := range g.cols[:c] {
-				used += x.width
+			for i := range g.cols[:c] {
+				used += g.width(i)
 			}
-			if w-used-scrollbarRoom > g.cols[c].width {
+			if w-used-scrollbarRoom > g.width(c) {
 				return w - used - scrollbarRoom
 			}
 		}
 	}
-	return g.cols[c].width
+	return g.width(c)
 }
 
 // relief draws a box's inset shadows as lines inside it (the Windows 98 relief of --bevel-raised): a layer with a
