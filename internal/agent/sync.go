@@ -377,6 +377,7 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 		slog.Info("task", "type", TypeSync, "job", tk.Job, "run", r.ID, "err", err)
 		return fmt.Errorf("%w: %w", err, asynq.SkipRetry)
 	}
+	r.Progress = map[string]any{"phase": "preparing"} // the panel shows the phase while the worker starts up
 	a.writeRun(r)
 	rctx, cancel := context.WithCancel(ctx)
 	a.sync.mu.Lock()
@@ -429,6 +430,12 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 			r.Notes = append(r.Notes, fmt.Sprintf("Windows inheritance of %s applied to %d items", j.Dest, acl.Propagated))
 		}
 	}
+	if !tk.Preview {
+		r.Progress = map[string]any{"phase": "finalizing"} // retention cleanup of the job's old quarantines
+		a.writeRun(r)
+		a.closeQuarantine(j, &r)
+	}
+	r.Progress = nil // a finished run shows its summary, not a phase
 	r.Finished = time.Now().UTC()
 	switch {
 	case err != nil && rctx.Err() != nil:
@@ -440,9 +447,6 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 	}
 	if r.Status == "ok" && tk.Preview && j.Mode == syncer.ModeMirror {
 		a.approve(j.ID, j.Gen, j.Rev)
-	}
-	if !tk.Preview {
-		a.closeQuarantine(j, &r)
 	}
 	a.writeRun(r)
 	slog.Info("task", "type", TypeSync, "job", j.ID, "run", r.ID, "preview", tk.Preview, "status", r.Status, "err", r.Error)

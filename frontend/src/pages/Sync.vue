@@ -88,6 +88,21 @@ const size = (n) =>
 const statusClass = (s) => (s === 'ok' ? 'text-ok' : s === 'error' ? 'text-err' : s === 'cancelled' ? 'text-fg-muted' : 'text-warn')
 const statusText = (s) =>
   ({ ok: t('ok'), error: t('error'), cancelled: t('cancelled'), running: t('running'), queued: t('queued') })[s] || s
+// what a running run is doing right now (so the panel never shows an opaque "running")
+const phaseText = (p) => {
+  switch (p?.phase) {
+    case 'preparing':
+      return t('preparing')
+    case 'copying':
+      return p.total ? t('copying {n} of {total}', { n: p.transfers || 0, total: p.total }) : t('copying')
+    case 'acl':
+      return t('applying Windows permissions') + (p.acl_items ? ` (${p.acl_items})` : '')
+    case 'finalizing':
+      return t('finalizing')
+    default:
+      return ''
+  }
+}
 const lastRun = (id) => data.value?.runs?.find((r) => r.job === id)
 
 // ── new and edit: the wizard
@@ -212,7 +227,10 @@ const details = ref(null)
                   </td>
                   <td class="font-mono text-[11px]">{{ j.enabled && j.cron ? j.cron : '—' }}</td>
                   <td :class="statusClass(lastRun(j.id)?.status)">
-                    <template v-if="lastRun(j.id)"
+                    <template v-if="lastRun(j.id)?.status === 'running' && phaseText(lastRun(j.id).progress)"
+                      >{{ statusText('running') }} · {{ phaseText(lastRun(j.id).progress) }}</template
+                    >
+                    <template v-else-if="lastRun(j.id)"
                       >{{ statusText(lastRun(j.id).status) }} · {{ formatDate(lastRun(j.id).started) }}</template
                     >
                     <template v-else>—</template>
@@ -262,8 +280,8 @@ const details = ref(null)
                   <td class="text-fg-muted">{{ r.preview ? t('preview') : r.origin === 'schedule' ? t('scheduled') : t('run') }}</td>
                   <td class="max-w-0 truncate whitespace-nowrap" :class="statusClass(r.status)" :title="r.error ? serverText(r.error) : ''">
                     {{ statusText(r.status) }}<span v-if="r.error" class="text-fg-muted"> · {{ serverText(r.error) }}</span>
-                    <span v-else-if="r.status === 'running' && r.progress?.phase === 'acl'" class="text-fg-muted">
-                      · {{ t('Applying Windows permissions') }}{{ r.progress.acl_items ? ` (${r.progress.acl_items})` : '' }}</span
+                    <span v-else-if="r.status === 'running' && phaseText(r.progress)" class="text-fg-muted">
+                      · {{ phaseText(r.progress) }}</span
                     >
                   </td>
                   <td class="text-right tabular-nums">

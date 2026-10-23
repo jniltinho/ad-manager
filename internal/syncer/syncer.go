@@ -463,6 +463,8 @@ func Run(ctx context.Context, sp Spec, progress func(map[string]any)) (Result, e
 					return
 				case <-t.C:
 					if st, err := stats.RemoteStats(false); err == nil {
+						st["phase"] = "copying" // the panel shows which phase the run is in, not an opaque "running"
+						st["total"] = res.Plan.New + res.Plan.Changed
 						progress(map[string]any(st))
 					}
 				}

@@ -10,8 +10,11 @@ All notable changes to this project are documented here. The format follows
   transferred** (and the directories on the way to them) instead of walking the whole tree on every run — an
   incremental run over a large share no longer spends many minutes reapplying ACLs it already set, and the serial
   sync queue is not held behind it. The whole tree is still reapplied on a first run or when the transferred list is
-  too large to carry, and the incremental pass falls back to the whole tree if it fails. The ACL phase shows as run
-  progress ("applying Windows permissions") and can be cancelled.
+  too large to carry, and the incremental pass falls back to the whole tree if it fails. The ACL phase can be
+  cancelled.
+- A sync run now reports its **current phase** on the panel — preparing, copying (files *n* of *total*), applying
+  Windows permissions, finalizing — instead of an opaque "running" that could look hung for many minutes. The phase
+  shows in the job's "Last run" cell and the Runs table.
 
 ### Fixed
 - A sync run's **Log** now opens a dedicated scrollable modal instead of the generic alert: a long run log (a dry-run
