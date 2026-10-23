@@ -16,3 +16,16 @@ toolbar, as the web panel does, and SHALL NOT list it in the side menu.
 #### Scenario: Side menu
 - **WHEN** the app is signed in
 - **THEN** the side menu has no Password policy item
+
+### Requirement: Users toolbar on as few lines as fit
+The Users toolbar SHALL put the search field, the filter and count, the action buttons and the extras (Password
+policy, Export CSV, Refresh) on one line when the window is wide enough, letting the search field shrink first; when
+it is not, the extras SHALL go behind a ⋯ menu, and only then SHALL the actions move to a second line.
+
+#### Scenario: Wide window
+- **WHEN** the Users page is shown in a window wide enough for everything
+- **THEN** search, filter, count, the actions and the extras are on a single line
+
+#### Scenario: Default window
+- **WHEN** the window is 1280 px wide
+- **THEN** the actions are on a second line and the extras stay visible beside the search, with no ⋯

@@ -265,12 +265,20 @@ func (u *ui) usersPage() fyne.CanvasObject {
 	policyBtn := newButton(t("Password policy"), theme.SettingsIcon(), u.policyDialog) // as the web Users toolbar
 	updateButtons()
 	reload()
-	top := container.NewBorder(nil, nil, nil, container.NewHBox(container.NewCenter(count), filter,
-		newButton("", theme.ViewRefreshIcon(), reload)), search)
-	toolbar := container.NewBorder(nil, nil,
+	refresh := newButton("", theme.ViewRefreshIcon(), reload)
+	// one line when it fits (search, filter and count, the actions, the extras), as the web Users toolbar
+	toolbar := newToolbarRow(search, container.NewHBox(filter, container.NewCenter(count)),
 		container.NewHBox(newBtn, copyBtn, editBtn, widget.NewSeparator(), pwBtn, unlockBtn, toggleBtn, moveBtn, delBtn),
-		container.NewHBox(policyBtn, export))
-	return container.NewPadded(card(t("Domain users"), container.NewBorder(container.NewVBox(top, toolbar), nil, nil, nil, tab.view())))
+		container.NewHBox(policyBtn, export, refresh),
+		u.moreButton(fyne.NewMenuItem(t("Password policy"), u.policyDialog),
+			fyne.NewMenuItem(t("Export CSV"), func() { u.downloadExport("users", t("users.csv")) }),
+			fyne.NewMenuItem(t("Refresh"), reload)),
+		func() {
+			if c := u.w.Content(); c != nil { // laid out again with the toolbar's new height
+				c.Refresh()
+			}
+		})
+	return container.NewPadded(card(t("Domain users"), container.NewBorder(toolbar, nil, nil, nil, tab.view())))
 }
 
 // userEntries builds one entry per userFields item, filled from x.
