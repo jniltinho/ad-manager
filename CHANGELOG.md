@@ -5,7 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- After a folder sync, the agent now reapplies the destination's **Windows inheritance only to the files it
+  transferred** (and the directories on the way to them) instead of walking the whole tree on every run — an
+  incremental run over a large share no longer spends many minutes reapplying ACLs it already set, and the serial
+  sync queue is not held behind it. The whole tree is still reapplied on a first run or when the transferred list is
+  too large to carry, and the incremental pass falls back to the whole tree if it fails. The ACL phase shows as run
+  progress ("applying Windows permissions") and can be cancelled.
 
 ## [0.17.0] — 2026-10-22
 

@@ -505,7 +505,7 @@ paths:
     get:
       tags: [Sync]
       summary: Sync jobs of a file server and their last runs (kept by its agent)
-      description: "jobs (id, name, rev, source {host, port, share, path, auth kerberos|ntlm, user, domain}, password_file, dest, mode copy|mirror, exclude, bwlimit, transfers, max_delete, max_delete_pct, verify, reinherit, keep_days, keep_gib, cron, enabled, approved_rev), runs (newest first: id, job, rev, preview, origin, by, started, finished, status queued|running|ok|error|cancelled, error, result {plan {New, Changed, Delete, Same, Errors, *Bytes, sample}, transfers, bytes, deleted, errors, checked, content_verified, quarantined, seconds}, progress, confined, notes, quarantine), roots, file_server, kerberos."
+      description: "jobs (id, name, rev, source {host, port, share, path, auth kerberos|ntlm, user, domain}, password_file, dest, mode copy|mirror, exclude, bwlimit, transfers, max_delete, max_delete_pct, verify, reinherit, keep_days, keep_gib, cron, enabled, approved_rev), runs (newest first: id, job, rev, preview, origin, by, started, finished, status queued|running|ok|error|cancelled, error, result {plan {New, Changed, Delete, Same, Errors, *Bytes, sample}, transfers, bytes, deleted, errors, checked, content_verified, quarantined, seconds}, progress (rclone stats while copying; during the Windows-inheritance phase phase=acl with acl_items and acl_full), confined, notes, quarantine), roots, file_server, kerberos."
       responses: { "200": { description: OK }, "502": { $ref: "#/components/responses/Error" } }
   /api/agents/{id}/syncs/{sid}:
     parameters: [{ $ref: "#/components/parameters/id" }, { name: sid, in: path, required: true, schema: { type: string, example: fin-antigo } }]

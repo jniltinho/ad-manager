@@ -241,6 +241,18 @@ func (b *Bridge) Reapply(ctx context.Context, dir *os.File, path string, roots [
 	return &a, nil
 }
 
+// ReinheritPaths reapplies the folder's inheritance only to rels (folder-relative paths of a sync's new and changed
+// files) and the dirs on the way to them, parents before children, instead of the whole tree. The folder's own ACL
+// (the template) is left as it is; each target ends as a full Reapply would leave it.
+func (b *Bridge) ReinheritPaths(ctx context.Context, dir *os.File, path string, roots []string, rels []string) (*ACL, error) {
+	var a ACL
+	args := map[string]any{"path": path, "roots": roots, "rels": rels}
+	if err := b.walking(true).call(ctx, "reinherit_paths", args, dir, &a); err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 // walking is b with room for a tree walk when propagate is set.
 func (b *Bridge) walking(propagate bool) *Bridge {
 	if !propagate || b.Timeout >= propagateTimeout {

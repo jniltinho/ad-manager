@@ -472,12 +472,9 @@ func (m *Manager) RestoreACL(ctx context.Context, r RestoreReq) (*sambabridge.AC
 	return after, m.recordACL(r.Path, nil, after)
 }
 
-// Reinherit applies the Windows ACL of folder path (inside the roots, no link) again to everything under it, so
-// files written there without Samba (a sync) take the inheritance a Windows client would see.
-func (m *Manager) Reinherit(ctx context.Context, path string) (*sambabridge.ACL, error) {
-	if !m.NTACL {
-		return nil, sambabridge.ErrUnavailable
-	}
+// openVerified opens folder path (inside the roots, no link) and returns it, checking the opened descriptor is still
+// that very folder. The caller closes it.
+func (m *Manager) openVerified(path string) (*os.File, error) {
 	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s is not a regular folder: %v", ErrInvalid, path, err)
@@ -490,7 +487,16 @@ func (m *Manager) Reinherit(ctx context.Context, path string) (*sambabridge.ACL,
 	if _, err := m.SafePath(real); err != nil || real != path {
 		return nil, fmt.Errorf("%w: %s changed (now %s)", ErrInvalid, path, real)
 	}
-	dir, err := dupFile(fd, path)
+	return dupFile(fd, path)
+}
+
+// Reinherit applies the Windows ACL of folder path (inside the roots, no link) again to everything under it, so
+// files written there without Samba (a sync) take the inheritance a Windows client would see.
+func (m *Manager) Reinherit(ctx context.Context, path string) (*sambabridge.ACL, error) {
+	if !m.NTACL {
+		return nil, sambabridge.ErrUnavailable
+	}
+	dir, err := m.openVerified(path)
 	if err != nil {
 		return nil, err
 	}
@@ -500,4 +506,21 @@ func (m *Manager) Reinherit(ctx context.Context, path string) (*sambabridge.ACL,
 		return nil, fmt.Errorf("reading the ACL of %s: %w", path, err)
 	}
 	return m.ACL.Reapply(ctx, dir, path, m.Roots, cur.SDDL)
+}
+
+// ReinheritPaths applies the folder's Windows inheritance again only to rels (folder-relative paths of a sync's new
+// and changed files) and the dirs on the way to them, instead of the whole tree — the common incremental case.
+func (m *Manager) ReinheritPaths(ctx context.Context, path string, rels []string) (*sambabridge.ACL, error) {
+	if !m.NTACL {
+		return nil, sambabridge.ErrUnavailable
+	}
+	if len(rels) == 0 {
+		return &sambabridge.ACL{}, nil
+	}
+	dir, err := m.openVerified(path)
+	if err != nil {
+		return nil, err
+	}
+	defer dir.Close()
+	return m.ACL.ReinheritPaths(ctx, dir, path, m.Roots, rels)
 }

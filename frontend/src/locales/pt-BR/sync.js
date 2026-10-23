@@ -212,4 +212,5 @@ export default {
   'Wizard steps': 'Passos do assistente',
   'Step {n} of {total}: {name}': 'Passo {n} de {total}: {name}',
   'Preview of the copy': 'Prévia',
+  'Applying Windows permissions': 'Aplicando as permissões do Windows',
 }

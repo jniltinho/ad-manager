@@ -21,6 +21,7 @@ type fakeACL struct {
 	got       sambabridge.FolderACL
 	sddl      string
 	propagate bool
+	rels      []string // the paths ReinheritPaths was asked to reapply
 }
 
 func (f *fakeACL) SetFolderACL(_ context.Context, dir *os.File, req sambabridge.FolderACL) (*sambabridge.ACL, error) {
@@ -45,6 +46,14 @@ func (f *fakeACL) SetSDDL(_ context.Context, dir *os.File, path string, _ []stri
 
 func (f *fakeACL) Reapply(ctx context.Context, dir *os.File, path string, roots []string, sddl string) (*sambabridge.ACL, error) {
 	return f.SetSDDL(ctx, dir, path, roots, sddl, true)
+}
+
+func (f *fakeACL) ReinheritPaths(_ context.Context, dir *os.File, path string, _ []string, rels []string) (*sambabridge.ACL, error) {
+	if dir == nil || dir.Name() != path {
+		return nil, errors.New("folder descriptor missing")
+	}
+	f.rels = rels
+	return &sambabridge.ACL{Propagated: len(rels)}, nil
 }
 
 // winbind resolves EMPRESA names; local names only exist in getent.
@@ -200,6 +209,36 @@ not json
 	list, _ = m.ACLHistory(path)
 	if len(list) != 4 || list[1].Before != "O:DAG:DAD:P(A;OICI;FA;;;SY)" || list[0].After != "O:DAG:DAD:P(A;OICI;FA;;;BA)" {
 		t.Fatalf("history after restore: %+v", list)
+	}
+}
+
+func TestReinheritPaths(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "Financeiro")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(path, filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	acl := &fakeACL{}
+	m := &Manager{Roots: []string{root}, ACL: acl, NTACL: true}
+
+	// no transferred paths: no bridge call, no work
+	if got, err := m.ReinheritPaths(context.Background(), path, nil); err != nil || got.Propagated != 0 || acl.rels != nil {
+		t.Fatalf("empty: %+v %v (rels %v)", got, err, acl.rels)
+	}
+	// the transferred paths are passed through to the bridge
+	rels := []string{"a.txt", "sub/b.txt"}
+	got, err := m.ReinheritPaths(context.Background(), path, rels)
+	if err != nil || got.Propagated != len(rels) || len(acl.rels) != 2 || acl.rels[1] != "sub/b.txt" {
+		t.Fatalf("passthrough: %+v %v (rels %v)", got, err, acl.rels)
+	}
+	// a destination reached through a link, or outside the roots, is refused before any bridge call
+	for _, p := range []string{filepath.Join(root, "link"), "/etc"} {
+		if _, err := m.ReinheritPaths(context.Background(), p, rels); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%s: got %v, want ErrInvalid", p, err)
+		}
 	}
 }
 

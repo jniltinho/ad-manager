@@ -47,3 +47,7 @@ func (m *Manager) RestoreACL(context.Context, RestoreReq) (*sambabridge.ACL, err
 func (m *Manager) Reinherit(context.Context, string) (*sambabridge.ACL, error) {
 	return nil, sambabridge.ErrUnavailable
 }
+
+func (m *Manager) ReinheritPaths(context.Context, string, []string) (*sambabridge.ACL, error) {
+	return nil, sambabridge.ErrUnavailable
+}

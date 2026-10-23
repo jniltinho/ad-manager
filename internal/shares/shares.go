@@ -43,6 +43,7 @@ type ACLBridge interface {
 	GetACL(ctx context.Context, dir *os.File, path string, roots []string, service string) (*sambabridge.ACL, error)
 	SetSDDL(ctx context.Context, dir *os.File, path string, roots []string, sddl string, propagate bool) (*sambabridge.ACL, error)
 	Reapply(ctx context.Context, dir *os.File, path string, roots []string, sddl string) (*sambabridge.ACL, error)
+	ReinheritPaths(ctx context.Context, dir *os.File, path string, roots []string, rels []string) (*sambabridge.ACL, error)
 }
 
 // Manager holds the allowed roots and the command runner.

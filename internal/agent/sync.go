@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"ad-manager/internal/backup"
+	"ad-manager/internal/sambabridge"
 	"ad-manager/internal/secretbox"
 	"ad-manager/internal/syncer"
 
@@ -391,7 +392,44 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 	}()
 	res, notes, err := a.runSyncWorker(rctx, j, &r)
 	r.Notes = append(r.Notes, notes...)
-	r.Result, r.Finished = res, time.Now().UTC()
+	r.Result = res
+	// the transferred paths are only for the reinherit decision below; take them out of the result so they are never
+	// kept in the run record (200 runs of thousands of paths would blow past the /syncs size limit)
+	var changed []string
+	changedCapped := false
+	if res != nil {
+		changed, changedCapped = res.Changed, res.ChangedCapped
+		res.Changed, res.ChangedCapped = nil, false
+	}
+	// reapply Windows inheritance while the run is still "running" and not finished, so the panel keeps polling and
+	// its Cancel stays live: only to what rclone transferred (the whole tree only on a first or capped run, its list
+	// empty or partial), under rctx so Stop interrupts the helper walk. A reinherit failure is best-effort (a note),
+	// not a failed run; a cancellation marks the run cancelled.
+	if err == nil && !tk.Preview && j.Reinherit && res != nil && res.Transfers > 0 {
+		full := changedCapped || len(changed) == 0
+		r.Progress = map[string]any{"phase": "acl", "acl_items": len(changed), "acl_full": full}
+		a.writeRun(r)
+		var acl *sambabridge.ACL
+		var aerr error
+		if full {
+			acl, aerr = a.mgr.Reinherit(rctx, j.Dest)
+		} else if acl, aerr = a.mgr.ReinheritPaths(rctx, j.Dest, changed); aerr != nil && rctx.Err() == nil {
+			// the incremental pass failed for a non-cancel reason (e.g. the request was too large): the whole tree is
+			// always correct, so fall back to it rather than leave the new files without inheritance
+			r.Notes = append(r.Notes, "incremental Windows inheritance failed ("+aerr.Error()+"), reapplying to the whole folder")
+			acl, aerr = a.mgr.Reinherit(rctx, j.Dest)
+		}
+		r.Progress = nil
+		switch {
+		case aerr != nil && rctx.Err() != nil:
+			err = aerr // falls through to the cancelled branch below
+		case aerr != nil:
+			r.Notes = append(r.Notes, "Windows inheritance not applied: "+aerr.Error())
+		default:
+			r.Notes = append(r.Notes, fmt.Sprintf("Windows inheritance of %s applied to %d items", j.Dest, acl.Propagated))
+		}
+	}
+	r.Finished = time.Now().UTC()
 	switch {
 	case err != nil && rctx.Err() != nil:
 		r.Status, r.Error = "cancelled", "cancelled"
@@ -402,13 +440,6 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 	}
 	if r.Status == "ok" && tk.Preview && j.Mode == syncer.ModeMirror {
 		a.approve(j.ID, j.Gen, j.Rev)
-	}
-	if r.Status == "ok" && !tk.Preview && j.Reinherit && res != nil && res.Transfers > 0 {
-		if acl, err := a.mgr.Reinherit(context.WithoutCancel(ctx), j.Dest); err != nil {
-			r.Notes = append(r.Notes, "Windows inheritance not applied: "+err.Error())
-		} else {
-			r.Notes = append(r.Notes, fmt.Sprintf("Windows inheritance of %s applied to %d items", j.Dest, acl.Propagated))
-		}
 	}
 	if !tk.Preview {
 		a.closeQuarantine(j, &r)

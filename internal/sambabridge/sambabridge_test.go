@@ -44,6 +44,23 @@ func TestCall(t *testing.T) {
 	}
 }
 
+// TestReinheritPaths: the op and the transferred relative paths reach the helper, and the walk gets the long timeout.
+func TestReinheritPaths(t *testing.T) {
+	var seen map[string]any
+	b := &Bridge{run: fake(`{"ok":true,"result":{"owner":"S-1-22-1-0","group":"S-1-22-2-0","sddl":"O:S-1-22-1-0","propagated":2}}`, &seen)}
+	acl, err := b.ReinheritPaths(context.Background(), nil, "/srv/x", []string{"/srv"}, []string{"a.txt", "sub/b.txt"})
+	if err != nil || acl.Propagated != 2 {
+		t.Fatalf("got %+v, %v", acl, err)
+	}
+	if seen["op"] != "reinherit_paths" {
+		t.Fatalf("op: %v", seen["op"])
+	}
+	rels, _ := seen["args"].(map[string]any)["rels"].([]any)
+	if len(rels) != 2 || rels[1] != "sub/b.txt" {
+		t.Fatalf("rels: %v", seen["args"])
+	}
+}
+
 // TestCappedCopy: the helper's output is copied from a pipe with io.Copy, which must go through Write (the cap).
 func TestCappedCopy(t *testing.T) {
 	c := &capped{max: 10}

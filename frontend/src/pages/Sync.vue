@@ -260,6 +260,9 @@ const details = ref(null)
                   <td class="text-fg-muted">{{ r.preview ? t('preview') : r.origin === 'schedule' ? t('scheduled') : t('run') }}</td>
                   <td class="max-w-0 truncate whitespace-nowrap" :class="statusClass(r.status)" :title="r.error ? serverText(r.error) : ''">
                     {{ statusText(r.status) }}<span v-if="r.error" class="text-fg-muted"> · {{ serverText(r.error) }}</span>
+                    <span v-else-if="r.status === 'running' && r.progress?.phase === 'acl'" class="text-fg-muted">
+                      · {{ t('Applying Windows permissions') }}{{ r.progress.acl_items ? ` (${r.progress.acl_items})` : '' }}</span
+                    >
                   </td>
                   <td class="text-right tabular-nums">
                     {{
