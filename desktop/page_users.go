@@ -358,8 +358,9 @@ func userInput(e map[string]*ringEntry) map[string]any {
 // groupList edits a list of groups: one row per group with a remove button and
 // a picker to add one. add/remove run first and an error keeps the list as it
 // is (the edit dialog calls the API, the new-user dialog only collects).
-// chosen returns the current list.
-func (u *ui) groupList(names, groups []string, add, remove func(g string) error) (view fyne.CanvasObject, chosen func() []string) {
+// changed, if set, gets the number of groups on every change; chosen returns
+// the current list.
+func (u *ui) groupList(names, groups []string, add, remove func(g string) error, changed func(n int)) (view fyne.CanvasObject, chosen func() []string) {
 	groups = slices.Clone(groups)
 	slices.Sort(groups)
 	rows := container.NewVBox()
@@ -384,6 +385,9 @@ func (u *ui) groupList(names, groups []string, add, remove func(g string) error)
 			rows.Add(widget.NewLabel(t("Only the primary group (Domain Users).")))
 		}
 		picker.SetOptions(slices.DeleteFunc(slices.Clone(names), func(n string) bool { return slices.Contains(groups, n) }))
+		if changed != nil {
+			changed(len(groups))
+		}
 	}
 	addBtn := newButton(t("Add"), theme.ContentAddIcon(), func() {
 		g := strings.TrimSpace(picker.Text)
@@ -436,7 +440,7 @@ func (u *ui) newUserDialog(tpl *userDetail, after func()) {
 	mustChange := newCheck(t("Require change at next logon"), nil)
 	mustChange.SetChecked(true)
 	none := func(string) error { return nil }
-	groupBox, chosen := u.groupList(names, groups, none, none)
+	groupBox, chosen := u.groupList(names, groups, none, none, nil)
 	body := container.NewVBox(
 		widget.NewForm(widget.NewFormItem(t("Login (sAMAccountName)"), sam), widget.NewFormItem(t("OU"), ouSel)),
 		userFieldsForm(e),
@@ -505,8 +509,15 @@ func (u *ui) editUserDialog(sam string, after func()) {
 		}
 		return err
 	}
-	groupBox, _ := u.groupList(names, x.Groups, func(g string) error { return member(g, true) }, func(g string) error { return member(g, false) })
-	tabs := newTabs(tabItem{t("Account"), theme.AccountIcon(), account}, tabItem{t("Groups"), theme.ListIcon(), groupBox})
+	var tabs *themedTabs
+	count := func(n int) string { return tf("Groups (%d)", n) }
+	groupBox, _ := u.groupList(names, x.Groups, func(g string) error { return member(g, true) }, func(g string) error { return member(g, false) },
+		func(n int) {
+			if tabs != nil {
+				tabs.SetLabel(1, count(n))
+			}
+		})
+	tabs = newTabs(tabItem{t("Account"), theme.AccountIcon(), account}, tabItem{count(len(x.Groups)), theme.ListIcon(), groupBox})
 	u.showModal(x.Name+" ("+x.Sam+")", tabs.View(), t("Save"), false, 780, func() bool {
 		if err := u.panel.do(http.MethodPut, "/api/users/"+esc(x.Sam), userInput(e), nil); err != nil {
 			u.handleError(err)

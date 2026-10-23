@@ -43,7 +43,14 @@ func newUsersPanel(t *testing.T) *usersPanel {
 			 {"sam":"OP","name":"The operator","enabled":true}]`))
 			return
 		}
-		_, _ = w.Write([]byte(`{}`))
+		switch r.URL.Path {
+		case "/api/users/bob":
+			_, _ = w.Write([]byte(`{"sam":"bob","name":"Bob","enabled":true,"groups":["Devs","Suporte"]}`))
+		case "/api/groups":
+			_, _ = w.Write([]byte(`[{"name":"Devs"},{"name":"Domain Admins"},{"name":"Suporte"}]`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
 	}))
 	t.Cleanup(p.Close)
 	return p
@@ -356,5 +363,44 @@ func TestUsersRowLinksDrawn(t *testing.T) {
 		if !fits {
 			t.Errorf("%s: %v of columns in a %v-wide table at 1280 px", l, used, width)
 		}
+	}
+}
+
+// tabLabels are the labels of the tabs under o.
+func tabLabels(o fyne.CanvasObject) []string {
+	var out []string
+	if b, ok := o.(*tabButton); ok {
+		return []string{b.label}
+	}
+	for _, k := range kids(o) {
+		out = append(out, tabLabels(k)...)
+	}
+	return out
+}
+
+// TestEditUserGroupCount: the edit dialog's Groups tab shows how many groups the user is in, as the web panel, and
+// follows a removal.
+func TestEditUserGroupCount(t *testing.T) {
+	p := newUsersPanel(t)
+	a := test.NewApp()
+	w := a.NewWindow("t")
+	defer onScreen(func() { w.Close(); a.Quit() })
+	inLang(t, "en")
+	u := &ui{a: a, w: w, cfg: &config{}, panel: newAPI(p.URL, "", false), status: newText("", col("footer-strong"), 11, false)}
+	labels := func() []string {
+		var out []string
+		onScreen(func() { out = tabLabels(w.Canvas().Overlays().Top()) })
+		return out
+	}
+	onScreen(func() { w.Resize(fyne.NewSize(1000, 700)); u.editUserDialog("bob", func() {}) })
+	if got := labels(); !slices.Equal(got, []string{"Account", "Groups (2)"}) {
+		t.Fatalf("tabs %q, want Account and Groups (2)", got)
+	}
+	onScreen(func() { test.Tap(tappableText(w.Canvas().Overlays().Top(), "remove")) })
+	if !slices.Contains(p.requests(), "DELETE /api/groups/Devs/members/bob") {
+		t.Fatalf("remove sent %q", p.requests())
+	}
+	if got := labels(); !slices.Contains(got, "Groups (1)") {
+		t.Errorf("after a removal the tabs are %q, want Groups (1)", got)
 	}
 }

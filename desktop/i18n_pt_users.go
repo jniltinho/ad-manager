@@ -68,6 +68,7 @@ func init() {
 		"Initial password":                       "Senha inicial",
 		"Require change at next logon":           "Exigir troca no próximo logon",
 		"Groups":                                 "Grupos",
+		"Groups (%d)":                            "Grupos (%d)",
 		"Add to a group…":                        "Adicionar a um grupo…",
 		"Add":                                    "Adicionar",
 		"remove":                                 "remover",

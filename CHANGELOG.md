@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Desktop app: the user edit dialog's Groups tab shows how many groups the user is in (`Groups (5)`), as the web
+  panel, and follows each add and remove.
 - Updated the Echo web framework to v5.4.2.
 
 ## [0.21.0] — 2026-10-23

@@ -14,6 +14,7 @@
 - [x] 2.3 Lean toolbar (`toolbarRow`): search, filter, count | Password policy, Export CSV, New user, refresh; ⋯
       (with New user) when narrow.
 - [x] 2.4 pt-BR for the new labels and hints.
+- [x] 2.5 The edit dialog's Groups tab shows the group count, kept current on add and remove (`TestEditUserGroupCount`).
 
 ## 3. Tests, docs, screenshots
 

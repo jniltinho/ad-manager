@@ -89,6 +89,12 @@ func (tb *themedTabs) Select(i int) {
 	}
 }
 
+// SetLabel changes the label of tab i.
+func (tb *themedTabs) SetLabel(i int, label string) {
+	tb.items[i].label, tb.btns[i].label = label, label
+	tb.btns[i].Refresh()
+}
+
 // SelectedIndex is the current tab.
 func (tb *themedTabs) SelectedIndex() int { return tb.sel }
 

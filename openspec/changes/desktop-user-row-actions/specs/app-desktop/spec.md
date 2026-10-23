@@ -64,3 +64,11 @@ on one line on the default window, the right group (New user included) behind â‹
 #### Scenario: Home's locked alert
 - **WHEN** the operator follows Home's locked-accounts alert
 - **THEN** the Users page opens, where each locked account has its unlock link
+
+### Requirement: Group count on the edit dialog
+The desktop's user edit dialog SHALL name its Groups tab with the number of groups the user is in, as the web panel
+(`Groups (n)`), and keep it current as groups are added or removed.
+
+#### Scenario: Count follows the memberships
+- **WHEN** the operator opens a user who is in 2 groups and removes one on the Groups tab
+- **THEN** the tab reads `Groups (2)` when the dialog opens and `Groups (1)` after the removal
