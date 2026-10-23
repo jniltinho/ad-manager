@@ -7,7 +7,7 @@ description: Cut a release of ad-manager on GitHub with the gh CLI — CHANGELOG
 
 The repository is **github.com/jniltinho/ad-manager**. A release is: bump `CHANGELOG.md`, commit, push `main`, wait
 for the CI, push the tag. The tag starts `.github/workflows/release.yml`, which runs the CI again, builds every
-package (server linux/windows amd64, `.deb`, desktop app for Linux, Windows and macOS arm64/amd64/universal `.app`)
+package (server linux amd64, `.deb`, desktop app for Linux, Windows and a macOS universal `.app`)
 and publishes the release with `gh release create`, with the notes of that version's section in `CHANGELOG.md`
 and `checksums.txt`.
 
@@ -96,11 +96,44 @@ If a job fails: `gh run view --repo "$REPO" "$RUN" --log-failed`, fix on `main`,
 gh release view vX.Y.Z --repo "$REPO" --json name,assets -q '.name, (.assets[].name)'
 ```
 
-Expect: `ad-manager_vX.Y.Z_linux_amd64.tar.gz`, `ad-manager_vX.Y.Z_windows_amd64.zip`, `ad-manager_X.Y.Z_amd64.deb`,
-`ad-manager-desktop_vX.Y.Z_{linux_amd64.tar.gz,windows_amd64.zip,darwin_arm64.zip,darwin_amd64.zip,darwin_universal.zip}`
+Expect: `ad-manager_vX.Y.Z_linux_amd64.tar.gz`, `ad-manager_X.Y.Z_amd64.deb`,
+`ad-manager-desktop_vX.Y.Z_{linux_amd64.tar.gz,windows_amd64.zip,darwin_universal.zip}`
 and `checksums.txt`.
 
-To improve the notes afterwards: `gh release edit vX.Y.Z --repo "$REPO" --notes-file notes.md`.
+### 6b. Format the GitHub release notes (rustXterm style)
+
+The workflow publishes with the raw `CHANGELOG.md` section. Keep `CHANGELOG.md` in Keep a Changelog, but give the
+**GitHub release** the project's release-notes style (same shape as `github.com/jniltinho/rustXterm/releases`):
+a `# Release vX.Y.Z` title, emoji sections, a `## 📦 Downloads` list and a `**Full Changelog**` compare link. Map the
+CHANGELOG section's content: `### Added` → `## ✨ New Features`, `### Changed`/`### Fixed` → `## 🔧 Improvements`,
+`### Security` → `## 🔒 Security` (keep the bullets as written; omit empty sections; drop the one-line summary). Build
+the Downloads list from the published assets, and the compare link from the previous tag.
+
+```markdown
+# Release vX.Y.Z
+
+## ✨ New Features
+- …(from ### Added)
+
+## 🔧 Improvements
+- …(from ### Changed / ### Fixed)
+
+## 🔒 Security
+- …(from ### Security)
+
+## 📦 Downloads
+- `ad-manager_vX.Y.Z_linux_amd64.tar.gz` — server for Linux (x86_64)
+- `ad-manager_X.Y.Z_amd64.deb` — server package for Ubuntu 26.04
+- `ad-manager-desktop_vX.Y.Z_linux_amd64.tar.gz` — desktop app for Linux
+- `ad-manager-desktop_vX.Y.Z_windows_amd64.zip` — desktop app for Windows
+- `ad-manager-desktop_vX.Y.Z_darwin_universal.zip` — desktop app for macOS (universal: Apple Silicon and Intel)
+- `checksums.txt` — SHA-256 checksums
+
+**Full Changelog**: https://github.com/jniltinho/ad-manager/compare/$LAST...vX.Y.Z
+```
+
+Write it to `notes.md` and apply: `gh release edit vX.Y.Z --repo "$REPO" --notes-file notes.md` (then `rm notes.md`;
+never commit it).
 
 ### 7. Docker image (optional, when asked)
 

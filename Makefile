@@ -40,7 +40,7 @@ test-integration:
 
 check:
 	gofmt -l $$(find . -name '*.go' -not -path './third_party/*' -not -path './node_modules/*' -not -path './frontend/node_modules/*') | (! grep .)  # third_party: upstream code as is
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /dev/null .  # release builds windows too
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /dev/null .  # the CLI still builds for windows (from source)
 	cd frontend && npm run check
 
 # Local panel against the AD_URL from the environment (HTTP on loopback only).

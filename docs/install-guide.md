@@ -16,8 +16,8 @@ Everything is on the [Releases page](https://github.com/jniltinho/ad-manager/rel
 |---|---|---|---|
 | **Web panel** (`ad-manager server`) | Linux amd64 server, can be the DC itself | `ad-manager_X.Y.Z_amd64.deb` | `ad-manager_vX.Y.Z_linux_amd64.tar.gz` |
 | **Agent** (`ad-manager agent`) | each Samba file server, or the DC that also serves files | the same `.deb` | the same `.tar.gz` |
-| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_vX.Y.Z_linux_amd64.tar.gz`, `…_windows_amd64.zip`, `…_darwin_{arm64,amd64,universal}.zip` |
-| CLI and MCP (`ad-manager …`) | any machine with LDAPS to a DC | the same `.deb` | the same `.tar.gz`, or `ad-manager_vX.Y.Z_windows_amd64.zip` |
+| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_vX.Y.Z_linux_amd64.tar.gz`, `…_windows_amd64.zip`, `…_darwin_universal.zip` |
+| CLI and MCP (`ad-manager …`) | any machine with LDAPS to a DC | the same `.deb` | the same `.tar.gz` (Linux; on Windows, build it from source) |
 
 The panel, the agent, the CLI and MCP are **one binary** (`ad-manager`); what a machine runs depends on which systemd
 unit you enable. The server tarball and zip hold only the binary, a `config.toml` (a copy of
@@ -268,7 +268,7 @@ The desktop app is a client of the panel's API (and, for shares, of each agent):
 |---|---|
 | Linux | `tar xzf ad-manager-desktop_vX.Y.Z_linux_amd64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop` |
 | Windows | unzip `ad-manager-desktop_vX.Y.Z_windows_amd64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` |
-| macOS | unzip `…_darwin_universal.zip` and move `ad-manager-desktop.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); `…_darwin_arm64.zip`/`…_amd64.zip` hold the bare executable for one architecture |
+| macOS | unzip `…_darwin_universal.zip` and move `ad-manager-desktop.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
 
 On the first run the **Configure** screen asks for the panel URL (**Test connection**), whether its certificate is
 self-signed, the default user and, optionally, the file servers (name, URL and agent token). It saves

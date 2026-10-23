@@ -1,7 +1,7 @@
-# Release on a tag vX.Y.Z: the CI (ci.yml) runs first; then the Linux job builds the SPA, the server for linux and
-# windows (amd64), the .deb and the desktop app for linux and windows, and the macOS job builds the desktop app for
-# Apple Silicon, Intel and the universal .app. The last job publishes everything with the gh CLI, with the notes of
-# that version in CHANGELOG.md and checksums.txt.
+# Release on a tag vX.Y.Z: the CI (ci.yml) runs first; then the Linux job builds the SPA, the server for linux
+# (amd64), the .deb and the desktop app for linux and windows, and the macOS job builds the desktop app as a universal
+# .app (Apple Silicon and Intel). The last job publishes everything with the gh CLI, with the notes of that version in
+# CHANGELOG.md and checksums.txt.
 name: release
 
 on:
@@ -40,7 +40,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run build
-      - name: Server, .deb and desktop app (linux, windows)
+      - name: Server (linux), .deb and desktop app (linux, windows)
         run: |
           set -euo pipefail
           sudo apt-get update -qq
@@ -51,21 +51,13 @@ jobs:
           PKG="ad-manager/internal/buildinfo"
           LDFLAGS="-s -w -X ${PKG}.Version=${VERSION} -X ${PKG}.Commit=${COMMIT} -X ${PKG}.BuildTime=${BUILDTIME}"
           mkdir -p dist build
-          for p in linux/amd64 windows/amd64; do
-            GOOS="${p%/*}"; GOARCH="${p#*/}"
-            bin="${APP}"; [ "$GOOS" = windows ] && bin="${APP}.exe"
-            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" go build -trimpath -ldflags "$LDFLAGS" -o "build/${bin}" .
-            upx -q --best --lzma "build/${bin}"
-            cp README.md build/
-            cp config.toml.example build/config.toml
-            base="${APP}_${VERSION}_${GOOS}_${GOARCH}"
-            if [ "$GOOS" = windows ]; then
-              (cd build && zip -q "../dist/${base}.zip" "${bin}" config.toml README.md)
-            else
-              tar -C build -czf "dist/${base}.tar.gz" "${bin}" config.toml README.md
-            fi
-            rm -f "build/${bin}"
-          done
+          # the server for linux only (the .deb and the tarball); on Windows only the desktop app is published
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "build/${APP}" .
+          upx -q --best --lzma "build/${APP}"
+          cp README.md build/
+          cp config.toml.example build/config.toml
+          tar -C build -czf "dist/${APP}_${VERSION}_linux_amd64.tar.gz" "${APP}" config.toml README.md
+          rm -f "build/${APP}"
           # .deb (nfpm) with the already-compressed linux binary
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.0
           tar -xzf "dist/${APP}_${VERSION}_linux_amd64.tar.gz" -C build "${APP}"
@@ -94,13 +86,13 @@ jobs:
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
-      - name: Desktop app (darwin arm64, amd64 and universal .app)
+      - name: Desktop app (universal .app; the per-architecture builds stay local)
         working-directory: desktop
         run: make mac VERSION="${GITHUB_REF_NAME}"
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dist/ad-manager-desktop_*_darwin_*.zip
+          path: dist/ad-manager-desktop_*_darwin_universal.zip
           if-no-files-found: error
 
   publish:
@@ -125,7 +117,7 @@ jobs:
           cat >> notes.md <<'NOTES'
 
           ---
-          **Packages:** server for `linux/amd64` (`.tar.gz`, and `.deb` for Ubuntu 26.04) and `windows/amd64` (`.zip`);
-          desktop app for Linux, Windows and macOS (Apple Silicon, Intel and a universal `.app`); `checksums.txt`.
+          **Packages:** server for `linux/amd64` (`.tar.gz`, and `.deb` for Ubuntu 26.04); desktop app for Linux, Windows
+          and macOS (a universal `.app`, Apple Silicon and Intel); `checksums.txt`.
           NOTES
           gh release create "$TAG" dist/* --title "$TAG" --notes-file notes.md --verify-tag

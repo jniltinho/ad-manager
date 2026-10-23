@@ -5,7 +5,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- Releases publish the server only for Linux (the `.tar.gz` and the `.deb`) and the macOS desktop app only as the
+  universal `.app` (Apple Silicon and Intel); on Windows only the desktop app is published.
 
 ## [0.19.0] — 2026-10-23
 
