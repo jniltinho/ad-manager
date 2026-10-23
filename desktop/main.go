@@ -379,7 +379,6 @@ func (u *ui) shell() {
 		{t("OUs"), theme.FolderOpenIcon(), u.ousPage()},
 		{t("Computers"), theme.ComputerIcon(), u.computersPage()},
 		{t("Shares"), theme.StorageIcon(), u.sharesPage()},
-		{t("Password policy"), theme.SettingsIcon(), u.policyPage()},
 		{t("Backup"), theme.HistoryIcon(), u.backupPage()},
 		{t("Sync"), theme.ViewRefreshIcon(), u.syncPage()},
 		{t("Logs"), theme.DocumentIcon(), u.logsPage()},

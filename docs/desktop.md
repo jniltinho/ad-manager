@@ -24,7 +24,8 @@ The day-to-day work of the web panel, with the session of your own sign-in (same
 - **OUs**: list with a readable path, new OU and delete (empty).
 - **Computers**: filters (OS, no logon), enable/disable, move, delete and export CSV (DCs protected).
 - **Shares**: per server (agent), create, **edit**, remove, folder sizes and total.
-- **Password policy**: view and change.
+- **Password policy**: view and change, from the **Password policy** button of the Users toolbar (as in the web
+  panel); Home's policy alert opens it too.
 - **Logs**: audit and Samba logs (of this server and of each configured file server).
 
 Import/export and the company **Settings** stay in the web panel only. The interface follows the panel's default

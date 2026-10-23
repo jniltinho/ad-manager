@@ -6,10 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -27,7 +25,9 @@ type policy struct {
 	LockoutWindowMinutes int  `json:"lockout_window_minutes"`
 }
 
-func (u *ui) policyPage() fyne.CanvasObject {
+// policyDialog opens the domain's default password policy in a dialog, as the web panel's Users toolbar does: it
+// reads the policy first, then saves it after a confirmation.
+func (u *ui) policyDialog() {
 	var p policy
 	fields := []struct {
 		value  *int
@@ -76,34 +76,23 @@ func (u *ui) policyPage() fyne.CanvasObject {
 		}
 		return nil
 	}
-	save := newButton(t("Save policy"), theme.DocumentSaveIcon(), func() {
-		if err := read(); err != nil {
-			u.showError(err)
-			return
+	u.bgDo(func() error { return u.panel.do(http.MethodGet, "/api/policy", nil, &p) }, func() {
+		complexity.SetChecked(p.Complexity)
+		for _, f := range fields {
+			f.entry.SetText(strconv.Itoa(*f.value))
 		}
-		in := p
-		u.confirm(t("Password policy"), t("Change the domain's password policy? It applies to the next password changes.\nWhile there is a Windows DC, the Default Domain Policy may reapply the old values."),
-			t("Change policy"), false, func() {
-				u.bgDo(func() error { return u.panel.do(http.MethodPut, "/api/policy", in, nil) }, func() { u.setStatus(t("Policy updated.")) })
-			})
-	})
-	save.Importance = widget.HighImportance
-	save.Disable()
-	load := func() {
-		var r policy
-		u.bgDo(func() error { return u.panel.do(http.MethodGet, "/api/policy", nil, &r) }, func() {
-			p = r
-			complexity.SetChecked(p.Complexity)
-			for _, f := range fields {
-				f.entry.SetText(strconv.Itoa(*f.value))
+		checkWeak()
+		u.showModal(t("Domain's default password policy"), container.NewVBox(complexity, grid, warning), t("Save policy"), false, 640, func() bool {
+			if err := read(); err != nil {
+				u.showError(err)
+				return false
 			}
-			checkWeak()
-			save.Enable()
+			in := p
+			u.confirm(t("Password policy"), t("Change the domain's password policy? It applies to the next password changes.\nWhile there is a Windows DC, the Default Domain Policy may reapply the old values."),
+				t("Change policy"), false, func() {
+					u.bgDo(func() error { return u.panel.do(http.MethodPut, "/api/policy", in, nil) }, func() { u.setStatus(t("Policy updated.")) })
+				})
+			return true
 		})
-	}
-	load()
-	body := container.NewVBox(complexity, grid, warning)
-	foot := container.NewHBox(layout.NewSpacer(), newButton(t("Reload"), theme.ViewRefreshIcon(), load), save)
-	form := card(t("Domain's default password policy"), container.NewPadded(container.NewBorder(nil, foot, nil, nil, body)))
-	return container.NewPadded(container.NewVBox(container.NewHBox(fixedWidth(form, 640))))
+	})
 }
