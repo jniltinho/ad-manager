@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.20.0] — 2026-10-23
+
+**The sync run's end and duration on the desktop app and the CLI too, Portuguese for the inheritance notes, a leaner
+set of release packages, and Go 1.27.3.**
+
 ### Added
 - The desktop app's **Sync** page and `ad-manager sync list` show when each run finished and how long it took, as
   the web panel does (`08:41 AM · 4m38s`; `—` while the run goes on).
@@ -12,6 +19,7 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - Releases publish the server only for Linux (the `.tar.gz` and the `.deb`) and the macOS desktop app only as the
   universal `.app` (Apple Silicon and Intel); on Windows only the desktop app is published.
+- Built with Go 1.27.3.
 
 ### Fixed
 - Three notes of a sync's Windows-inheritance pass (the incremental pass falling back to the whole folder, a pending
@@ -169,7 +177,8 @@ and an MCP server, with an agent for Samba file servers.
 - Desktop app (Fyne) for Linux, Windows and macOS; CLI; MCP server; all-in-one Docker demo image.
 - CI and releases on GitHub Actions: `.deb`, server binaries and the desktop app for Linux, Windows and macOS.
 
-[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/jniltinho/ad-manager/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/jniltinho/ad-manager/compare/v0.18.1...v0.19.0
 [0.15.1]: https://github.com/jniltinho/ad-manager/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/jniltinho/ad-manager/compare/v0.14.0...v0.15.0
