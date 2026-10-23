@@ -262,12 +262,14 @@ func (u *ui) usersPage() fyne.CanvasObject {
 	})
 	delBtn.Importance = widget.DangerImportance
 	export := newButton(t("Export CSV"), theme.DownloadIcon(), func() { u.downloadExport("users", t("users.csv")) })
+	policyBtn := newButton(t("Password policy"), theme.SettingsIcon(), u.policyDialog) // as the web Users toolbar
 	updateButtons()
 	reload()
 	top := container.NewBorder(nil, nil, nil, container.NewHBox(container.NewCenter(count), filter,
 		newButton("", theme.ViewRefreshIcon(), reload)), search)
 	toolbar := container.NewBorder(nil, nil,
-		container.NewHBox(newBtn, copyBtn, editBtn, widget.NewSeparator(), pwBtn, unlockBtn, toggleBtn, moveBtn, delBtn), export)
+		container.NewHBox(newBtn, copyBtn, editBtn, widget.NewSeparator(), pwBtn, unlockBtn, toggleBtn, moveBtn, delBtn),
+		container.NewHBox(policyBtn, export))
 	return container.NewPadded(card(t("Domain users"), container.NewBorder(container.NewVBox(top, toolbar), nil, nil, nil, tab.view())))
 }
 

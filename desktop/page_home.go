@@ -25,14 +25,11 @@ func (u *ui) homePage() fyne.CanvasObject {
 	page := container.NewVBox() // relaid out when the alerts arrive (their card grows)
 	// alerts as rows like the web: a colored tag, the text (wraps) and a link to the page that solves it
 	alerts := container.NewVBox(wrappedLabel(t("Loading…")))
-	alertRow := func(label string, state color.Color, text, link string, page int) fyne.CanvasObject {
+	// open goes where the alert is solved: Users (page 1), and for the policy its dialog over Users, as the web
+	alertRow := func(label string, state color.Color, text, link string, open func()) fyne.CanvasObject {
 		var action fyne.CanvasObject = layout.NewSpacer()
 		if link != "" {
-			b := newButton(link, nil, func() {
-				if u.goTo != nil {
-					u.goTo(page)
-				}
-			})
+			b := newButton(link, nil, open)
 			b.Importance = widget.LowImportance
 			action = container.NewCenter(b)
 		}
@@ -40,6 +37,11 @@ func (u *ui) homePage() fyne.CanvasObject {
 		msg := widget.NewLabel(text)
 		msg.Truncation = fyne.TextTruncateEllipsis
 		return container.NewBorder(nil, nil, tag(label, state, 96), action, msg)
+	}
+	toUsers := func() {
+		if u.goTo != nil {
+			u.goTo(1)
+		}
 	}
 	load := func() {
 		go func() {
@@ -98,7 +100,12 @@ func (u *ui) homePage() fyne.CanvasObject {
 					if !s.Policy.Complexity {
 						msg = "Password policy: minimum length of %d characters, no complexity."
 					}
-					rows = append(rows, alertRow(t("policy"), warnText, tf(msg, s.Policy.MinLength), t("see ›"), 6))
+					rows = append(rows, alertRow(t("policy"), warnText, tf(msg, s.Policy.MinLength), t("see ›"), func() {
+						if u.goTo != nil {
+							u.goTo(1)
+						}
+						u.policyDialog()
+					}))
 				}
 				if len(lockedUsers) > 0 {
 					names := lockedUsers
@@ -106,14 +113,14 @@ func (u *ui) homePage() fyne.CanvasObject {
 						names = append(names[:3:3], "…")
 					}
 					rows = append(rows, alertRow(t("Locked"), errText,
-						tf("%d locked account(s): %s.", len(lockedUsers), strings.Join(names, ", ")), t("unlock ›"), 1))
+						tf("%d locked account(s): %s.", len(lockedUsers), strings.Join(names, ", ")), t("unlock ›"), toUsers))
 				}
 				if inactiveCount > 0 {
 					rows = append(rows, alertRow(t("inactive"), mutedText,
-						tf("%d enabled account(s) with no logon for more than %d days.", inactiveCount, days), t("review ›"), 1))
+						tf("%d enabled account(s) with no logon for more than %d days.", inactiveCount, days), t("review ›"), toUsers))
 				}
 				if len(rows) == 0 {
-					rows = append(rows, alertRow("ok", okText, t("Nothing pending."), "", 0))
+					rows = append(rows, alertRow("ok", okText, t("Nothing pending."), "", nil))
 				}
 				alerts.Objects = rows
 				alerts.Refresh()
@@ -121,7 +128,6 @@ func (u *ui) homePage() fyne.CanvasObject {
 			})
 		}()
 	}
-	load()
 	login := newEntry()
 	login.SetPlaceHolder(t("user login"))
 	open := func() {
@@ -145,6 +151,7 @@ func (u *ui) homePage() fyne.CanvasObject {
 	lockedTile, lockedStripe0 := statTile(strings.ToUpper(t("Locked")), locked, "decor-muted")
 	idleTile, idleStripe0 := statTile(strings.ToUpper(tf("Inactive %d+ days", days)), idle, "decor-muted")
 	lockedStripe, idleStripe = lockedStripe0, idleStripe0
+	load() // after the tiles: a quick answer recolors their stripes
 	row := container.NewGridWithColumns(6, tile(t("Enabled users"), enabled, "decor-ok"), tile(t("Disabled"), disabled, "decor-muted"),
 		lockedTile, idleTile, tile(t("Groups"), groups, "decor-strong"), tile(t("Computers"), computers, "decor-strong"))
 	refresh := newButton("", theme.ViewRefreshIcon(), load)

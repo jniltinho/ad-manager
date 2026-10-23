@@ -124,7 +124,7 @@ func TestDocsFixtureShots(t *testing.T) {
 		u.goTo(5)
 	})
 	shot("desktop-08-shares", "dc01: 6 share(s)")
-	fyne.DoAndWait(func() { u.goTo(8) })
+	fyne.DoAndWait(func() { u.goTo(7) })
 	shot("desktop-15-sync", "dc01: 1 sync job")
 	done.Store(true)
 	time.Sleep(4 * time.Second) // the Sync page's next reload (3 s while a run goes on) finds none and stops polling

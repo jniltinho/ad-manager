@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Desktop app: the **Password policy** is a dialog opened from the button of the same name on the **Users** toolbar,
+  as in the web panel, no longer an item of the side menu; Home's policy alert opens it over Users.
 - The desktop app reaches **only the panel**: the Shares page and the file servers' Samba logs list the servers
   registered in the panel and go through its proxy with your session, as Sync and Backup already did. The desktop
   no longer asks for, stores or sends a file-server agent token (that token is root on the file server), its
@@ -18,6 +20,7 @@ All notable changes to this project are documented here. The format follows
   redirect from the panel.
 
 ### Fixed
+- Desktop app: the Home page could crash when the panel answered its totals before the page was built.
 - Measuring the shares' folder sizes through the panel (web and desktop) no longer fails after 60 seconds on large
   folders: the panel waits for the agent's answer for up to 2 minutes. An agent answer larger than the panel passes
   on is an error instead of a cut answer.

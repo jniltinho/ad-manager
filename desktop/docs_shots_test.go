@@ -102,12 +102,15 @@ func TestDocsShots(t *testing.T) {
 		page int
 		name string
 	}{{0, "desktop-03-home"}, {1, "desktop-04-users"}, {2, "desktop-06-groups"}, {3, "desktop-12-ous"},
-		{4, "desktop-07-computers"}, {5, "desktop-08-shares"}, {6, "desktop-13-password-policy"},
-		{7, "desktop-14-backup"}, {8, "desktop-15-sync"}, {9, "desktop-09-logs"}}
+		{4, "desktop-07-computers"}, {5, "desktop-08-shares"},
+		{6, "desktop-14-backup"}, {7, "desktop-15-sync"}, {8, "desktop-09-logs"}}
 	for _, p := range pages {
 		fyne.DoAndWait(func() { u.goTo(p.page) })
 		shot(p.name, 3*time.Second)
 	}
+	fyne.DoAndWait(func() { u.goTo(1); u.policyDialog() }) // the Users toolbar's Password policy
+	shot("desktop-13-password-policy", 2*time.Second)
+	closeAll()
 
 	fyne.DoAndWait(func() { u.goTo(1) })
 	time.Sleep(time.Second)
