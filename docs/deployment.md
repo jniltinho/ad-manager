@@ -20,7 +20,7 @@ examples below, replace `example.local`/`EXAMPLE` with the company's domain.
 | Panel (`ad-manager`) | any Linux amd64 (tested on Ubuntu 26.04), can be the DC itself | LDAPS (636) and Kerberos (TCP 88 and 464, password change links) to a DC; browser → panel port (8443) |
 | Agent (`ad-manager-agent`) | each Samba file server that is a domain member | `samba`, `winbind`, `acl`, `python3-samba` (Windows permissions; `vfs objects = acl_xattr`); reachable Redis; panel → port 9443 |
 | Queue | a Redis (can be on the panel server) | only if you use the agent / Queues screen |
-| Desktop | the administrator's Linux, Windows or macOS | HTTPS access to the panel or the agent |
+| Desktop | the administrator's Linux, Windows or macOS | HTTPS access to the panel (it reaches the file servers through it) |
 
 New domain or file server without Samba yet: see [samba-install.md](samba-install.md).
 

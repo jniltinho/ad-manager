@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800" font-family="Inter, DejaVu Sans, Arial, sans-serif" stroke-linecap="square" stroke-linejoin="miter" role="img" aria-labelledby="title desc">
 <title id="title">AD Manager architecture</title>
-<desc id="desc">Operators use the panel; the CLI and MCP reach the directory directly over LDAPS. The panel and the desktop app reach the agents over HTTPS with a token. Redis coordinates the agents' tasks and clients reach the files over SMB.</desc>
+<desc id="desc">Operators use the panel; the CLI and MCP reach the directory directly over LDAPS. The browser and the desktop app use the panel with the operator's session; only the panel reaches the agents, over HTTPS with a token. Redis coordinates the agents' tasks and clients reach the files over SMB.</desc>
 <defs>
 <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5 L1 9 Z" fill="#113058"/></marker>
 </defs>
@@ -20,8 +20,8 @@
 <path d="M840 485 V520 H950 V555" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
 <path d="M900 485 V497 H1235 V555" fill="none" stroke="#ffffff" stroke-width="7"/>
 <path d="M900 485 V497 H1235 V555" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M295 281 H440 V540 H805 V628 H830" fill="none" stroke="#ffffff" stroke-width="7"/>
-<path d="M295 281 H440 V540 H805 V628 H830" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M295 281 H510" fill="none" stroke="#ffffff" stroke-width="7"/>
+<path d="M295 281 H510" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)"/>
 <path d="M650 680 V705 H945 V680" fill="none" stroke="#ffffff" stroke-width="7"/>
 <path d="M650 680 V705 H945 V680" fill="none" stroke="#113058" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
 <path d="M710 680 V728 H1240 V680" fill="none" stroke="#ffffff" stroke-width="7"/>
@@ -61,7 +61,6 @@
 <text x="40" y="50" font-size="28" font-weight="700" fill="#113058" text-anchor="start">AD Manager architecture</text>
 <text x="40" y="79" font-size="13" fill="#69788b" text-anchor="start">System components and the directory and share administration flows</text>
 <text x="40" y="137" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Operators</text>
-<text x="428" y="541" font-size="13" fill="#69788b" text-anchor="end">direct share management</text>
 <text x="58" y="185" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Browser</text>
 <text x="58" y="205" font-size="13" fill="#0e172d" text-anchor="start">Web panel</text>
 <text x="58" y="272" font-size="16" font-weight="700" fill="#113058" text-anchor="start">Desktop app</text>
@@ -116,7 +115,7 @@
 <rect x="1076.5" y="475" width="107.0" height="17" fill="#ffffff"/>
 <text x="1130" y="487" font-size="13" fill="#113058" text-anchor="middle">HTTPS + token</text>
 <rect x="326.0" y="508" width="107.0" height="17" fill="#ffffff"/>
-<text x="428" y="520" font-size="13" fill="#113058" text-anchor="end">HTTPS + token</text>
+<text x="416" y="270" font-size="13" fill="#113058" text-anchor="middle">HTTPS + session</text>
 <rect x="740.87" y="685" width="98.27" height="17" fill="#ffffff"/>
 <text x="790" y="697" font-size="13" fill="#113058" text-anchor="middle">Redis (asynq)</text>
 <rect x="1050.87" y="708" width="98.27" height="17" fill="#ffffff"/>

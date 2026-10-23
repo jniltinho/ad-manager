@@ -43,6 +43,12 @@ share_roots = ["/srv/shares"]  # only creates inside these roots
 
 In the panel: **Shares → + New** with the name, the URL `https://server:9443` and the token.
 
+**Who reaches port 9443: only the panel.** The desktop app goes through the panel, never to an agent. When the agent
+runs on the panel's own server (a DC with the panel, `dc_file_server = true`), make it listen on the loopback only —
+`listen = "127.0.0.1:9443"`, with the agent registered in the panel as `https://127.0.0.1:9443`; the CLI's
+`--agent`/`--apply` on that server then use `https://127.0.0.1:9443` too. On a separate file server keep the address
+the panel reaches and allow 9443 only from the panel's IP in the firewall.
+
 ## API (Bearer)
 
 | Method | Route | What |

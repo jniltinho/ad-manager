@@ -64,7 +64,7 @@ More in [screenshots/README.md](screenshots/README.md).
 | `ad-manager agent` | Runs on each Samba file server (or DC): folders, shares, ACLs, backups and sync through a task queue (Redis/asynq) |
 | `ad-manager` (CLI) | The same operations from a terminal, plus migration and import/export tools |
 | `ad-manager mcp` | Model Context Protocol server for AI agents |
-| `ad-manager-desktop` | Native app (Fyne) that talks to the panel's API and directly to the agents |
+| `ad-manager-desktop` | Native app (Fyne) that talks only to the panel's API (the file servers through it) |
 
 ## Development
 

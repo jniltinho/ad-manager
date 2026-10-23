@@ -37,7 +37,9 @@ sudo python3 scripts/samba-setup.py new-dc ... --panel --files --share-root /srv
 
 The script creates the root (owner Domain Admins, ACL `DA/SYSTEM` full control, authenticated users read), turns on
 `registry shares = yes`, writes the `[agent]` section with `dc_file_server = true`, generates the token and registers
-the agent in the local panel (`https://127.0.0.1:9443`).
+the agent in the local panel (`https://127.0.0.1:9443`). Only the panel reaches the agent, so on this DC the agent
+can listen on the loopback only (`listen = "127.0.0.1:9443"` in `[agent]`, then `sudo systemctl restart
+ad-manager-agent`): nothing on the network needs port 9443.
 
 ## DC already installed
 
