@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.19.0] — 2026-10-23
+
+**Windows inheritance after a sync in about a minute instead of a 30-minute timeout, repaired when a run leaves it
+pending; the `.deb` restarts what is running on upgrade; and each sync run shows when it finished.**
+
 ### Added
 - The **Sync** page's Runs table has a **Finished** column: when each run ended and how long it took
   (`12:14 AM · 4m38s`, with the date when it ended on another day), on one line; empty while the run goes on.
@@ -152,7 +159,8 @@ and an MCP server, with an agent for Samba file servers.
 - Desktop app (Fyne) for Linux, Windows and macOS; CLI; MCP server; all-in-one Docker demo image.
 - CI and releases on GitHub Actions: `.deb`, server binaries and the desktop app for Linux, Windows and macOS.
 
-[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/jniltinho/ad-manager/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/jniltinho/ad-manager/compare/v0.18.1...v0.19.0
 [0.15.1]: https://github.com/jniltinho/ad-manager/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/jniltinho/ad-manager/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/jniltinho/ad-manager/releases/tag/v0.14.0
