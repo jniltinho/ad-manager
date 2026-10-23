@@ -5,7 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- Updated the Echo web framework to v5.4.2.
 
 ## [0.21.0] — 2026-10-23
 
