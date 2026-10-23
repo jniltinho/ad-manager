@@ -309,8 +309,9 @@ func (g *gridTable) TypedKey(ev *fyne.KeyEvent) {
 // pointer and the link's hint. It is rebound on every update: cells are reused for other rows and columns.
 type cellTap struct {
 	widget.BaseWidget
-	link  *cellLink
-	hover func(string)
+	link    *cellLink
+	hover   func(string)
+	hovered bool // the pointer is over it: a rebind (another row under the pointer) updates the hint
 }
 
 func newCellTap() *cellTap {
@@ -332,6 +333,7 @@ func (c *cellTap) Tapped(*fyne.PointEvent) {
 func (c *cellTap) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
 func (c *cellTap) MouseIn(*desktop.MouseEvent) {
+	c.hovered = true
 	if c.hover != nil && c.link != nil {
 		c.hover(c.link.hint)
 	}
@@ -340,8 +342,23 @@ func (c *cellTap) MouseIn(*desktop.MouseEvent) {
 func (c *cellTap) MouseMoved(*desktop.MouseEvent) {}
 
 func (c *cellTap) MouseOut() {
+	c.hovered = false
 	if c.hover != nil {
 		c.hover("")
+	}
+}
+
+// rebind gives the layer the link of the row and column now drawn in its cell; under the pointer, the hint follows.
+func (c *cellTap) rebind(l *cellLink, hover func(string)) {
+	c.link, c.hover = l, hover
+	showIf(l != nil, c)
+	if c.hovered && hover != nil {
+		if l != nil {
+			hover(l.hint)
+		} else {
+			c.hovered = false
+			hover("")
+		}
 	}
 }
 
@@ -438,8 +455,7 @@ func newTable(cols []column, rows func() int, cell func(row, col int) (string, c
 		if g.link != nil {
 			lk = g.link(id.Row, id.Col)
 		}
-		tap.link, tap.hover = lk, g.hover
-		showIf(lk != nil, tap)
+		tap.rebind(lk, g.hover)
 		room := g.colWidth(id.Col)
 		if lk != nil && lk.icon != nil {
 			icon.SetResource(lk.icon)
@@ -465,7 +481,7 @@ func newTable(cols []column, rows func() int, cell func(row, col int) (string, c
 		if cols[id.Col].badge && txt != "" && (lk == nil || lk.icon == nil || lk.tag) { // an icon link is a plain link
 			tag.FillColor, lbl.Color = badgeColors(c)
 			lbl.TextSize, lbl.TextStyle.Bold, lbl.Alignment = 11, true, fyne.TextAlignCenter
-			minW.SetMinSize(fyne.NewSize(min(cols[id.Col].width-22, 92), 0))
+			minW.SetMinSize(fyne.NewSize(max(0, min(room-22, 92)), 0)) // in the room the cell has (icon and compact width)
 		} else {
 			if id.Row == g.sel {
 				c = col("on-selection")

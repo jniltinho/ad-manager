@@ -34,5 +34,5 @@
 
 ## 7. Validation
 
-- [ ] 7.1 `make check && make test`; `make samba-up && make test-integration`
+- [x] 7.1 `make check && make test`; `make samba-up && make test-integration`
 - [x] 7.2 Implement with the Opus 5.5 model; review with Codex (`codex exec --sandbox read-only`): no plaintext path, no LDAP path, no secret leak, source unchanged

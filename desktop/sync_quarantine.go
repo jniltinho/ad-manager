@@ -184,7 +184,7 @@ func (u *ui) showQuarantine(base string, j syncJob, qs []quarantine, warn []stri
 			go func() {
 				defer w.Close()
 				err := u.panel.getRaw(p, w)
-				fyne.Do(func() {
+				onUI(func() {
 					if err != nil {
 						u.handleError(err)
 						return

@@ -259,7 +259,7 @@ func (u *ui) downloadExport(file, name string) {
 		go func() {
 			defer w.Close()
 			err := u.panel.getRaw("/api/export/"+file, w)
-			fyne.Do(func() {
+			onUI(func() {
 				if err != nil {
 					u.handleError(err)
 					return

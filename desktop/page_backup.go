@@ -396,7 +396,7 @@ func (u *ui) backupPage() fyne.CanvasObject {
 			go func() {
 				defer w.Close()
 				err := u.panel.getRaw(path, w)
-				fyne.Do(func() {
+				onUI(func() {
 					if err != nil {
 						u.handleError(err)
 						return
@@ -525,7 +525,7 @@ func (u *ui) backupPage() fyne.CanvasObject {
 					return
 				}
 				u.setStatus(tf("Restoration queued on %s: follow it under Last restoration.", s.Name))
-				time.AfterFunc(2*time.Second, func() { fyne.Do(reload) })
+				time.AfterFunc(2*time.Second, func() { onUI(reload) })
 			})
 			return true
 		})

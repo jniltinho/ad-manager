@@ -102,7 +102,7 @@ func (u *ui) panelBrand(p *api, url string) {
 	if h.Brand.Logo {
 		logo, _ = p.image("/api/brand/logo") // nil on any error: the AD Manager logo stays
 	}
-	fyne.Do(func() {
+	onUI(func() {
 		if url != u.cfg.Panel.URL {
 			return
 		}
@@ -218,7 +218,7 @@ func (u *ui) login() {
 			if err == nil {
 				err = client.do(http.MethodGet, "/api/me", nil, &me)
 			}
-			fyne.Do(func() {
+			onUI(func() {
 				defer func() { u.signingIn = false; done <- struct{}{} }() // over once its result is on screen
 				if u.screen != "login" {
 					return

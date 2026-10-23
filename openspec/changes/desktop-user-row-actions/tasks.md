@@ -21,5 +21,5 @@
       (editable, built-in, own, locked, locked built-in); tapped row vs selected row, and the target kept when the
       list reloads during a confirmation; cancelled confirmations send nothing; Enter on the selected row opens its
       menu; the toolbar has no row action; widths at 1280 px.
-- [ ] 3.2 `docs/desktop.md`, CHANGELOG; Users screenshots retaken (2×, classic-blue, domain.local).
-- [ ] 3.3 Codex review of the proposal (two passes, fixes applied) and of the code.
+- [x] 3.2 `docs/desktop.md`, CHANGELOG; Users screenshots retaken (2×, classic-blue, domain.local).
+- [x] 3.3 Codex review of the proposal (two passes, fixes applied) and of the code.

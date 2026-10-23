@@ -82,7 +82,7 @@ func (u *ui) groupsPage() fyne.CanvasObject {
 		go func() {
 			var r []group
 			err := u.panel.do(http.MethodGet, "/api/groups", nil, &r)
-			fyne.Do(func() {
+			onUI(func() {
 				if err != nil {
 					u.handleError(err)
 					return

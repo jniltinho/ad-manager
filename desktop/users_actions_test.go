@@ -26,10 +26,10 @@ func newUsersPanel(t *testing.T) *usersPanel {
 	p := &usersPanel{}
 	p.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		p.mu.Lock()
+		p.sent = append(p.sent, r.Method+" "+r.URL.Path)
+		p.mu.Unlock()
 		if r.Method != http.MethodGet {
-			p.mu.Lock()
-			p.sent = append(p.sent, r.Method+" "+r.URL.Path)
-			p.mu.Unlock()
 			_, _ = w.Write([]byte(`{}`))
 			return
 		}
@@ -224,4 +224,137 @@ func cellText(g *gridTable, r, c int) string {
 		}
 	}
 	return ""
+}
+
+// cellTaps are the link layers the table draws now, visible or not.
+func cellTaps(o fyne.CanvasObject) []*cellTap {
+	if c, ok := o.(*cellTap); ok {
+		return []*cellTap{c}
+	}
+	var out []*cellTap
+	for _, k := range kids(o) {
+		out = append(out, cellTaps(k)...)
+	}
+	return out
+}
+
+// tappableText is the innermost tappable under o that draws text.
+func tappableText(o fyne.CanvasObject, text string) fyne.Tappable {
+	for _, k := range kids(o) {
+		if tp := tappableText(k, text); tp != nil {
+			return tp
+		}
+	}
+	if tp, ok := o.(fyne.Tappable); ok && slices.Contains(texts(o), text) {
+		return tp
+	}
+	return nil
+}
+
+// TestUsersRowLinksDrawn: through the cells the table really draws — a link layer exists only on link cells, a tap
+// on it runs its row's action without moving the selection, a filtered list rebinds the reused cells, and Enter's
+// menu runs an action; in the shell at 1280 px every column fits, in English and in Portuguese.
+func TestUsersRowLinksDrawn(t *testing.T) {
+	p := newUsersPanel(t)
+	a := test.NewApp()
+	w := a.NewWindow("t")
+	defer onScreen(func() { w.Close(); a.Quit() })
+	inLang(t, "en")
+	u := &ui{a: a, w: w, cfg: &config{}, panel: newAPI(p.URL, "", false), status: newText("", col("footer-strong"), 11, false)}
+	u.me.User = "op"
+	var tab *gridTable
+	onScreen(func() {
+		w.Resize(fyne.NewSize(2000, 700))
+		w.SetContent(u.usersPage())
+		tab = findTable(w.Content())
+	})
+	wait := func(cond func() bool) bool {
+		for range 60 {
+			ok := false
+			onScreen(func() { ok = cond() })
+			if ok {
+				return true
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		return false
+	}
+	if !wait(func() bool { n, _ := tab.Length(); return n == 6 }) {
+		t.Fatal("no rows")
+	}
+	onScreen(func() { tab.Refresh() })
+	var bobEdit *cellTap
+	onScreen(func() {
+		for _, c := range cellTaps(tab) {
+			if c.Visible() != (c.link != nil) {
+				t.Errorf("a link layer visible %v with link %v", c.Visible(), c.link != nil)
+			}
+			if c.link != nil && c.link.hint == "Edit bob" {
+				bobEdit = c
+			}
+		}
+	})
+	if bobEdit == nil {
+		t.Fatal("no drawn link for bob's login")
+	}
+	onScreen(func() { tab.sel = 3; test.Tap(bobEdit) }) // carol selected, bob's login tapped
+	if !wait(func() bool { return slices.Contains(p.requests(), "GET /api/users/bob") }) {
+		t.Fatalf("tapping bob's login did not open bob: %q", p.requests())
+	}
+	onScreen(func() {
+		if tab.sel != 3 {
+			t.Errorf("a link tap moved the selection to %d", tab.sel)
+		}
+		for o := w.Canvas().Overlays().Top(); o != nil; o = w.Canvas().Overlays().Top() {
+			w.Canvas().Overlays().Remove(o)
+		}
+	})
+
+	// filtered to carol: the reused cells now act on carol, none still names bob
+	onScreen(func() { entriesIn(w.Content())[0].SetText("carol"); tab.Refresh() })
+	onScreen(func() {
+		for _, c := range cellTaps(tab) {
+			if c.link != nil && strings.Contains(c.link.hint, "bob") {
+				t.Errorf("a reused cell still acts on bob: %q", c.link.hint)
+			}
+		}
+	})
+
+	// Enter on carol (disabled, editable): the menu's Enable enables carol
+	onScreen(func() {
+		tab.sel = 0
+		tab.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		if tp := tappableText(w.Canvas().Overlays().Top(), "Enable"); tp != nil {
+			test.Tap(tp)
+		} else {
+			t.Error("no Enable in the Enter menu")
+		}
+	})
+	if !wait(func() bool { return slices.Contains(p.requests(), "POST /api/users/carol/enable") }) {
+		t.Fatalf("the Enter menu's Enable: %q", p.requests())
+	}
+
+	// the whole shell at 1280 px: the columns fit the table, in both languages
+	for _, l := range []string{"en", "pt-BR"} {
+		var fits bool
+		var used, width float32
+		onScreen(func() {
+			setLang(l)
+			w.Resize(fyne.NewSize(1280, 800))
+			u.shell()
+			u.goTo(1)
+		})
+		wait(func() bool { g := findTable(w.Content()); return g != nil && g.Size().Width > 0 })
+		onScreen(func() {
+			g := findTable(w.Content())
+			used, width = 0, g.Size().Width
+			for i := range g.cols {
+				used += g.width(i)
+			}
+			fits = g.compact && used+scrollbarRoom <= width
+		})
+		if !fits {
+			t.Errorf("%s: %v of columns in a %v-wide table at 1280 px", l, used, width)
+		}
+	}
 }

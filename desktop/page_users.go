@@ -151,7 +151,7 @@ func (u *ui) usersPage() fyne.CanvasObject {
 	}
 	// the columns: one per action at the end, as the web's (move and delete blank on a non-editable account)
 	const colLogin, colStatus, colTag, colPassword, colCopy, colMove, colDelete = 0, 4, 5, 7, 8, 9, 10
-	tab := newTable([]column{{t("Login"), 130, false}, {t("Name"), 150, false}, {t("E-mail"), 175, false}, {t("OU"), 100, false},
+	tab := newTable([]column{{t("Login"), 130, false}, {t("Name"), 140, false}, {t("E-mail"), 160, false}, {t("OU"), 100, false},
 		{t("Status"), 105, true}, {"", 130, true}, {t("Last logon"), 140, false},
 		{"", 105, false}, {"", 90, false}, {"", 85, false}, {"", 90, false}},
 		func() int { return len(visible) },
@@ -200,7 +200,7 @@ func (u *ui) usersPage() fyne.CanvasObject {
 			return dateOrDash(x.LastLogon), nil
 		}, nil)
 	// compact (1280 px): the action links as icons, unlock too (its column keeps room for the system tag)
-	tab.actions = map[int]float32{colTag: 80, colPassword: compactWidth, colCopy: compactWidth, colMove: compactWidth, colDelete: compactWidth}
+	tab.actions = map[int]float32{colTag: 104, colPassword: compactWidth, colCopy: compactWidth, colMove: compactWidth, colDelete: compactWidth}
 	// the links of a cell, bound to the account drawn in it
 	tab.link = func(r, c int) *cellLink {
 		if r < 0 || r >= len(visible) {
@@ -230,17 +230,22 @@ func (u *ui) usersPage() fyne.CanvasObject {
 		}
 		return nil
 	}
-	saved := "" // the status line while a link's hint covers it
+	// a link's hint covers the status line while hovered; leaving it puts back what was there, unless a newer message
+	// (an action's result) replaced the hint meanwhile
+	saved, shown, hovering := "", "", false
 	tab.hover = func(hint string) {
 		if hint != "" {
-			if saved == "" {
+			if !hovering || u.status.Text != shown {
 				saved = u.status.Text
 			}
+			hovering, shown = true, hint
 			u.setStatus(hint)
 			return
 		}
-		u.setStatus(saved)
-		saved = ""
+		if hovering && u.status.Text == shown {
+			u.setStatus(saved)
+		}
+		hovering = false
 	}
 	// Enter on the selected row: a menu of its actions (the same ones, the same rules), for the keyboard
 	tab.onEnter = func(r int) {
@@ -587,7 +592,7 @@ func (u *ui) passwordDialog(x user, after func()) {
 				return false
 			}
 			// after this modal closes: hiding an overlay also removes the ones above it
-			go fyne.Do(func() { u.showLink(x, strings.TrimRight(u.panel.base, "/")+"/password/"+r.Token, r.Expires) })
+			go onUI(func() { u.showLink(x, strings.TrimRight(u.panel.base, "/")+"/password/"+r.Token, r.Expires) })
 			after()
 			return true
 		}

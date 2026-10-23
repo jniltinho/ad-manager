@@ -220,7 +220,7 @@ func (u *ui) syncPage() fyne.CanvasObject {
 			info.Refresh()
 			for _, r := range d.Runs {
 				if r.Status == "queued" || r.Status == "running" {
-					time.AfterFunc(3*time.Second, func() { fyne.Do(reload) })
+					time.AfterFunc(3*time.Second, func() { onUI(reload) })
 					break
 				}
 			}
@@ -283,7 +283,7 @@ func (u *ui) syncPage() fyne.CanvasObject {
 				} else {
 					u.setStatus(t("Sync queued."))
 				}
-				time.AfterFunc(1500*time.Millisecond, func() { fyne.Do(reload) })
+				time.AfterFunc(1500*time.Millisecond, func() { onUI(reload) })
 			})
 		}
 	}

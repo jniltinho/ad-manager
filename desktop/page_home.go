@@ -59,7 +59,7 @@ func (u *ui) homePage() fyne.CanvasObject {
 			if err == nil {
 				err = u.panel.do(http.MethodGet, "/api/users", nil, &users)
 			}
-			fyne.Do(func() {
+			onUI(func() {
 				if err != nil {
 					u.handleError(err)
 					return
