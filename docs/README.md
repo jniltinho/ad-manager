@@ -37,7 +37,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 | **CLI** (`ad-manager …`) | Cobra; everything the panel does, plus migration and export/import | any machine with LDAPS access |
 | **MCP** (`ad-manager mcp`) | MCP server (stdio) for AI agents; read-only by default | operator's machine |
 | **Agent** (`ad-manager agent`) | HTTPS API with token + asynq/Redis queue; folders, ACLs and shares (`net conf`) | each Samba file server (or the DC that also serves files) |
-| **Desktop app** (`ad-manager-desktop`) | Fyne; uses the panel's API and, for shares, the agent directly | operator's machine |
+| **Desktop app** (`ad-manager-desktop`) | Fyne; uses only the panel's API (shares and Samba logs through its proxy) | operator's machine |
 | **Samba installer** (`scripts/samba-setup.py`) | new domain, additional DC or file server, with the panel or the agent already configured | Ubuntu 26.04 servers |
 
 A single binary (`ad-manager`) provides the panel, CLI, MCP and agent; the `.deb` package installs everything in

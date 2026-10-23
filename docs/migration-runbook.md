@@ -163,8 +163,8 @@ Order: **objects and DNS → passwords → applications tested with the real pas
    password comes from `AD_SOURCE_PASSWORD_FILE` or the terminal, never an argument):
 
    ```bash
-   ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://dc:9443          # preview
-   AD_SOURCE_PASSWORD_FILE=/root/src.pass ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://dc:9443 --apply
+   ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://127.0.0.1:9443 --insecure   # on the DC; preview
+   AD_SOURCE_PASSWORD_FILE=/root/src.pass ad-manager migrate passwords --from ldap://10.0.0.10 --user 'OLD\administrator' --agent https://127.0.0.1:9443 --insecure --apply
    ```
 
    The agent reads the hashes over a **sealed, read-only DRSUAPI** (`GetNCChanges` with the per-object secret op; no

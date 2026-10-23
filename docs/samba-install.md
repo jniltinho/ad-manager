@@ -48,10 +48,10 @@ The Portuguese names of earlier versions still work: roles `dc-novo`, `dc-restau
 
 | Port | Who connects | Purpose |
 |---|---|---|
-| 8443/TCP on the DC | administrators' browser, desktop app | ad-manager panel |
+| 8443/TCP on the DC | administrators' browser, desktop app | ad-manager panel (the desktop's only connection) |
 | 636/TCP on the DC | panel, CLI, MCP | LDAPS |
 | 88 and 464/TCP on the DC | panel | Kerberos: password change link (kpasswd) |
-| 9443/TCP on the file server | panel, desktop app | agent API (token) |
+| 9443/TCP on the file server | the panel only (loopback when the agent runs beside the panel) | agent API (token) |
 | 445/TCP on the file server | workstations | SMB shares |
 
 ## 1. New domain with the panel
