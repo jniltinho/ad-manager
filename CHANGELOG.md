@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.21.0] — 2026-10-23
+
+**The desktop app reaches only the panel and acts on each user row in place, as the web panel.**
+
 ### Changed
 - Desktop app: the **Password policy** is a dialog opened from the button of the same name on the **Users** toolbar,
   as in the web panel, no longer an item of the side menu; Home's policy alert opens it over Users.
