@@ -5,7 +5,7 @@
 import { Archive, Eye, FolderSync, Pencil, Play, Plus, RefreshCw, ScrollText, Square, Trash2 } from 'lucide-vue-next'
 import { computed, onUnmounted, ref } from 'vue'
 import { del, enc, get, post } from '../api'
-import { confirmTyped, showAlert } from '../dialogs'
+import { confirmTyped } from '../dialogs'
 import { serverText, t } from '../i18n'
 import { toast } from '../toasts'
 import { agentHost, formatDate } from '../util'
@@ -13,6 +13,7 @@ import BackupTabs from '../components/BackupTabs.vue'
 import SyncWizardDialog from '../components/dialogs/SyncWizardDialog.vue'
 import QuarantineDialog from '../components/QuarantineDialog.vue'
 import SyncRunDialog from '../components/dialogs/SyncRunDialog.vue'
+import SyncLogDialog from '../components/dialogs/SyncLogDialog.vue'
 import LoadingRow from '../components/LoadingRow.vue'
 
 const agents = ref([])
@@ -124,10 +125,11 @@ async function cancel(r) {
     toast.error(e.message)
   }
 }
+const logRun = ref(null) // { run, text } for SyncLogDialog
 async function showLog(r) {
   try {
     const res = await fetch(`/api${base.value}/sync-runs/${enc(r.id)}/log`, { credentials: 'same-origin' })
-    showAlert((await res.text()) || t('No log.'), { title: r.id })
+    logRun.value = { run: r, text: await res.text() }
   } catch (e) {
     toast.error(e.message)
   }
@@ -328,4 +330,6 @@ const details = ref(null)
     @close="details = null"
     @open-quarantine="openQuarantine(details.job, details.job + '-' + details.id)"
   />
+
+  <SyncLogDialog v-if="logRun" :run="logRun.run" :text="logRun.text" :job-name="jobName(logRun.run.job)" @close="logRun = null" />
 </template>
