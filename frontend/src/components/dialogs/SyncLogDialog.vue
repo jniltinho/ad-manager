@@ -41,23 +41,19 @@ async function copy() {
 
 <template>
   <Modal :title="t('Log {id}', { id: run.id })" wide :ok="null" @close="$emit('close')">
-    <div class="space-y-2">
-      <!-- summary: stays above the scrolling log -->
-      <p class="text-[12px]">
-        <b>{{ jobName }}</b> · {{ formatDate(run.started) }} ·
-        <span :class="statusClass(run.status)">{{ statusText(run.status) }}</span>
-        <template v-if="run.result?.plan">
-          · {{ t('New') }} {{ run.result.plan.New }} ({{ size(run.result.plan.NewBytes) }}) · {{ t('Changed') }}
-          {{ run.result.plan.Changed }} ({{ size(run.result.plan.ChangedBytes) }}) · {{ t('To delete') }} {{ run.result.plan.Delete }}
-          <template v-if="!run.preview"> · {{ t('Transferred') }} {{ run.result.transfers }} ({{ size(run.result.bytes) }})</template>
-        </template>
-      </p>
-      <!-- v-text, not {{ }}: Vue preserves whitespace inside <pre>, so a line-wrapped interpolation would show a blank line -->
-      <pre
-        class="max-h-[calc(var(--view-h)*0.6)] overflow-auto whitespace-pre-wrap break-words bg-surface-2 p-2 font-mono text-[11px]"
-        v-text="text || t('No log.')"
-      />
+    <!-- one scroll container (the Modal body): the summary sticks to the top so it never scrolls away, even on a short
+         viewport, while the log flows and the body scrolls. A second cap on the <pre> would let the body scroll too. -->
+    <div class="sticky -top-3 z-10 -mx-4 -mt-3 mb-2 border-b border-line bg-surface px-4 pt-3 pb-2 text-[12px]">
+      <b>{{ jobName }}</b> · {{ formatDate(run.started) }} ·
+      <span :class="statusClass(run.status)">{{ statusText(run.status) }}</span>
+      <template v-if="run.result?.plan">
+        · {{ t('New') }} {{ run.result.plan.New }} ({{ size(run.result.plan.NewBytes) }}) · {{ t('Changed') }}
+        {{ run.result.plan.Changed }} ({{ size(run.result.plan.ChangedBytes) }}) · {{ t('To delete') }} {{ run.result.plan.Delete }}
+        <template v-if="!run.preview"> · {{ t('Transferred') }} {{ run.result.transfers }} ({{ size(run.result.bytes) }})</template>
+      </template>
     </div>
+    <!-- v-text, not {{ }}: Vue preserves whitespace inside <pre>, so a line-wrapped interpolation would show a blank line -->
+    <pre class="whitespace-pre-wrap break-words bg-surface-2 p-2 font-mono text-[11px]" v-text="text || t('No log.')" />
     <template #foot>
       <button type="button" class="btn-ghost" @click="copy"><Copy :size="14" /> {{ copied ? t('Copied') : t('Copy') }}</button>
     </template>
