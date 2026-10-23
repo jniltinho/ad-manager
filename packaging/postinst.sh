@@ -1,6 +1,7 @@
 #!/bin/sh
 # Safe install: creates the system user and directories with minimal permissions.
-# Does NOT enable or start services — the operator decides the machine's role.
+# Does NOT enable or start services — the operator decides the machine's role. On an upgrade it restarts the ones
+# already running, so they run the new binary.
 set -e
 if ! getent passwd ad-manager >/dev/null; then
   adduser --system --group --home /opt/ad-manager/data --no-create-home --shell /usr/sbin/nologin ad-manager >/dev/null
@@ -16,6 +17,20 @@ if [ ! -f /opt/ad-manager/tls/tls.crt ]; then
   [ -f /opt/ad-manager/tls/tls.key ] && chgrp ad-manager /opt/ad-manager/tls/tls.key && chmod 0640 /opt/ad-manager/tls/tls.key
 fi
 systemctl daemon-reload >/dev/null 2>&1 || true
+if [ "$1" = "configure" ] && [ -n "$2" ]; then  # upgrade from version $2
+  restarted=""
+  for u in ad-manager ad-manager-agent; do
+    if systemctl is-active --quiet "$u.service" 2>/dev/null; then
+      systemctl try-restart "$u.service" && restarted="$restarted $u" || echo "ad-manager: could not restart $u (systemctl status $u)" >&2
+    fi
+  done
+  if [ -n "$restarted" ]; then
+    echo "ad-manager upgraded from $2. Restarted:$restarted."
+  else
+    echo "ad-manager upgraded from $2. No service was running (none started)."
+  fi
+  exit 0
+fi
 if grep -q '^setup = true' /opt/ad-manager/config.toml 2>/dev/null; then
   cat <<'MSG'
 ad-manager installed (fresh install). To configure it from the browser:

@@ -1,6 +1,7 @@
-// Screenshot of the Sync run-log modal (components/dialogs/SyncLogDialog.vue): serves web/dist, answers the panel API
-// with fixtures (one finished preview run with a very long dry-run log, no agent is called) and captures the modal
-// scrolling inside its box. English UI, company "Example Company Ltd", the domain.local demo, at 2×.
+// Screenshots of the Sync page (pages/Sync.vue) and its run-log modal (components/dialogs/SyncLogDialog.vue): serves
+// web/dist and answers the panel API with fixtures (no agent is called): the page with a running run and finished ones
+// (their end and duration), then one finished preview run with a very long dry-run log, the modal scrolling inside its
+// box. English UI, company "Example Company Ltd", the domain.local demo, São Paulo time, at 2×.
 //
 //   node tests/visual/sync-log-shot.mjs <output dir> [theme…]   (after npm run build; default: classic-blue)
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
@@ -43,8 +44,62 @@ const RUN = {
   status: 'ok',
   preview: true,
   started: '2026-10-20T02:00:00-03:00',
+  finished: '2026-10-20T02:00:12-03:00',
   result: { seconds: 12.4, plan: { New: 1284, NewBytes: 4.7e9, Changed: 37, ChangedBytes: 2.1e8, Delete: 0, DeleteBytes: 0, Same: 9021 } },
 }
+// the page: one run copying and the finished ones under it (São Paulo time, as the page renders them)
+const at = (hms) => `2026-10-23T${hms}-03:00`
+const RUNS = [
+  {
+    id: 'r6',
+    job: 'finance',
+    status: 'running',
+    started: at('00:22:10'),
+    progress: { phase: 'copying', transfers: 338, total: 15828, bytes: 235e6 },
+  },
+  {
+    id: 'r5',
+    job: 'finance',
+    status: 'ok',
+    started: at('00:19:02'),
+    finished: at('00:22:05'),
+    result: { transfers: 0, bytes: 0, deleted: 0, seconds: 183.5 },
+  },
+  {
+    id: 'r4',
+    job: 'finance',
+    status: 'cancelled',
+    error: 'cancelled',
+    started: at('00:17:12'),
+    finished: at('00:17:51'),
+    result: { transfers: 0, bytes: 0, deleted: 0 },
+  },
+  {
+    id: 'r3',
+    job: 'finance',
+    status: 'ok',
+    started: at('00:09:30'),
+    finished: at('00:14:08'),
+    result: { transfers: 15828, bytes: 2.74e9, deleted: 0, seconds: 203.1 },
+  },
+  {
+    id: 'r2',
+    job: 'finance',
+    status: 'ok',
+    started: at('00:01:20'),
+    finished: at('00:02:02'),
+    result: { transfers: 187, bytes: 33.9e6, deleted: 0, seconds: 31.6 },
+  },
+  {
+    id: 'r1',
+    job: 'finance',
+    status: 'ok',
+    preview: true,
+    started: at('00:00:40'),
+    finished: at('00:00:52'),
+    result: { seconds: 12.4, plan: { New: 187, NewBytes: 33.9e6, Changed: 0, ChangedBytes: 0, Delete: 0, DeleteBytes: 0, Same: 0 } },
+  },
+]
 const JOB = {
   id: 'finance',
   name: 'Finance',
@@ -62,7 +117,12 @@ try {
   for (const theme of themes) {
     const scheme = theme.endsWith('dark') ? 'dark' : 'light'
     const brand = { theme, lang: 'en', company: 'Example Company Ltd', themes: [{ id: theme, label: theme, scheme }] }
-    const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2 })
+    const page = await browser.newPage({
+      viewport: { width: 1600, height: 900 },
+      deviceScaleFactor: 2,
+      locale: 'en-US',
+      timezoneId: 'America/Sao_Paulo',
+    })
     const json = (body) => (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
     await page.route('**/api/**', json({}))
     await page.route('**/api/health', json({ status: 'ok', domain: 'domain.local', netbios: 'EXAMPLE', brand }))
@@ -73,19 +133,17 @@ try {
     await page.route('**/api/agents', json([{ id: 1, name: 'dc01', url: 'https://192.168.10.20:9443' }]))
     await page.route('**/api/agents/1/health', json({ status: 'ok', dc: true, files: true }))
     await page.route('**/api/agents/1/syncs/quarantines', json({ quarantines: [], space: [] }))
-    await page.route(
-      '**/api/agents/1/syncs',
-      json({
-        jobs: [JOB],
-        runs: [RUN],
-        roots: ['/srv/shares'],
-        file_server: true,
-        kerberos: true,
-        machine: 'DC01$',
-      }),
-    )
     await page.route('**/api/agents/1/sync-runs/r1/log', (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: LOG }))
+    const syncs = (runs) => json({ jobs: [JOB], runs, roots: ['/srv/shares'], file_server: true, kerberos: true, machine: 'DC01$' })
 
+    await page.route('**/api/agents/1/syncs', syncs(RUNS))
+    await page.goto(`${origin}/sync`)
+    await page.getByText('copying 338 of 15828').first().waitFor()
+    await page.waitForTimeout(400)
+    await page.screenshot({ path: `${out}/sync-${theme}-page.png` })
+    console.log('ok', `sync-${theme}-page`)
+
+    await page.route('**/api/agents/1/syncs', syncs([RUN]))
     await page.goto(`${origin}/sync`)
     await page.getByRole('button', { name: 'Log' }).first().click()
     await page.locator('dialog[open] pre').waitFor()

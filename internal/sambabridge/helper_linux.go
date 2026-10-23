@@ -19,6 +19,9 @@ import (
 // maxAge restarts a helper this old before its next request: it picks up an updated Samba and does not grow forever.
 const maxAge = time.Hour
 
+// idleTimeout stops a helper no request used for this long: it is started again on the next one.
+var idleTimeout = 5 * time.Minute
+
 // helper is one long-lived python3 serving requests one at a time on a Unix socket (fd 3 on its side). Each request
 // carries its folders as SCM_RIGHTS descriptors.
 type helper struct {
@@ -28,6 +31,8 @@ type helper struct {
 	exited  chan struct{}
 	started time.Time
 	stderr  capped
+	idle    *time.Timer // stops the helper once it has been free for idleTimeout
+	last    time.Time   // when the last request ended
 }
 
 // helpers are the helpers of one interpreter: quick requests, and the long ones (a propagation can take 30 minutes)
@@ -66,7 +71,7 @@ func (b *Bridge) exec(ctx context.Context, req []byte, folders []*os.File) ([]by
 	case <-ctx.Done():
 		return nil, fmt.Errorf("samba bridge: waiting for the helper: %w", ctx.Err())
 	}
-	defer func() { <-h.turn }()
+	defer func() { h.armIdle(); <-h.turn }()
 	if err := ctx.Err(); err != nil { // cancelled while waiting: nothing was sent
 		return nil, fmt.Errorf("samba bridge: %w", err)
 	}
@@ -171,6 +176,23 @@ func (h *helper) dead() bool {
 	default:
 		return false
 	}
+}
+
+// armIdle restarts the idle countdown; it runs with the turn held, as does the stop it schedules, so a helper is never
+// stopped under a request (a request already waiting for the turn simply starts a new helper).
+func (h *helper) armIdle() {
+	h.last = time.Now()
+	if h.idle != nil {
+		h.idle.Stop()
+	}
+	d := idleTimeout
+	h.idle = time.AfterFunc(d, func() {
+		h.turn <- struct{}{}
+		defer func() { <-h.turn }()
+		if time.Since(h.last) >= d { // not used again since this countdown began
+			h.stop()
+		}
+	})
 }
 
 // stop ends the helper and returns what it wrote on stderr.

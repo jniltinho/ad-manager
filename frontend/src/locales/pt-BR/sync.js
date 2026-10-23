@@ -9,6 +9,7 @@ export default {
   Destination: 'Destino',
   Mode: 'Modo',
   'Last run': 'Última execução',
+  Finished: 'Término',
   mirror: 'espelhar',
   copy: 'copiar',
   'preview needed': 'prévia pendente',

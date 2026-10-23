@@ -197,14 +197,16 @@ Everything runs locally, with passwords only in environment variables.
 
    and copy `setup-classic-blue-N-*.png` as `setup-N-*.png`.
 
-   The sync run-log modal (`33-sync-log.png`) is captured the same way, from fixtures (a finished preview run with a
-   very long dry-run log, no agent is called), after `npm run build`:
+   The Sync page (`30-sync.png`) and its run-log modal (`33-sync-log.png`) are captured the same way, from fixtures
+   (a running run and finished ones with their end and duration; a finished preview run with a very long dry-run log;
+   no agent is called), after `npm run build`:
 
    ```bash
    (cd frontend && node tests/visual/sync-log-shot.mjs ../docs/screenshots classic-blue)
    ```
 
-   and rename `sync-classic-blue-log.png` to `33-sync-log.png`.
+   and rename `sync-classic-blue-page.png` to `30-sync.png` and `sync-classic-blue-log.png` to `33-sync-log.png`
+   (`docs-shots.mjs` also takes a `30-sync`, from the container's real runs: keep the fixture one).
 
 5. Desktop app (the container's agent with a new token, also registered in the panel):
 
