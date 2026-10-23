@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.22.0] — 2026-10-23
+
+**The desktop's user edit dialog shows the group count, and Echo v5.4.2.**
+
 ### Changed
 - Desktop app: the user edit dialog's Groups tab shows how many groups the user is in (`Groups (5)`), as the web
   panel, and follows each add and remove.
