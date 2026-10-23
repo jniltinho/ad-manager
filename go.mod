@@ -1,6 +1,6 @@
 module ad-manager
 
-go 1.27.2
+go 1.27.3
 
 // The TLS certificate Samba generates has a negative serial number, which
 // Go ≥ 1.23 refuses. In production prefer a certificate of your own (ad.ca_file).

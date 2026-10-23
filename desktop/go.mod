@@ -1,6 +1,6 @@
 module ad-manager/desktop
 
-go 1.27.2
+go 1.27.3
 
 require (
 	ad-manager v0.0.0

@@ -18,7 +18,7 @@ SIDs, and it **discards deny ACEs** and subfolder ACLs. There is no SMB file cli
 - SMB 2.0.2–3.1.1 client, TCP 445 and SMB over QUIC; **NTLMv2 and Kerberos** (password, keytab, ccache); signing
   can be required and AES-CCM/GCM encryption; `context.Context`; `io/fs` (`WalkDir`, `Glob`); DFS; `MkdirAll`,
   `RemoveAll`, symbolic links. **BSD-2-Clause** license, ~410 stars, ~990 commits, 12 open issues; requires
-  **Go 1.27** (the project already uses 1.27.2).
+  **Go 1.27** (the project already uses 1.27.3).
 - **No security descriptor API**: `Chmod` only touches the mode bits; `FileStat` does not carry the SD. Reading/writing
   the NTFS ACL would require `QUERY_INFO`/`SET_INFO` with `SecurityInformation` through `x/protocol` (marked
   experimental, with no stability guarantee).
