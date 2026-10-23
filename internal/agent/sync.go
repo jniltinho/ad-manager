@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -377,6 +378,21 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 		slog.Info("task", "type", TypeSync, "job", tk.Job, "run", r.ID, "err", err)
 		return fmt.Errorf("%w: %w", err, asynq.SkipRetry)
 	}
+	// Windows inheritance is pending from before it starts until it is applied: a run that fails, is cancelled or
+	// dies after rclone wrote files, or whose ACL pass fails, leaves the mark, and the next run redoes the whole tree
+	aclPending := false
+	if !tk.Preview && j.Reinherit {
+		_, perr := os.Stat(a.aclPendingFile(j.ID, j.Dest))
+		// a mark that cannot be looked up counts as pending: rewriting it below must not forget an earlier one
+		aclPending = !errors.Is(perr, os.ErrNotExist) || a.legacyACLPending(j.ID, r.ID)
+		if err := a.markACLPending(j.ID, j.Dest); err != nil {
+			r.Status, r.Finished = "error", time.Now().UTC()
+			r.Error = "could not mark the Windows inheritance pending: " + err.Error()
+			a.writeRun(r)
+			slog.Info("task", "type", TypeSync, "job", tk.Job, "run", r.ID, "err", r.Error)
+			return fmt.Errorf("%s: %w", r.Error, asynq.SkipRetry)
+		}
+	}
 	r.Progress = map[string]any{"phase": "preparing"} // the panel shows the phase while the worker starts up
 	a.writeRun(r)
 	rctx, cancel := context.WithCancel(ctx)
@@ -406,8 +422,12 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 	// its Cancel stays live: only to what rclone transferred (the whole tree only on a first or capped run, its list
 	// empty or partial), under rctx so Stop interrupts the helper walk. A reinherit failure is best-effort (a note),
 	// not a failed run; a cancellation marks the run cancelled.
-	if err == nil && !tk.Preview && j.Reinherit && res != nil && res.Transfers > 0 {
-		full := changedCapped || len(changed) == 0
+	aclDone := false
+	doACL, full := aclPlan(aclPending, res, changed, changedCapped)
+	if err == nil && !tk.Preview && j.Reinherit && doACL {
+		if aclPending {
+			r.Notes = append(r.Notes, "an earlier run left the Windows inheritance pending: reapplying it to the whole folder")
+		}
 		r.Progress = map[string]any{"phase": "acl", "acl_items": len(changed), "acl_full": full}
 		a.writeRun(r)
 		var acl *sambabridge.ACL
@@ -427,8 +447,12 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 		case aerr != nil:
 			r.Notes = append(r.Notes, "Windows inheritance not applied: "+aerr.Error())
 		default:
+			aclDone = true
 			r.Notes = append(r.Notes, fmt.Sprintf("Windows inheritance of %s applied to %d items", j.Dest, acl.Propagated))
 		}
+	}
+	if !tk.Preview && j.Reinherit && err == nil && (aclDone || (res != nil && !doACL)) {
+		_ = os.Remove(a.aclPendingFile(j.ID, j.Dest)) // applied, or nothing came in and nothing was pending
 	}
 	if !tk.Preview {
 		r.Progress = map[string]any{"phase": "finalizing"} // retention cleanup of the job's old quarantines
@@ -451,6 +475,55 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 	a.writeRun(r)
 	slog.Info("task", "type", TypeSync, "job", j.ID, "run", r.ID, "preview", tk.Preview, "status", r.Status, "err", r.Error)
 	return nil // the run file records the outcome; a sync is never retried by the queue
+}
+
+// aclPlan says whether a finished copy needs Windows inheritance work and whether over the whole tree: only what rclone
+// transferred, the whole tree on a first or capped run (its list empty or partial) or while an earlier run left it
+// pending (then even when nothing came in).
+func aclPlan(pending bool, res *syncer.Result, changed []string, capped bool) (do, full bool) {
+	if res == nil {
+		return false, false
+	}
+	return pending || res.Transfers > 0, pending || capped || len(changed) == 0
+}
+
+// aclPendingFile marks job's Windows inheritance pending on dest (one per destination: a run on an old destination
+// never clears the mark of the new one).
+func (a *Agent) aclPendingFile(job, dest string) string {
+	sum := sha256.Sum256([]byte(dest))
+	return filepath.Join(a.syncDir(), "acl-pending", job+"."+hex.EncodeToString(sum[:8]))
+}
+
+func (a *Agent) markACLPending(job, dest string) error {
+	if err := os.MkdirAll(filepath.Join(a.syncDir(), "acl-pending"), 0o700); err != nil {
+		return err
+	}
+	return writeFile0600(a.aclPendingFile(job, dest), []byte(dest+"\n"))
+}
+
+// legacyACLPending tells from the job's history whether a run made before the pending mark existed left the Windows
+// inheritance unapplied: the newest run that noted its inheritance, or copied files, decides.
+func (a *Agent) legacyACLPending(job, current string) bool {
+	for _, r := range a.syncRuns() {
+		if r.Job != job || r.ID == current || r.Preview || r.Finished.IsZero() {
+			continue
+		}
+		for _, n := range r.Notes {
+			switch {
+			case strings.HasPrefix(n, "Windows inheritance not applied"):
+				return true
+			case strings.HasPrefix(n, "Windows inheritance of "):
+				return false
+			}
+		}
+		switch {
+		case r.Status != "ok" && (r.Result == nil || r.Result.Transfers > 0):
+			return true // copied (or may have: a worker killed before its result), then failed or was cancelled
+		case r.Result != nil && r.Result.Transfers > 0:
+			return false
+		}
+	}
+	return false
 }
 
 // approve records that a clean preview approved revision rev of a mirror.
@@ -892,6 +965,11 @@ func (a *Agent) syncRoutes(api *echo.Group) {
 			return bad(c, http.StatusInternalServerError, err)
 		}
 		_ = os.Remove(a.secretFile(c.Param("id")))
+		if marks, err := filepath.Glob(filepath.Join(a.syncDir(), "acl-pending", c.Param("id")+".*")); err == nil {
+			for _, m := range marks {
+				_ = os.Remove(m)
+			}
+		}
 		return c.JSON(http.StatusOK, map[string]string{"deleted": c.Param("id")})
 	})
 	start := func(preview bool) echo.HandlerFunc {

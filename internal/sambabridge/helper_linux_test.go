@@ -99,6 +99,38 @@ func TestHelper(t *testing.T) {
 			t.Fatalf("nothing was sent, the helper must stay: %d then %d", old, p)
 		}
 	})
+
+	t.Run("stops when idle", func(t *testing.T) {
+		defer func(d time.Duration) { idleTimeout = d }(idleTimeout)
+		idleTimeout = 200 * time.Millisecond
+		_ = b.Capabilities(ctx)
+		if helperPid(t) == 0 {
+			t.Fatal("no helper after a request")
+		}
+		time.Sleep(time.Second)
+		if p := helperPid(t); p != 0 {
+			t.Fatalf("helper %d still up after the idle timeout", p)
+		}
+		if err := b.call(ctx, "rm", map[string]any{}, nil, &struct{}{}); err == nil || !strings.Contains(err.Error(), "unknown operation") {
+			t.Fatalf("after an idle stop: %v", err)
+		}
+	})
+
+	t.Run("never stops under a request", func(t *testing.T) {
+		defer func(d time.Duration) { idleTimeout = d }(idleTimeout)
+		idleTimeout = 200 * time.Millisecond
+		_ = b.Capabilities(ctx)
+		h := &pool("/usr/bin/python3").quick
+		pid := helperPid(t)
+		h.turn <- struct{}{} // a request longer than the idle timeout holds the turn
+		time.Sleep(time.Second)
+		alive := h.cmd != nil && h.cmd.Process.Pid == pid
+		h.armIdle() // as exec does when the request ends
+		<-h.turn
+		if !alive || helperPid(t) != pid {
+			t.Fatalf("the helper was stopped under a request (alive %v, pid %d then %d)", alive, pid, helperPid(t))
+		}
+	})
 }
 
 // TestScript runs the embedded helper for real: it must parse and reject bad

@@ -5,7 +5,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- Reapplying a folder's **Windows inheritance** is much faster on a domain controller. Every item is still read
+  through Samba, but Samba's write (~180 ms per item on a DC, where each SID goes through idmap) runs once per
+  distinct case — the ACL to set and the item's owner, mode and current ACL — and the other items get the result it
+  left, each one checked byte for byte (or written through Samba when the copy does not match). On a real 16k-file
+  share with three distinct ACLs, the pass that ran past the 30-minute limit (and stopped at ~55%) now takes about a
+  minute for its 16,567 items.
+  Only with the `acl_xattr` VFS stack Samba's own configuration uses; otherwise every item goes through Samba as
+  before. Used by a sync's ACL phase, a restore from quarantine and a folder ACL change applied to its contents.
+- The agent's Samba (python3) helper stops after 5 minutes without a request and starts again on the next one.
+
+### Fixed
+- A sync whose Windows-inheritance pass failed, timed out or was cancelled — or that was cancelled or died after
+  copying files — left those files without their Windows ACL for good: the next run transferred nothing and did no
+  ACL work. The job now stays "inheritance pending" until a run applies it, and its next run reapplies the whole
+  folder even when nothing came in.
 
 ## [0.18.1] — 2026-10-23
 

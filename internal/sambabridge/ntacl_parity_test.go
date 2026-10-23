@@ -13,6 +13,7 @@ package sambabridge
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -181,6 +182,130 @@ func TestReinheritPathsParity(t *testing.T) {
 		}
 		if af.SDDL != bf.SDDL {
 			t.Fatalf("%s differs:\n full %s\n  inc %s", d, af.SDDL, bf.SDDL)
+		}
+	}
+}
+
+// TestReinheritMemoParity: the memoized walk (one Samba write per distinct key, the state copied to the rest) leaves
+// every item exactly as a pass through Samba item by item does: the same owner, group, mode and ACL xattrs, byte for
+// byte. Tree A gets one full Reapply; tree B gets one ReinheritPaths per item, so each walk meets every item first
+// (no memo hit). Folders with an explicit ACE and files with another mode make more than one key per folder.
+//
+//	sudo NTACL_REINHERIT_ROOT=/srv/shares/Test ./parity.test -test.run TestReinheritMemoParity -test.v
+func TestReinheritMemoParity(t *testing.T) {
+	root := os.Getenv("NTACL_REINHERIT_ROOT")
+	if root == "" {
+		t.Skip("NTACL_REINHERIT_ROOT not set")
+	}
+	ctx := context.Background()
+	b := &Bridge{}
+	if c := b.Capabilities(ctx); !c.Usable() {
+		t.Skipf("Samba NT-ACL helper not usable here (needs acl_xattr and root): %+v", c)
+	}
+	roots := []string{root}
+	dirs := []string{"d1", "d1/d2", "d3", "d3/d4"}
+	var rels []string
+	seed := func(base string) {
+		rels = rels[:0]
+		if err := os.MkdirAll(base, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range dirs {
+			if err := os.MkdirAll(filepath.Join(base, d), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			rels = append(rels, d)
+		}
+		for _, d := range append([]string{""}, dirs...) {
+			for i := range 25 {
+				f := filepath.Join(d, fmt.Sprintf("f%02d.txt", i))
+				mode := os.FileMode(0o644)
+				if i%5 == 0 {
+					mode = 0o600
+				}
+				if err := os.WriteFile(filepath.Join(base, f), []byte("x"), mode); err != nil {
+					t.Fatal(err)
+				}
+				rels = append(rels, f)
+			}
+		}
+	}
+	open := func(p string) *os.File {
+		fd, err := syscall.Open(p, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
+		if err != nil {
+			t.Fatalf("open %s: %v", p, err)
+		}
+		return os.NewFile(uintptr(fd), p)
+	}
+	// the template on the top and, on d3, an explicit ACE of its own that its contents inherit too
+	prepare := func(base string) string {
+		top := open(base)
+		defer top.Close()
+		cur, err := b.GetACL(ctx, top, base, roots, "")
+		if err != nil {
+			t.Fatalf("read top ACL: %v", err)
+		}
+		og := cur.SDDL[:strings.Index(cur.SDDL, "D:")]
+		sddl := og + "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;BU)(A;OICI;FA;;;CO)"
+		if _, err := b.SetSDDL(ctx, top, base, roots, sddl, false); err != nil {
+			t.Fatalf("set top ACL: %v", err)
+		}
+		d3 := open(filepath.Join(base, "d3"))
+		defer d3.Close()
+		if _, err := b.SetSDDL(ctx, d3, filepath.Join(base, "d3"), roots, og+"D:AI(A;OICI;0x1200a9;;;BG)", false); err != nil {
+			t.Fatalf("set d3 ACL: %v", err)
+		}
+		return sddl
+	}
+
+	ta, tb := filepath.Join(root, "memo-a"), filepath.Join(root, "memo-b")
+	os.RemoveAll(ta)
+	os.RemoveAll(tb)
+	t.Cleanup(func() { os.RemoveAll(ta); os.RemoveAll(tb) })
+	seed(ta)
+	seed(tb)
+	sddl := prepare(ta)
+	prepare(tb)
+
+	topA := open(ta)
+	defer topA.Close()
+	if _, err := b.Reapply(ctx, topA, ta, roots, sddl); err != nil { // memoized
+		t.Fatalf("reapply: %v", err)
+	}
+	topB := open(tb)
+	defer topB.Close()
+	for _, r := range rels { // parents first: dirs come before their files in rels
+		if _, err := b.ReinheritPaths(ctx, topB, tb, roots, []string{r}); err != nil {
+			t.Fatalf("reinherit %s: %v", r, err)
+		}
+	}
+	state := func(p string) string {
+		var st syscall.Stat_t
+		if err := syscall.Lstat(p, &st); err != nil {
+			t.Fatal(err)
+		}
+		s := fmt.Sprintf("%d:%d:%o", st.Uid, st.Gid, st.Mode)
+		for _, x := range []string{"system.posix_acl_access", "system.posix_acl_default", "user.SAMBA_PAI", ntACLXattr} {
+			buf := make([]byte, 64<<10)
+			n, err := syscall.Getxattr(p, x, buf)
+			if err == syscall.ENODATA {
+				s += " " + x + "=-"
+				continue
+			}
+			if err != nil {
+				t.Fatalf("%s: read %s: %v", p, x, err)
+			}
+			s += fmt.Sprintf(" %s=%x", x, buf[:n])
+		}
+		return s
+	}
+	for _, r := range rels {
+		a, bb := state(filepath.Join(ta, r)), state(filepath.Join(tb, r))
+		if !strings.Contains(a, ntACLXattr+"=") || strings.Contains(a, ntACLXattr+"=-") {
+			t.Errorf("%s: no Windows ACL stored", r)
+		}
+		if a != bb {
+			t.Errorf("%s differs:\n memo %s\n item %s", r, a, bb)
 		}
 	}
 }

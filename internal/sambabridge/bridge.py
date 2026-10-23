@@ -21,6 +21,7 @@
 # an allowed root. Every input is validated again here. Propagating a new ACL to
 # the folder's contents walks the tree from that descriptor without following
 # symbolic links or leaving the file system (os.fwalk + O_NOFOLLOW).
+import errno
 import json
 import os
 import re
@@ -336,18 +337,75 @@ def has_stored_acl(fd):
         return False
 
 
+# what Samba reads an item's Windows ACL from, besides its owner, group and mode, in the order they are written: the
+# POSIX ACLs (which rewrite the mode's group bits), the inheritance flags of `map acl inherit`, the NTACL last (its
+# hash covers the owner, the mode and the POSIX ACLs)
+ACL_XATTRS = ("system.posix_acl_access", "system.posix_acl_default", "user.SAMBA_PAI", "security.NTACL")
+MEMO_VFS = {"acl_xattr", "dfs_samba4"}  # the global VFS stack propagate may copy Samba's result under
+NOMEMO = object()  # a key whose copied state did not land: always set through Samba
+
+
+def memo_safe():
+    """Whether propagate may give an item the state Samba left on another: only when the global VFS stack keeps the
+    ACL in acl_xattr's own xattr (another module, or another xattr name, would keep it where acl_state cannot see)."""
+    from samba.samba3 import param as s3param
+    lp = s3param.get_context()
+    v = lp.get("vfs objects") or []
+    mods = v if isinstance(v, list) else str(v).split()
+    return "acl_xattr" in mods and set(mods) <= MEMO_VFS and lp.get("acl_xattr:security_acl_name") is None
+
+
+def acl_state(fd):
+    """An item's ACL state: owner, group, full mode and ACL_XATTRS (None: absent); None when one cannot be read."""
+    st = os.fstat(fd)
+    xs = []
+    for name in ACL_XATTRS:
+        try:
+            xs.append(os.getxattr(fd, name))
+        except OSError as e:
+            if e.errno != errno.ENODATA:
+                return None
+            xs.append(None)
+    return (st.st_uid, st.st_gid, st.st_mode, tuple(xs))
+
+
+def put_state(fd, state):
+    """Give an item an ACL state: the owner only when it differs (a chown clears setuid/setgid), the mode only when it
+    differs, then ACL_XATTRS in order, removing those the state lacks."""
+    uid, gid, mode, xs = state
+    st = os.fstat(fd)
+    if (st.st_uid, st.st_gid) != (uid, gid):
+        os.fchown(fd, uid, gid)
+    if stat.S_IMODE(os.fstat(fd).st_mode) != stat.S_IMODE(mode):
+        os.fchmod(fd, stat.S_IMODE(mode))
+    for name, value in zip(ACL_XATTRS, xs):
+        if value is not None:
+            os.setxattr(fd, name, value)
+            continue
+        try:
+            os.removexattr(fd, name)
+        except OSError as e:
+            if e.errno != errno.ENODATA:
+                raise
+
+
 def propagate(smbd, security, system_session_unix, reset_unstored=False, only=None):
     """Recompute the inherited ACEs of everything under the folder (the request's first), parents before children. Each folder's
     children follow the ACL read from the very descriptor being walked (a folder swapped meanwhile passes on its own).
     Symbolic links, special files and other file systems are skipped; every entry counts toward MAX_ITEMS.
     reset_unstored: an entry with no stored Windows ACL (written without Samba: a sync) gets only the inherited
     ACEs. only: a set of folder-relative paths (each with its ancestor dirs) — when given, the walk descends only
-    into those dirs and applies only to those entries (the delta of a sync, not the whole tree)."""
+    into those dirs and applies only to those entries (the delta of a sync, not the whole tree).
+    set_nt_acl is slow on a DC (every SID goes through idmap) while what it leaves depends only on the descriptor set
+    and the item's acl_state: every item is still read and its descriptor computed, but only the first of each
+    (descriptor, state) goes through set_nt_acl; the next ones get the state Samba left on it (put_state), checked
+    byte for byte, or go through Samba too when it does not land."""
     info = security.SECINFO_OWNER | security.SECINFO_GROUP | security.SECINFO_DACL
     session = system_session_unix()
     top = fd_at(0)
     dev = os.fstat(top).st_dev
     done = skipped = 0
+    memo = {} if memo_safe() else None  # (descriptor SDDL, acl_state before) → acl_state Samba left, or NOMEMO
     for _dirpath, dirnames, filenames, dirfd in os.fwalk(".", dir_fd=top, follow_symlinks=False):
         if only is not None:  # descend only into the dirs that lead to a target (its ancestors are in the set)
             dirnames[:] = [d for d in dirnames if os.path.normpath(os.path.join(_dirpath, d)) in only]
@@ -375,8 +433,26 @@ def propagate(smbd, security, system_session_unix, reset_unstored=False, only=No
                 path = "/proc/self/fd/%d" % fd
                 cur = smbd.get_nt_acl(path, info, session)
                 new = inherited(parent, cur, is_dir, security, keep_explicit=not reset_unstored or has_stored_acl(fd))
-                if new is not None and new.as_sddl() != cur.as_sddl():
-                    smbd.set_nt_acl(path, info, new, session)
+                if new is None or new.as_sddl() == cur.as_sddl():
+                    done += 1
+                    continue
+                pre = acl_state(fd) if memo is not None else None
+                key = (new.as_sddl(), pre) if pre is not None else None
+                got = memo.get(key) if key is not None else None
+                if got is not None and got is not NOMEMO:
+                    try:
+                        put_state(fd, got)
+                        if acl_state(fd) == got:
+                            done += 1
+                            continue
+                    except OSError:
+                        pass
+                    memo[key] = got = NOMEMO  # did not land as Samba's result: this item and the next through Samba
+                smbd.set_nt_acl(path, info, new, session)
+                if key is not None and got is None:
+                    post = acl_state(fd)
+                    if post is not None:
+                        memo[key] = post
                 done += 1
             finally:
                 os.close(fd)
