@@ -5,7 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Fixed
+- A sync run's **Log** now opens a dedicated scrollable modal instead of the generic alert: a long run log (a dry-run
+  can print a skip line per object, thousands of lines) scrolls inside the dialog's monospace body — capped to the
+  viewport — while the run's summary (job, run id, status, file/size counts) and the Copy/Close footer stay in view,
+  so the page no longer grows past the bottom. The dialog stays on screen on small viewports.
 
 ## [0.17.0] — 2026-10-22
 
