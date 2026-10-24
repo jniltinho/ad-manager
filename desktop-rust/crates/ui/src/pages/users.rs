@@ -659,19 +659,9 @@ impl Dialog for NewUser {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
                 for g in &self.groups {
-                    egui::Frame::new()
-                        .fill(look.c("surface-3"))
-                        .stroke(egui::Stroke::new(1.0, look.c("line")))
-                        .inner_margin(egui::Margin::symmetric(8, 2))
-                        .show(ui, |ui| {
-                            ui.spacing_mut().item_spacing.x = 4.0;
-                            ui.label(RichText::new(g).size(11.0));
-                            let r = widgets::act(ui, &look, "", "×", None, 11.0);
-                            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(tf!("remove %s", g)));
-                            if r.clicked() {
-                                drop = Some(g.clone());
-                            }
-                        });
+                    if widgets::chip(ui, &look, g) {
+                        drop = Some(g.clone());
+                    }
                 }
             });
             if let Some(g) = drop {

@@ -472,7 +472,25 @@ impl Shares {
             Some(s) => ShareForm::edit(s),
             None => ShareForm::new_share(),
         };
-        cx.push(ShareDialog { form, server: a.name, api, key: self.key, netbios: cx.me.netbios.clone() });
+        let editing = form.editing.then(|| form.folder.clone());
+        let id = cx.push(ShareDialog {
+            form,
+            server: a.name,
+            api: api.clone(),
+            key: self.key,
+            netbios: cx.me.netbios.clone(),
+            pending: Default::default(),
+            acl: None,
+        });
+        // the folder's Windows permissions, read when editing
+        if let Some(path) = editing {
+            let url = format!("/api/acl?path={}", adm_core::api::q(&path));
+            cx.spawn(async move { api.get::<Acl>(&url).await }, move |app, r| {
+                if let Some(d) = app.cx.dialog_mut::<ShareDialog>(id) {
+                    d.acl = Some(r.map_err(|e| e.to_string()));
+                }
+            });
+        }
     }
 
     fn remove(&mut self, cx: &mut Cx, s: Share, a: Agent, api: Api) {
@@ -574,14 +592,44 @@ pub fn enqueue(cx: &Cx, api: Api, key: u64, kind: &str, payload: Value, label: S
     });
 }
 
-/// The new/edit share form.
+/// A folder's Windows permissions (`GET /api/acl?path=`), as the edit form lists them.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct Acl {
+    aces: Vec<Ace>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct Ace {
+    sid: String,
+    name: String,
+    #[serde(rename = "type")]
+    kind: String,
+    access: String,
+}
+
+/// The new/edit share form, as the web's: name and comment, the folder, the six lists of groups and users as
+/// removable chips with a field and + to add, the folder's Windows permissions when editing, and the options.
 struct ShareDialog {
     form: ShareForm,
     server: String,
     api: Api,
     key: u64,
     netbios: String,
+    /// The name being typed into each list.
+    pending: [String; 6],
+    acl: Option<Result<Acl, String>>,
 }
+
+const LISTS: [(&str, bool); 6] = [
+    ("Groups with full control", true),
+    ("Groups with write access", true),
+    ("Read-only groups", true),
+    ("Users with full control", false),
+    ("Users with write access", false),
+    ("Read-only users", false),
+];
 
 impl Dialog for ShareDialog {
     fn title(&self) -> String {
@@ -593,58 +641,183 @@ impl Dialog for ShareDialog {
     }
 
     fn width(&self) -> f32 {
-        720.0
+        760.0
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        let groups = format!("{}\\{}, …", self.netbios, t("group"));
-        let users = format!("{}\\{}, …", self.netbios, t("user"));
+        let muted = look.c("fg-muted");
+        let w = ui.available_width();
+        let cw = ((w - 16.0) / 2.0).floor();
         let f = &mut self.form;
-        widgets::form(ui, "share-form", |ui| {
-            widgets::label(ui, &look, t("Share name"));
-            if ui.add_enabled(!f.editing, crate::widgets::line(&mut f.name).desired_width(420.0)).changed() {
-                f.name_changed();
-            }
-            ui.end_row();
-            widgets::label(ui, &look, t("Folder"));
-            ui.add_enabled(!f.editing, crate::widgets::line(&mut f.folder).desired_width(420.0));
-            ui.end_row();
-            for (label, v, hint) in [
-                (t("Comment"), &mut f.comment, ""),
-                (t("Groups with full control"), &mut f.full, groups.as_str()),
-                (t("Groups with write access"), &mut f.rw, groups.as_str()),
-                (t("Read-only groups"), &mut f.ro, groups.as_str()),
-                (t("Users with full control"), &mut f.full_users, users.as_str()),
-                (t("Users with write access"), &mut f.rw_users, users.as_str()),
-                (t("Read-only users"), &mut f.ro_users, users.as_str()),
-            ] {
-                widgets::labeled_field(ui, &look, label, v, hint, 420.0);
-                ui.end_row();
-            }
+        let editing = f.editing;
+        // name and comment
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            widgets::above(ui, &look, t("Share name"), cw, |ui, _| {
+                let r = ui.add_enabled(!editing, crate::widgets::line(&mut f.name).char_limit(80).desired_width(cw));
+                if r.changed() {
+                    f.name_changed();
+                }
+                r
+            });
+            widgets::above(ui, &look, t("Comment"), cw, |ui, _| {
+                ui.add(crate::widgets::line(&mut f.comment).char_limit(200).desired_width(cw))
+            });
         });
-        ui.checkbox(&mut f.hidden, t("Hidden on the network (not shown when browsing)"));
-        ui.checkbox(&mut f.recycle, t("Recycle bin (deleted files go to .recycle, per user)"));
-        ui.checkbox(&mut f.abe, t("Hide what the user cannot open (access-based enumeration)"));
-        ui.checkbox(&mut f.audit, t("Audit file changes (renamed and deleted files, new folders → syslog)"));
-        if f.editing {
-            widgets::wrapped(
-                ui,
-                t(
-                    "Saving republishes the share and reapplies the folder permissions, also on the files and subfolders that inherit them; their content is not changed.",
-                ),
-            );
-        } else {
-            ui.checkbox(
+        ui.add_space(12.0);
+        // shortcut: the folder is one path field (the web picks a root then the folder under it)
+        widgets::above(ui, &look, t("Folder"), w, |ui, _| {
+            ui.add_enabled(
+                !editing,
+                crate::widgets::line(&mut f.folder).font(egui::TextStyle::Monospace).desired_width(w),
+            )
+        });
+        // the six lists, two per row
+        let values: [&mut String; 6] =
+            [&mut f.full, &mut f.rw, &mut f.ro, &mut f.full_users, &mut f.rw_users, &mut f.ro_users];
+        let mut values = values.into_iter().zip(self.pending.iter_mut()).enumerate().collect::<Vec<_>>();
+        for pair in values.chunks_mut(2) {
+            ui.add_space(12.0);
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                for (i, (value, pending)) in pair.iter_mut() {
+                    let (title, group) = LISTS[*i];
+                    let hint = format!("{}\\{}", self.netbios, if group { t("group") } else { t("user") });
+                    ui.vertical(|ui| {
+                        ui.set_width(cw);
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                        let l = widgets::lbl(ui, &look, t(title));
+                        let mut add = false;
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(cw, crate::style::control_h()),
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                ui.spacing_mut().item_spacing.x = 0.0;
+                                add |= widgets::button(ui, &look, "", "+", Kind::Secondary)
+                                    .on_hover_text(t("Add"))
+                                    .clicked();
+                                let r = ui.add(
+                                    crate::widgets::line(&mut **pending)
+                                        .hint_text(&hint)
+                                        .desired_width(ui.available_width()),
+                                );
+                                let r = r.labelled_by(l.id);
+                                add |= r.lost_focus() && ui.input(|x| x.key_pressed(egui::Key::Enter));
+                            },
+                        );
+                        let mut names = adm_core::logic::split_list(value);
+                        if add {
+                            let n = pending.trim().to_string();
+                            if !n.is_empty() && !names.iter().any(|x| x.eq_ignore_ascii_case(&n)) {
+                                names.push(n);
+                            }
+                            pending.clear();
+                        }
+                        let mut drop = None;
+                        ui.horizontal_wrapped(|ui| {
+                            ui.set_min_height(24.0);
+                            ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+                            for n in &names {
+                                if widgets::chip(ui, &look, n) {
+                                    drop = Some(n.clone());
+                                }
+                            }
+                        });
+                        if let Some(d) = drop {
+                            names.retain(|x| *x != d);
+                        }
+                        **value = names.join(", ");
+                    });
+                }
+            });
+        }
+        // the folder's Windows permissions, when editing
+        if let Some(acl) = &self.acl {
+            ui.add_space(12.0);
+            egui::Frame::new()
+                .fill(look.c("surface-3"))
+                .stroke(egui::Stroke::new(1.0, look.c("line")))
+                .inner_margin(egui::Margin::symmetric(12, 8))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.spacing_mut().item_spacing.y = 4.0;
+                    ui.spacing_mut().interact_size.y = 18.0;
+                    widgets::lbl(ui, &look, t("Windows permissions of the folder"));
+                    match acl {
+                        Err(e) => {
+                            ui.label(RichText::new(e).size(12.0).color(muted));
+                        }
+                        Ok(a) => {
+                            for ace in &a.aces {
+                                ui.horizontal(|ui| {
+                                    let who = if ace.name.is_empty() { &ace.sid } else { &ace.name };
+                                    ui.label(RichText::new(who).size(12.0));
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        let level = match ace.access.as_str() {
+                                            "full" => t("Full control"),
+                                            "rw" => t("Modify"),
+                                            "ro" => t("Read & execute"),
+                                            _ => t("Special"),
+                                        };
+                                        if ace.kind == "deny" {
+                                            ui.label(
+                                                RichText::new(format!("{} · {level}", t("Deny")))
+                                                    .size(12.0)
+                                                    .color(look.c("err")),
+                                            );
+                                        } else {
+                                            ui.label(RichText::new(level).size(12.0));
+                                        }
+                                    });
+                                });
+                            }
+                            ui.label(
+                                RichText::new(t("Saving re-applies these permissions from the lists above."))
+                                    .size(11.0)
+                                    .color(muted),
+                            );
+                        }
+                    }
+                });
+        }
+        // the options, two per row
+        ui.add_space(12.0);
+        let mut opts: Vec<(&mut bool, &str)> = Vec::new();
+        if !editing {
+            opts.push((
                 &mut f.create_path,
                 t("Create the folder (owner group = 1st with write access, inherited ACL)"),
+            ));
+        }
+        opts.push((&mut f.hidden, t("Hidden on the network (not shown when browsing)")));
+        opts.push((&mut f.recycle, t("Recycle bin (deleted files go to .recycle, per user)")));
+        opts.push((&mut f.abe, t("Hide what the user cannot open (access-based enumeration)")));
+        opts.push((&mut f.audit, t("Audit file changes (renamed and deleted files, new folders → syslog)")));
+        for pair in opts.chunks_mut(2) {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                for (v, label) in pair.iter_mut() {
+                    ui.vertical(|ui| {
+                        ui.set_width(cw);
+                        ui.checkbox(v, RichText::new(*label).size(12.0));
+                    });
+                }
+            });
+            ui.add_space(8.0);
+        }
+        if editing {
+            ui.label(
+                RichText::new(t("Saving republishes the share and reapplies the folder permissions, also on the files and subfolders that inherit them; their content is not changed."))
+                    .size(11.0)
+                    .color(muted),
             );
         }
-        let button = if f.editing { t("Save") } else { t("Create") };
+        let button = if editing { t("Save") } else { t("Create") };
         let foot = footer(ui, cx, Some(button), "", false, f.ready());
         if foot.ok && f.ready() {
             let unc = f.unc(&self.server);
-            let label = if f.editing { tf!("Edit %s", unc) } else { tf!("Create %s", unc) };
+            let label = if editing { tf!("Edit %s", unc) } else { tf!("Create %s", unc) };
             enqueue(cx, self.api.clone(), self.key, "share:create", f.payload(), label);
             return Flow::Close;
         }

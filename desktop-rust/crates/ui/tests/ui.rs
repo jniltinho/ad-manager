@@ -116,6 +116,8 @@ impl Env {
 
     fn click(&mut self, label: &str) {
         self.h.get_by_label_contains(label).click();
+        // a dialog's footer button reaches the dialog on the next frame, its effect shows on the one after
+        self.h.step();
         self.h.step();
         self.h.step();
     }
@@ -328,6 +330,8 @@ fn share_edit_sends_the_same_name_and_the_lists() {
     e.wait("the list", |a, _| matches!(&a.screen, Screen::Shell(_)));
     e.h.step();
     e.click("Edit finance"); // the row's edit link
+    // the folder's permissions arrive and grow the dialog: click Save once it settled
+    e.wait("the permissions", |_, m| !m.sent("GET", "/api/agents/1/acl").is_empty());
     assert!(e.h.query_by_label_contains("Edit share finance").is_some());
     e.click("✔  Save");
     e.wait("the task", |_, m| !m.sent("POST", "/api/agents/1/tasks").is_empty());
@@ -477,4 +481,8 @@ fn shots() {
     e.click("HTTP — panel");
     e.wait("the requests", |_, m| !m.sent("GET", "/api/http-log").is_empty());
     save(&mut e, "20-logs-http");
+    page(&mut e, "Shares");
+    e.click("Edit finance");
+    e.wait("the permissions", |_, m| !m.sent("GET", "/api/agents/1/acl").is_empty());
+    save(&mut e, "21-edit-share");
 }

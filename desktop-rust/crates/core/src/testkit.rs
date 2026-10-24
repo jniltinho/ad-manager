@@ -285,6 +285,11 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"name":"public","path":"/srv/shares/public","comment":"Everyone","rw_groups":["DOMAIN\\Domain Users"],"ro_groups":[],"browseable":true},
                 {"name":"it$","path":"/srv/shares/it","comment":"IT tools","rw_groups":["DOMAIN\\IT"],"ro_groups":[],"browseable":false},
             ])),
+            "/api/agents/1/acl" => ok(json!({"aces":[
+                {"sid":"S-1-5-32-544","name":"BUILTIN\\Administrators","type":"allow","access":"full"},
+                {"sid":"S-1-5-18","name":"NT AUTHORITY\\SYSTEM","type":"allow","access":"full"},
+                {"sid":"S-1-5-21-1-1104","name":"DOMAIN\\Finance","type":"allow","access":"rw"},
+                {"sid":"S-1-5-21-1-1105","name":"DOMAIN\\Auditors","type":"allow","access":"ro"}]})),
             "/api/agents/1/health" => ok(json!({"status":"ok","dc":false,"files":true,"samba":true})),
             "/api/agents/1/sessions" => ok(json!({"sessions":[
                 {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],

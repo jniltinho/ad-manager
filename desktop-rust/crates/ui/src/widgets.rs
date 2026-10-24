@@ -294,6 +294,25 @@ pub fn above(
     .inner
 }
 
+/// A removable name as the web's chip (11 px text in the third surface, a 1-point line, × to remove); true when its ×
+/// was clicked.
+pub fn chip(ui: &mut Ui, look: &Look, text: &str) -> bool {
+    Frame::new()
+        .fill(look.c("surface-3"))
+        .stroke(Stroke::new(1.0, look.c("line")))
+        .inner_margin(Margin::symmetric(8, 2))
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+            ui.spacing_mut().interact_size.y = 0.0;
+            ui.label(RichText::new(text).size(11.0));
+            let r = act(ui, look, "", "×", None, 11.0);
+            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(adm_core::tf!("remove %s", text)));
+            r.clicked()
+        })
+        .inner
+}
+
 /// A small link inside a list item or a card head (the web's .act): `ink` when given (the current item's text color),
 /// else the link color.
 pub fn act(ui: &mut Ui, look: &Look, icon: &str, label: &str, ink: Option<Color32>, size: f32) -> Response {

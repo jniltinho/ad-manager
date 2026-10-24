@@ -103,9 +103,26 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
             })
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 6.0;
-                ui.set_width(w - 2.0 * (BODY.0 + line_w));
-                if d.ui(ui, cx) == Flow::Close {
-                    flow = Flow::Close;
+                let inner = w - 2.0 * (BODY.0 + line_w);
+                ui.set_width(inner);
+                ui.ctx().data_mut(|d| d.remove_temp::<FootReq>(foot_req_id()));
+                // the body scrolls past 72% of the window, the footer stays under it (the web's .pnl-body)
+                let max = ui.ctx().content_rect().height() * 0.72;
+                egui::ScrollArea::vertical().id_salt("dialog-body").max_height(max).auto_shrink([false, true]).show(
+                    ui,
+                    |ui| {
+                        ui.set_width(inner);
+                        if d.ui(ui, cx) == Flow::Close {
+                            flow = Flow::Close;
+                        }
+                    },
+                );
+                if let Some(req) = ui.ctx().data(|d| d.get_temp::<FootReq>(foot_req_id())) {
+                    let clicks = draw_footer(ui, &look, &req);
+                    if clicks.ok || clicks.cancel {
+                        ui.ctx().data_mut(|d| d.insert_temp(foot_clicks_id(), clicks));
+                        ui.ctx().request_repaint();
+                    }
                 }
             });
     });
@@ -141,25 +158,54 @@ pub struct Footer {
     pub cancel: bool,
 }
 
+/// The footer a dialog asked for this frame: drawn by `show` under the scrolling body, as the web's .pnl-foot.
+#[derive(Clone, Default)]
+struct FootReq {
+    ok: Option<String>,
+    close: String,
+    danger: bool,
+    enabled: bool,
+}
+
+fn foot_req_id() -> egui::Id {
+    egui::Id::new("adm-dialog-foot-req")
+}
+
+fn foot_clicks_id() -> egui::Id {
+    egui::Id::new("adm-dialog-foot-clicks")
+}
+
 /// The footer as the web's: a band across the dialog (the theme's dialog-foot recipe, a line on top) with the buttons
-/// at the right, the primary one (`ok`, or the single `close`) first, then Cancel. `enabled` greys the OK.
-pub fn footer(ui: &mut Ui, cx: &Cx, ok: Option<&str>, close: &str, danger: bool, enabled: bool) -> Footer {
+/// at the right, the primary one (`ok`, or the single `close`) first, then Cancel. `enabled` greys the OK. The
+/// dialog's `show` draws it under the body, which scrolls when taller than the window (the web's max-h 72%); what
+/// its buttons did reaches the dialog on the next frame.
+pub fn footer(ui: &mut Ui, _cx: &Cx, ok: Option<&str>, close: &str, danger: bool, enabled: bool) -> Footer {
+    let req = FootReq { ok: ok.map(str::to_string), close: close.to_string(), danger, enabled };
+    ui.ctx().data_mut(|d| {
+        d.insert_temp(foot_req_id(), req);
+        d.remove_temp::<Footer>(foot_clicks_id()).unwrap_or_default()
+    })
+}
+
+fn draw_footer(ui: &mut Ui, look: &crate::style::Look, req: &FootReq) -> Footer {
     let mut f = Footer::default();
-    let look = &cx.look;
     ui.add_space(BODY.1);
     let under = ui.painter().add(egui::Shape::Noop);
     let r = ui
         .horizontal(|ui| {
             ui.set_min_height(crate::style::control_h() + 16.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match ok {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match &req.ok {
                 Some(label) => {
                     // right to left: Cancel at the right end, the primary action before it
                     f.cancel = widgets::button(ui, look, "", t("Cancel"), Kind::Secondary).clicked();
-                    let kind = if danger { Kind::Danger } else { Kind::Primary };
-                    f.ok = ui.add_enabled_ui(enabled, |ui| widgets::button(ui, look, "✔", label, kind)).inner.clicked();
+                    let kind = if req.danger { Kind::Danger } else { Kind::Primary };
+                    f.ok = ui
+                        .add_enabled_ui(req.enabled, |ui| widgets::button(ui, look, "✔", label, kind))
+                        .inner
+                        .clicked();
                 }
                 // only a way out: the web's ghost button
-                None => f.ok = widgets::button(ui, look, "", close, Kind::Secondary).clicked(),
+                None => f.ok = widgets::button(ui, look, "", &req.close, Kind::Secondary).clicked(),
             });
         })
         .response;
