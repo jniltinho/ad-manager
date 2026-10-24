@@ -354,18 +354,31 @@ pub fn mini_table<const N: usize>(
     let (th_px, th_py, td_py) = (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-py", 4.0));
     let head_h = (12.0 * 1.5 + 2.0 * th_py + 1.0).round();
     let row_h = (12.0 * 1.5 + 2.0 * td_py + 1.0).round();
-    // the first column takes a quarter, the last one too, the middle the rest (the web's auto layout, roughly)
-    let col_w: Vec<f32> = (0..N)
-        .map(|i| {
-            if N == 1 {
-                w
-            } else if i == 0 || i + 1 == N {
-                w * 0.22
+    // the web's auto layout: each column as wide as its widest cell, the spare width shared in proportion
+    let measure = |t: RichText, semibold: bool| {
+        let font = egui::FontId::new(
+            12.0,
+            if semibold {
+                egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())
             } else {
-                w * 0.56 / (N - 2).max(1) as f32
-            }
+                egui::FontFamily::Proportional
+            },
+        );
+        egui::WidgetText::from(t).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, font).size().x
+    };
+    let natural: Vec<f32> = (0..N)
+        .map(|i| {
+            let cells = rows.iter().map(|r| measure(r[i].clone().size(12.0), false));
+            let widest = cells.fold(measure(RichText::new(heads[i]), true), f32::max);
+            // the last column of links (`last`) has no text to measure: room for an icon link
+            let widest = if i + 1 == N && last.is_some() { widest.max(24.0) } else { widest };
+            widest + 2.0 * th_px
         })
         .collect();
+    let sum: f32 = natural.iter().sum::<f32>().max(1.0);
+    let col_w: Vec<f32> = natural.iter().map(|n| n * w / sum).collect();
+    // rows touch each other, as the web's
+    let spacing = std::mem::replace(&mut ui.spacing_mut().item_spacing.y, 0.0);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
     crate::depth::paint_box(
         ui.painter(),
@@ -412,6 +425,7 @@ pub fn mini_table<const N: usize>(
             x += col_w[i];
         }
     }
+    ui.spacing_mut().item_spacing.y = spacing;
 }
 
 /// A labeled form (two columns: bold label, field) laid out by egui's grid.

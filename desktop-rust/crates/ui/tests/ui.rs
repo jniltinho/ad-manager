@@ -457,4 +457,12 @@ fn shots() {
     save(&mut e, "14-backup");
     page(&mut e, "Sync");
     save(&mut e, "15-sync");
+    page(&mut e, "Computers");
+    e.click("🌐  DNS");
+    e.wait("the records", |_, m| !m.sent("GET", "/api/dns/records").is_empty());
+    save(&mut e, "16-dns");
+    e.key(egui::Key::Escape);
+    e.h.get_by_label("SMB sessions on DC01").click();
+    e.wait("the sessions", |_, m| !m.sent("GET", "/api/computers/sessions").is_empty());
+    save(&mut e, "17-smb-sessions");
 }

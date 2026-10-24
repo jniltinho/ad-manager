@@ -107,11 +107,23 @@ pub struct Cell<A> {
     pub marker: &'static str,
     /// A tag after the text (the web's "container" beside an OU name).
     pub tag: Option<(String, Tone)>,
+    /// More links after the first, packed in the same cell (the web's Actions cell).
+    pub more: Vec<(String, Tone, Link<A>)>,
 }
 
 impl<A> Cell<A> {
     pub fn new(text: impl Into<String>, tone: Tone) -> Self {
-        Self { text: text.into(), tone, link: None, bold: false, mono: false, indent: 0.0, marker: "", tag: None }
+        Self {
+            text: text.into(),
+            tone,
+            link: None,
+            bold: false,
+            mono: false,
+            indent: 0.0,
+            marker: "",
+            tag: None,
+            more: Vec::new(),
+        }
     }
 
     pub fn tree(mut self, level: usize) -> Self {
@@ -141,6 +153,19 @@ impl<A> Cell<A> {
 
     pub fn link(mut self, icon: &'static str, hint: String, action: A) -> Self {
         self.link = Some(Link { icon, hint, action, tag: false });
+        self
+    }
+
+    /// One more link in this cell, after the others.
+    pub fn and_link(
+        mut self,
+        text: impl Into<String>,
+        tone: Tone,
+        icon: &'static str,
+        hint: String,
+        action: A,
+    ) -> Self {
+        self.more.push((text.into(), tone, Link { icon, hint, action, tag: false }));
         self
     }
 }
@@ -384,6 +409,22 @@ fn draw_cell<A>(
         let r = if cl.bold { crate::style::semibold(s, size) } else { RichText::new(s).size(size) };
         if cl.mono { r.family(egui::FontFamily::Monospace).size(size - 1.0) } else { r }.color(ink)
     };
+    if !cl.more.is_empty() {
+        let icon_only = compact && c.compact.is_some();
+        let mut all: Vec<(String, Tone, Link<A>)> =
+            cl.link.into_iter().map(|l| (cl.text.clone(), cl.tone, l)).chain(cl.more).collect();
+        if c.right {
+            all.reverse();
+        }
+        ui.spacing_mut().item_spacing.x = 8.0;
+        for (text, tone, l) in all {
+            let ink = if tone == Tone::Normal { look.c("link") } else { look.tone(tone) };
+            let s = if icon_only { l.icon.to_string() } else { format!("{} {}", l.icon, text).trim().to_string() };
+            let resp = ui.add(egui::Button::new(rich(s, ink)).frame(false));
+            link_done(ui, resp, l, hover, out);
+        }
+        return;
+    }
     match cl.link {
         Some(l) => {
             if cl.tone == Tone::Normal && !l.tag {
@@ -406,17 +447,7 @@ fn draw_cell<A>(
             } else {
                 ui.add(egui::Button::new(rich(text, ink)).frame(false).truncate())
             };
-            let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
-            // the accessible name says what it does, also when only the icon is drawn
-            if !l.hint.is_empty() {
-                let _ = ui.ctx().accesskit_node_builder(resp.id, |n| n.set_label(l.hint.clone()));
-            }
-            if resp.hovered() {
-                *hover = Some(l.hint.clone());
-            }
-            if resp.clicked() {
-                out.clicked = Some(l.action);
-            }
+            link_done(ui, resp, l, hover, out);
         }
         None if c.badge && !cl.text.is_empty() => {
             let _ = crate::widgets::tag_w(ui, look, &cl.text, cl.tone, c.badge_w);
@@ -449,6 +480,21 @@ fn draw_cell<A>(
                 let _ = crate::widgets::tag(ui, look, text, *tone);
             }
         }
+    }
+}
+
+/// A drawn link: the hand cursor, its accessible name (what it does, also when only the icon is drawn), the hint on
+/// hover and the action on click.
+fn link_done<A>(ui: &Ui, resp: egui::Response, l: Link<A>, hover: &mut Option<String>, out: &mut TableOut<A>) {
+    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+    if !l.hint.is_empty() {
+        let _ = ui.ctx().accesskit_node_builder(resp.id, |n| n.set_label(l.hint.clone()));
+    }
+    if resp.hovered() {
+        *hover = Some(l.hint.clone());
+    }
+    if resp.clicked() {
+        out.clicked = Some(l.action);
     }
 }
 

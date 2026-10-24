@@ -236,6 +236,20 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"name":"PC-FIN-01","sam":"PC-FIN-01$","dn":"CN=PC-FIN-01,CN=Computers,DC=domain,DC=local","dns_name":"pc-fin-01.domain.local","os":"Windows 11 Pro","os_version":"10.0 (26100)","enabled":true,"is_dc":false,"last_logon":"2026-10-20T08:00:00Z"},
                 {"name":"PC-OLD-02","sam":"PC-OLD-02$","dn":"CN=PC-OLD-02,CN=Computers,DC=domain,DC=local","dns_name":"pc-old-02.domain.local","os":"Windows 7 Professional","os_version":"6.1 (7601)","enabled":false,"is_dc":false,"last_logon":"2025-01-10T08:00:00Z"},
             ])),
+            "/api/dns/zones" => {
+                ok(json!([{"name":"domain.local","reverse":false},{"name":"_msdcs.domain.local","reverse":false},
+                {"name":"10.168.192.in-addr.arpa","reverse":true}]))
+            }
+            "/api/dns/records" => ok(json!({"records": [
+                {"name":"@","type":"SOA","ttl":3600,"data":"dc01.domain.local. hostmaster.domain.local."},
+                {"name":"@","type":"NS","ttl":900,"data":"dc01.domain.local."},
+                {"name":"dc01","type":"A","ttl":900,"data":"192.168.10.10"},
+                {"name":"fs01","type":"A","ttl":1200,"data":"192.168.10.20"},
+                {"name":"intranet","type":"CNAME","ttl":3600,"data":"fs01.domain.local."}],
+                "nodes": [{"name":"_sites","children":1},{"name":"_tcp","children":4},{"name":"DomainDnsZones","children":2}]})),
+            "/api/computers/sessions" => ok(json!([
+                {"user":"DOMAIN\\bruno.silva","client":"192.168.10.51","open_files":3,"active_seconds":7500,"idle_seconds":40},
+                {"user":"DOMAIN\\ana.souza","client":"192.168.10.62","open_files":0,"active_seconds":180,"idle_seconds":180}])),
             "/api/agents" => ok(json!([{"id":1,"name":"FS01","url":"https://fs01.domain.local:8445"}])),
             "/api/policy" => ok(
                 json!({"complexity":true,"min_length":7,"history":24,"min_age_days":1,"max_age_days":42,"lockout_threshold":10,"lockout_minutes":30,"lockout_window_minutes":30}),

@@ -158,9 +158,8 @@ pub fn footer(ui: &mut Ui, cx: &Cx, ok: Option<&str>, close: &str, danger: bool,
                     let kind = if danger { Kind::Danger } else { Kind::Primary };
                     f.ok = ui.add_enabled_ui(enabled, |ui| widgets::button(ui, look, "✔", label, kind)).inner.clicked();
                 }
-                None => {
-                    f.ok = widgets::button(ui, look, "✔", close, Kind::Primary).clicked();
-                }
+                // only a way out: the web's ghost button
+                None => f.ok = widgets::button(ui, look, "", close, Kind::Secondary).clicked(),
             });
         })
         .response;

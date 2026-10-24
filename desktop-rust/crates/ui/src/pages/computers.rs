@@ -1,5 +1,6 @@
-//! Computers: search, OS filter, "no logon for N+ days", legacy systems in red; enable/disable (confirmed), move and
-//! delete (typed) — never a domain controller — and CSV export.
+//! Computers as the web's page: filter, system select, "no logon for N+ days", count, DNS and Export CSV; the table
+//! (name, system — red when unsupported —, version, DC / deactivated tags, last logon) with per-row sessions (servers),
+//! enable/disable (confirmed), move (a desktop extra) and delete (typed) — never on a domain controller.
 
 use adm_core::api::esc;
 use adm_core::i18n::t;
@@ -81,55 +82,121 @@ impl Computers {
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
         let days = cx.inactive_days();
-        widgets::card(ui, &look, t("Domain computers"), |ui| {
-            ui.horizontal(|ui| {
-                let w = (ui.available_width() - 640.0).max(200.0);
-                let mut changed = super::search(ui, &mut self.search, t("Filter by name…"), w).changed();
-                if self.systems.is_empty() {
-                    self.systems.push(t("All systems").into());
-                }
-                changed |= widgets::select(ui, "computers-os", &mut self.system, &self.systems.clone(), 240.0);
-                changed |= ui.checkbox(&mut self.only_inactive, tf!("no logon for %d+ days", days)).changed();
-                if changed {
-                    self.apply(cx);
-                }
-                ui.label(RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).color(look.c("fg-muted")));
-                if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
-                    crate::files::export(cx, "computers", t("computers.csv"));
-                }
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+            let mut changed = super::search(ui, &mut self.search, t("Filter by name…"), 224.0).changed();
+            if self.systems.is_empty() {
+                self.systems.push(t("All systems").into());
+            }
+            changed |= widgets::select(ui, "computers-os", &mut self.system, &self.systems.clone(), 256.0);
+            changed |= ui
+                .checkbox(&mut self.only_inactive, RichText::new(tf!("no logon for %d+ days", days)).size(12.0))
+                .changed();
+            if changed {
+                self.apply(cx);
+            }
+            ui.label(
+                RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
                     self.reload(cx);
                 }
-            });
-            let sel = self.table.sel.and_then(|r| self.visible.get(r)).and_then(|&i| self.all.get(i)).cloned();
-            // DCs are never disabled, moved or deleted here
-            let ok = sel.as_ref().is_some_and(|x| !x.is_dc);
-            ui.horizontal(|ui| {
-                let toggle = if sel.as_ref().is_some_and(|x| !x.enabled) { t("Enable") } else { t("Disable") };
-                let x = sel.clone().filter(|x| !x.is_dc);
-                if ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "⏸", toggle, Kind::Secondary)).inner.clicked()
-                    && let Some(x) = x.clone()
-                {
-                    toggle_computer(cx, x);
+                if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
+                    crate::files::export(cx, "computers", t("computers.csv"));
                 }
-                if ui
-                    .add_enabled_ui(ok, |ui| widgets::button(ui, &look, "📁", t("Move"), Kind::Secondary))
-                    .inner
-                    .clicked()
-                    && let Some(x) = x.clone()
-                {
+                if widgets::button(ui, &look, "🌐", "DNS", Kind::Secondary).clicked() {
+                    crate::pages::dns::open(cx);
+                }
+            });
+        });
+        ui.add_space(look.px("toolbar-mb", 12.0));
+        let cols = [
+            Column::new(t("Name"), 170.0),
+            Column::new(t("System"), 250.0).fill(),
+            Column::new(t("Version"), 110.0),
+            Column::new(t("Status"), 120.0).badge(),
+            Column::new(t("Last logon (approx.)"), 160.0),
+            Column::new(t("Actions"), 260.0).compact(96.0).right(),
+        ];
+        let now = Utc::now();
+        let (all, vis) = (&self.all, &self.visible);
+        let mut hover = None;
+        let out = table::Table { id: "computers", cols: &cols, rows: vis.len(), keys, row_h: 0.0 }.show(
+            ui,
+            &look,
+            &mut self.table,
+            &mut hover,
+            |r, c| {
+                let i = vis[r];
+                let x = &all[i];
+                let ink = if x.enabled { Tone::Normal } else { Tone::Muted };
+                let server = x.is_dc || x.os.to_lowercase().contains("server");
+                match c {
+                    0 => Cell::plain(&x.name).bold(),
+                    1 if legacy_os(&x.os) => Cell::new(&x.os, Tone::Err),
+                    1 => Cell::new(&x.os, ink),
+                    2 => Cell::new(&x.os_version, ink),
+                    3 if x.is_dc => Cell::new("DC", Tone::Strong),
+                    3 if !x.enabled => Cell::new(t("deactivated"), Tone::Muted),
+                    3 => Cell::plain(""),
+                    4 if !is_set(&x.last_logon) => Cell::new("—", Tone::Muted),
+                    4 if computer_inactive(x, days, now) => Cell::new(adm_core::i18n::date(x.last_logon), Tone::Warn),
+                    4 => Cell::new(adm_core::i18n::date(x.last_logon), ink),
+                    5 => {
+                        let mut cell = Cell::plain("");
+                        if x.enabled && server {
+                            cell = cell.and_link(
+                                t("sessions"),
+                                Tone::Normal,
+                                "👥",
+                                tf!("SMB sessions on %s", x.name),
+                                (Act::Sessions, i),
+                            );
+                        }
+                        if !x.is_dc {
+                            let (icon, label, hint) = if x.enabled {
+                                ("🔒", t("disable"), tf!("Disable %s", x.name))
+                            } else {
+                                ("🔓", t("enable"), tf!("Enable %s", x.name))
+                            };
+                            cell = cell
+                                .and_link(label, Tone::Normal, icon, hint, (Act::Toggle, i))
+                                .and_link(
+                                    t("move"),
+                                    Tone::Normal,
+                                    "📁",
+                                    tf!("Move %s to another OU", x.name),
+                                    (Act::Move, i),
+                                )
+                                .and_link(t("delete"), Tone::Normal, "🗑", tf!("Delete %s", x.name), (Act::Delete, i));
+                        }
+                        cell
+                    }
+                    _ => Cell::plain(""),
+                }
+            },
+        );
+        cx.hover = hover.or(cx.hover.take());
+        if let Some((a, i)) = out.clicked
+            && let Some(x) = self.all.get(i).cloned()
+        {
+            match a {
+                Act::Sessions => crate::pages::dns::sessions(
+                    cx,
+                    if x.dns_name.is_empty() { x.name.clone() } else { x.dns_name.clone() },
+                ),
+                // DCs are never disabled, moved or deleted here (the server refuses too)
+                _ if x.is_dc => {}
+                Act::Toggle => toggle_computer(cx, x),
+                Act::Move => {
                     let api = cx.panel.clone();
                     cx.run(async move { crate::pages::users::fetch_ous(&api).await }, move |app, ous| {
                         let cur = parent_dn(&x.dn).to_string();
                         app.cx.push(MoveComputer { picker: OuPicker::new(&ous, &cur), x });
                     });
                 }
-                if ui
-                    .add_enabled_ui(ok, |ui| widgets::button(ui, &look, "🗑", t("Delete"), Kind::Danger))
-                    .inner
-                    .clicked()
-                    && let Some(x) = x
-                {
+                Act::Delete => {
                     let name = x.name.clone();
                     cx.confirm_typed(
                         t("Delete computer"),
@@ -145,44 +212,18 @@ impl Computers {
                         },
                     );
                 }
-            });
-            let cols = [
-                Column::new(t("Name"), 180.0),
-                Column::new(t("System"), 260.0),
-                Column::new(t("Version"), 120.0),
-                Column::new(t("Status"), 110.0).badge(),
-                Column::new("DC", 50.0).badge(),
-                Column::new(t("Last logon (approx.)"), 160.0),
-            ];
-            let now = Utc::now();
-            let (all, vis) = (&self.all, &self.visible);
-            let mut hover = None;
-            table::Table { id: "computers", cols: &cols, rows: vis.len(), keys, row_h: 0.0 }.show::<()>(
-                ui,
-                &look,
-                &mut self.table,
-                &mut hover,
-                |r, c| {
-                    let x = &all[vis[r]];
-                    match c {
-                        0 => Cell::new(&x.name, Tone::Strong),
-                        1 if legacy_os(&x.os) => Cell::new(&x.os, Tone::Err),
-                        1 => Cell::plain(&x.os),
-                        2 => Cell::plain(&x.os_version),
-                        3 if !x.enabled => Cell::new(t("deactivated").to_uppercase(), Tone::Muted),
-                        3 => Cell::new(t("active").to_uppercase(), Tone::Ok),
-                        4 if x.is_dc => Cell::new("DC", Tone::Strong),
-                        4 => Cell::plain(""),
-                        _ if !is_set(&x.last_logon) => Cell::new(t("never"), Tone::Warn),
-                        _ if computer_inactive(x, days, now) => {
-                            Cell::new(adm_core::i18n::date(x.last_logon), Tone::Warn)
-                        }
-                        _ => Cell::plain(adm_core::i18n::date(x.last_logon)),
-                    }
-                },
-            );
-        });
+            }
+        }
     }
+}
+
+/// What a row's link does.
+#[derive(Clone, Copy)]
+enum Act {
+    Sessions,
+    Toggle,
+    Move,
+    Delete,
 }
 
 fn toggle_computer(cx: &mut Cx, x: Computer) {
