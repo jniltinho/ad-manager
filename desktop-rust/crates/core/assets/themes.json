@@ -50,6 +50,7 @@
  ],
  "themes": {
   "admanager": {
+   "label": "ADManager",
    "scheme": "light",
    "tab_mark": null,
    "depthless": false,
@@ -640,6 +641,7 @@
    }
   },
   "aurora": {
+   "label": "Aurora",
    "scheme": "light",
    "tab_mark": "#6d45f9ff",
    "depthless": false,
@@ -1242,6 +1244,7 @@
    }
   },
   "aurora-dark": {
+   "label": "Aurora (dark)",
    "scheme": "dark",
    "tab_mark": "#967affff",
    "depthless": false,
@@ -1849,6 +1852,7 @@
    }
   },
   "breeze": {
+   "label": "Breeze",
    "scheme": "light",
    "tab_mark": "#3daee9ff",
    "depthless": false,
@@ -2452,6 +2456,7 @@
    }
   },
   "breeze-dark": {
+   "label": "Breeze (dark)",
    "scheme": "dark",
    "tab_mark": "#3daee9ff",
    "depthless": false,
@@ -3060,6 +3065,7 @@
    }
   },
   "classic-blue": {
+   "label": "Classic blue (XP)",
    "scheme": "light",
    "tab_mark": "#e68b2cff",
    "depthless": false,
@@ -3674,6 +3680,7 @@
    }
   },
   "classic-gray": {
+   "label": "Classic gray (98)",
    "scheme": "light",
    "tab_mark": null,
    "depthless": false,
@@ -4376,6 +4383,7 @@
    }
   },
   "cone": {
+   "label": "Cone (dark)",
    "scheme": "dark",
    "tab_mark": "#ff8800ff",
    "depthless": false,
@@ -4983,6 +4991,7 @@
    }
   },
   "crystal": {
+   "label": "Crystal",
    "scheme": "light",
    "tab_mark": "#0064e1ff",
    "depthless": false,
@@ -5590,6 +5599,7 @@
    }
   },
   "crystal-dark": {
+   "label": "Crystal (dark)",
    "scheme": "dark",
    "tab_mark": "#4ea2ffff",
    "depthless": false,
@@ -6190,6 +6200,7 @@
    }
   },
   "default": {
+   "label": "Default",
    "scheme": "light",
    "tab_mark": "#f58322ff",
    "depthless": false,
@@ -6794,6 +6805,7 @@
    }
   },
   "graphite": {
+   "label": "Graphite (dark)",
    "scheme": "dark",
    "tab_mark": "#ff8833ff",
    "depthless": false,
@@ -7395,6 +7407,7 @@
    }
   },
   "high-contrast": {
+   "label": "High contrast (dark)",
    "scheme": "dark",
    "tab_mark": "#ffff00ff",
    "depthless": true,
@@ -7779,6 +7792,7 @@
    }
   },
   "matrix": {
+   "label": "Matrix (dark)",
    "scheme": "dark",
    "tab_mark": "#00ff41ff",
    "depthless": false,
@@ -8442,6 +8456,7 @@
    }
   },
   "pink-panther": {
+   "label": "Pink Panther",
    "scheme": "light",
    "tab_mark": "#e98bb2ff",
    "depthless": false,
@@ -9065,6 +9080,7 @@
    }
   },
   "violet": {
+   "label": "Violet",
    "scheme": "light",
    "tab_mark": "#894ffbff",
    "depthless": false,
@@ -9667,6 +9683,7 @@
    }
   },
   "violet-dark": {
+   "label": "Violet (dark)",
    "scheme": "dark",
    "tab_mark": "#a36effff",
    "depthless": false,
@@ -10274,6 +10291,7 @@
    }
   },
   "winamp": {
+   "label": "Winamp (dark)",
    "scheme": "dark",
    "tab_mark": "#f4a51cff",
    "depthless": false,

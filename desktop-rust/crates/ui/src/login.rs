@@ -52,7 +52,7 @@ impl Login {
         }
         cx.ensure_catalog();
         let theme = cx.brand.theme.clone();
-        cx.set_look(if theme.is_empty() { "default" } else { &theme }, cx.brand.flat);
+        cx.panel_look(&theme, cx.brand.flat);
         Self {
             user: cx.cfg.panel.user.clone(),
             pwd: Zeroizing::default(),
@@ -404,7 +404,7 @@ fn fetch_brand(cx: &Cx, url: String) {
                 i18n::set_lang(&h.brand.lang);
             }
             if matches!(app.screen, Screen::Login(_)) {
-                app.cx.set_look(&h.brand.theme, h.brand.flat);
+                app.cx.panel_look(&h.brand.theme, h.brand.flat);
                 if h.setup && !was_setup {
                     app.cx.show_info(
                         t("Panel being set up"),

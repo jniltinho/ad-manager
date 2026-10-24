@@ -40,6 +40,7 @@ type RustLayer struct {
 }
 
 type rustTheme struct {
+	Label      string                   `json:"label"`
 	Scheme     string                   `json:"scheme"`
 	TabMark    *string                  `json:"tab_mark"`
 	Depthless  bool                     `json:"depthless"`
@@ -269,7 +270,7 @@ func Rust(root string) ([]byte, error) {
 	}{Flat: flat, Themes: map[string]rustTheme{}}
 	for _, t := range themes {
 		out.Order = append(out.Order, t.ID)
-		rt := rustTheme{Scheme: t.Scheme, Depthless: t.Depthless, MinText: t.MinText, FocusRing: t.FocusRing,
+		rt := rustTheme{Label: t.Label, Scheme: t.Scheme, Depthless: t.Depthless, MinText: t.MinText, FocusRing: t.FocusRing,
 			CardStripe: t.CardStripe, C: map[string]string{}, Tokens: map[string]float64{}, Text: map[string]string{},
 			Bg: map[string]*RustGradient{}, BgOther: map[string]string{}, Pattern: map[string]*RustPattern{}, Shadow: map[string][]RustLayer{}, Fonts: map[string][]string{}}
 		for _, s := range t.TabOn { // the current sidebar item's mark: a band along a side (dx 0, dy not 0)

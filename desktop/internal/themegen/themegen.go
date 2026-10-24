@@ -42,6 +42,7 @@ var Roles = []string{
 // Theme is one registered theme with its resolved colors and its login box shadow.
 type Theme struct {
 	ID, Scheme  string
+	Label       string              // the registry's name ("Classic blue (XP)"), translated by the catalogs
 	Colors      map[string][4]uint8 // role → RGBA
 	LoginShadow Shadow              // outer layer of --shadow-login-box (zero: none, e.g. only a relief)
 	LoginRelief []Shadow            // inset layers of --shadow-login-box (the 98 relief), first on top
@@ -72,7 +73,7 @@ var (
 	reThemeAt  = regexp.MustCompile(`@theme(?:\s+static)?\s*\{`)
 	reRootAt   = regexp.MustCompile(`(?m)^:root\s*\{`) // the contract's parameters (shadows, backgrounds…)
 	reBlock    = regexp.MustCompile(`:root\[data-theme='([a-z0-9-]+)'\]\s*\{([^}]*)\}`)
-	reRegistry = regexp.MustCompile(`\{ID: (?:"([^"]+)"|(theme\w+)), Label: "[^"]+", Scheme: "(\w+)"\}`)
+	reRegistry = regexp.MustCompile(`\{ID: (?:"([^"]+)"|(theme\w+)), Label: "([^"]+)", Scheme: "(\w+)"\}`)
 	reConst    = regexp.MustCompile(`(theme\w+)\s*=\s*"([^"]+)"`)
 	reVar      = regexp.MustCompile(`var\((--[a-z0-9-]+)\)`)
 )
@@ -163,7 +164,7 @@ func Load(root string) ([]Theme, error) {
 		for k, v := range blocks[id] {
 			vals[k] = v
 		}
-		t := Theme{ID: id, Scheme: m[3], Colors: map[string][4]uint8{}, vals: vals}
+		t := Theme{ID: id, Label: m[3], Scheme: m[4], Colors: map[string][4]uint8{}, vals: vals}
 		for _, r := range Roles {
 			v, err := resolve(vals, "--color-"+r, 0)
 			if err != nil {

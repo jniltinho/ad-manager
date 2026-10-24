@@ -55,6 +55,8 @@ pub struct Cx {
     pub panel: Api,
     pub me: Me,
     pub look: Look,
+    /// The panel's own theme and flat look (its brand), under this computer's Appearance choice.
+    pub panel_theme: (String, bool),
     /// The status line, and the hint of the link under the pointer (shown instead while it is there).
     pub status: String,
     pub hover: Option<String>,
@@ -229,6 +231,21 @@ impl Cx {
         self.push(modal::ConfirmTyped::new(title, msg, expected, action));
     }
 
+    /// Draws with the panel's look (`theme`, `flat`) or, when Configure › Appearance chose one, this computer's.
+    pub fn panel_look(&mut self, theme: &str, flat: bool) {
+        self.panel_theme = (theme.to_string(), flat);
+        self.refresh_look();
+    }
+
+    /// Applies the look again after Configure › Appearance changed (or the panel's arrived).
+    pub fn refresh_look(&mut self) {
+        let (theme, flat) = self.panel_theme.clone();
+        let theme = if theme.is_empty() { "default".to_string() } else { theme };
+        let (id, flat) = self.cfg.appearance.resolve(&theme, flat);
+        let (id, flat) = (id.to_string(), flat);
+        self.set_look(&id, flat);
+    }
+
     pub fn set_look(&mut self, id: &str, flat: bool) {
         if let Some(l) = Look::with_flat(id, flat)
             && (l.id != self.look.id || l.flat != self.look.flat)
@@ -328,6 +345,7 @@ impl App {
             panel,
             me: Me::default(),
             look,
+            panel_theme: (String::new(), false),
             status: String::new(),
             hover: None,
             dialogs: Vec::new(),
@@ -558,7 +576,7 @@ impl App {
             i18n::set_lang(&self.cx.me.settings.lang);
         }
         let theme = self.cx.me.brand.theme.clone();
-        self.cx.set_look(&theme, self.cx.me.brand.flat);
+        self.cx.panel_look(&theme, self.cx.me.brand.flat);
         for (_, d) in self.cx.dialogs.drain(..) {
             d.closed(&self.cx.ctx);
         }

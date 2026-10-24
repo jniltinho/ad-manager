@@ -516,3 +516,31 @@ fn theme_shots() {
         e.h.render().unwrap().save(dir.join(format!("theme-{id}.png"))).unwrap();
     }
 }
+
+#[test]
+fn configure_theme_applies_at_once_and_is_saved() {
+    let mut e = env();
+    e.click("Configure");
+    let path = e.app().cx.cfg_path.clone();
+    adm_core::config::save(&TestPlatform { user_config: path.with_file_name("user.toml") }, &path, &e.app().cx.cfg)
+        .unwrap();
+    e.h.get_by_label("Theme").click();
+    e.h.step();
+    e.h.step(); // the popup's first frame only measures it
+    e.h.get_by_label("Matrix (dark)").click_accesskit(); // far down the list: maybe scrolled out of view
+    e.h.step();
+    e.h.step();
+    assert_eq!(e.app().cx.look.id, "matrix", "applied at once");
+    let saved = adm_core::config::decode(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(saved.appearance.theme, "matrix", "saved as [appearance] in desktop.toml");
+    // back to the panel's theme
+    e.h.run_steps(3);
+    if e.h.query_all_by_label("Panel default").next().is_none() {
+        e.h.get_by_label("Theme").click(); // the list closed with the choice
+        e.h.run_steps(3);
+    }
+    e.h.get_all_by_label("Panel default").next().unwrap().click_accesskit();
+    e.h.step();
+    e.h.step();
+    assert_eq!(e.app().cx.look.id, "classic-blue", "the panel's theme again");
+}

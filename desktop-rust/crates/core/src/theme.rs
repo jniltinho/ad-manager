@@ -90,6 +90,9 @@ pub struct Fonts {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Palette {
+    /// The registry's name ("Classic blue (XP)"), translated by the catalogs.
+    #[serde(default)]
+    pub label: String,
     pub scheme: String,
     /// No depth by design (High contrast): always flat.
     pub depthless: bool,

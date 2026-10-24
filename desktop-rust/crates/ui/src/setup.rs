@@ -57,6 +57,8 @@ pub struct Setup {
     /// Configure › Graphics: the index in `adm_core::gpu::choices`, and the result of saving it.
     gpu: usize,
     gpu_msg: Option<Result<(), String>>,
+    /// Configure › Appearance could not be saved.
+    look_err: Option<String>,
 }
 
 /// Test generations are unique across Configure screens: a test of a screen that was left never counts in a new one.
@@ -87,11 +89,67 @@ impl Setup {
                 adm_core::gpu::choices(adm_core::gpu::Os::current()).iter().position(|b| *b == saved).unwrap_or(0)
             },
             gpu_msg: None,
+            look_err: None,
         }
     }
 
     /// Configure › Graphics, as rustXterm's Settings › Display › Graphics: the rendering backend, saved at once as
     /// `[graphics]` in desktop.toml (only that changes: the rest stays as saved), with the same hint.
+    /// Configure › Appearance: this computer's theme and flat look over the panel's, applied at once and saved into
+    /// the configuration as it is on disk (on a first run, with the rest by Save).
+    fn appearance_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        let order = adm_core::theme::order();
+        let mut names = vec![t("Panel default").to_string()];
+        names.extend(
+            order
+                .iter()
+                .map(|id| adm_core::theme::palette(id).map_or_else(|| id.clone(), |(_, p)| t(&p.label).to_string())),
+        );
+        let a = &cx.cfg.appearance;
+        let mut theme = order.iter().position(|id| *id == a.theme).map_or(0, |i| i + 1);
+        let flats =
+            [t("Panel default").to_string(), t("Flat (no gradients or shadows)").into(), t("With depth").into()];
+        let mut flat = match a.flat.as_str() {
+            "flat" => 1,
+            "depth" => 2,
+            _ => 0,
+        };
+        let mut changed = false;
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            changed |= widgets::labeled_select(ui, &look, t("Theme"), "setup-theme", &mut theme, &names, 240.0);
+            changed |= widgets::labeled_select(ui, &look, t("Look"), "setup-flat", &mut flat, &flats, 240.0);
+        });
+        ui.add_space(4.0);
+        let panel =
+            adm_core::theme::palette(&cx.panel_theme.0).map(|(_, p)| t(&p.label).to_string()).unwrap_or_default();
+        let note = if panel.is_empty() {
+            t("Only on this computer; \"Panel default\" follows the panel's Settings.").to_string()
+        } else {
+            format!(
+                "{} {}",
+                t("Only on this computer; \"Panel default\" follows the panel's Settings."),
+                tf!("The panel uses %s.", panel)
+            )
+        };
+        widgets::muted(ui, &look, &note);
+        if changed {
+            let a = &mut cx.cfg.appearance;
+            a.theme = if theme == 0 { String::new() } else { order[theme - 1].clone() };
+            a.flat = ["", "flat", "depth"][flat.min(2)].to_string();
+            cx.refresh_look();
+            self.look_err = if cx.cfg_path.exists() {
+                config::save(cx.platform.as_ref(), &cx.cfg_path, &cx.cfg).err().map(|e| e.to_string())
+            } else {
+                None
+            };
+        }
+        if let Some(e) = &self.look_err {
+            ui.label(RichText::new(format!("{}{e}", t("Could not write "))).color(look.c("err")));
+        }
+    }
+
     fn graphics_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         let os = adm_core::gpu::Os::current();
@@ -210,6 +268,7 @@ impl Setup {
         n.panel.user = self.user.trim().to_string();
         n.lang = LANG_CODES[self.lang.min(2)].to_string();
         n.graphics = cx.cfg.graphics.clone();
+        n.appearance = cx.cfg.appearance.clone();
         if self.tested.is_none() {
             // signed in, same account: only the language changes, the session and the trust stay
             n.panel.fingerprint = cx.cfg.panel.fingerprint.clone();
@@ -254,6 +313,8 @@ impl Setup {
                     egui::ScrollArea::vertical().max_height(ui.available_height() - 70.0).show(ui, |ui| {
                         ui.add_space(16.0);
                         widgets::card(ui, &look, t("Panel"), |ui| self.panel_card(ui, cx));
+                        ui.add_space(16.0);
+                        widgets::card(ui, &look, t("Appearance"), |ui| self.appearance_card(ui, cx));
                         ui.add_space(16.0);
                         widgets::card(ui, &look, t("Graphics"), |ui| self.graphics_card(ui, cx));
                         ui.add_space(8.0);
