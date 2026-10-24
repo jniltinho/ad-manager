@@ -496,3 +496,23 @@ fn shots() {
     e.h.run_steps(20);
     save(&mut e, "23-sync-wizard");
 }
+
+/// Home in every theme (2×, English), for the comparison with the web's themes sheet: written only when ADM_SHOTS is
+/// set to a folder.
+#[test]
+#[ignore = "writes screenshots; needs a GPU or lavapipe"]
+fn theme_shots() {
+    let Some(dir) = std::env::var_os("ADM_SHOTS").map(PathBuf::from) else { return };
+    let mut e = env_at(60, 1280.0, 2.0, "localhost", 0, env!("CARGO_PKG_VERSION"), |_| None);
+    e.wait("the brand", |a, _| a.cx.look.id == "classic-blue");
+    e.sign_in();
+    std::thread::sleep(Duration::from_millis(300));
+    e.h.run_steps(6);
+    let mut ids: Vec<&str> = adm_core::theme::ids().collect();
+    ids.sort_unstable();
+    for id in ids {
+        e.h.state_mut().cx.set_look(id, false);
+        e.h.run_steps(6);
+        e.h.render().unwrap().save(dir.join(format!("theme-{id}.png"))).unwrap();
+    }
+}
