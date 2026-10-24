@@ -142,9 +142,16 @@ impl Groups {
             });
         });
         widgets::toolbar_gap(ui, &look);
+        // the group column as wide as the longest name shown (the web's auto layout), the description the rest
+        let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+        let longest = self
+            .visible
+            .iter()
+            .filter_map(|&i| self.groups.get(i))
+            .map(|g| ui.painter().layout_no_wrap(g.name.clone(), font.clone(), egui::Color32::PLACEHOLDER).size().x)
+            .fold(0.0, f32::max);
         let cols = [
-            // wide enough for the built-in groups' names, as the web's auto layout gives them
-            Column::new(t("Group"), 320.0),
+            Column::new(t("Group"), (longest + 2.0 * look.px("td-px", 8.0) + 4.0).clamp(200.0, 420.0)),
             Column::new("", 80.0).badge(),
             Column::new(t("Group type"), 95.0),
             Column::new(t("Scope"), 100.0),
