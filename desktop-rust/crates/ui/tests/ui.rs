@@ -559,6 +559,9 @@ fn shots() {
 fn settings_saves_the_theme_for_every_operator() {
     let mut e = env();
     e.sign_in();
+    // this computer chose its own theme (Configure › Appearance)
+    e.h.state_mut().cx.cfg.appearance.theme = "matrix".into();
+    e.h.state_mut().cx.refresh_look();
     e.h.get_by_label("Settings").click();
     e.wait("the settings", |_, m| !m.sent("GET", "/api/settings").is_empty());
     e.h.run_steps(4);
@@ -573,6 +576,9 @@ fn settings_saves_the_theme_for_every_operator() {
     assert_eq!(body["theme"], "breeze-dark");
     assert_eq!(body["company"], "Example Company Ltd", "the other settings sent back as they were");
     assert_eq!(body["session_minutes"], 30);
+    // a theme picked in Settings is seen here too: this computer's own gives way
+    e.wait("the local theme cleared", |a, _| a.cx.cfg.appearance.theme.is_empty());
+    assert_ne!(e.app().cx.look.id, "matrix", "the panel's theme drawn");
 }
 
 /// Home in every theme (2×, English), for the comparison with the web's themes sheet: written only when ADM_SHOTS is
@@ -668,6 +674,12 @@ fn a_running_sync_is_followed() {
     e.h.run_steps(3);
     e.h.get_by_label("Sync").click();
     e.wait("a second read by the poll", |_, m| m.sent("GET", "/api/agents/1/syncs").len() >= 2);
+    // stopping it asks first
+    e.h.get_by_label("Cancel").click_accesskit();
+    e.h.run_steps(3);
+    assert!(e.sent("POST", "/api/agents/1/sync-runs/r2/cancel").is_empty(), "nothing sent before the answer");
+    e.h.query_all_by_label_contains("Stop run").last().expect("the confirmation's button").click();
+    e.wait("the cancel", |_, m| !m.sent("POST", "/api/agents/1/sync-runs/r2/cancel").is_empty());
 }
 
 #[test]

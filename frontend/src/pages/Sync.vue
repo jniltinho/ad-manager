@@ -5,7 +5,7 @@
 import { Archive, Eye, FolderSync, Pencil, Play, Plus, RefreshCw, ScrollText, Square, Trash2 } from 'lucide-vue-next'
 import { computed, onUnmounted, ref } from 'vue'
 import { del, enc, get, post } from '../api'
-import { confirmTyped } from '../dialogs'
+import { askConfirm, confirmTyped } from '../dialogs'
 import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
 import { agentHost, formatDate, spinner } from '../util'
@@ -155,6 +155,8 @@ async function start(j, preview) {
   }
 }
 async function cancel(r) {
+  const msg = t('Stop the run of {name}? What it already copied stays, and the job can run again later.', { name: jobName(r.job) })
+  if (!(await askConfirm(msg, { title: t('Stop run'), ok: t('Stop run') }))) return
   try {
     await post(`${base.value}/sync-runs/${enc(r.id)}/cancel`)
     setTimeout(load, 1000)

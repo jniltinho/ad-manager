@@ -232,4 +232,7 @@ export default {
   "the folders of this server's shares of the same name": 'as pastas dos compartilhamentos de mesmo nome deste servidor',
   'the shares of the same name': 'os compartilhamentos de mesmo nome',
   'comparing {n} files': 'comparando {n} arquivos',
+  'Stop the run of {name}? What it already copied stays, and the job can run again later.':
+    'Parar a execução de {name}? O que já foi copiado fica, e a tarefa pode rodar de novo depois.',
+  'Stop run': 'Parar execução',
 }

@@ -160,6 +160,9 @@ impl Settings {
     fn save(&mut self, cx: &Cx) {
         self.busy = true;
         let body = self.form.body(&self.ous);
+        // a theme picked here is meant to be seen: it also replaces this computer's own (Configure › Appearance)
+        let picked = adm_core::theme::order().get(self.form.theme).cloned().unwrap_or_default();
+        let new_theme = picked != cx.panel_theme.0;
         let api = cx.panel.clone();
         let session = cx.panel.id;
         cx.spawn(
@@ -181,6 +184,19 @@ impl Settings {
                         }
                         let (theme, flat) = (me.brand.theme.clone(), me.brand.flat);
                         app.cx.me = me;
+                        if new_theme && !app.cx.cfg.appearance.theme.is_empty() {
+                            app.cx.cfg.appearance.theme.clear();
+                            if app.cx.cfg_path.exists()
+                                && let Err(e) =
+                                    adm_core::config::save(app.cx.platform.as_ref(), &app.cx.cfg_path, &app.cx.cfg)
+                            {
+                                app.cx.show_error_text(format!(
+                                    "{}{}: {e}",
+                                    t("Could not write "),
+                                    app.cx.cfg_path.display()
+                                ));
+                            }
+                        }
                         app.cx.panel_look(&theme, flat);
                         app.cx.set_status(t("Settings saved."));
                         app.with_shell(|s, cx| s.settings.load(cx));
@@ -256,6 +272,8 @@ impl Settings {
         let mut discard = false;
         let mut token = false;
         let (mut upload, mut remove) = (false, false);
+        let local_theme = cx.cfg.appearance.theme.clone();
+        let mut use_panel_theme = false;
         // as the web's page, which scrolls with its bottom padding: the view reaches the footer, the 20 points at the end
         let full = ui.max_rect().with_max_y(ui.max_rect().bottom() + 20.0).with_max_x(ui.max_rect().right() + 20.0);
         let mut page =
@@ -296,6 +314,12 @@ impl Settings {
                                         .collect();
                                     widgets::labeled_select(ui, &look, t("Theme"), "s-theme", &mut f.theme, &names, cw);
                                     note(ui, t("Look of the panel and the login page for every operator."));
+                                    if !local_theme.is_empty() {
+                                        // Configure › Appearance wins on this computer: say so, and offer the panel's
+                                        let name = adm_core::theme::palette(&local_theme).map_or(local_theme.clone(), |(_, p)| t(&p.label).to_string());
+                                        widgets::para(ui, tf!("This computer uses its own theme, %s (Configure › Appearance).", name), 11.0, look.c("warn"));
+                                        use_panel_theme = widgets::act(ui, &look, "", t("Use the panel's theme here"), None, 11.0).clicked();
+                                    }
                                 });
                                 widgets::above(ui, &look, t("Session timeout (minutes idle)"), cw, |ui, _| {
                                     ui.add(crate::widgets::line(&mut f.session).desired_width(cw))
@@ -359,8 +383,17 @@ impl Settings {
                             ui.add_space(16.0); // the web's gap-4 row gap, measured against its logo row
                             widgets::lbl(ui, &look, t("Logo (login page and header)"));
                             ui.add_space(4.0);
-                            // as the web's flex-wrap row: the 224 x 64 preview and the buttons centered beside it, the
-                            // notes on the next line (gap-3)
+                            // as the web's flex-wrap row: the 224 x 64 preview, the buttons and the notes centered beside
+                            // it (gap-3), the notes on the next line when they do not fit
+                            let lines = [
+                                t("PNG, JPEG or SVG up to 512 KiB."),
+                                t("Maximum size: 660 × 220 px (width × height), ratio 3:1."),
+                                t("Shown at up to 195 × 65 px on the login page and 40 px high in the header."),
+                            ]
+                            .join("\n");
+                            let notes = egui::WidgetText::from(RichText::new(lines).size(11.0).line_height(Some(1.375 * 11.0)).color(muted))
+                                .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::FontSelection::Default);
+                            let mut notes = Some(notes);
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 12.0;
                                 // the logo as the header draws it, on the third surface, at its own aspect (object-contain)
@@ -384,24 +417,31 @@ impl Settings {
                                 if loaded.logo {
                                     remove = widgets::button(ui, &look, crate::icons::TRASH, t("Use the default logo"), Kind::Secondary).clicked();
                                 }
+                                let room = ui.available_width();
+                                if let Some(g) = notes.take_if(|g| g.size().x + 12.0 <= room) {
+                                    ui.add_space(4.0); // gap-3 after the buttons' gap-2
+                                    ui.add(egui::Label::new(g));
+                                }
                             });
-                            ui.add_space(12.0 - ui.spacing().item_spacing.y);
-                            // the web's leading-snug lines, one under the other
-                            let lines = [
-                                t("PNG, JPEG or SVG up to 512 KiB."),
-                                t("Maximum size: 660 × 220 px (width × height), ratio 3:1."),
-                                t("Shown at up to 195 × 65 px on the login page and 40 px high in the header."),
-                            ]
-                            .join("\n");
-                            ui.add(egui::Label::new(RichText::new(lines).size(11.0).line_height(Some(1.375 * 11.0)).color(muted)).wrap());
+                            if let Some(g) = notes {
+                                ui.add_space(12.0 - ui.spacing().item_spacing.y);
+                                // the web's leading-snug lines, one under the other (wrapped when narrower still)
+                                let text = g.job.text.clone();
+                                ui.add(egui::Label::new(RichText::new(text).size(11.0).line_height(Some(1.375 * 11.0)).color(muted)).wrap());
+                            }
                         });
                     });
                     ui.add_space(16.0 - ui.spacing().item_spacing.y); // the web's space-y-4 between cards, egui's spacing included
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
-                        let label = if self.busy { t("Saving…") } else { t("Save settings") };
-                        let can = !self.busy && loaded.stored;
-                        save = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::CHECK, label, Kind::Primary)).inner.clicked();
+                        let busy = self.busy;
+                        save = ui
+                            .add_enabled_ui(loaded.stored, |ui| {
+                                widgets::action_button(ui, &look, crate::icons::CHECK, (t("Save settings"), t("Saving…")), Kind::Primary, busy)
+                            })
+                            .inner
+                            .clicked()
+                            && !busy;
                         discard = widgets::button(ui, &look, crate::icons::ROTATE, t("Discard changes"), Kind::Secondary).clicked();
                     });
                     // the token under the form (the web's left column): two columns of about the same height
@@ -431,6 +471,15 @@ impl Settings {
                     app.with_shell(|s, _| s.settings.token = Some(tk));
                 },
             );
+        }
+        if use_panel_theme {
+            cx.cfg.appearance.theme.clear();
+            cx.refresh_look();
+            if cx.cfg_path.exists()
+                && let Err(e) = adm_core::config::save(cx.platform.as_ref(), &cx.cfg_path, &cx.cfg)
+            {
+                cx.set_status(format!("{}{}: {e}", t("Could not write "), cx.cfg_path.display()));
+            }
         }
         if upload {
             Self::upload_logo(cx);
@@ -636,15 +685,13 @@ impl Settings {
                 ui.spacing_mut().item_spacing.y = 8.0;
                 let muted = look.c("fg-muted");
                 // the note and the button on one line (the web's), the button at the right
-                ui.horizontal(|ui| {
+                let row = egui::vec2(ui.available_width(), crate::style::control_h());
+                ui.allocate_ui_with_layout(row, egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 12.0;
-                    let bw = 140.0;
-                    ui.vertical(|ui| {
-                        ui.set_width(ui.available_width() - bw - 12.0);
+                    asked = widgets::button(ui, &look, crate::icons::KEY, t("Generate token"), Kind::Secondary).clicked();
+                    // the note centered on the button (the web's items-center), in the room left
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         widgets::para(ui, t("Register the token in Shares → + new, and run the command on the file server: it keeps only the hash."), 12.0, muted);
-                    });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        asked = widgets::button(ui, &look, crate::icons::KEY, t("Generate token"), Kind::Secondary).clicked();
                     });
                 });
                 if let Some(tk) = &self.token {

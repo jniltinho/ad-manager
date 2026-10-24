@@ -241,7 +241,7 @@
   --shadow-dialog: 0 6px 24px rgba(0, 0, 0, 0.35);
   --shadow-pop: 0 6px 16px rgba(14, 23, 45, 0.28);
   --shadow-tip: 0 3px 10px rgba(14, 23, 45, 0.3);
-  --shadow-app: 0 0 12px rgba(0, 0, 0, 0.5);
+  --shadow-app: 0 1px 4px rgba(0, 0, 0, 0.16); /* a soft, thin edge around the window */
   --shadow-tabs: 0 2px 4px rgba(14, 23, 45, 0.4);
   --shadow-tab-on: inset 0 -3px 0 var(--color-cn-accent);
   --shadow-subtab-on: inset 0 -3px 0 var(--color-cn-accent);

@@ -56,8 +56,13 @@ fn every_page_against_a_real_panel() {
     let platform = Arc::new(TestPlatform { user_config: dir.join("user.toml") });
     let start = Start { platform, config: Ok(loaded), version: "live", gpu: None };
     let handle = rt.handle().clone();
+    // ADM_LIVE_SIZE=WxH for another window (e.g. 1856x980 to compare a wide browser)
+    let size = std::env::var("ADM_LIVE_SIZE")
+        .ok()
+        .and_then(|v| v.split_once('x').and_then(|(w, h)| Some(egui::vec2(w.parse().ok()?, h.parse().ok()?))))
+        .unwrap_or(egui::vec2(1280.0, 800.0));
     let mut h = Harness::builder()
-        .with_size(egui::vec2(1280.0, 800.0))
+        .with_size(size)
         .with_pixels_per_point(if shots.is_some() { 2.0 } else { 1.0 })
         .with_max_steps(10_000)
         .build_eframe(move |cc| App::with_runtime(&cc.egui_ctx, start, handle, None).unwrap());

@@ -207,19 +207,72 @@ impl Sync {
                     });
                     return;
                 }
-                let cols = [
-                    // the web's truncated name, source and destination; the last run whole (at 1280 px too)
-                    Column::new(t("Name"), 130.0),
-                    Column::new(t("Source"), 120.0).fill(),
-                    Column::new(t("Destination"), 120.0),
-                    Column::new(t("Mode"), 60.0),
-                    Column::new(t("When (cron)"), 100.0),
-                    Column::new(t("Last run"), 180.0),
-                    Column::new(t("Quarantine"), 90.0),
-                    Column::new("", 144.0).right().fixed(), // the web's w-36
-                ];
                 let me = &*self;
                 let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();
+                let (jobs, runs, qs) = (&self.data.jobs, &self.data.runs, &self.qs.quarantines);
+                // the web's auto table layout: each column as wide as its content (heading or widest cell, plus the
+                // 8-point paddings), the room left shared in proportion to them; the actions keep their w-36
+                let reg = egui::FontId::proportional(12.0);
+                let small = egui::FontId::proportional(11.0);
+                let bold = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+                let mono = egui::FontId::monospace(11.0);
+                let tw = |s: &str, f: &egui::FontId| {
+                    ui.painter().layout_no_wrap(s.to_string(), f.clone(), egui::Color32::PLACEHOLDER).size().x
+                };
+                let space = tw(" ", &reg);
+                let tag = |s: &str| space + widgets::tag_layout(ui, &look, s, egui::Color32::PLACEHOLDER, 0.0).1.x;
+                let heads = [
+                    t("Name"),
+                    t("Source"),
+                    t("Destination"),
+                    t("Mode"),
+                    t("When (cron)"),
+                    t("Last run"),
+                    t("Quarantine"),
+                ];
+                let mut w: [f32; 7] = std::array::from_fn(|i| tw(heads[i], &bold));
+                for (j, name) in jobs.iter().zip(&names) {
+                    let src = tw(&sync_unc(j), &mono)
+                        + if j.kind == "server" { tag(t("every share")) } else { 0.0 }
+                        + tag(auth_text(j));
+                    let dest = if j.kind == "server" {
+                        tw(t("the shares of the same name"), &small)
+                    } else {
+                        tw(&j.dest, &mono)
+                    };
+                    let cron = if j.enabled && !j.cron.is_empty() { tw(&j.cron, &mono) } else { tw("—", &reg) };
+                    let q = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum::<i64>();
+                    let quar = if qs.iter().any(|q| q.job == j.id) {
+                        tw(&format!("{}\u{2009}{}", crate::icons::ARCHIVE, run_size(q)), &reg)
+                    } else {
+                        tw("—", &reg)
+                    };
+                    let cells = [
+                        tw(name, &bold),
+                        src,
+                        dest,
+                        tw(&mode_text(j), &reg),
+                        cron,
+                        tw(&last_run_text(j, runs).0, &reg),
+                        quar,
+                    ];
+                    for (k, x) in cells.into_iter().enumerate() {
+                        w[k] = w[k].max(x);
+                    }
+                }
+                let w = w.map(|x| x.ceil() + 16.0);
+                let k = ((ui.available_width() - 144.0) / w.iter().sum::<f32>()).max(1.0);
+                let w = w.map(|x| (x * k).floor());
+                let cols = [
+                    Column::new(t("Name"), w[0]),
+                    Column::new(t("Source"), w[1]),
+                    Column::new(t("Destination"), w[2]),
+                    Column::new(t("Mode"), w[3]),
+                    Column::new(t("When (cron)"), w[4]),
+                    Column::new(t("Last run"), w[5]),
+                    Column::new(t("Quarantine"), w[6]),
+                    Column::new("", 144.0).right().fixed().fill(), // the web's w-36
+                ];
                 let (jobs, runs, qs) = (&self.data.jobs, &self.data.runs, &self.qs.quarantines);
                 let mut hover = None;
                 let out = table::Table {
@@ -237,39 +290,28 @@ impl Sync {
                     match c {
                         0 => Cell::plain(&names[r]).bold(),
                         1 => {
-                            let auth = if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" };
-                            let unc = if j.kind == "server" {
-                                format!("{} · {}", sync_unc(j), t("every share"))
-                            } else {
-                                sync_unc(j)
-                            };
-                            Cell::plain(unc).mono().with_tag(auth, Tone::Normal)
+                            let mut cell = Cell::plain(sync_unc(j)).mono();
+                            if j.kind == "server" {
+                                cell = cell.with_tag(t("every share"), Tone::Normal);
+                            }
+                            cell.with_tag(auth_text(j), Tone::Normal)
                         }
-                        2 if j.kind == "server" => Cell::new(t("the shares of the same name"), Tone::Muted),
+                        2 if j.kind == "server" => Cell::new(t("the shares of the same name"), Tone::Muted).small(),
                         2 => Cell::plain(&j.dest).mono(),
                         3 if j.mode == "mirror" && j.approved != j.rev => {
-                            Cell::new(format!("{} · {}", t("mirror"), t("preview needed")), Tone::Warn)
+                            Cell::plain(t("mirror")).with_tail(format!(" · {}", t("preview needed")), Tone::Warn)
                         }
-                        3 if j.mode == "mirror" => Cell::plain(t("mirror")),
-                        3 => Cell::plain(t("copy")),
+                        3 => Cell::plain(mode_text(j)),
                         4 if j.enabled && !j.cron.is_empty() => Cell::plain(&j.cron).mono(),
                         4 => Cell::plain("—"),
-                        5 => match runs.iter().find(|x| x.job == j.id) {
-                            None => Cell::plain("—"),
-                            Some(x) => {
-                                let (st, tone) = run_status(&x.status);
-                                let phase = phase_text(x);
-                                if x.status == "running" && !phase.is_empty() {
-                                    Cell::new(format!("{st} · {phase}"), tone)
-                                } else {
-                                    Cell::new(format!("{st} · {}", date(x.started)), tone)
-                                }
-                            }
-                        },
+                        5 => {
+                            let (text, tone) = last_run_text(j, runs);
+                            Cell::new(text, tone)
+                        }
                         6 => {
                             let size: i64 = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum();
                             if qs.iter().any(|q| q.job == j.id) {
-                                Cell::plain(size_text(size)).link(
+                                Cell::plain(run_size(size)).link(
                                     crate::icons::ARCHIVE,
                                     tf!("Quarantine of %s", names[r]),
                                     (JobAct::Quarantine, r),
@@ -388,10 +430,12 @@ impl Sync {
                         4 => {
                             let (s, tone) = run_status(&x.status);
                             let phase = phase_text(x);
+                            // the status word in its color, what follows muted (the web's)
                             if !x.error.is_empty() {
-                                Cell::new(format!("{s} · {}", server_text(&x.error)), tone)
+                                let e = server_text(&x.error);
+                                Cell::new(s, tone).with_tail(format!(" · {e}"), Tone::Muted).tip(e)
                             } else if x.status == "running" && !phase.is_empty() {
-                                Cell::new(format!("{s} · {phase}"), tone)
+                                Cell::new(s, tone).with_tail(format!(" · {phase}"), Tone::Muted)
                             } else {
                                 Cell::new(s, tone)
                             }
@@ -455,7 +499,13 @@ impl Sync {
             RunAct::Cancel => {
                 let api = cx.panel.clone();
                 let path = format!("{}/sync-runs/{}/cancel", self.base(), esc(&r.id));
-                cx.run(async move { api.act(Method::POST, &path).await }, |app, ()| reload(app));
+                let msg = tf!(
+                    "Stop the run of %s? What it already copied stays, and the job can run again later.",
+                    self.job_name(&r.job)
+                );
+                cx.confirm(t("Stop run"), msg, t("Stop run"), true, move |cx| {
+                    cx.run(async move { api.act(Method::POST, &path).await }, |app, ()| reload(app));
+                });
             }
         }
     }
@@ -678,6 +728,37 @@ impl crate::modal::Dialog for LogDialog {
 }
 
 /// A run's size as the web's runs table: "0" for nothing, else the size.
+/// The source's sign-in, as the web's tag.
+fn auth_text(j: &SyncJob) -> &'static str {
+    if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" }
+}
+
+/// The job's mode as the web's Mode cell shows it (the preview a mirror still needs is its own warning).
+fn mode_text(j: &SyncJob) -> String {
+    if j.mode == "mirror" {
+        let w = if j.approved != j.rev { format!(" · {}", t("preview needed")) } else { String::new() };
+        format!("{}{w}", t("mirror"))
+    } else {
+        t("copy").into()
+    }
+}
+
+/// The job's last run as the web's Last run cell: its phase while running, else its status and start.
+fn last_run_text(j: &SyncJob, runs: &[SyncRun]) -> (String, Tone) {
+    match runs.iter().find(|x| x.job == j.id) {
+        None => ("—".into(), Tone::Normal),
+        Some(x) => {
+            let (st, tone) = run_status(&x.status);
+            let phase = phase_text(x);
+            if x.status == "running" && !phase.is_empty() {
+                (format!("{st} · {phase}"), tone)
+            } else {
+                (format!("{st} · {}", date(x.started)), tone)
+            }
+        }
+    }
+}
+
 fn run_size(n: i64) -> String {
     if n <= 0 { "0".into() } else { size_text(n) }
 }

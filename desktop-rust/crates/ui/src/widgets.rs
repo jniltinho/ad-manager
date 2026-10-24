@@ -197,6 +197,18 @@ pub fn busy_button(ui: &mut Ui, look: &Look, label: &str, busy_label: &str, kind
     spun_button(ui, look, crate::icons::LOADER, busy_label, kind, angle)
 }
 
+/// A button whose icon becomes a turning loader while `busy` and briefly after its click, `busy_label` meanwhile (the
+/// web's Save settings).
+pub fn action_button(ui: &mut Ui, look: &Look, icon: &str, labels: (&str, &str), kind: Kind, busy: bool) -> Response {
+    let id = ui.next_auto_id();
+    let r = match spin_angle(ui, id, busy) {
+        Some(a) => spun_button(ui, look, crate::icons::LOADER, labels.1, kind, a),
+        None => button(ui, look, icon, labels.0, kind),
+    };
+    spin_clicked(ui, id, &r);
+    r
+}
+
 /// A refresh link (the web's .act refresh): its icon turns while `busy` and briefly after each click.
 pub fn refresh_act(ui: &mut Ui, look: &Look, label: &str, size: f32, busy: bool) -> Response {
     let id = ui.next_auto_id();

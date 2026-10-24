@@ -130,11 +130,15 @@ pub struct Cell<A> {
     pub bold: bool,
     /// Monospace (a DN, a path, an action id).
     pub mono: bool,
+    /// One point smaller (the web's text-[11px] in a 12 px table).
+    pub small: bool,
     /// Indented (a tree level) and led by a marker in the accent color (the web's OU tree: ■ at the root, └ below).
     pub indent: f32,
     pub marker: &'static str,
-    /// A tag after the text (the web's "container" beside an OU name).
-    pub tag: Option<(String, Tone)>,
+    /// Tags after the text (the web's "container" beside an OU name), a space apart.
+    pub tags: Vec<(String, Tone)>,
+    /// More text after it in its own tone (the web's muted span after a colored status), cut when it does not fit.
+    pub tail: Option<(String, Tone)>,
     /// More links after the first, packed in the same cell (the web's Actions cell).
     pub more: Vec<(String, Tone, Link<A>)>,
     /// A tooltip of a plain cell (the web's title).
@@ -151,9 +155,11 @@ impl<A> Cell<A> {
             link: None,
             bold: false,
             mono: false,
+            small: false,
             indent: 0.0,
             marker: "",
-            tag: None,
+            tags: Vec::new(),
+            tail: None,
             more: Vec::new(),
             tip: String::new(),
             wrap: false,
@@ -177,12 +183,22 @@ impl<A> Cell<A> {
     }
 
     pub fn with_tag(mut self, text: impl Into<String>, tone: Tone) -> Self {
-        self.tag = Some((text.into(), tone));
+        self.tags.push((text.into(), tone));
+        self
+    }
+
+    pub fn with_tail(mut self, text: impl Into<String>, tone: Tone) -> Self {
+        self.tail = Some((text.into(), tone));
         self
     }
 
     pub fn bold(mut self) -> Self {
         self.bold = true;
+        self
+    }
+
+    pub fn small(mut self) -> Self {
+        self.small = true;
         self
     }
 
@@ -574,6 +590,7 @@ fn draw_cell<A>(
     }
     let mut ink = look.tone(cl.tone);
     let rich = |s: String, ink: egui::Color32| {
+        let size = if cl.small { size - 1.0 } else { size };
         let r = if cl.bold { crate::style::semibold(s, size) } else { RichText::new(s).size(size) };
         if cl.mono { r.family(egui::FontFamily::Monospace).size(size - 1.0) } else { r }.color(ink)
     };
@@ -627,7 +644,7 @@ fn draw_cell<A>(
                 r
             };
             link_done(ui, resp, l, hover, out);
-            if let Some((text, tone)) = &cl.tag {
+            for (text, tone) in &cl.tags {
                 ui.add_space(6.0);
                 let _ = crate::widgets::tag(ui, look, text, *tone);
             }
@@ -681,6 +698,19 @@ fn draw_cell<A>(
                 });
                 return;
             }
+            if let Some((tail, tone)) = &cl.tail {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.add(egui::Label::new(rich(cl.text.clone(), ink)).selectable(false));
+                let tink = look.tone(*tone);
+                let shown = elide(ui, tail, &|s| rich(s, tink), ui.available_width());
+                let r = ui.add(egui::Label::new(rich(shown.clone(), tink)).selectable(false));
+                if !cl.tip.is_empty() {
+                    let _ = r.on_hover_text(&cl.tip);
+                } else if shown != *tail {
+                    let _ = r.on_hover_text(format!("{}{tail}", cl.text));
+                }
+                return;
+            }
             let shown = elide(ui, &cl.text, &|s| rich(s, ink), ui.available_width());
             let r = ui.add(egui::Label::new(rich(shown.clone(), ink)).selectable(false));
             if shown != cl.text {
@@ -692,10 +722,10 @@ fn draw_cell<A>(
             } else if shown != cl.text {
                 let _ = r.on_hover_text(&cl.text);
             }
-            if let Some((text, tone)) = &cl.tag {
+            for (i, (text, tone)) in cl.tags.iter().enumerate() {
                 // after a text the web's tag is an inline element: one space of the cell's font from it (a tag alone
                 // starts at the cell's padding)
-                if !cl.text.is_empty() {
+                if i > 0 || !cl.text.is_empty() {
                     ui.add_space(ui.ctx().fonts_mut(|f| f.glyph_width(&egui::FontId::proportional(size), ' ')));
                 }
                 let _ = crate::widgets::tag(ui, look, text, *tone);

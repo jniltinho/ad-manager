@@ -2,7 +2,7 @@
 // Runtime settings (stored in the local SQLite, applied without a restart) and
 // the read-only values that come from config.toml.
 import { computed, ref } from 'vue'
-import { Check, Copy, ImageUp, KeyRound, RotateCcw, Trash2 } from 'lucide-vue-next'
+import { Check, Copy, ImageUp, KeyRound, LoaderCircle, RotateCcw, Trash2 } from 'lucide-vue-next'
 import { auth, brand, bumpLogo, del, get, loadMe, logoUrl, post, put } from '../api'
 import { toast } from '../toasts'
 import { askConfirm } from '../dialogs'
@@ -10,6 +10,7 @@ import { languages, setLang, t } from '../i18n'
 import defaultLogo from '../assets/ad-manager-logo.png'
 import lightLogo from '../assets/ad-manager-logo-light.png'
 import LoadingNote from '../components/LoadingNote.vue'
+import { spinner } from '../util'
 
 const form = ref(null)
 const readonly = ref({})
@@ -17,6 +18,7 @@ const stored = ref(true)
 const hasLogo = ref(false)
 const ous = ref([])
 const busy = ref(false)
+const saving = spinner(busy) // the save button's loader turns visibly even when the panel answers at once
 
 async function load() {
   try {
@@ -257,7 +259,10 @@ const readonlyRows = computed(() => {
         </section>
 
         <div class="flex gap-2">
-          <button class="btn" :disabled="busy || !stored"><Check :size="14" /> {{ busy ? t('Saving…') : t('Save settings') }}</button>
+          <button class="btn" :disabled="saving || !stored">
+            <LoaderCircle v-if="saving" :size="14" class="motion-safe:animate-spin" /><Check v-else :size="14" />
+            {{ saving ? t('Saving…') : t('Save settings') }}
+          </button>
           <button type="button" class="btn-ghost" @click="load"><RotateCcw :size="13" /> {{ t('Discard changes') }}</button>
         </div>
       </form>
