@@ -528,6 +528,7 @@ impl Shares {
             groups: self.ad_groups.iter().map(|g| (g.clone(), String::new())).collect(),
             users: self.ad_users.iter().map(|u| (u.clone(), String::new())).collect(),
             history: Vec::new(),
+            acl_h: 0.0,
         });
         // the folder's Windows permissions and the earlier ones, read when editing
         if let Some(path) = editing {
@@ -683,6 +684,8 @@ struct ShareDialog {
     users: Vec<(String, String)>,
     /// The folder's earlier permissions that can be put back.
     history: Vec<AclChange>,
+    /// The permissions box's height last frame: the option beside it is centered on it.
+    acl_h: f32,
 }
 
 /// One recorded change of a folder's permissions (`GET /api/acl/history`).
@@ -729,7 +732,9 @@ impl Dialog for ShareDialog {
             ui.spacing_mut().item_spacing.x = 16.0;
             widgets::above(ui, &look, t("Share name"), cw, |ui, _| {
                 let old = f.name.clone();
-                let r = ui.add_enabled(!editing, crate::widgets::line(&mut f.name).char_limit(80).desired_width(cw));
+                // read only when editing, in the normal ink as the web's readonly input
+                let r =
+                    ui.add(crate::widgets::line(&mut f.name).char_limit(80).interactive(!editing).desired_width(cw));
                 if r.changed() {
                     f.name_changed(&old);
                 }
@@ -743,9 +748,11 @@ impl Dialog for ShareDialog {
         // the folder: an edit's path read only; a new share's root (of the agent) and the folder under it
         if editing {
             widgets::above(ui, &look, t("Folder"), w, |ui, _| {
-                ui.add_enabled(
-                    false,
-                    crate::widgets::line(&mut f.folder).font(egui::TextStyle::Monospace).desired_width(w),
+                ui.add(
+                    crate::widgets::line(&mut f.folder)
+                        .font(egui::TextStyle::Monospace)
+                        .interactive(false)
+                        .desired_width(w),
                 )
             });
         } else {
@@ -832,76 +839,7 @@ impl Dialog for ShareDialog {
                 }
             });
         }
-        // the folder's Windows permissions, when editing
-        if let Some(acl) = &self.acl {
-            ui.add_space(12.0);
-            egui::Frame::new()
-                .fill(look.c("surface-3"))
-                .stroke(egui::Stroke::new(1.0, look.c("line")))
-                .inner_margin(egui::Margin::symmetric(12, 8))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.spacing_mut().item_spacing.y = 4.0;
-                    ui.spacing_mut().interact_size.y = 18.0;
-                    widgets::lbl(ui, &look, t("Windows permissions of the folder"));
-                    match acl {
-                        Err(e) => {
-                            ui.label(RichText::new(e).size(12.0).color(muted));
-                        }
-                        Ok(a) => {
-                            for ace in &a.aces {
-                                ui.horizontal(|ui| {
-                                    let who = if ace.name.is_empty() { &ace.sid } else { &ace.name };
-                                    ui.label(RichText::new(who).size(12.0));
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        let level = match ace.access.as_str() {
-                                            "full" => t("Full control"),
-                                            "rw" => t("Modify"),
-                                            "ro" => t("Read & execute"),
-                                            _ => t("Special"),
-                                        };
-                                        if ace.kind == "deny" {
-                                            ui.label(
-                                                RichText::new(format!("{} · {level}", t("Deny")))
-                                                    .size(12.0)
-                                                    .color(look.c("err")),
-                                            );
-                                        } else {
-                                            ui.label(RichText::new(level).size(12.0));
-                                        }
-                                    });
-                                });
-                            }
-                            ui.label(
-                                RichText::new(t("Saving re-applies these permissions from the lists above."))
-                                    .size(11.0)
-                                    .color(muted),
-                            );
-                            // the earlier permissions, each one put back by a task
-                            if !self.history.is_empty() {
-                                ui.add_space(8.0);
-                                widgets::lbl(ui, &look, t("Earlier permissions"));
-                                for h in &self.history {
-                                    ui.horizontal(|ui| {
-                                        let when = chrono::DateTime::parse_from_rfc3339(&h.time)
-                                            .map(|d| adm_core::i18n::date(Some(d.with_timezone(&chrono::Utc))))
-                                            .unwrap_or_else(|_| h.time.clone());
-                                        ui.label(RichText::new(tf!("Before %s", when)).size(12.0))
-                                            .on_hover_text(&h.before);
-                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                            if widgets::act(ui, &look, "", t("Restore"), None, 12.0).clicked() {
-                                                restore = Some((h.clone(), when));
-                                            }
-                                        });
-                                    });
-                                }
-                            }
-                        }
-                    }
-                });
-        }
-        // the options, two per row
-        ui.add_space(12.0);
+        // the options, two per row in the web's grid: after the permissions box when editing (beside it the first)
         let mut opts: Vec<(&mut bool, &str)> = Vec::new();
         if !editing {
             opts.push((
@@ -913,8 +851,118 @@ impl Dialog for ShareDialog {
         opts.push((&mut f.recycle, t("Recycle bin (deleted files go to .recycle, per user)")));
         opts.push((&mut f.abe, t("Hide what the user cannot open (access-based enumeration)")));
         opts.push((&mut f.audit, t("Audit file changes (renamed and deleted files, new folders → syslog)")));
-        for pair in opts.chunks_mut(2) {
+        // the folder's Windows permissions, when editing
+        let mut opts = opts.into_iter();
+        let acl_h = self.acl_h;
+        let mut box_h = None;
+        if let Some(acl) = &self.acl {
+            ui.add_space(12.0);
             ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                box_h = Some(
+                    ui.vertical(|ui| {
+                        ui.set_width(cw);
+                        egui::Frame::new()
+                            .fill(look.c("surface-3"))
+                            .stroke(egui::Stroke::new(1.0, look.c("line")))
+                            .inner_margin(egui::Margin::symmetric(12, 8))
+                            .show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                ui.spacing_mut().item_spacing.y = 4.0;
+                                ui.spacing_mut().interact_size.y = 18.0;
+                                widgets::lbl(ui, &look, t("Windows permissions of the folder"));
+                                match acl {
+                                    Err(e) => {
+                                        ui.label(RichText::new(e).size(12.0).color(muted));
+                                    }
+                                    Ok(a) => {
+                                        for ace in &a.aces {
+                                            ui.horizontal(|ui| {
+                                                let who = if ace.name.is_empty() { &ace.sid } else { &ace.name };
+                                                ui.label(RichText::new(who).size(12.0));
+                                                ui.with_layout(
+                                                    egui::Layout::right_to_left(egui::Align::Center),
+                                                    |ui| {
+                                                        let level = match ace.access.as_str() {
+                                                            "full" => t("Full control"),
+                                                            "rw" => t("Modify"),
+                                                            "ro" => t("Read & execute"),
+                                                            _ => t("Special"),
+                                                        };
+                                                        if ace.kind == "deny" {
+                                                            ui.label(
+                                                                RichText::new(format!("{} · {level}", t("Deny")))
+                                                                    .size(12.0)
+                                                                    .color(look.c("err")),
+                                                            );
+                                                        } else {
+                                                            ui.label(RichText::new(level).size(12.0));
+                                                        }
+                                                    },
+                                                );
+                                            });
+                                        }
+                                        ui.label(
+                                            RichText::new(t(
+                                                "Saving re-applies these permissions from the lists above.",
+                                            ))
+                                            .size(11.0)
+                                            .color(muted),
+                                        );
+                                        // the earlier permissions, each one put back by a task
+                                        if !self.history.is_empty() {
+                                            ui.add_space(8.0);
+                                            widgets::lbl(ui, &look, t("Earlier permissions"));
+                                            for h in &self.history {
+                                                ui.horizontal(|ui| {
+                                                    let when = chrono::DateTime::parse_from_rfc3339(&h.time)
+                                                        .map(|d| {
+                                                            adm_core::i18n::date(Some(d.with_timezone(&chrono::Utc)))
+                                                        })
+                                                        .unwrap_or_else(|_| h.time.clone());
+                                                    ui.label(RichText::new(tf!("Before %s", when)).size(12.0))
+                                                        .on_hover_text(&h.before);
+                                                    ui.with_layout(
+                                                        egui::Layout::right_to_left(egui::Align::Center),
+                                                        |ui| {
+                                                            if widgets::act(ui, &look, "", t("Restore"), None, 12.0)
+                                                                .clicked()
+                                                            {
+                                                                restore = Some((h.clone(), when));
+                                                            }
+                                                        },
+                                                    );
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                    })
+                    .response
+                    .rect
+                    .height(),
+                );
+                if let Some((v, label)) = opts.next() {
+                    ui.vertical(|ui| {
+                        ui.set_width(cw);
+                        ui.add_space(((acl_h - 18.0) / 2.0).max(0.0));
+                        crate::widgets::check(ui, v, RichText::new(label).size(12.0));
+                    });
+                }
+            });
+        }
+        if let Some(h) = box_h
+            && (h - self.acl_h).abs() > 0.5
+        {
+            self.acl_h = h;
+            ui.ctx().request_repaint();
+        }
+        ui.add_space(12.0);
+        let mut opts: Vec<(&mut bool, &str)> = opts.collect();
+        // centered in their row, as the web's grid items
+        for pair in opts.chunks_mut(2) {
+            ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 16.0;
                 for (v, label) in pair.iter_mut() {
                     ui.vertical(|ui| {

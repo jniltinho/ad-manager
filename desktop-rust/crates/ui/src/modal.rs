@@ -109,15 +109,18 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
                 ui.ctx().data_mut(|d| d.remove_temp::<FootReq>(foot_req_id()));
                 // the body scrolls past 72% of the window, the footer stays under it (the web's .pnl-body)
                 let max = ui.ctx().content_rect().height() * 0.72;
-                egui::ScrollArea::vertical().id_salt("dialog-body").max_height(max).auto_shrink([false, true]).show(
-                    ui,
-                    |ui| {
-                        ui.set_width(inner);
+                // the scroll bar takes its width from the body, not from outside the dialog (the title bar's width)
+                egui::ScrollArea::vertical()
+                    .id_salt("dialog-body")
+                    .max_height(max)
+                    .max_width(inner)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
                         if d.ui(ui, cx) == Flow::Close {
                             flow = Flow::Close;
                         }
-                    },
-                );
+                    });
                 if let Some(req) = ui.ctx().data(|d| d.get_temp::<FootReq>(foot_req_id())) {
                     let clicks = draw_footer(ui, &look, &req);
                     if clicks.ok || clicks.cancel {
