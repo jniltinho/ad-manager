@@ -279,7 +279,7 @@ impl Sync {
             JobAct::Preview => self.start(cx, j, true),
             JobAct::Run => self.start(cx, j, false),
             JobAct::Edit => super::sync_wizard::open(cx, id, self.data.clone(), Some(j)),
-            JobAct::Quarantine => super::quarantine::open(cx, id, j),
+            JobAct::Quarantine => super::quarantine::open(cx, id, j, ""),
             JobAct::Delete => {
                 let path = format!("{}/syncs/{}", self.base(), esc(&j.id));
                 let jid = j.id.clone();
@@ -403,13 +403,19 @@ impl Sync {
         let Some((a, i)) = act else { return };
         let Some(r) = self.data.runs.get(i).cloned() else { return };
         match a {
-            RunAct::Details => cx.show_info(r.id.clone(), details(&r)),
+            RunAct::Details => {
+                let job = self.job_name(&r.job);
+                let quarantined = self.qs.quarantines.iter().any(|q| q.run == r.id && q.job == r.job);
+                let agent = self.cur.as_ref().map_or(0, |a| a.id);
+                let sync_job = self.data.jobs.iter().find(|j| j.id == r.job).cloned();
+                cx.push(RunDialog { run: r, job, quarantined, agent, sync_job });
+            }
             RunAct::Log => {
                 let api = cx.panel.clone();
                 let path = format!("{}/sync-runs/{}/log", self.base(), esc(&r.id));
-                cx.run(async move { api.get_text(&path).await }, move |app, txt| {
-                    let txt = if txt.is_empty() { t("No log.").to_string() } else { txt };
-                    app.cx.push(crate::modal::Info::new(r.id, txt).wide(760.0));
+                let job = self.job_name(&r.job);
+                cx.run(async move { api.get_text(&path).await }, move |app, text| {
+                    app.cx.push(LogDialog { run: r, job, text, copied: false });
                 });
             }
             RunAct::Cancel => {
@@ -457,38 +463,171 @@ fn reload(app: &mut App) {
     app.with_shell(|s, cx| s.sync.reload(cx));
 }
 
-/// A run's details: the plan, what was transferred and how it was checked, the quarantine, samples and notes.
-pub fn details(r: &SyncRun) -> String {
-    let Some(res) = &r.result else { return String::new() };
-    let p = &res.plan;
-    let mut lines = vec![
-        format!("{}: {} ({})", t("New"), p.new, size_text(p.new_bytes)),
-        format!("{}: {} ({})", t("Changed"), p.changed, size_text(p.changed_bytes)),
-        format!("{}: {} ({})", t("To delete"), p.delete, size_text(p.delete_bytes)),
-        format!("{}: {}", t("Unchanged"), p.same),
-    ];
-    if !r.preview {
-        let v = if res.content_verified {
-            t("content compared")
-        } else if res.checked {
-            t("sizes and dates compared")
-        } else {
-            t("not compared")
-        };
-        lines.push(format!("{}: {} ({}) · {v}", t("Transferred"), res.transfers, size_text(res.bytes)));
-    }
-    if !r.quarantine.is_empty() {
-        lines.push(format!("{}: {}", t("Quarantine"), r.quarantine));
-    }
-    for (k, label) in [("new", "New"), ("changed", "Changed"), ("delete", "To delete"), ("error", "Errors")] {
-        if let Some(s) = p.sample.get(k).filter(|s| !s.is_empty()) {
-            lines.push(String::new());
-            lines.push(format!("{}:", t(label)));
-            lines.push(s.join("\n"));
+/// "job · date · status · seconds", the head of a run's dialogs.
+fn run_head(ui: &mut Ui, look: &crate::style::Look, r: &SyncRun, job: &str) {
+    let (st, tone) = run_status(&r.status);
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.label(crate::style::semibold(job, 12.0).color(look.c("fg-strong")));
+        ui.label(RichText::new(format!("· {} ·", date(r.started))).size(12.0));
+        ui.label(RichText::new(st).size(12.0).color(look.tone(tone)));
+        if let Some(s) = r.result.as_ref().map(|x| x.seconds).filter(|s| *s > 0.0) {
+            ui.label(RichText::new(format!("· {s:.1} s")).size(12.0));
         }
+    });
+}
+
+/// A run's details, as the web's SyncRunDialog: the plan, what was transferred and how it was checked, the
+/// quarantine (opened from here), samples and notes.
+struct RunDialog {
+    run: SyncRun,
+    job: String,
+    quarantined: bool,
+    agent: i64,
+    sync_job: Option<SyncJob>,
+}
+
+impl crate::modal::Dialog for RunDialog {
+    fn title(&self) -> String {
+        if self.run.preview { tf!("Preview %s", self.run.id) } else { tf!("Run %s", self.run.id) }
     }
-    for n in &r.notes {
-        lines.push(format!("· {}", server_text(n)));
+
+    fn width(&self) -> f32 {
+        760.0
     }
-    lines.join("\n")
+
+    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> crate::modal::Flow {
+        let look = cx.look.clone();
+        let r = &self.run;
+        run_head(ui, &look, r, &self.job);
+        ui.add_space(8.0);
+        let mut open = false;
+        if let Some(res) = &r.result {
+            let p = &res.plan;
+            let b = |s: &str| crate::style::semibold(s, 12.0);
+            let mut rows = vec![
+                [b(t("New")), RichText::new(format!("{} ({})", p.new, size_text(p.new_bytes)))],
+                [b(t("Changed")), RichText::new(format!("{} ({})", p.changed, size_text(p.changed_bytes)))],
+                [b(t("To delete")), RichText::new(format!("{} ({})", p.delete, size_text(p.delete_bytes)))],
+                [b(t("Unchanged")), RichText::new(p.same.to_string())],
+            ];
+            if !r.preview {
+                let how = if res.content_verified {
+                    t("content compared")
+                } else if res.checked {
+                    t("sizes and dates compared")
+                } else {
+                    t("not compared")
+                };
+                rows.push([
+                    b(t("Transferred")),
+                    RichText::new(format!("{} ({}) · {how}", res.transfers, size_text(res.bytes))),
+                ]);
+            }
+            if !r.quarantine.is_empty() {
+                rows.push([
+                    b(t("Quarantine")),
+                    RichText::new(format!("{} ({})", r.quarantine, res.quarantined.len())).monospace().size(11.0),
+                ]);
+            }
+            let n = rows.len();
+            let quarantined = self.quarantined && !r.quarantine.is_empty();
+            let rows3: Vec<[RichText; 3]> = rows.into_iter().map(|[a, b]| [a, b, RichText::new("")]).collect();
+            let mut cell = |ui: &mut Ui, k: usize| {
+                if quarantined && k + 1 == n && widgets::act(ui, &look, "🗄", t("open"), None, 12.0).clicked() {
+                    open = true;
+                }
+            };
+            widgets::mini_table(ui, &look, ["", "", ""], &rows3, Some(&mut cell));
+            for (k, label) in [("new", "New"), ("changed", "Changed"), ("delete", "To delete"), ("error", "Errors")] {
+                if let Some(list) = p.sample.get(k).filter(|l| !l.is_empty()) {
+                    ui.add_space(8.0);
+                    widgets::lbl(ui, &look, &format!("{} ({})", t(label), tf!("first %d", list.len())));
+                    egui::Frame::new().fill(look.c("surface-2")).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        egui::ScrollArea::vertical().id_salt(("run-sample", k)).max_height(128.0).show(ui, |ui| {
+                            ui.label(RichText::new(list.join("\n")).monospace().size(11.0));
+                        });
+                    });
+                }
+            }
+        }
+        if !r.notes.is_empty() {
+            ui.add_space(8.0);
+            for n in &r.notes {
+                ui.label(RichText::new(format!("•  {}", server_text(n))).size(12.0).color(look.c("fg-muted")));
+            }
+        }
+        if open && let Some(j) = self.sync_job.clone() {
+            let name = format!("{}-{}", r.job, r.id);
+            super::quarantine::open(cx, self.agent, j, &name);
+            return crate::modal::Flow::Close;
+        }
+        let f = crate::modal::footer(ui, cx, None, t("Close"), false, true);
+        if f.ok { crate::modal::Flow::Close } else { crate::modal::Flow::Keep }
+    }
+}
+
+/// A run's log, as the web's SyncLogDialog: the summary kept on top, the log under it and Copy.
+struct LogDialog {
+    run: SyncRun,
+    job: String,
+    text: String,
+    copied: bool,
+}
+
+impl crate::modal::Dialog for LogDialog {
+    fn title(&self) -> String {
+        tf!("Log %s", self.run.id)
+    }
+
+    fn width(&self) -> f32 {
+        760.0
+    }
+
+    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> crate::modal::Flow {
+        let look = cx.look.clone();
+        let r = &self.run;
+        // the summary stays on top, the log scrolls under it
+        ui.horizontal_wrapped(|ui| {
+            run_head(ui, &look, r, &self.job);
+            if let Some(res) = &r.result {
+                let p = &res.plan;
+                let mut s = format!(
+                    "· {} {} ({}) · {} {} ({}) · {} {}",
+                    t("New"),
+                    p.new,
+                    size_text(p.new_bytes),
+                    t("Changed"),
+                    p.changed,
+                    size_text(p.changed_bytes),
+                    t("To delete"),
+                    p.delete
+                );
+                if !r.preview {
+                    s = format!("{s} · {} {} ({})", t("Transferred"), res.transfers, size_text(res.bytes));
+                }
+                ui.label(RichText::new(s).size(12.0));
+            }
+        });
+        ui.add_space(8.0);
+        let text = if self.text.is_empty() { t("No log.").to_string() } else { self.text.clone() };
+        egui::Frame::new().fill(look.c("surface-2")).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            egui::ScrollArea::vertical().id_salt("run-log").max_height(ui.ctx().content_rect().height() * 0.5).show(
+                ui,
+                |ui| {
+                    ui.add(egui::Label::new(RichText::new(text).monospace().size(11.0)).wrap());
+                },
+            );
+        });
+        ui.add_space(8.0);
+        let label = if self.copied { t("Copied") } else { t("Copy") };
+        if widgets::button(ui, &look, "📋", label, widgets::Kind::Secondary).clicked() {
+            ui.ctx().copy_text(self.text.clone());
+            self.copied = true;
+        }
+        let f = crate::modal::footer(ui, cx, None, t("Close"), false, true);
+        if f.ok { crate::modal::Flow::Close } else { crate::modal::Flow::Keep }
+    }
 }

@@ -523,6 +523,9 @@ pub struct SyncProgress {
 #[serde(default)]
 pub struct SyncResult {
     pub plan: SyncPlan,
+    /// The files this run put in its quarantine.
+    #[serde(deserialize_with = "nd")]
+    pub quarantined: Vec<String>,
     pub transfers: i64,
     pub bytes: i64,
     pub deleted: i64,
@@ -610,6 +613,7 @@ pub struct QuarantineFile {
     pub path: String,
     pub size: i64,
     pub in_dest: bool,
+    pub modified: Time,
 }
 
 #[cfg(test)]
