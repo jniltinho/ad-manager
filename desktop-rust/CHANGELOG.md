@@ -54,6 +54,11 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 - A focused text field lost its border; truncated table cells were clipped instead of ending in an ellipsis; a
   scrolling dialog's title bar was narrower than the dialog.
 
+- Card heads, list rows, dialog title bars and footers were taller than the web's; scroll bar handles were
+  invisible; disabled buttons faded twice; dialog tabs lost their top edge and accent.
+- The Samba log showed one line per entry; it now shows each entry over its lines, laying out only the rows on
+  screen.
+
 ### Security
 
 - Downloads (DC backups, CSV exports with generated passwords) are created readable by their owner only.
