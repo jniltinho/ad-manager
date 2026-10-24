@@ -333,7 +333,7 @@ fn share_edit_sends_the_same_name_and_the_lists() {
     e.wait("the shares", |_, m| !m.sent("GET", "/api/agents/1/shares").is_empty());
     e.wait("the list", |a, _| matches!(&a.screen, Screen::Shell(_)));
     e.h.step();
-    e.click("Edit finance"); // the row's edit link
+    e.click("Edit finance"); // the share's name, its edit link (as Users' login)
     // the folder's permissions arrive and grow the dialog: click Save once it settled
     e.wait("the permissions", |_, m| !m.sent("GET", "/api/agents/1/acl").is_empty());
     assert!(e.h.query_by_label_contains("Edit share finance").is_some());

@@ -1,7 +1,7 @@
 <script setup>
 // Folders and shares on the file servers (ad-manager agent).
 // Every change becomes a task in the server's queue; the page follows it until done.
-import { FolderPlus, Pencil, Plus, RefreshCw, Trash2, Users } from 'lucide-vue-next'
+import { FolderPlus, Plus, RefreshCw, Trash2, Users } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { auth, get, post, del, enc } from '../api'
 import { locale, serverText, t } from '../i18n'
@@ -398,7 +398,14 @@ const stateNames = {
             <tr v-for="s in shares" :key="s.name">
               <td>
                 <div class="flex items-center gap-1.5">
-                  <span class="truncate font-semibold" :title="s.name">{{ s.name }}</span>
+                  <button
+                    class="act truncate px-0 font-semibold"
+                    :title="s.name"
+                    :disabled="status[current.id] === 'down'"
+                    @click="openEdit(s)"
+                  >
+                    {{ s.name }}
+                  </button>
                   <span v-if="!s.browseable" class="tag shrink-0 bg-surface-2 text-fg-muted">{{ t('hidden') }}</span>
                 </div>
               </td>
@@ -408,9 +415,6 @@ const stateNames = {
               <td class="truncate" :title="access(s, 'ro')">{{ access(s, 'ro') }}</td>
               <td class="truncate text-fg-muted" :title="s.comment">{{ s.comment }}</td>
               <td class="text-right whitespace-nowrap">
-                <button class="act" :disabled="status[current.id] === 'down'" @click="openEdit(s)">
-                  <Pencil :size="12" /> {{ t('edit') }}
-                </button>
                 <button class="act hover:!text-err" @click="remove(s)"><Trash2 :size="12" /> {{ t('remove') }}</button>
               </td>
             </tr>

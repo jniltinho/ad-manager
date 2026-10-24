@@ -9,3 +9,16 @@ the same values.
 #### Scenario: No visual change
 - **WHEN** the web panel is captured before and after the tokens are introduced, in every theme
 - **THEN** the computed sizes of inputs, selects, buttons, table cells and badges are the same
+
+### Requirement: A share's name edits it
+In the Shares table, a share's name SHALL be the link that opens its edit form, as a user's login does in Users, and
+the Actions column SHALL hold only remove. The name SHALL be disabled while the chosen file server is down. The
+desktop app's Shares page SHALL behave the same.
+
+#### Scenario: Edit from the name
+- **WHEN** the operator clicks the share name "finance" on a file server that is up
+- **THEN** the edit form of "finance" opens, and the row shows no separate edit link
+
+#### Scenario: Server down
+- **WHEN** the chosen file server is unavailable
+- **THEN** clicking a share's name does not open the form

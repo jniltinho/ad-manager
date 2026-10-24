@@ -1,6 +1,6 @@
 //! Shares as the web's page: at the left the file servers (health, DC tag, edit and remove the registration, + new)
 //! and the tasks of this session; at the right the shares of the chosen server with folder sizes and their total,
-//! sessions, refresh, new share, and per-row edit and remove (typed; the files stay) — or, for a domain controller
+//! sessions, refresh, new share, the name to edit a row and remove (typed; the files stay) — or, for a domain controller
 //! without its file mode, its replication and consistency checks. Tasks are followed until they end; switching
 //! servers drops the list and any late answer.
 
@@ -454,22 +454,22 @@ impl Shares {
                 .show(ui, &look, &mut self.table, &mut hover, |r, c| {
                     let s = &shares[r];
                     match c {
-                        0 if !s.browseable => Cell::plain(&s.name).bold().with_tag(t("hidden"), Tone::Normal),
-                        0 => Cell::plain(&s.name).bold(),
+                        // the name edits, as Users' login (not while the server is down)
+                        0 => {
+                            let cell = Cell::plain(&s.name).bold();
+                            let cell = if down { cell } else { cell.link("", tf!("Edit %s", s.name), (true, r)) };
+                            if s.browseable { cell } else { cell.with_tag(t("hidden"), Tone::Normal) }
+                        }
                         1 => Cell::plain(&s.path).mono(),
                         2 => Cell::plain(size_text(sizes.as_ref(), measuring, &s.name)),
                         3 => Cell::plain(access(s, true)),
                         4 => Cell::plain(access(s, false)),
                         5 => Cell::new(&s.comment, Tone::Muted),
-                        _ => Cell::plain("")
-                            .and_link(t("edit"), Tone::Normal, crate::icons::PENCIL, tf!("Edit %s", s.name), (true, r))
-                            .and_link(
-                                t("remove"),
-                                Tone::Normal,
-                                crate::icons::TRASH,
-                                tf!("Remove %s", s.name),
-                                (false, r),
-                            ),
+                        _ => Cell::new(t("remove"), Tone::Normal).link(
+                            crate::icons::TRASH,
+                            tf!("Remove %s", s.name),
+                            (false, r),
+                        ),
                     }
                 });
             match out.clicked {

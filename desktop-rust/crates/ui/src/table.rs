@@ -535,6 +535,10 @@ fn draw_cell<A>(
                 ui.add(egui::Button::new(rich(text, ink)).frame(false).truncate())
             };
             link_done(ui, resp, l, hover, out);
+            if let Some((text, tone)) = &cl.tag {
+                ui.add_space(6.0);
+                let _ = crate::widgets::tag(ui, look, text, *tone);
+            }
         }
         None if c.badge && !cl.text.is_empty() => {
             let _ = crate::widgets::tag_w(ui, look, &cl.text, cl.tone, c.badge_w);
