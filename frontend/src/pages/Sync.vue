@@ -77,7 +77,7 @@ loadAgents()
 
 const base = computed(() => `/agents/${currentId.value}`)
 const jobName = (id) => data.value?.jobs?.find((j) => j.id === id)?.name || id
-const unc = (s) => `\\\\${s.host}\\${s.share}${s.path ? '\\' + s.path.replaceAll('/', '\\') : ''}`
+const unc = (s) => `\\\\${s.host}${s.share ? '\\' + s.share : ''}${s.path ? '\\' + s.path.replaceAll('/', '\\') : ''}`
 const size = (n) =>
   !n
     ? '0'

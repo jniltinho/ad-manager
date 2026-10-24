@@ -391,9 +391,9 @@ impl Sync {
                             _ => Cell::plain("—"),
                         },
                         6 => match (&x.result, plan) {
-                            (_, Some(p)) if x.preview => Cell::plain(size_text(p.new_bytes + p.changed_bytes)),
-                            (Some(res), _) => Cell::plain(size_text(res.bytes)),
-                            (None, _) if x.status == "running" => Cell::plain(size_text(x.progress.bytes)),
+                            (_, Some(p)) if x.preview => Cell::plain(run_size(p.new_bytes + p.changed_bytes)),
+                            (Some(res), _) => Cell::plain(run_size(res.bytes)),
+                            (None, _) if x.status == "running" => Cell::plain(run_size(x.progress.bytes)),
                             _ => Cell::plain("—"),
                         },
                         7 => match (&x.result, plan) {
@@ -672,4 +672,9 @@ impl crate::modal::Dialog for LogDialog {
         let f = crate::modal::footer(ui, cx, None, t("Close"), false, true);
         if f.ok { crate::modal::Flow::Close } else { crate::modal::Flow::Keep }
     }
+}
+
+/// A run's size as the web's runs table: "0" for nothing, else the size.
+fn run_size(n: i64) -> String {
+    if n <= 0 { "0".into() } else { size_text(n) }
 }
