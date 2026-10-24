@@ -453,7 +453,8 @@ impl ImportExport {
                     let mut job = egui::text::LayoutJob::default();
                     let mut text = egui::TextFormat::simple(egui::FontId::proportional(12.0), muted);
                     text.line_height = Some(widgets::LEADING * 12.0);
-                    let mut code = egui::TextFormat::simple(egui::FontId::monospace(11.0), muted);
+                    // the web's <code> at 1em of the text around it
+                    let mut code = egui::TextFormat::simple(egui::FontId::monospace(12.0), muted);
                     code.line_height = text.line_height;
                     for (s, f) in [
                         (format!("{} ", t("No passwords or files. From the CLI:")), &text),
@@ -715,7 +716,7 @@ impl ImportExport {
         let go = full_button(ui, &look, ready, crate::icons::PLUG, label);
         let mut job = egui::text::LayoutJob::default();
         let text = egui::TextFormat::simple(egui::FontId::proportional(11.0), look.c("fg-muted"));
-        let code = egui::TextFormat::simple(egui::FontId::monospace(10.5), look.c("fg-strong"));
+        let code = egui::TextFormat::simple(egui::FontId::monospace(11.0), look.c("fg-strong"));
         for (st, f) in [
             (format!("{} (", t("Read-only on the source")), &text),
             ("ldap://".to_string(), &code),
@@ -790,7 +791,7 @@ impl ImportExport {
                             ui.add_space(8.0);
                             indeterminate(ui, &look, 160.0);
                         } else {
-                            ui.label(RichText::new(t("Choose the files and click preview.")).size(12.0).color(muted));
+                            ui.label(RichText::new(t("Choose the files and click preview.")).size(11.0).color(muted));
                         }
                     });
                     return;

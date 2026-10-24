@@ -352,7 +352,9 @@ pub fn cardtabs_at(
     let widths = flex_widths(&natural, room);
     let line = galleys.iter().map(|g| g.rows.first().map_or(15.0, |r| r.height())).fold(0.0, f32::max);
     let tallest = galleys.iter().map(|g| g.size().y).fold(0.0, f32::max);
-    let h = 34.0 + pad + (tallest - line).max(0.0);
+    // the web's band: its top padding, the flex line (an inactive tab's margin-top over its 34: the current tab
+    // stretches to it) and the 1 px border under it
+    let h = 34.0 + pad + look.px("cardtab-inset-top", 0.0) + 1.0 + (tallest - line).max(0.0);
     let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
     let band =
         egui::Rect::from_min_max(egui::pos2(r.left() - bx, r.top() - by), egui::pos2(r.right() + bx, r.bottom()));

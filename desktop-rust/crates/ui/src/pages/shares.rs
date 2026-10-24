@@ -462,11 +462,12 @@ impl Shares {
             let w = ui.available_width();
             let cols = [
                 // the web's auto layout with real lists: the access lists wide, the comment what is left
-                Column::new(t("Name"), (w * 0.16).floor()),
-                Column::new(t("Path"), (w * 0.19).floor()),
+                // exact shares (not floored): the rest is the comment's, as wide as the web's to the tenth
+                Column::new(t("Name"), w * 0.16),
+                Column::new(t("Path"), w * 0.19),
                 Column::new(t("Size"), 80.0).right(),
-                Column::new(t("Write access"), (w * 0.20).floor()),
-                Column::new(t("Read access"), (w * 0.14).floor()),
+                Column::new(t("Write access"), w * 0.20),
+                Column::new(t("Read access"), w * 0.14),
                 Column::new(t("Comment"), 90.0).fill(),
                 Column::new(t("Actions"), 96.0).right(), // only remove: the name is the edit link (the web's w-24)
             ];

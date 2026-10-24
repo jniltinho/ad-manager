@@ -267,7 +267,8 @@ impl Home {
                         // one text, the web's <code> runs inside it: no gap before the full stops
                         let mut job = egui::text::LayoutJob::default();
                         let text = egui::TextFormat::simple(egui::FontId::proportional(11.0), muted);
-                        let code = egui::TextFormat::simple(egui::FontId::monospace(10.5), muted);
+                        // the web's <code> at 1em of the text around it
+                        let code = egui::TextFormat::simple(egui::FontId::monospace(11.0), muted);
                         for (part, f) in [
                             (format!("{} ", t("Connected to")), &text),
                             (server, &code),
