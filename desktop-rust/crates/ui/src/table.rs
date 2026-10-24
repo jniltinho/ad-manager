@@ -407,7 +407,7 @@ fn show<A>(
                             .with_clip_rect(clip.intersect(ui.clip_rect().with_min_x(left)))
                             .galley(at, g, on_head);
                     } else if c.span == 1 {
-                        pad(ui, c.right, th_px, |ui| {
+                        pad(ui, c.right, th_px, th_px, |ui| {
                             ui.label(crate::style::semibold(&c.title, text).color(on_head));
                         });
                     }
@@ -426,8 +426,14 @@ fn show<A>(
                         if r % 2 == 1 && !selected {
                             ui.painter().rect_filled(rect, 0.0, alt);
                         }
-                        ui.painter().hline(rect.x_range(), rect.top() + 0.5, egui::Stroke::new(1.0, line));
-                        pad(ui, c.right, td_px, |ui| draw_cell(ui, look, c, cl, compact, hover, &mut out));
+                        // the first row's top is the head's bottom line (the web's collapsed border: one line)
+                        if r > 0 {
+                            ui.painter().hline(rect.x_range(), rect.top() + 0.5, egui::Stroke::new(1.0, line));
+                        }
+                        // the web's padding after a text too (it truncates there); the links' columns keep half of it,
+                        // their widths are each link and the web's gap after it
+                        let tail = if c.compact.is_some() { td_px / 2.0 } else { td_px };
+                        pad(ui, c.right, td_px, tail, |ui| draw_cell(ui, look, c, cl, compact, hover, &mut out));
                     });
                 }
                 let resp = row.response();
@@ -472,8 +478,13 @@ pub fn empty_row(ui: &mut Ui, look: &crate::style::Look, text: &str) {
     ui.painter().hline(row.x_range(), row.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
 }
 
+/// The web's row heights at 1280 (Chrome's layout of a 12-point line, its padding and the collapsed border): a row with
+/// action links (inline-flex buttons) and one of text and badges only.
+pub const ROW_LINKS: f32 = 28.76;
+pub const ROW_TEXT: f32 = 26.94;
+
 /// Draws `add` with the cell's side padding, from the left or (numbers) from the right.
-fn pad(ui: &mut Ui, right: bool, px: f32, add: impl FnOnce(&mut Ui)) {
+fn pad(ui: &mut Ui, right: bool, px: f32, tail: f32, add: impl FnOnce(&mut Ui)) {
     let layout = if right {
         egui::Layout::right_to_left(egui::Align::Center)
     } else {
@@ -481,12 +492,12 @@ fn pad(ui: &mut Ui, right: bool, px: f32, add: impl FnOnce(&mut Ui)) {
     };
     ui.with_layout(layout, |ui| {
         let clip = ui.max_rect().shrink2(egui::vec2(px / 2.0, 0.0)).intersect(ui.clip_rect());
-        // the padding before the text, half of it after: a truncated text ends in its ellipsis inside the clip
+        // the padding before the text, `tail` after it: a truncated text ends in its ellipsis there
         let m = ui.max_rect();
         let inner = if right {
-            egui::Rect::from_min_max(egui::pos2(m.left() + px / 2.0, m.top()), egui::pos2(m.right() - px, m.bottom()))
+            egui::Rect::from_min_max(egui::pos2(m.left() + tail, m.top()), egui::pos2(m.right() - px, m.bottom()))
         } else {
-            egui::Rect::from_min_max(egui::pos2(m.left() + px, m.top()), egui::pos2(m.right() - px / 2.0, m.bottom()))
+            egui::Rect::from_min_max(egui::pos2(m.left() + px, m.top()), egui::pos2(m.right() - tail, m.bottom()))
         };
         ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(layout), |ui| {
             ui.set_clip_rect(clip);

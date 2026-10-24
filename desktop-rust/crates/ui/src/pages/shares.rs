@@ -472,28 +472,35 @@ impl Shares {
             ];
             let mut hover = None;
             let (shares, sizes, measuring) = (&self.shares, &self.sizes, self.measuring);
-            let out = table::Table { id: "shares", cols: &cols, rows: shares.len(), keys, row_h: 0.0, frame: false }
-                .show(ui, &look, &mut self.table, &mut hover, |r, c| {
-                    let s = &shares[r];
-                    match c {
-                        // the name edits, as Users' login (not while the server is down)
-                        0 => {
-                            let cell = Cell::plain(&s.name).bold();
-                            let cell = if down { cell } else { cell.link("", tf!("Edit %s", s.name), (true, r)) };
-                            if s.browseable { cell } else { cell.with_tag(t("hidden"), Tone::Normal) }
-                        }
-                        1 => Cell::plain(&s.path).mono(),
-                        2 => Cell::plain(size_text(sizes.as_ref(), measuring, &s.name)),
-                        3 => Cell::plain(access(s, true)),
-                        4 => Cell::plain(access(s, false)),
-                        5 => Cell::new(&s.comment, Tone::Muted),
-                        _ => Cell::new(t("remove"), Tone::Normal).link(
-                            crate::icons::TRASH,
-                            tf!("Remove %s", s.name),
-                            (false, r),
-                        ),
+            let out = table::Table {
+                id: "shares",
+                cols: &cols,
+                rows: shares.len(),
+                keys,
+                row_h: table::ROW_LINKS,
+                frame: false,
+            }
+            .show(ui, &look, &mut self.table, &mut hover, |r, c| {
+                let s = &shares[r];
+                match c {
+                    // the name edits, as Users' login (not while the server is down)
+                    0 => {
+                        let cell = Cell::plain(&s.name).bold();
+                        let cell = if down { cell } else { cell.link("", tf!("Edit %s", s.name), (true, r)) };
+                        if s.browseable { cell } else { cell.with_tag(t("hidden"), Tone::Normal) }
                     }
-                });
+                    1 => Cell::plain(&s.path).mono(),
+                    2 => Cell::plain(size_text(sizes.as_ref(), measuring, &s.name)),
+                    3 => Cell::plain(access(s, true)),
+                    4 => Cell::plain(access(s, false)),
+                    5 => Cell::new(&s.comment, Tone::Muted),
+                    _ => Cell::new(t("remove"), Tone::Normal).link(
+                        crate::icons::TRASH,
+                        tf!("Remove %s", s.name),
+                        (false, r),
+                    ),
+                }
+            });
             match out.clicked {
                 Some((true, r)) if !down => *act = Some(Act::Edit(r)),
                 Some((false, r)) => *act = Some(Act::Remove(r)),

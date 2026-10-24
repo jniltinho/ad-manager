@@ -112,12 +112,8 @@ impl Ous {
         ];
         let (ous, tr) = (&self.ous, &self.tree);
         let mut hover = None;
-        let out = table::Table { id: "ous", cols: &cols, rows: tr.len(), keys, row_h: 0.0, frame: true }.show(
-            ui,
-            &look,
-            &mut self.table,
-            &mut hover,
-            |r, c| {
+        let out = table::Table { id: "ous", cols: &cols, rows: tr.len(), keys, row_h: table::ROW_LINKS, frame: true }
+            .show(ui, &look, &mut self.table, &mut hover, |r, c| {
                 let (i, level) = tr[r];
                 let o = &ous[i];
                 match c {
@@ -132,8 +128,7 @@ impl Ous {
                     }
                     _ => Cell::plain(""),
                 }
-            },
-        );
+            });
         cx.hover = hover.or(cx.hover.take());
         if let Some(i) = out.clicked
             && let Some(o) = self.ous.get(i).cloned().filter(ou_deletable)

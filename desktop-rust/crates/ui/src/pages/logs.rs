@@ -177,12 +177,8 @@ impl Audit {
             Column::new(t("Result"), result_w),
         ];
         let mut hover = None;
-        let out = table::Table { id: "audit", cols: &cols, rows: vis.len(), keys, row_h: 0.0, frame: true }.show::<()>(
-            ui,
-            &look,
-            &mut self.table,
-            &mut hover,
-            |r, c| {
+        let out = table::Table { id: "audit", cols: &cols, rows: vis.len(), keys, row_h: table::ROW_TEXT, frame: true }
+            .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
                 let e = &all[vis[r]];
                 match c {
                     0 => Cell::plain(when(&e.time)),
@@ -193,8 +189,7 @@ impl Audit {
                     _ if e.result == "ok" => Cell::plain("").with_tag("ok", Tone::Ok),
                     _ => Cell::new(&e.result, Tone::Err),
                 }
-            },
-        );
+            });
         if vis.is_empty() {
             ui.add_space(16.0);
             ui.vertical_centered(|ui| ui.label(RichText::new(t("No events.")).size(12.0).color(look.c("fg-muted"))));
@@ -314,12 +309,8 @@ impl Http {
         ];
         let (all, vis) = (&self.all, &self.visible);
         let mut hover = None;
-        table::Table { id: "http-log", cols: &cols, rows: vis.len(), keys, row_h: 0.0, frame: true }.show::<()>(
-            ui,
-            &look,
-            &mut self.table,
-            &mut hover,
-            |r, c| {
+        table::Table { id: "http-log", cols: &cols, rows: vis.len(), keys, row_h: table::ROW_TEXT, frame: true }
+            .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
                 let x = &all[vis[r]];
                 match c {
                     0 => Cell::plain(when(&x.time)),
@@ -340,8 +331,7 @@ impl Http {
                     6 => Cell::plain(format!("{}", (x.ms * 10.0).round() / 10.0)),
                     _ => Cell::new(&x.error, Tone::Err),
                 }
-            },
-        );
+            });
         if vis.is_empty() {
             ui.add_space(16.0);
             ui.vertical_centered(|ui| ui.label(RichText::new(t("No requests.")).size(12.0).color(look.c("fg-muted"))));

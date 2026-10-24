@@ -168,7 +168,7 @@ impl Users {
                 cols: &cols,
                 rows: visible.len(),
                 keys: keys && self.menu.is_none(),
-                row_h: 29.0,
+                row_h: table::ROW_LINKS,
                 frame: true,
             }
             .show(ui, &look, &mut self.table, &mut hover, |r, c| cell(&all[visible[r]], visible[r], c, &me, days, now));
@@ -343,6 +343,8 @@ pub fn cell(
             (false, false) => Cell::plain(""),
         },
         // "—" when never logged on, in the warning ink when inactive (never counts), as the web's cell
+        // a disabled account's row in the subtle ink, its date too (the web warns only for enabled ones)
+        6 if !x.enabled => Cell::new(date(x.last_logon), Tone::Muted),
         6 => Cell::new(date(x.last_logon), if inactive(x, days, now) { Tone::Warn } else { Tone::Normal }),
         C_PASSWORD => Cell::plain(t("password")).link(
             crate::icons::KEY,
