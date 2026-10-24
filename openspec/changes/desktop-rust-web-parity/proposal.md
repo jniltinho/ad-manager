@@ -46,8 +46,10 @@ mouse cursors unchanged. egui is now the desktop being refined. The same request
 - **Depth as the web.** Outside the flat look, the theme's gradients, bevels and shadows are drawn with egui meshes
   and shadows: header, tabs, buttons, card heads, tiles, dialogs. The flat look, and depthless themes such as High
   Contrast, stay flat.
-- **Typography.** Inter 400/600, embedded and licensed OFL, as the web's baseline. Each theme's family as the web
-  resolves it: monospace in Matrix, the Classic themes' stack mapped to an embedded open fallback.
+- **Typography as the browser resolves it.** Each theme's font stack is looked up in the system and user font folders,
+  by family name and CSS weight (600 when it exists): Tahoma or Verdana for Classic and Winamp, Noto Sans for Breeze,
+  the system font for Crystal, a monospace stack for Matrix. Inter 4.001, the web's own file and licensed OFL, is
+  embedded for the Inter stacks and as the last resort.
 - **Viewport and zoom.**
   - The app box is `min(W − 32z, 1840z)` with `16z` margins.
   - egui's `set_zoom_factor` applies the web's steps: 1.25 from 2400 and 1.6 from 3200 logical px.

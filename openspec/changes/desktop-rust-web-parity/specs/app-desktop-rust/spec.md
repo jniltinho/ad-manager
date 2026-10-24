@@ -78,9 +78,9 @@ alignment from the theme's tokens and recipe (`audit.md` A4–A15).
 
 #### Scenario: Badges as the web
 - **WHEN** the Users status badges (active, locked, deactivated, system) and the Home alert badges are drawn
-- **THEN** each has the web's variant: bold uppercase 10 px text centered, 17 px tall; the Users status badge 104 px
-  wide with a pale fill for active and solid fills for locked, deactivated and system, as `Users.vue`; the alert badges
-  as wide as their text
+- **THEN** each has the web's variant: bold uppercase 10 px text centered, 17 px tall; the Users status badge
+  (active, locked, deactivated) 104 px wide, pale for active and solid for locked and deactivated; SYSTEM in its own
+  column, as wide as its text; the alert badges as wide as their text — as `Users.vue:232-253,301-307`
 
 #### Scenario: Dialog layout
 - **WHEN** the new-user, password-policy or reset-password dialog is open in the Default theme
@@ -112,13 +112,30 @@ Last run, Quarantine and Size columns, OUs' GPOs, Computers' DNS, and the sign-i
 - **WHEN** the Logs page is shown
 - **THEN** its page tabs include the panel's HTTP log, and the audit tab has the action filter and Export CSV
 
+#### Scenario: Groups filter and export
+- **WHEN** the operator types "fin" in the Groups filter, chooses Security in the type select and clicks Export CSV
+- **THEN** the table and the "x of y" count show only matching security groups, the Scope column is shown, and the
+  CSV the panel returns is offered for saving
+
+#### Scenario: Sync columns
+- **WHEN** the Sync page lists jobs and runs
+- **THEN** jobs show Last run and Quarantine, runs show Size, and numbers are right-aligned
+
+#### Scenario: GPOs, DNS and Sessions
+- **WHEN** the operator opens GPOs on OUs, DNS on Computers, and Sessions on Shares
+- **THEN** each opens the web's dialog (`GpoListDialog`, `DnsRecordsDialog`, `ShareSessionsDialog`) with its data
+
+#### Scenario: Language switch on sign-in
+- **WHEN** the operator chooses Português on the sign-in screen
+- **THEN** the screen switches to Portuguese at once, as the web's switch
+
 #### Scenario: Conditional tabs
 - **WHEN** the panel's Swagger setting is off and its queue monitor is off
 - **THEN** the API and Queues tabs are not shown, and they are when the settings are on
 
 ### Requirement: Web typography
 The Rust desktop SHALL resolve the active theme's font stack as a browser does: the first family of the stack installed
-on the system, with its regular and bold files; the embedded Inter 4.001 for the Inter stacks and as the last resort of
+in the system or user font folders, matched by family name and CSS weight (400, and 600 or the next heavier face); the embedded Inter 4.001 for the Inter stacks and as the last resort of
 sans stacks, egui's monospace as the last resort of monospace stacks; ghost buttons in regular weight.
 
 #### Scenario: Default typeface
@@ -133,6 +150,14 @@ sans stacks, egui's monospace as the last resort of monospace stacks; ghost butt
 #### Scenario: Missing font
 - **WHEN** a Classic theme runs on a Linux system without Tahoma, Verdana or Segoe UI
 - **THEN** the text uses the next family of the stack that is installed, or Inter, and nothing fails
+
+#### Scenario: Semibold weight
+- **WHEN** Breeze runs where Noto Sans Regular and SemiBold are installed
+- **THEN** semibold text uses Noto Sans SemiBold (600), not Bold
+
+#### Scenario: Broken font file
+- **WHEN** the stack's first family is an unreadable, invalid or wrongly indexed file
+- **THEN** it is skipped for the next family, and the app starts
 
 ### Requirement: Theme recipes for geometry
 The Default theme's numbers SHALL be the baseline, and a theme's own recipe (case, bars, frames, title sizes, line
@@ -201,9 +226,9 @@ least WCAG 2.2 AA (4.5:1 text, 3:1 large text and non-text UI), and AAA for text
   7:1 (4.5:1 large), non-text UI is at least 3:1, and disabled controls are not measured
 
 ### Requirement: Web depth
-Outside the flat look, the Rust desktop SHALL draw the theme's gradients, bevels and shadows on the header, tab strip,
-buttons, card heads, tiles, dialogs and sign-in box as the web does; in the flat look and in depthless themes it SHALL
-draw none.
+The Rust desktop SHALL draw each part's gradients, bevels and shadows from the theme's recipe as the web does; the flat
+look SHALL clear exactly the layers that `style.css`'s flat override clears, and keep the state marks, the dialog and
+popup shadows and each theme's structural lines (High Contrast's lines included).
 
 #### Scenario: Depth outside flat
 - **WHEN** the Default theme is active, the look is not flat, and the primary button, the header and a card head are
@@ -218,7 +243,12 @@ draw none.
 
 #### Scenario: Depthless theme
 - **WHEN** High Contrast is active
-- **THEN** the decorative gradients and shadows are not drawn and the state marks are
+- **THEN** no decorative gradient is drawn, while its structural lines (drawn as shadows in its CSS) and the state
+  marks are
+
+#### Scenario: Shadow layer order
+- **WHEN** a Winamp app box (an outline layer listed before a blurred shadow) is drawn
+- **THEN** the first listed layer is on top, as in the browser's capture
 
 #### Scenario: Gradient direction and interpolation
 - **WHEN** the Classic blue header and the Default dialog title are drawn outside the flat look

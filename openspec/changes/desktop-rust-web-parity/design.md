@@ -72,7 +72,7 @@ password) and the empty, loading and error states.
 | egui | Web counterpart | Structure to take |
 |---|---|---|
 | `pages/home.rs` | `Home.vue` | tiles 2 columns, 6 from `md`; panels 3 and 2 columns from `md` (`Home.vue:61,96,138`) |
-| `pages/users.rs` | `Users.vue` | toolbar (search 256, select 176, count, right group), table without a card frame, row links; status badge **fixed 104 px** as the web (`Users.vue:228-253`), solid fills for locked, deactivated and system (`:301-307`) |
+| `pages/users.rs` | `Users.vue` | toolbar (search 256, select 176, count, right group), table without a card frame, row links; status badge (active, locked, deactivated) **fixed 104 px** as the web (`Users.vue:232-253`), pale for active and solid for locked and deactivated; SYSTEM a separate content-width badge in its own column (`:301-307`) |
 | User new | `UserFormDialog.vue` (new) | labels above fields, 2-column row-major grid, groups below; Create, Cancel |
 | User edit | `UserFormDialog.vue` (edit) | the same grid, `.cardtabs` Account / Groups (n); Save, Cancel |
 | Password / link | `components/PasswordDialog.vue` | Reset, Generate link, then Close once a link is shown |
@@ -127,7 +127,9 @@ egui gives direct control over sizes:
 `style.rs` adds a painter for a part's recipe:
 - **Gradients:** a mesh in the gradient's direction, with intermediate vertices at each stop. Colors are interpolated in
   the recipe's space (Oklab precomputed into extra stops), so the gradient matches the browser's.
-- **Outer shadows:** each layer is drawn with `epaint::Shadow` (offset, blur, spread), in list order.
+- **Outer shadows:** each layer is drawn with `epaint::Shadow` (offset, blur, spread). CSS puts the first listed layer
+  on top, so the painter draws the list back to front. Outer shadows go below the background, inset ones above the
+  background and below the content.
 - **Inset shadows and bevels:** they are drawn as edge meshes inside the box. A blurred inset is a feathered band, so
   every CSS layer has a painted counterpart.
 
@@ -161,12 +163,22 @@ the decorative layers and keep the state marks.
 ### D7 Typography: the browser's font resolution
 The web names a font stack per theme and the browser takes the first font installed. The desktop resolves the same
 stack the same way:
-- **Lookup:** a lookup table maps each family in the stacks to its regular and bold file names in the OS's font
-  folders (Windows `%WINDIR%\Fonts`, macOS `/System/Library/Fonts` and `/Library/Fonts`, Linux the fontconfig
-  folders).
-- **Order:** the first family found, in stack order, becomes egui's proportional family, with a named `semibold`
-  family from its bold file (egui has no weights). Headings, primary and secondary buttons, table heads and badges use
-  `semibold`; body text and ghost buttons use regular.
+- **Where fonts are found:** the system and **user** font folders, as the browser sees them:
+  - Windows: `%WINDIR%\Fonts` and `%LOCALAPPDATA%\Microsoft\Windows\Fonts`;
+  - macOS: `/System/Library/Fonts`, `/Library/Fonts` and `~/Library/Fonts`;
+  - Linux: the fontconfig folders, `~/.local/share/fonts` included.
+- **Indexing:** the files are indexed by the family and weight in their name tables, not by file name. Each face of a
+  collection (`.ttc`) is indexed with its face index.
+- **Weight matching (CSS):** for 400 the regular face. For 600 a real 600 face, else a variable font's `wght` = 600
+  (`FontTweak::coords`), else the next heavier face (700), as the browser does. So Noto Sans SemiBold is used for
+  Breeze when installed. These become egui's proportional family and a named `semibold` family. Headings, primary and
+  secondary buttons, table heads and badges use `semibold`; body text and ghost buttons use regular.
+- **Order:** the first family of the stack that is found is used. The embedded Inter answers at the **Inter entry's
+  position** in a stack, so an earlier installed family still wins.
+- **Validation:** a face is parsed before it is registered, since epaint panics on an unparsable font. A missing,
+  unreadable or invalid file, or a bad collection index, moves on to the next family.
+- **Fonts are not redistributed:** system fonts such as Tahoma are read where they are installed. Only Inter is
+  bundled.
 - **Theme stacks:**
 
   | Themes | Stack (`--font-sans`) |
@@ -181,8 +193,9 @@ stack the same way:
 - **Embedded:** Inter **4.001**, the web's own version, regular and semibold, OFL, with its license file. It is the
   font of the Inter stacks and the last resort of every sans stack. egui's bundled Hack (a DejaVu Sans Mono
   derivative) is the last resort of monospace stacks.
-- **Exception:** where the stack's fonts are missing (Tahoma on Linux, for example), the browser falls back to the
-  system's generic font and the desktop to Inter. The captures record the font used.
+- **Exception:** where none of a stack's families is installed (Tahoma, Verdana and Segoe UI on Linux, for example),
+  the browser uses the system's generic `sans-serif` and the desktop uses Inter. The captures record the font each app
+  used, and a capture pair in that case is exempt from the typeface rule of D9.
 - **Sizes:** sizes and line height come from the theme's tokens.
 
 ### D8 Keyboard, AccessKit and contrast
@@ -213,15 +226,20 @@ stack the same way:
   - text baselines: galley metrics;
   - depth: captures.
 
-  The fixture is keyed by theme, locale, viewport and state, and records border box, painted ink and shadow extents
-  separately.
+  The fixture records border box, painted ink and shadow extents separately. Its keys are:
+  - theme: the 18 themes, plus the flat look for Default and Classic blue;
+  - locale: en and pt-BR;
+  - viewport: 1024×640, 1280×800, 1920×1080 and 2560×1440;
+  - state: the page loaded, empty, loading, and an API error, plus each D2 dialog open.
+
+  The Playwright script generates every key against the same mock panel data as the desktop tests.
   They run per page, theme and locale (en, pt-BR), with long Portuguese labels, long names and DNs, and empty, loading
   and error states.
 - **Zoom tests:** step crossings both ways, with a dialog and a popup open.
 - **Captures:** web and desktop side by side at 1024×640, 1280×800, 1920×1080, 2560×1440, 3840×2160 and 3840 at OS
   scale 2. They use classic-blue, a dark theme, High Contrast, the flat look, en and pt-BR, 2×, "Example Company Ltd"
-  and `domain.local`. The pairs are reviewed by eye, and rasterizer differences are allowed but typeface differences
-  are not.
+  and `domain.local`. The pairs are reviewed by eye. Rasterizer differences are allowed; typeface differences are not,
+  except for the documented generic fallback of D7.
 
 ### D10 Decisions on the audit's extras and gaps
 - **Kept as desktop extras**, marked as exceptions in the matrix:

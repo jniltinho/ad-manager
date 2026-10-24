@@ -6,7 +6,8 @@
 - [ ] 1.2b Capture and audit the egui Samba logs tab and the Set password tab; empty/loading/error states.
 - [ ] 1.3 `desktop/internal/themegen` → `themes.json`: size tokens, recipe parameters, depth recipe, font family and
       base size per theme; `adm_core::theme::Palette` reads them; tests per theme.
-- [ ] 1.4 Playwright web fixture `crates/ui/tests/web-geometry.json` (per theme, 1280×800).
+- [ ] 1.4 Playwright web fixture `crates/ui/tests/web-geometry.json` over every key of D9 (theme, flat, locale,
+      viewport, state), against the desktop tests' mock data.
 
 ## 2. Look
 
@@ -65,4 +66,6 @@
       dark theme, High Contrast, flat, en and pt-BR); fix what differs.
 - [ ] 6.3 Benchmark rerun (depth cost) and `docs/benchmark.md`.
 - [ ] 6.4 Retake every `docs/screenshots/desktop-rs-*.png` (2×), README, CHANGELOG; `make dist` into `dist/desktop-rust`.
-- [ ] 6.5 Codex review of the proposal and of the code; fixes applied.
+- [x] 6.5a Codex review of the proposal: two rounds (4 blockers + 4 should-fix + 1 nit, then 4 blockers + 3 should-fix +
+      2 nits), all applied.
+- [ ] 6.5b Codex review of the code; fixes applied.

@@ -7,25 +7,25 @@ sizes, paddings, gaps and alignment are compared, and positions are given relati
 differences are only demo data (counts, LOCKED vs DEACTIVATED, OU paths), not layout.
 
 ## Fixes that repeat on every screen
+Measurements count the painted border box; a button's drawn depth (gradient edge, shadow) is noted apart where it
+changes the number (the web login button is 26 in CSS and paints 28 with its depth).
+
 
 | # | Part | Web | egui today | Fix |
 |---|---|---|---|---|
 | A1 | Single-line text fields | 28 (login 25) | **19** | 28 border box (login 25); same height as the buttons beside them |
-
-Measurements count the painted border box; a button's drawn depth (gradient edge, shadow) is noted apart where it
-changes the number (the web login button is 26 in CSS and paints 28 with its depth).
 | A2 | Buttons, selects | 28; primary gradient, **bold** | 26; flat; regular | 28; gradient outside flat; primary and secondary semibold, ghost regular |
 | A3 | Selects | White fill, small 10×6 arrow | Grey `#dcdbd6`, large arrow | Field look of the web select |
 | A4 | Table header | One continuous band 29–31, 2 px bottom rule, **bold** | 26 cells with 4 px gaps, regular, 6 px gap before row 1 | One band, bold, no gaps, no gap before row 1; a header over every column, including "Actions" |
-| A5 | Table rows | 27–28 + 1 px full-width divider (pitch 28–29); first row white, then striped | Pitch 32; first row striped; no full dividers | Pitch 29 with dividers; stripes from the second row |
+| A5 | Table rows | Pitch per table (Users and Groups 29, Logs 28, Sync 27), 1 px full-width divider; first row white, then striped | Pitch 32; first row striped; no full dividers | Each table's own web pitch (fixture), dividers, stripes from the second row |
 | A6 | Table frame | Full content width, equal insets, 1 px border | Uneven 10/16 insets, no border | Equal insets, web border |
 | A7 | Cell styles | Names bold; DN, paths, actions, sources monospace; numbers and sizes right-aligned; dates plain | Regular link blue; proportional; left-aligned; dates as links | Web cell styles |
-| A8 | Badges | Bold UPPERCASE 10 px, pale fill, width fits the text, 17 tall | Fixed 64×18, solid fill, regular, lowercase | Web `.tag` per tone; text centered |
+| A8 | Badges | Bold UPPERCASE 10 px, 17 tall, per variant: Users status (active, locked, deactivated) fixed 104 wide, pale for active and solid otherwise; SYSTEM, alerts and tags as wide as their text | Fixed 64×18, solid fill, regular, lowercase | The web variant of each badge; text centered |
 | A9 | Card head | 28, bold, light gradient, no bar (where the web has a card at all) | 38, regular, 4 px green bar, on every page | 28 bold head from the theme's card-head recipe; no card where the web has none |
 | A10 | Header | 64, gradient; logo 114×26; bold title vertically centered; global search; bold user + "my password · sign out" links | 72, flat; logo 171×40; regular title; Configure and Sign out buttons | Web header (Configure stays as a header link) |
 | A11 | Navigation | Top tabs 33 (active 37, white, 3 px orange top), gap 2, bold; strip 42 with a 1 px bottom line | Sidebar 199 | Top tab strip |
 | A12 | Page tabs | Bordered 31 (active 34, white, 3 px orange top), bold, icon | Filled-blue pill (active), plain text (inactive) | `.subtab` recipe |
-| A13 | Dialogs | Title 36–41, **bold, left-aligned**; labels UPPERCASE bold 11 px **above** fields; footer band 44 with gradient and top border; **primary first**, then Cancel; 460/760 | Title 43, regular, centered, 3 px underline with an 11 px notch at the right (bug); labels beside; inset line footer; Cancel first | Web dialog recipe; fix the notch |
+| A13 | Dialogs | Title 36–41, **bold, left-aligned**; field layout per dialog (labels UPPERCASE bold 11 px above fields in the user and reset dialogs; label \| input \| unit in the policy dialog); footer band 44 with gradient and top border; **primary first**, then Cancel; 460/760 | Title 43, regular, centered, 3 px underline with an 11 px notch at the right (bug); labels beside; inset line footer; Cancel first | Web dialog recipe and each dialog's own layout; fix the notch |
 | A14 | Callouts | Info: light blue with a green left border; warning: cream with a brown left border; line pitch ≈20 | Plain paragraphs, pitch ≈15 | Web callouts |
 | A15 | Footer | 35 = 3 px green top line + 32 gradient; company (bold), Support, domain, user, session, version with icons | 25 flat; company, status, version | Web footer; the status line stays as an extra item |
 | A16 | App box | 16 px margins on a page color; at QHD ×1.25 and capped at 2300 (1840 × 1.25) | Edge to edge | App box and zoom |
@@ -137,7 +137,7 @@ Captures still needed on the egui side: the Samba logs tab and the Set password 
 | Rows | 29 with separators | 32 | 3 px taller |
 | Group name | Bold blue | Regular blue | Not bold |
 | SYSTEM badge | 57×17 bold caps | 64×18 lowercase | As Users |
-| Selected row | Light tint `#e8eefc` | Solid `#316ac5`, white text | Much heavier |
+| Hovered row (the web has no selected row) | Light tint `#e8eefc` on hover | Solid `#316ac5`, white text on selection | egui marks a selection the web does not have |
 | Row actions | "members" / "delete" per row | Toolbar acting on the selection | Interaction |
 | Description | Full text | Cut at ≈270 px | Narrow column |
 
@@ -193,7 +193,7 @@ Captures still needed on the egui side: the Samba logs tab and the Set password 
 | Right buttons | Sessions 101×28, Refresh 95×28, New share 115×28 (green) | Refresh 82×26 | Sessions missing; New share on row 2 |
 | Action row | None (per-row actions) | New share, Edit, "Remove (keeps the files)" 179×26 dark red | Only in egui, heavy |
 | Table header | 30, bold | 26, regular, boxes | As OUs |
-| Rows | 28 + 1 px; selected row tinted | 32 pitch; no selection shown | |
+| Rows | 28 + 1 px; hovered row tinted (no selected row) | 32 pitch | |
 | Name / Path | Bold name; path monospace ≈11 px | Blue link; path proportional 13 px | |
 | Size | Right-aligned | **Left-aligned** | Numbers must be right-aligned |
 | Actions column | "edit", "remove" (red on the selected row) | None | Missing |
