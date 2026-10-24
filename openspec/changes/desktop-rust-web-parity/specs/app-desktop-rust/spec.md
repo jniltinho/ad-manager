@@ -14,13 +14,14 @@ SHALL NOT show a side menu.
 - **WHEN** the operator opens Sync from the Backup page tabs
 - **THEN** the Backup top tab stays active and the page tabs read Backup, Sync
 
-#### Scenario: Browser exception
+#### Scenario: Import/export and Settings in the app
 - **WHEN** the operator activates Import/export or Settings
-- **THEN** the panel's page opens in the default browser and the desktop stays on its current page
+- **THEN** the desktop shows its own page with the web's cards and actions; no tab opens the browser
 
 #### Scenario: Global search
 - **WHEN** the operator types "carol" in the header search and presses Enter
-- **THEN** the Users page opens with "carol" in its filter
+- **THEN** the Users page opens with "carol" in its filter and every status shown, and "carol" stays in the header
+  field
 
 #### Scenario: My password
 - **WHEN** the operator chooses my password and submits the current and the new password
@@ -132,6 +133,61 @@ Last run, Quarantine and Size columns, OUs' GPOs, Computers' DNS, and the sign-i
 #### Scenario: Conditional tabs
 - **WHEN** the panel's Swagger setting is off and its queue monitor is off
 - **THEN** the API and Queues tabs are not shown, and they are when the settings are on
+
+#### Scenario: CSV of the rows on screen
+- **WHEN** the operator filters Users, Groups or Computers and clicks Export CSV
+- **THEN** the desktop saves the rows on screen with the web's columns, `;` between quoted fields and a BOM
+
+#### Scenario: Sync preview followed in the wizard
+- **WHEN** the operator clicks Save and preview in the sync wizard
+- **THEN** the wizard shows a fifth step that follows the preview every 2 s until it ends, with its plan, and offers
+  Run now and Close (the job is saved)
+
+#### Scenario: Suggestions while typing
+- **WHEN** the operator types "bru" in Home's quick box (or a group's new member, a user's group, a share list)
+- **THEN** a list under the field offers the matching values with their names; arrows move, Enter picks, Esc
+  closes the list only
+
+#### Scenario: Backup schedules edited in place
+- **WHEN** the operator changes a schedule's cron in its row and clicks Save schedules
+- **THEN** the desktop sends every schedule with `PUT /api/agents/{id}/backup-schedules`
+
+### Requirement: Theme chosen on this computer
+The Rust desktop SHALL let the operator choose, in Configure › Appearance, any of the panel's themes and the flat or
+depth look for this computer only, applied at once and saved as `[appearance]` in desktop.toml; "Panel default"
+SHALL follow the panel's Settings.
+
+#### Scenario: Another theme on this computer
+- **WHEN** the operator chooses Matrix (dark) in Configure › Appearance
+- **THEN** the desktop redraws in Matrix at once and desktop.toml holds `[appearance] theme = "matrix"`, without a
+  panel test
+
+#### Scenario: Back to the panel's theme
+- **WHEN** the operator chooses Panel default
+- **THEN** the desktop draws with the theme saved in the panel's Settings and desktop.toml has no `[appearance]`
+
+### Requirement: Native Settings and Import/export
+The Rust desktop SHALL offer the web's Settings (general, users, company with the logo, the values from config.toml,
+the agent token) and Import/export (exports, CSV and other-AD and folder imports previewed as a plan before writing,
+with a log of the write) as pages of its own.
+
+#### Scenario: Panel theme saved from the desktop
+- **WHEN** the operator chooses Breeze (dark) in Settings and saves
+- **THEN** the desktop sends the settings with `PUT /api/settings`, keeps the other values as they were, and redraws
+  with the panel's new theme unless Appearance overrides it
+
+#### Scenario: Import from another AD
+- **WHEN** the operator fills the source AD, clicks Connect and preview, then Write to the domain and confirms
+- **THEN** the desktop posts to `/api/import/ad/plan`, shows the plan, then posts to `/api/import/ad/apply` and
+  shows the log of the write
+
+### Requirement: Expired session from any call
+When any call of the session answers that it ended, the Rust desktop SHALL go back to the sign-in screen, also when
+the page that made the call showed or ignored its error.
+
+#### Scenario: A background call hears the end
+- **WHEN** a call made without error handling answers 401
+- **THEN** the sign-in screen opens
 
 ### Requirement: Web typography
 The Rust desktop SHALL resolve the active theme's font stack as a browser does: the first family of the stack installed

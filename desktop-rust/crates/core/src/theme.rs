@@ -255,6 +255,62 @@ pub fn is_dark(c: Rgba) -> bool {
 }
 
 #[cfg(test)]
+mod contrast_tests {
+    use super::*;
+
+    /// The web's contrast recipes (frontend/src/themes/matrix.json) hold on the colors the desktop draws with: each
+    /// text role over its background layers (bottom one over white), 4.5:1 for text (7:1 on the AAA themes) and 3:1
+    /// for components. Recipes of roles the desktop does not draw (toasts, tooltips) and of the segmented tabs are
+    /// left out.
+    #[test]
+    fn every_theme_keeps_the_web_contrast() {
+        #[derive(Deserialize)]
+        struct Recipe {
+            id: String,
+            fg: String,
+            bg: Vec<String>,
+            size: String,
+            #[serde(default, rename = "aaaOnly")]
+            aaa_only: bool,
+            #[serde(default, rename = "segmentedOnly")]
+            segmented_only: bool,
+        }
+        #[derive(Deserialize)]
+        struct Matrix {
+            recipes: Vec<Recipe>,
+            aaa: Vec<String>,
+        }
+        let m: Matrix = serde_json::from_str(include_str!("../../../../frontend/src/themes/matrix.json")).unwrap();
+        let mut failed = Vec::new();
+        let mut checked = 0;
+        for id in order() {
+            let (_, p) = palette(id).unwrap();
+            let aaa = m.aaa.contains(id);
+            for r in &m.recipes {
+                if r.segmented_only || (r.aaa_only && !aaa) || !p.has(&r.fg) || r.bg.iter().any(|b| !p.has(b)) {
+                    continue;
+                }
+                // the layers top→bottom: the bottom one over white, each above over the ones below
+                let bg = r.bg.iter().rev().fold(Rgba([255, 255, 255, 255]), |acc, b| over(p.col(b), acc));
+                let ratio = contrast(over(p.col(&r.fg), bg), bg);
+                let need = match (r.size.as_str(), aaa) {
+                    ("normal", true) => 7.0,
+                    ("normal", false) => 4.5,
+                    _ => 3.0,
+                };
+                checked += 1;
+                // 0.05 of slack: the export rounds each color to 8 bits per channel (the web's test reads the CSS)
+                if ratio + 0.05 < need {
+                    failed.push(format!("{id} {}: {ratio:.2} < {need}", r.id));
+                }
+            }
+        }
+        assert!(checked > 1000, "the recipes ran ({checked})");
+        assert!(failed.is_empty(), "contrast below the web's recipes:\n{}", failed.join("\n"));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

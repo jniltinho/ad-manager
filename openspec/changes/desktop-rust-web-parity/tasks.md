@@ -30,19 +30,19 @@
 
 ## 4. Pages and dialogs (one task per matrix row)
 
-- [ ] 4.1 Home.
-- [ ] 4.2 Users and user dialogs.
-- [ ] 4.3 Groups (table + detail dialog).
-- [ ] 4.4 OUs.
-- [ ] 4.5 Computers.
-- [ ] 4.6 Shares.
-- [ ] 4.7 Backup / Sync and their dialogs.
-- [ ] 4.8 Logs.
-- [ ] 4.9 Login (web login sizes) and Configure (dialog geometry).
-- [ ] 4.10 Feature gaps of the audit (Home panels, Groups filter/Scope/detail dialog, Shares servers/Tasks/Sessions,
+- [x] 4.1 Home.
+- [x] 4.2 Users and user dialogs.
+- [x] 4.3 Groups (table + detail dialog).
+- [x] 4.4 OUs.
+- [x] 4.5 Computers.
+- [x] 4.6 Shares.
+- [x] 4.7 Backup / Sync and their dialogs.
+- [x] 4.8 Logs.
+- [x] 4.9 Login (web login sizes) and Configure (dialog geometry).
+- [x] 4.10 Feature gaps of the audit (Home panels, Groups filter/Scope/detail dialog, Shares servers/Tasks/Sessions,
       Logs filter/Export/HTTP, Sync columns, OUs GPOs, Computers DNS, login language switch); bulk toolbars become
       per-row actions.
-- [ ] 4.11 Tabs: `.subtab` and `.cardtabs` with theme recipes.
+- [x] 4.11 Tabs: `.subtab` and `.cardtabs` with theme recipes.
 
 ## 5. Keyboard, AccessKit, contrast
 
@@ -69,3 +69,15 @@
 - [x] 6.5a Codex review of the proposal: two rounds (4 blockers + 4 should-fix + 1 nit, then 4 blockers + 3 should-fix +
       2 nits), all applied.
 - [ ] 6.5b Codex review of the code; fixes applied.
+
+## 7. Function parity (goal: same themes and functions as the web)
+
+- [x] 7.1 Configure › Appearance: theme and flat look on this computer (`[appearance]` in desktop.toml).
+- [x] 7.2 Settings as a native page (logo upload, agent token).
+- [x] 7.3 Import/export as a native page (CSV, other AD with profiles, folders; plan, write, log).
+- [x] 7.4 Global search fix; expired session heard by any call.
+- [x] 7.5 CSV of the rows on screen; Backup schedules edited in place and auto refresh.
+- [x] 7.6 Sync wizard step 5; quarantine, run details and run log dialogs; per-subfolder size.
+- [x] 7.7 Suggestions fields; share form roots, ACL history restore, write lists without full control.
+- [ ] 7.8 UI parity QA pass (independent reviewer over web and desktop captures) and its fixes.
+- [ ] 7.9 Codex review of the branch and its fixes.
