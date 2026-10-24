@@ -844,17 +844,11 @@ impl Dialog for MoveUser {
         tf!("Move %s", self.user.sam)
     }
 
-    fn width(&self) -> f32 {
-        560.0
-    }
-
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        widgets::form(ui, "move-user", |ui| {
-            widgets::label(ui, &look, t("Destination"));
-            self.picker.ui(ui, "move-user-ou", 400.0);
-            ui.end_row();
-        });
+        ui.spacing_mut().item_spacing.y = 4.0;
+        widgets::lbl(ui, &look, t("Destination"));
+        self.picker.ui(ui, "move-user-ou", ui.available_width());
         let f = footer(ui, cx, Some(t("Move")), "", false, self.picker.chosen());
         if f.ok && self.picker.chosen() {
             let api = cx.panel.clone();

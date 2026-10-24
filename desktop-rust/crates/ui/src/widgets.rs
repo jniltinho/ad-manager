@@ -616,7 +616,10 @@ pub fn field(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> Response
 
 /// A label above its field, as the web's .lbl: small semibold uppercase in the muted ink.
 pub fn lbl(ui: &mut Ui, look: &Look, s: &str) -> Response {
-    ui.label(crate::style::semibold(s.to_uppercase(), 11.0).color(look.c("fg-muted")))
+    let r = ui.label(crate::style::semibold(s.to_uppercase(), 11.0).color(look.c("fg-muted")));
+    // drawn in capitals, named as written (the web's text-transform leaves the accessible name alone)
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_value(s.to_string()));
+    r
 }
 
 /// A select of `options` by index.
@@ -637,7 +640,8 @@ pub fn select(
     *sel != before
 }
 
-/// A form row: a label and a select named by it (for screen readers and tests); true when the choice changed.
+/// A select with its label above (the web's .lbl over a select), named by it for screen readers and tests; true
+/// when the choice changed.
 pub fn labeled_select(
     ui: &mut Ui,
     look: &Look,
@@ -647,19 +651,22 @@ pub fn labeled_select(
     options: &[String],
     width: f32,
 ) -> bool {
-    let l = self::label(ui, look, label);
     let before = *sel;
-    let shown = options.get(*sel).cloned().unwrap_or_default();
-    egui::ComboBox::from_id_salt(id)
-        .width(width)
-        .selected_text(shown)
-        .show_ui(ui, |ui| {
-            for (i, o) in options.iter().enumerate() {
-                ui.selectable_value(sel, i, o);
-            }
-        })
-        .response
-        .labelled_by(l.id);
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 4.0;
+        let l = lbl(ui, look, label);
+        let shown = options.get(*sel).cloned().unwrap_or_default();
+        egui::ComboBox::from_id_salt(id)
+            .width(width)
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                for (i, o) in options.iter().enumerate() {
+                    ui.selectable_value(sel, i, o);
+                }
+            })
+            .response
+            .labelled_by(l.id);
+    });
     *sel != before
 }
 

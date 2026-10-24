@@ -258,20 +258,11 @@ impl Dialog for MoveComputer {
         tf!("Move %s", self.x.name)
     }
 
-    fn width(&self) -> f32 {
-        560.0
-    }
-
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        widgets::form(ui, "move-computer", |ui| {
-            widgets::label(ui, &look, t("Computer"));
-            ui.label(&self.x.name);
-            ui.end_row();
-            widgets::label(ui, &look, t("Move to"));
-            self.picker.ui(ui, "move-computer-ou", 380.0);
-            ui.end_row();
-        });
+        ui.spacing_mut().item_spacing.y = 4.0;
+        widgets::lbl(ui, &look, t("Destination"));
+        self.picker.ui(ui, "move-computer-ou", ui.available_width());
         let f = footer(ui, cx, Some(t("Move")), "", false, self.picker.chosen());
         if f.ok && self.picker.chosen() {
             let target = self.picker.dn();

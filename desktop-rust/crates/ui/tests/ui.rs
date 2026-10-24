@@ -287,6 +287,7 @@ fn configure_graphics_choice_is_saved_alone() {
         .unwrap();
     e.h.get_by_label("Rendering backend").click();
     e.h.step();
+    e.h.step(); // the popup's first frame only measures it
     let pick = if Os::current() == Os::Macos { Backend::Gl } else { Backend::Cpu };
     e.h.get_by_label(pick.label(Os::current())).click();
     e.h.step();
