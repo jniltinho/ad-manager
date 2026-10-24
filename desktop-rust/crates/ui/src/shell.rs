@@ -545,15 +545,23 @@ const TABS: [Page; 10] = [
 /// on-tab-aux ink, the tab-aux-hover tint on hover; no tab box.
 fn aux_tab(ui: &mut Ui, look: &crate::style::Look, icon: &str, label: &str, hint: &str) -> egui::Response {
     let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
-    let g = ui.painter().layout_no_wrap(format!("{icon} {label}"), font, egui::Color32::PLACEHOLDER);
-    let size = egui::vec2(g.size().x + 32.0, g.size().y + 16.0);
+    // the web's 15-point icon, a gap-1.5, the 12-point label; as tall as a tab so both center on one line
+    let gi =
+        ui.painter().layout_no_wrap(icon.to_string(), egui::FontId::proportional(15.0), egui::Color32::PLACEHOLDER);
+    let gl = ui.painter().layout_no_wrap(label.to_string(), font, egui::Color32::PLACEHOLDER);
+    let w = gi.size().x + 6.0 + gl.size().x;
+    // as tall as a tab (py-2 around the taller of icon and label, plus the tabs' inset) so both center on one line
+    let size = egui::vec2(w + 32.0, 16.0 + gi.size().y.max(gl.size().y) + look.px("tab-inset-top", 0.0));
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
     let hovered = resp.hovered();
     if hovered {
         ui.painter().rect_filled(rect, 0.0, look.c("tab-aux-hover"));
     }
     let ink = if hovered { look.c("on-tab-aux-hover") } else { look.c("on-tab-aux") };
-    ui.painter().galley(rect.center() - g.size() / 2.0, g, ink);
+    let x = rect.center().x - w / 2.0;
+    let label_x = x + gi.size().x + 6.0;
+    ui.painter().galley(egui::pos2(x, rect.center().y - gi.size().y / 2.0), gi, ink);
+    ui.painter().galley(egui::pos2(label_x, rect.center().y - gl.size().y / 2.0), gl, ink);
     let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
         n.set_role(egui::accesskit::Role::Link);
         n.set_label(label.to_string());

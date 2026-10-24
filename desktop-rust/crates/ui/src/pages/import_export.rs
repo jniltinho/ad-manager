@@ -398,7 +398,7 @@ impl ImportExport {
                                 t("File server"),
                                 &mut self.server,
                                 &names,
-                                ui.available_width() - 128.0,
+                                ui.available_width() - 114.0, // the select takes the flex share, the button its 106
                             );
                             let r = widgets::button_end(
                                 ui,
@@ -406,7 +406,7 @@ impl ImportExport {
                                 &format!("{}  {}", crate::icons::FOLDER_OPEN, t("Folders")),
                                 crate::icons::DOWNLOAD,
                                 Kind::Secondary,
-                                120.0,
+                                106.0,
                             );
                             if r.on_hover_text(t("Folders and permissions (no files)")).clicked()
                                 && let Some(a) = self.servers.get(self.server)

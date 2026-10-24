@@ -164,7 +164,7 @@ impl Audit {
         // the web's auto layout: the result as narrow as its "ok" tags, wider once an error shows
         let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 90.0 } else { 240.0 };
         let cols = [
-            Column::new(t("Date"), 180.0), // the web's auto layout gives the date more room
+            Column::new(t("Date"), 240.0), // the web's auto layout gives the date more room
             Column::new(t("Operator"), 130.0),
             Column::new(t("Source"), 110.0),
             Column::new(t("Action"), 150.0),

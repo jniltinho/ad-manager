@@ -275,13 +275,14 @@ impl Users {
 
 fn columns() -> Vec<Column> {
     vec![
-        Column::new(t("Login"), 120.0),
+        // the web's column starts with real data (login 133, OU 109, the status pair 193, last logon 166)
+        Column::new(t("Login"), 133.0),
         Column::new(t("Name"), 130.0),
         Column::new(t("E-mail"), 150.0).fill(),
-        Column::new(t("OU"), 100.0),
+        Column::new(t("OU"), 109.0),
         Column::new(t("Status"), 120.0).badge_w(104.0),
-        Column::new("", 84.0).badge(),
-        Column::new(t("Last logon"), 160.0),
+        Column::new("", 73.0).badge(),
+        Column::new(t("Last logon"), 166.0),
         // the web's link widths (icon and name), so they fit at the app's 1280 px
         // each link's width and the web's 12-point gap after it
         Column::new(t("Actions"), 88.0).compact(COMPACT).span(4),

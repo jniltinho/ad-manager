@@ -30,6 +30,8 @@ pub struct Column {
     pub span: usize,
     /// It takes the width left over (the last column when no column says so).
     pub fill: bool,
+    /// Empty, the table gives this column all its spare width (the web's max-w-0 cell that absorbs it).
+    pub greedy: bool,
 }
 
 impl Column {
@@ -43,7 +45,15 @@ impl Column {
             badge_w: 0.0,
             span: 1,
             fill: false,
+            greedy: false,
         }
+    }
+
+    /// The fill column that also takes all the spare width of an empty table (the web's max-w-0 cell).
+    pub fn greedy(mut self) -> Self {
+        self.fill = true;
+        self.greedy = true;
+        self
     }
 
     /// The header spans `n` columns (the next `n - 1` columns get `covered()`).
@@ -281,7 +291,47 @@ fn show<A>(
     let full: f32 = cols.iter().map(|c| c.width).sum();
     let compact = avail < full;
     out.compact = compact;
-    let widths = fit(cols, avail, compact);
+    let mut widths = fit(cols, avail, compact);
+    if rows == 0 {
+        // an empty table as the browser's auto layout: each column as wide as its heading (a spanned title over its
+        // columns), the fill column the rest
+        let font = egui::FontId::new(text, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+        let mut head_w: Vec<f32> = cols
+            .iter()
+            .map(|c| {
+                ui.painter().layout_no_wrap(c.title.clone(), font.clone(), egui::Color32::PLACEHOLDER).size().x
+                    + 2.0 * th_px
+            })
+            .collect();
+        for (i, c) in cols.iter().enumerate() {
+            if c.span > 1 {
+                let share = head_w[i] / c.span as f32;
+                for w in head_w.iter_mut().skip(i).take(c.span) {
+                    *w = share.max(2.0 * th_px);
+                }
+            }
+        }
+        // the spare width shared in proportion to the headings, as table-layout: auto does; a table with no
+        // headings to share it (the links column titled by a span) keeps it in its fill column
+        let total: f32 = head_w.iter().sum::<f32>().max(1.0);
+        let spare = (avail - total).max(0.0);
+        if let Some(g) = cols.iter().position(|c| c.greedy) {
+            head_w[g] += spare;
+            widths = head_w.clone();
+        }
+        let right_block =
+            if cols.iter().any(|c| c.greedy) { 0 } else { cols.iter().rposition(|c| !c.right).map_or(0, |i| i + 1) };
+        let shared: f32 = head_w.iter().take(right_block).sum::<f32>().max(1.0);
+        for (i, w) in head_w.iter_mut().enumerate() {
+            // the numbers at the right end stay as wide as their headings (the web's whitespace-nowrap numbers)
+            if i < right_block {
+                *w += spare * *w / shared;
+            }
+        }
+        if !cols.iter().any(|c| c.greedy) {
+            widths = head_w;
+        }
+    }
     let (hover_bg, on_head, line, alt) =
         (look.c("row-hover"), look.c("on-table-head"), look.c("line"), look.c("row-alt"));
     let head_grad = look.gradient("table-head");

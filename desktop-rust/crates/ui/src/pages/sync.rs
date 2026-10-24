@@ -357,7 +357,7 @@ impl Sync {
                     Column::new(t("Finished"), 130.0),
                     Column::new(t("Job"), 120.0),
                     Column::new(t("Kind"), 70.0),
-                    Column::new(t("Status"), 120.0).fill(),
+                    Column::new(t("Status"), 120.0).greedy(),
                     Column::new(t("Files"), 56.0).right(),
                     Column::new(t("Size"), 80.0).right(),
                     Column::new(t("Deleted"), 64.0).right(),

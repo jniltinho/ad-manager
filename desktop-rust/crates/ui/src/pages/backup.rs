@@ -354,8 +354,15 @@ impl Backup {
                     act = out.clicked;
                 }
                 if rows.is_empty() {
-                    ui.add_space(12.0);
-                    ui.vertical_centered(|ui| ui.label(RichText::new(t("No backups yet.")).size(12.0).color(muted)));
+                    // the web's empty row: its text centered, a border under it
+                    let (row, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 40.0), egui::Sense::hover());
+                    let g = ui.painter().layout_no_wrap(
+                        t("No backups yet.").to_string(),
+                        egui::FontId::proportional(12.0),
+                        muted,
+                    );
+                    ui.painter().galley(row.center() - g.size() / 2.0, g, muted);
+                    ui.painter().hline(row.x_range(), row.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
                 }
             },
         );
