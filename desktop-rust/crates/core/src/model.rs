@@ -186,6 +186,14 @@ pub struct Summary {
     pub groups: i64,
     pub computers: i64,
     pub policy: PolicySummary,
+    /// The LDAP URL the panel talks to.
+    pub server: String,
+    /// The domain controllers (Home's panel).
+    #[serde(deserialize_with = "nd")]
+    pub dcs: Vec<Computer>,
+    /// Computers per operating system (Home's panel).
+    #[serde(deserialize_with = "nd")]
+    pub os: HashMap<String, i64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

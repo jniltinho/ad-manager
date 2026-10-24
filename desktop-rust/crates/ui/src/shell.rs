@@ -73,6 +73,8 @@ pub enum Nav {
     Policy,
     /// Users filtered by the header's global search.
     Search(String),
+    /// Users with this status filter (Home's tiles and alerts).
+    Users(adm_core::logic::UserFilter),
 }
 
 pub struct Shell {
@@ -175,6 +177,10 @@ impl Shell {
             Some(Nav::Policy) => {
                 self.go_to(cx, Page::Users);
                 crate::pages::policy::open(cx);
+            }
+            Some(Nav::Users(f)) => {
+                self.users.show_filter(cx, f);
+                self.go_to(cx, Page::Users);
             }
             Some(Nav::Search(term)) => {
                 self.users.search_for(cx, &term);

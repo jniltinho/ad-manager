@@ -204,7 +204,9 @@ pub fn demo(users: usize) -> Arc<Route> {
                 let c = |f: &dyn Fn(&Value) -> bool| list.iter().filter(|u| f(u)).count();
                 ok(json!({"users":{"enabled": c(&|u| u["enabled"] == true), "disabled": c(&|u| u["enabled"] == false),
                     "locked": c(&|u| u["locked"] == true)}, "groups": 42, "computers": 18,
-                    "policy":{"complexity": true, "min_length": 7}}))
+                    "policy":{"complexity": true, "min_length": 7}, "server": "ldaps://dc01.domain.local",
+                    "dcs": [{"name":"DC01","sam":"DC01$","dn":"CN=DC01,OU=Domain Controllers,DC=domain,DC=local","dns_name":"dc01.domain.local","os":"Windows Server 2022 Standard","os_version":"10.0 (20348)","enabled":true,"is_dc":true,"last_logon":"2026-10-22T07:00:00Z"}],
+                    "os": {"Windows 11 Pro": 11, "Windows 10 Pro": 4, "Windows Server 2022 Standard": 1, "Samba": 1, "Windows 7 Professional": 1}}))
             }
             "/api/users" => (200, list_json.clone()),
             "/api/groups" => ok(json!([

@@ -70,6 +70,15 @@ impl Users {
         });
     }
 
+    /// Shows the accounts of one status (Home's tiles and alerts).
+    pub fn show_filter(&mut self, cx: &Cx, f: UserFilter) {
+        self.filter = f;
+        self.search.clear();
+        if self.loaded {
+            self.apply(cx);
+        }
+    }
+
     /// Shows the accounts matching the header's global search.
     pub fn search_for(&mut self, cx: &Cx, term: &str) {
         self.search = term.to_string();

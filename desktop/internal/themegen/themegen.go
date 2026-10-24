@@ -36,6 +36,7 @@ var Roles = []string{
 	// and the right-hand top tabs (API, Queues)
 	"ok-soft", "on-ok-soft", "surface-3", "link-hover", "field-focus", "header-link", "header-link-hover",
 	"on-header-subtle", "footer-bar", "footer-top", "on-tab-aux", "tab-aux-hover", "on-tab-aux-hover",
+	"chart-1", "card-hover-line",
 }
 
 // Theme is one registered theme with its resolved colors and its login box shadow.

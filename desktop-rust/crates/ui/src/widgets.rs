@@ -288,23 +288,112 @@ pub fn callout(ui: &mut Ui, look: &Look, kind: Note, text: &str) -> Response {
     r
 }
 
-/// A Home tile: the label, a big number in its color, a stripe in the decor color on top (the theme's width).
-pub fn stat_tile(ui: &mut Ui, look: &Look, label: &str, value: &str, ink: Color32, decor: Color32) {
-    Frame::new().fill(look.c("surface")).stroke(Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
-        let w = ui.available_width();
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 2.0;
-            if look.p.card_stripe > 0.0 {
-                let (r, _) = ui.allocate_exact_size(egui::vec2(w, look.p.card_stripe), egui::Sense::hover());
-                ui.painter().rect_filled(r, 0.0, decor);
+/// A Home tile as the web's: a card `w` wide with the decor stripe on top (the theme's width), the label (11 point
+/// semibold uppercase, muted), the number (30 point semibold in its color) and a faint icon at the bottom right; the
+/// whole tile is a button.
+#[allow(clippy::too_many_arguments)]
+pub fn stat_tile(
+    ui: &mut Ui,
+    look: &Look,
+    w: f32,
+    label: &str,
+    value: &str,
+    ink: Color32,
+    decor: Color32,
+    icon: &str,
+) -> Response {
+    let h = 12.0 + 16.5 + 4.0 + 36.0 + 12.0 + look.p.card_stripe;
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::click());
+    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let p = ui.painter();
+    let line = if resp.hovered() { look.c("card-hover-line") } else { look.c("line") };
+    let shadow = if resp.hovered() { "card-hover" } else { "card" };
+    crate::depth::paint_box(p, rect, None, look.c("surface"), look.shadows(shadow));
+    p.rect_stroke(rect, 0.0, Stroke::new(1.0, line), egui::StrokeKind::Inside);
+    if look.p.card_stripe > 0.0 {
+        p.rect_filled(egui::Rect::from_min_size(rect.min, egui::vec2(w, look.p.card_stripe)), 0.0, decor);
+    }
+    p.text(
+        rect.right_bottom() - egui::vec2(8.0, 6.0),
+        egui::Align2::RIGHT_BOTTOM,
+        icon,
+        egui::FontId::proportional(36.0),
+        ink.gamma_multiply(0.15),
+    );
+    let top = rect.top() + look.p.card_stripe + 12.0;
+    let lg = p.layout_no_wrap(
+        label.to_uppercase(),
+        egui::FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+        look.c("fg-muted"),
+    );
+    p.galley(egui::pos2(rect.left() + 12.0, top), lg, look.c("fg-muted"));
+    let vg = p.layout_no_wrap(
+        value.to_string(),
+        egui::FontId::new(30.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+        ink,
+    );
+    p.galley(egui::pos2(rect.left() + 12.0, top + 16.5 + 4.0), vg, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{label}: {value}")));
+    resp
+}
+
+/// A small table inside a panel, as the web's .grid-t without its frame (Home's domain controllers): the theme's
+/// header band and the rows with their dividers and stripes.
+pub fn mini_table<const N: usize>(ui: &mut Ui, look: &Look, heads: [&str; N], rows: &[[RichText; N]]) {
+    let w = ui.available_width();
+    let (th_px, th_py, td_py) = (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-py", 4.0));
+    let head_h = (12.0 * 1.5 + 2.0 * th_py + 1.0).round();
+    let row_h = (12.0 * 1.5 + 2.0 * td_py + 1.0).round();
+    // the first column takes a quarter, the last one too, the middle the rest (the web's auto layout, roughly)
+    let col_w: Vec<f32> = (0..N)
+        .map(|i| {
+            if N == 1 {
+                w
+            } else if i == 0 || i + 1 == N {
+                w * 0.22
+            } else {
+                w * 0.56 / (N - 2).max(1) as f32
             }
-            Frame::new().inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
-                ui.set_width(w - 20.0);
-                ui.add(egui::Label::new(RichText::new(label).size(11.0).strong().color(look.c("fg-muted"))).truncate());
-                ui.label(RichText::new(value).size(34.0).strong().color(ink));
-            });
-        });
-    });
+        })
+        .collect();
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
+    crate::depth::paint_box(
+        ui.painter(),
+        rect,
+        look.gradient("table-head"),
+        look.c("table-head"),
+        look.shadows("table-head"),
+    );
+    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, look.c("line")));
+    let mut x = rect.left();
+    for (i, h) in heads.iter().enumerate() {
+        let g = ui.painter().layout_no_wrap(
+            h.to_string(),
+            egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+            look.c("on-table-head"),
+        );
+        ui.painter().galley(egui::pos2(x + th_px, rect.center().y - g.size().y / 2.0), g, look.c("on-table-head"));
+        x += col_w[i];
+    }
+    for (r, row) in rows.iter().enumerate() {
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(w, row_h), egui::Sense::hover());
+        if r % 2 == 1 {
+            ui.painter().rect_filled(rect, 0.0, look.c("row-alt"));
+        }
+        if r > 0 {
+            ui.painter().hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, look.c("line")));
+        }
+        let mut x = rect.left();
+        for (i, cell) in row.iter().enumerate() {
+            let cell_rect =
+                egui::Rect::from_min_size(egui::pos2(x + th_px, rect.top()), egui::vec2(col_w[i] - 2.0 * th_px, row_h));
+            let mut child = ui.new_child(
+                egui::UiBuilder::new().max_rect(cell_rect).layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            child.add(egui::Label::new(cell.clone().size(12.0)).truncate());
+            x += col_w[i];
+        }
+    }
 }
 
 /// A labeled form (two columns: bold label, field) laid out by egui's grid.
