@@ -13,6 +13,7 @@ pub mod logs;
 pub mod ous;
 pub mod policy;
 pub mod quarantine;
+pub mod settings;
 pub mod shares;
 pub mod sync;
 pub mod sync_wizard;

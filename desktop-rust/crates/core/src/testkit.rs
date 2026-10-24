@@ -184,6 +184,9 @@ pub fn demo(users: usize) -> Arc<Route> {
         if r.method != "GET" {
             return match p {
                 "/api/login" => ok(json!({"ok": true})),
+                "/api/agents/token" => ok(
+                    json!({"token": "Tk-EXAMPLE-0001", "hash": "h", "command": "echo h | sudo tee /opt/ad-manager/agent.token"}),
+                ),
                 "/api/agents/1/tasks" => ok(json!({"id": "t1", "state": "pending"})),
                 "/api/users/bruno.silva/password-link" => {
                     ok(json!({"token": "Zq3xY7", "expires": "2026-10-24T10:00:00Z"}))
@@ -236,6 +239,12 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"name":"PC-FIN-01","sam":"PC-FIN-01$","dn":"CN=PC-FIN-01,CN=Computers,DC=domain,DC=local","dns_name":"pc-fin-01.domain.local","os":"Windows 11 Pro","os_version":"10.0 (26100)","enabled":true,"is_dc":false,"last_logon":"2026-10-20T08:00:00Z"},
                 {"name":"PC-OLD-02","sam":"PC-OLD-02$","dn":"CN=PC-OLD-02,CN=Computers,DC=domain,DC=local","dns_name":"pc-old-02.domain.local","os":"Windows 7 Professional","os_version":"6.1 (7601)","enabled":false,"is_dc":false,"last_logon":"2025-01-10T08:00:00Z"},
             ])),
+            "/api/settings" => ok(json!({"stored": true, "logo": false,
+                "settings": {"lang":"en","session_minutes":30,"inactive_days":90,"password_length":14,"default_ou":"",
+                    "company":"Example Company Ltd","support_url":"","swagger":false,"theme":"classic-blue","flat":false},
+                "readonly": {"ad_url":"ldaps://dc01.domain.local","domain":"domain.local","base_dn":"DC=domain,DC=local",
+                    "ca_file":"","admin_group":"","listen":":8443","tls":true,"self_signed":true,"trust_proxy":false,
+                    "audit_log":"/var/log/ad-manager/audit.log","db":"/opt/ad-manager/data/ad-manager.db","redis":"127.0.0.1:6379","version":"0.22.0"}})),
             "/api/dns/zones" => {
                 ok(json!([{"name":"domain.local","reverse":false},{"name":"_msdcs.domain.local","reverse":false},
                 {"name":"10.168.192.in-addr.arpa","reverse":true}]))

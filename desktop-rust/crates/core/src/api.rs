@@ -289,6 +289,28 @@ impl Api {
     }
 
     /// Sends the file `from` as the body of a POST (a backup being sent: no total timeout) and decodes the answer.
+    /// PUT `path` with one file as the multipart field `field` (the panel's logo); `name` is the file's name, its
+    /// content type taken from the extension.
+    pub async fn put_file(&self, path: &str, field: &str, name: &str, bytes: Vec<u8>) -> ApiResult<()> {
+        let (url, path) = self.url(path);
+        let mut r = [0u8; 16];
+        getrandom::fill(&mut r).map_err(|e| ApiError::msg(e.to_string()))?;
+        let boundary = format!("adm-{}", r.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        let mut body = multipart_head(&boundary, field, name);
+        body.extend_from_slice(&bytes);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        let resp = self
+            .request(Method::PUT, &url, None)
+            .header("Content-Type", format!("multipart/form-data; boundary={boundary}"))
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| transport(&e))?;
+        let status = resp.status();
+        let data = read_capped(resp).await?;
+        check(status, &path, &data, self.token.is_empty())
+    }
+
     pub async fn upload<T: DeserializeOwned + Default>(&self, path: &str, from: &Path) -> ApiResult<T> {
         let (url, path) = self.url(path);
         let f = tokio::fs::File::open(from).await.map_err(|e| ApiError::msg(e.to_string()))?;
@@ -307,6 +329,23 @@ impl Api {
         check(status, &path, &data, self.token.is_empty())?;
         decode(&data)
     }
+}
+
+/// The opening of a one-file multipart body: the boundary, the part's headers and the blank line.
+fn multipart_head(boundary: &str, field: &str, name: &str) -> Vec<u8> {
+    let ext = name.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
+    let kind = match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    };
+    // a quote or line break in the name would break the header: keep only safe characters
+    let safe: String = name.chars().filter(|c| !matches!(c, '"' | '\r' | '\n' | '\\')).collect();
+    format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{safe}\"\r\nContent-Type: {kind}\r\n\r\n"
+    )
+    .into_bytes()
 }
 
 /// A file as a stream of chunks for an upload body.

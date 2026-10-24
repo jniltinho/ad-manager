@@ -7,7 +7,7 @@ use adm_core::i18n::t;
 use egui::{Frame, Margin, RichText, Ui};
 
 use crate::app::{Cx, Go};
-use crate::pages::{backup, computers, groups, home, logs, ous, shares, sync, users};
+use crate::pages::{backup, computers, groups, home, logs, ous, settings, shares, sync, users};
 use crate::widgets::{self, Kind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,10 +21,11 @@ pub enum Page {
     Backup,
     Sync,
     Logs,
+    Settings,
 }
 
 impl Page {
-    pub const ALL: [Page; 9] = [
+    pub const ALL: [Page; 10] = [
         Self::Home,
         Self::Users,
         Self::Groups,
@@ -34,6 +35,7 @@ impl Page {
         Self::Backup,
         Self::Sync,
         Self::Logs,
+        Self::Settings,
     ];
 
     pub fn label(self) -> &'static str {
@@ -47,6 +49,7 @@ impl Page {
             Self::Backup => t("Backup"),
             Self::Sync => t("Sync"),
             Self::Logs => t("Logs"),
+            Self::Settings => t("Settings"),
         }
     }
 
@@ -61,6 +64,7 @@ impl Page {
             Self::Backup => "🕘",
             Self::Sync => "🔄",
             Self::Logs => "📄",
+            Self::Settings => "⚙",
         }
     }
 }
@@ -81,7 +85,7 @@ pub struct Shell {
     page: Page,
     /// The header's global search.
     search: String,
-    opened: [bool; 9],
+    opened: [bool; 10],
     pub home: home::Home,
     pub users: users::Users,
     pub groups: groups::Groups,
@@ -91,6 +95,7 @@ pub struct Shell {
     pub backup: backup::Backup,
     pub sync: sync::Sync,
     pub logs: logs::Logs,
+    pub settings: settings::Settings,
 }
 
 impl Shell {
@@ -98,7 +103,7 @@ impl Shell {
         let mut s = Self {
             page: Page::Home,
             search: String::new(),
-            opened: [false; 9],
+            opened: [false; 10],
             home: home::Home::default(),
             users: users::Users::default(),
             groups: groups::Groups::default(),
@@ -108,6 +113,7 @@ impl Shell {
             backup: backup::Backup::default(),
             sync: sync::Sync::default(),
             logs: logs::Logs::default(),
+            settings: settings::Settings::default(),
         };
         s.go_to(cx, Page::Home);
         s
@@ -134,6 +140,7 @@ impl Shell {
             Page::Backup => self.backup.load(cx),
             Page::Sync => self.sync.load(cx),
             Page::Logs => self.logs.load(cx),
+            Page::Settings => self.settings.load(cx),
         }
     }
 
@@ -232,6 +239,10 @@ impl Shell {
             }
             Page::Logs => {
                 self.logs.ui(ui, cx, keys);
+                None
+            }
+            Page::Settings => {
+                self.settings.ui(ui, cx);
                 None
             }
         }
@@ -494,7 +505,7 @@ const TABS: [Tab; 10] = [
     Tab::Web("↔", "Import/export", "/import-export"),
     Tab::Page(Page::Backup),
     Tab::Page(Page::Logs),
-    Tab::Web("⚙", "Settings", "/settings"),
+    Tab::Page(Page::Settings),
 ];
 
 /// A top tab as the web's: px 16 py 8, a 15 point icon and the 12 point semibold label; the current one in the

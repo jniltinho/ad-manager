@@ -495,6 +495,31 @@ fn shots() {
     e.click("+ new");
     e.h.run_steps(20);
     save(&mut e, "23-sync-wizard");
+    e.key(egui::Key::Escape);
+    page(&mut e, "Settings");
+    e.wait("the settings", |_, m| !m.sent("GET", "/api/settings").is_empty());
+    e.h.run_steps(4);
+    save(&mut e, "24-settings");
+}
+
+#[test]
+fn settings_saves_the_theme_for_every_operator() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Settings").click();
+    e.wait("the settings", |_, m| !m.sent("GET", "/api/settings").is_empty());
+    e.h.run_steps(4);
+    e.h.get_by_label("Theme").click();
+    e.h.run_steps(3);
+    e.h.get_by_label("Breeze (dark)").click_accesskit();
+    e.h.run_steps(3);
+    e.h.get_by_label_contains("Save settings").click_accesskit(); // below the fold at 800 px
+    e.h.run_steps(3);
+    e.wait("the save", |_, m| !m.sent("PUT", "/api/settings").is_empty());
+    let body = &e.sent("PUT", "/api/settings")[0].json();
+    assert_eq!(body["theme"], "breeze-dark");
+    assert_eq!(body["company"], "Example Company Ltd", "the other settings sent back as they were");
+    assert_eq!(body["session_minutes"], 30);
 }
 
 /// Home in every theme (2×, English), for the comparison with the web's themes sheet: written only when ADM_SHOTS is

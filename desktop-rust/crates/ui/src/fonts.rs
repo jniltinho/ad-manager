@@ -248,6 +248,9 @@ fn data(f: &Face) -> FontData {
     d
 }
 
+/// Wide system faces tried, in order, for the symbols the theme's face lacks.
+const SYMBOLS: [&str; 6] = ["DejaVu Sans", "Noto Sans", "Segoe UI Symbol", "Segoe UI", "Lucida Grande", "Arial Unicode MS"];
+
 /// The egui fonts of a theme: its sans stack as the proportional family (and `semibold`), its mono stack as the
 /// monospace family; egui's bundled fonts stay behind them for symbols and emoji.
 pub fn definitions(sans: &[String], mono: &[String]) -> (FontDefinitions, String) {
@@ -258,8 +261,16 @@ pub fn definitions(sans: &[String], mono: &[String]) -> (FontDefinitions, String
     d.font_data.insert("adm-sans".into(), Arc::new(data(&s.regular)));
     d.font_data.insert("adm-sans-600".into(), Arc::new(data(&s.semibold)));
     let mut prop = vec!["adm-sans".to_string()];
-    prop.extend(fallback_prop.iter().cloned());
     let mut bold = vec!["adm-sans-600".to_string()];
+    // a wide system face after the theme's (the embedded Inter is a latin subset): arrows and other symbols of the
+    // web's texts (→, ✕) draw as the browser's fallback draws them
+    let symbols: Vec<String> = SYMBOLS.iter().map(|f| (*f).to_string()).collect();
+    if let Some(w) = cached(&symbols, false) {
+        d.font_data.insert("adm-symbols".into(), Arc::new(data(&w.regular)));
+        prop.push("adm-symbols".into());
+        bold.push("adm-symbols".into());
+    }
+    prop.extend(fallback_prop.iter().cloned());
     bold.extend(fallback_prop.iter().cloned());
     let mut mono_fam = fallback_mono.clone();
     if let Some(m) = cached(mono, true) {
