@@ -467,7 +467,7 @@ impl Shares {
                 Column::new(t("Write access"), (w * 0.22).floor()),
                 Column::new(t("Read access"), (w * 0.15).floor()),
                 Column::new(t("Comment"), 90.0).fill(),
-                Column::new(t("Actions"), 144.0).right(),
+                Column::new(t("Actions"), 96.0).right(), // only remove: the name is the edit link (the web's w-24)
             ];
             let mut hover = None;
             let (shares, sizes, measuring) = (&self.shares, &self.sizes, self.measuring);
