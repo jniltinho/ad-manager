@@ -21,14 +21,14 @@ Server or Samba 4) and supports migrating a Windows DC to Samba 4.23. Read `docs
      translation in `frontend/src/locales/pt-BR/*.js`;
    - server: the `internal/i18n` catalog (served at `/api/i18n` for the web panel and used by the desktop and the
      CLI) — a new server message gets an entry there and `UPDATE_I18N=1 go test ./internal/i18n`;
-   - desktop: `desktop/i18n_pt_*.go`.
+   - desktop (Rust): `desktop-rust/crates/core/assets/i18n/pt-BR.json`.
 8. **Keep Swagger up to date**: every new or changed API endpoint (`/api/…`: route, method, parameters, body or
    response) updates `internal/server/openapi.yaml` in the same commit. `TestOpenAPICoversRoutes`
    (`internal/server/swagger_test.go`) fails if a route exists without documentation or vice versa; also check it at
    `/swagger` (enabled in the Settings screen).
 9. **Screenshots** (`docs/screenshots/`, how-to at the end of its README): a visible UI change retakes the affected
-   screenshots in the same change. Always at **2×** (`deviceScaleFactor: 2` in Playwright, `SetScale(2)` in the
-   desktop capture), with the **Classic blue (XP)** theme (`classic-blue`), English UI, company "Example Company Ltd"
+   screenshots in the same change. Always at **2×** (`deviceScaleFactor: 2` in Playwright, `make desktop-shots` for
+   the desktop app), with the **Classic blue (XP)** theme (`classic-blue`), English UI, company "Example Company Ltd"
    and the fictitious `domain.local` demo — never a real domain, user or IP.
 
 ## Validate
@@ -38,8 +38,12 @@ make check && make test
 make samba-up && make test-integration
 ```
 
-After every change run `make build`: it updates `dist/` (server and `dist/desktop/<platform>/ad-manager-desktop`
-for Linux and Windows; macOS only on a Mac or with `MACOS_SDK`).
+Desktop app (`desktop-rust/`, Rust/egui): `make desktop-check` (format, clippy, tests and cargo-deny, all in Docker:
+nothing to install). The Fyne app in `desktop/` is **archived**: kept only as code to study — not built, tested or
+released, and not changed (its theme generator `desktop/internal/themegen` still feeds `make desktop-themes`).
+
+After every change run `make build`: it updates `dist/` (the server, and in `dist/desktop-rust/` the desktop app's
+Linux and Windows archives and its Linux binary; macOS is built by its release workflow).
 
 UI: run the panel against the test Samba (`docs/development.md`) and check it in the browser.
 Also validate big changes with Codex (`codex exec --sandbox read-only …`).

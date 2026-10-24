@@ -12,11 +12,14 @@ CARGO   := scripts/cargo-docker.sh cargo
 VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' Cargo.toml | head -n 1)
 DIST    ?= dist
 TARGET  := target/docker
+# DIST as the toolchain container sees it (the repository is mounted at /work): the zip is made in there, where
+# python3 is, so the host needs no zip; DIST must be inside the repository
+DIST_IN_DOCKER = $(patsubst $(abspath ..)/%,/work/%,$(abspath $(DIST)))
 
 DENY        := cargo-deny-0.20.2-x86_64-unknown-linux-musl
 DENY_SHA256 := 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
 
-.PHONY: help build release run test fmt fmt-check clippy deny check shots mock bench dist dist-linux dist-windows themes catalog
+.PHONY: help build release run test fmt fmt-check clippy deny check shots mock bench dist dist-linux dist-windows themes themes-check
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -27,8 +30,8 @@ build: ## Debug build of the workspace
 release: ## Release build (target/docker/release/ad-manager-desktop-rs)
 	$(CARGO) build --release --locked -p ad-manager-desktop-rs
 
-test: ## Unit and UI acceptance tests (the Fyne sources are compared when present)
-	ADM_REQUIRE_FYNE=1 $(CARGO) test --workspace --locked
+test: ## Unit and UI acceptance tests
+	$(CARGO) test --workspace --locked
 
 fmt: ## Format the workspace
 	$(CARGO) fmt --all
@@ -51,7 +54,7 @@ deny: ## cargo deny (licenses, advisories, sources) with the pinned, SHA-256 che
 	fi
 	scripts/cargo-docker.sh target/tools/cargo-deny check
 
-check: fmt-check clippy test deny ## What CI runs
+check: fmt-check clippy test deny themes-check ## What CI runs
 
 shots: ## The docs screenshots (2x, Classic blue, domain.local) into ../docs/screenshots
 	DESKTOP_RUST_DOCKER_ARGS="--add-host panel.domain.local:127.0.0.1 -v /usr/share/fonts:/usr/share/fonts:ro" ADM_SHOTS=/work/docs/screenshots ADM_SHOTS_HOST=panel.domain.local \
@@ -60,14 +63,18 @@ shots: ## The docs screenshots (2x, Classic blue, domain.local) into ../docs/scr
 mock: ## A mock panel with 5,000 users on https://127.0.0.1:8443 (prints the URL and pin)
 	DESKTOP_RUST_DOCKER_ARGS="-p 127.0.0.1:8443:8443" $(CARGO) run -p adm-core --example mock_panel --features testkit --locked -- --users 5000 --port 8443
 
-bench: ## Benchmark against the Fyne app (bench/run.sh; needs both release binaries)
+bench: ## Benchmark against the archived Fyne app (bench/run.sh; needs both release binaries)
 	bench/run.sh
 
-themes: ## Regenerate assets/themes.json from the web's theme CSS (the same source as desktop/themes_gen.go)
-	cd ../desktop && go run ./internal/themegen/rustgen
+# the generator is Go (desktop/internal/themegen, kept from the archived Fyne app): run in the Go image, as the user
+GO_IMAGE := docker.io/library/golang:$(shell sed -n 's/^go //p' ../desktop/go.mod)
+GO_RUN   := docker run --rm -u $$(id -u):$$(id -g) -v $(CURDIR)/..:/w -w /w/desktop -e HOME=/tmp \
+	-e GOCACHE=/tmp/go-cache -e GOPATH=/tmp/go $(GO_IMAGE)
+themes: ## Regenerate assets/themes.json from the web's theme CSS (in the Go image, nothing to install)
+	$(GO_RUN) go run ./internal/themegen/rustgen
 
-catalog: ## Pull new pt-BR entries from desktop/i18n_pt_*.go
-	python3 scripts/gen-catalog.py
+themes-check: ## assets/themes.json is what the web's theme CSS gives now (in the Go image)
+	$(GO_RUN) go test ./internal/themegen -run 'TestRustThemesUpToDate|TestParseGradientAndShadows' -count=1
 
 dist: dist-linux dist-windows ## Release archives (Linux tar.gz, Windows zip) and SHA256SUMS into DIST
 
@@ -81,5 +88,5 @@ dist-windows:
 	DESKTOP_RUST_TOOLCHAIN=windows $(CARGO) build --release --locked -p ad-manager-desktop-rs --target x86_64-pc-windows-gnu
 	mkdir -p $(DIST)/stage-windows
 	cp $(TARGET)/x86_64-pc-windows-gnu/release/ad-manager-desktop-rs.exe README.md CHANGELOG.md $(DIST)/stage-windows/
-	cd $(DIST)/stage-windows && zip -q -r ../ad-manager-desktop-rs_$(VERSION)_windows_x86_64.zip .
+	scripts/cargo-docker.sh sh -c 'cd $(DIST_IN_DOCKER)/stage-windows && python3 -m zipfile -c ../ad-manager-desktop-rs_$(VERSION)_windows_x86_64.zip *'
 	cd $(DIST) && sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true

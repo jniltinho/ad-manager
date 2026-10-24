@@ -127,42 +127,8 @@ panel has no domain yet): `frontend/tests/visual/setup-shots.mjs`.
 
 ## Desktop app
 
-| Sign in | Configure (first run) |
-|---|---|
-| ![Sign in](desktop-01-login.png) | ![Configure](desktop-02-configure.png) |
-
-| Home | Users |
-|---|---|
-| ![Home](desktop-03-home.png) | ![Users](desktop-04-users.png) |
-
-| New user | Groups and members |
-|---|---|
-| ![New user](desktop-05-new-user.png) | ![Groups](desktop-06-groups.png) |
-
-| OUs | Computers |
-|---|---|
-| ![OUs](desktop-12-ous.png) | ![Computers](desktop-07-computers.png) |
-
-| Shares | Password policy |
-|---|---|
-| ![Shares](desktop-08-shares.png) | ![Policy](desktop-13-password-policy.png) |
-
-| Backup | Sync |
-|---|---|
-| ![Backup](desktop-14-backup.png) | ![Sync](desktop-15-sync.png) |
-
-| Logs | Send a password link |
-|---|---|
-| ![Logs](desktop-09-logs.png) | ![Link](desktop-10-password-link.png) |
-
-| Link generated |  |
-|---|---|
-| ![Link generated](desktop-11-link-generated.png) |  |
-
-## Desktop app in Rust (egui)
-
-The same screens of [`desktop-rust/`](../../desktop-rust/README.md), 1280 × 800 at 2× (2560 × 1600), Classic blue in
-its flat look.
+The desktop app ([`desktop-rust/`](../../desktop-rust/README.md), Rust/egui), 1280 × 800 at 2× (2560 × 1600), Classic
+blue. The archived Fyne app's screenshots were removed with it.
 
 | Sign in | Configure |
 |---|---|
@@ -216,7 +182,7 @@ its flat look.
 |---|---|
 | ![Backup agent](desktop-rs-25-backup-agent.png) | ![Import/export](desktop-rs-26-import-export.png) |
 
-The Rust app's are retaken with `make -C desktop-rust shots` (a mock panel, no domain needed).
+They are retaken with `make desktop-shots` (a mock panel, no domain needed; in Docker).
 
 ## How to retake them
 
@@ -267,28 +233,15 @@ Everything runs locally, with passwords only in environment variables.
    and rename `sync-classic-blue-page.png` to `30-sync.png` and `sync-classic-blue-log.png` to `33-sync-log.png`
    (`docs-shots.mjs` also takes a `30-sync`, from the container's real runs: keep the fixture one).
 
-5. Desktop app (signed in to the container's panel; the file servers through it):
+5. Desktop app: the real app driven by its UI tests against the in-process mock panel (fixtures of `domain.local`,
+   Example Company Ltd, answering as `https://panel.domain.local:8443`), rendered with lavapipe in the toolchain
+   image — no panel or agent needed, nothing to install but Docker:
 
    ```bash
-   (cd desktop && DOCS_URL=https://127.0.0.1:18443 DOCS_PASS="$AD_ADMIN_PASSWORD" DOCS_VERSION=$(git describe --tags) DOCS_SHOTS_DIR=../docs/screenshots go test -tags docsshots -run TestDocsShots -count=1 .)
+   make desktop-shots
    ```
 
-   Configure (`desktop-02-configure.png`, a self-signed panel's certificate to trust), Shares
-   (`desktop-08-shares.png`) and Sync (`desktop-15-sync.png`) come from fixtures instead (a fake panel, no agent),
-   after the run above, which also writes them:
-
-   ```bash
-   (cd desktop && DOCS_SHOTS_DIR=../docs/screenshots DOCS_VERSION=$(git describe --tags --abbrev=0) go test -tags docsshots -run TestDocsFixtureShots -count=1 .)
-   ```
-
-6. Desktop app in Rust: the real app driven by its UI tests against the in-process mock panel (fixtures of
-   `domain.local`, Example Company Ltd, answering as `https://panel.domain.local:8443`), rendered with lavapipe in
-   the toolchain image — no panel or agent needed:
-
-   ```bash
-   (cd desktop-rust && make shots)
-   ```
-
-7. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`,
-   `SCREEN_SHOTS=../.run/desk-themes go test -run TestScreensInEveryTheme` in `desktop/`, then
-   `python3 scripts/theme-mosaics.py`.
+6. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`; the
+   desktop app's home screen in every theme from its live test against the container above (`ADM_LIVE_SHOTS`, the
+   command in [desktop-rust/README.md](../../desktop-rust/README.md)), its `live-theme-<id>.png` copied into
+   `.run/desk-themes-rs/`; then `python3 scripts/theme-mosaics.py`.

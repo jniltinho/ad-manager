@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Builds the theme mosaics of the docs from the home screen of every theme:
 #   web:     frontend: BASELINE=1 npx playwright test          → .run/visual/baseline/home-<id>.png
-#   desktop: desktop: SCREEN_SHOTS=../.run/desk-themes go test -run TestScreensInEveryTheme
+#   desktop: the Rust app's live test with ADM_LIVE_SHOTS (desktop-rust/README.md), its live-theme-<id>.png copied
+#            into .run/desk-themes-rs/
 # Writes docs/screenshots/themes.jpg (web, two per row) and docs/img/conformity/web-desktop-{1,2,3}.jpg (web beside
 # desktop, six themes each). Needs Pillow.
 import os
@@ -9,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, '.run/visual/baseline/home-{}.png')
-DESK = os.path.join(ROOT, '.run/desk-themes/desktop-home-{}-false.png')
+DESK = os.path.join(ROOT, '.run/desk-themes-rs/live-theme-{}.png')
 THEMES = [('default', 'Default'), ('admanager', 'ADManager'), ('breeze', 'Breeze'), ('breeze-dark', 'Breeze (dark)'),
           ('violet', 'Violet'), ('violet-dark', 'Violet (dark)'), ('aurora', 'Aurora'), ('aurora-dark', 'Aurora (dark)'),
           ('crystal', 'Crystal'), ('crystal-dark', 'Crystal (dark)'), ('cone', 'Cone (dark)'),

@@ -1,6 +1,6 @@
 # CI of the Rust desktop (desktop-rust/) only: it runs for pull requests and pushes to main that touch desktop-rust/,
-# these workflows or the Fyne sources its asset checks read (the generated palettes and the pt-BR catalog). It never
-# calls ci.yml or release.yml, which keep their own triggers. Linux checks run in the pinned toolchain image (as
+# these workflows, the web's theme CSS or the theme generator (desktop/internal/themegen, kept from the archived Fyne
+# app) that turns it into assets/themes.json. It never calls ci.yml or release.yml, which keep their own triggers. Linux checks run in the pinned toolchain image (as
 # rustXterm's); Windows is cross-built in its image; macOS builds natively.
 name: desktop-rust-ci
 
@@ -11,9 +11,9 @@ on:
       - "desktop-rust/**"
       - ".github/workflows/desktop-rust-ci.yml"
       - ".github/workflows/desktop-rust-release.yml"
-      - "desktop/themes_gen.go"
-      - "desktop/i18n_pt_*.go"
       - "desktop/internal/themegen/**"
+      - "internal/server/themes.go"
+      - "internal/server/settings.go"
       - "frontend/src/style.css"
       - "frontend/src/themes/**"
   pull_request:
@@ -21,9 +21,9 @@ on:
       - "desktop-rust/**"
       - ".github/workflows/desktop-rust-ci.yml"
       - ".github/workflows/desktop-rust-release.yml"
-      - "desktop/themes_gen.go"
-      - "desktop/i18n_pt_*.go"
       - "desktop/internal/themegen/**"
+      - "internal/server/themes.go"
+      - "internal/server/settings.go"
       - "frontend/src/style.css"
       - "frontend/src/themes/**"
   workflow_dispatch:
@@ -61,8 +61,15 @@ jobs:
         run: scripts/cargo-docker.sh cargo fmt --all --check
       - name: Clippy (warnings are errors)
         run: scripts/cargo-docker.sh cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Tests (unit and UI acceptance; the Fyne palettes and catalog must be there)
-        run: ADM_REQUIRE_FYNE=1 scripts/cargo-docker.sh cargo test --workspace --locked
+      - name: Tests (unit and UI acceptance)
+        run: scripts/cargo-docker.sh cargo test --workspace --locked
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache: false
+      - name: Themes in step with the web's CSS (assets/themes.json from desktop/internal/themegen)
+        working-directory: desktop
+        run: go test ./internal/themegen -run 'TestRustThemesUpToDate|TestParseGradientAndShadows' -count=1
       - name: Release build
         run: scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop-rs
       - name: cargo deny (licenses, advisories, bans, sources; deny.toml)

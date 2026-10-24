@@ -31,3 +31,23 @@ another selected share's folder, and a folder the server cannot sync into.
 #### Scenario: The wizard shows the mapping
 - **WHEN** the wizard lists a source server with `targets: true`
 - **THEN** the answer has, per share, the folder it goes to or the reason it is skipped, before the job is saved
+
+### Requirement: The jobs list names a server job's destination
+The Sync page (web and desktop) SHALL show, as the destination of a server job, the share folders of this server
+(the agent's share roots), with the mapping by name in its tooltip.
+
+#### Scenario: Destination of a server job
+- **WHEN** the Sync page lists a server job on a server whose shares live under `/srv/shares`
+- **THEN** its Destination cell shows `/srv/shares` and hovering it says the shares of the same name
+
+### Requirement: Stopping a run asks first
+Stopping a queued or running sync run from the web panel or the desktop app SHALL ask for confirmation and SHALL
+send nothing until it is given.
+
+#### Scenario: Stop confirmed
+- **WHEN** the operator clicks the stop link of a running run and confirms **Stop run**
+- **THEN** the cancel request is sent and the list refreshes
+
+#### Scenario: Stop dismissed
+- **WHEN** the operator dismisses the confirmation
+- **THEN** no request is sent and the run goes on

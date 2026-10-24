@@ -7,7 +7,7 @@ description: Cut a release of ad-manager on GitHub with the gh CLI — CHANGELOG
 
 The repository is **github.com/jniltinho/ad-manager**. A release is: bump `CHANGELOG.md`, commit, push `main`, wait
 for the CI, push the tag. The tag starts `.github/workflows/release.yml`, which runs the CI again, builds every
-package (server linux amd64, `.deb`, desktop app for Linux, Windows and a macOS universal `.app`)
+package (server linux amd64 and the `.deb`)
 and publishes the release with `gh release create`, with the notes of that version's section in `CHANGELOG.md`
 and `checksums.txt`.
 
@@ -96,9 +96,9 @@ If a job fails: `gh run view --repo "$REPO" "$RUN" --log-failed`, fix on `main`,
 gh release view vX.Y.Z --repo "$REPO" --json name,assets -q '.name, (.assets[].name)'
 ```
 
-Expect: `ad-manager_vX.Y.Z_linux_amd64.tar.gz`, `ad-manager_X.Y.Z_amd64.deb`,
-`ad-manager-desktop_vX.Y.Z_{linux_amd64.tar.gz,windows_amd64.zip,darwin_universal.zip}`
-and `checksums.txt`.
+Expect: `ad-manager_vX.Y.Z_linux_amd64.tar.gz`, `ad-manager_X.Y.Z_amd64.deb` and `checksums.txt`. The desktop app
+(Rust) is released on its own `desktop-rust-vX.Y.Z` tags (`desktop-rust-release.yml`); the Fyne app in `desktop/` is
+archived and no longer released.
 
 ### 6b. Format the GitHub release notes (rustXterm style)
 
@@ -124,9 +124,6 @@ the Downloads list from the published assets, and the compare link from the prev
 ## 📦 Downloads
 - `ad-manager_vX.Y.Z_linux_amd64.tar.gz` — server for Linux (x86_64)
 - `ad-manager_X.Y.Z_amd64.deb` — server package for Ubuntu 26.04
-- `ad-manager-desktop_vX.Y.Z_linux_amd64.tar.gz` — desktop app for Linux
-- `ad-manager-desktop_vX.Y.Z_windows_amd64.zip` — desktop app for Windows
-- `ad-manager-desktop_vX.Y.Z_darwin_universal.zip` — desktop app for macOS (universal: Apple Silicon and Intel)
 - `checksums.txt` — SHA-256 checksums
 
 **Full Changelog**: https://github.com/jniltinho/ad-manager/compare/$LAST...vX.Y.Z

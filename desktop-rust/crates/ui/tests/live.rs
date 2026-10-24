@@ -141,4 +141,33 @@ fn every_page_against_a_real_panel() {
         }
         _ => panic!("left the shell"),
     }
+    // Settings › Theme saved by this operator also reaches this computer: its own theme (the last one chosen above)
+    // gives way, in desktop.toml too; then the panel's theme as it was
+    let before = h.state().cx.panel_theme.0.clone();
+    assert!(!h.state().cx.cfg.appearance.theme.is_empty(), "this computer has its own theme here");
+    let pick = adm_core::theme::order()
+        .iter()
+        .find(|id| **id != before && **id != h.state().cx.cfg.appearance.theme)
+        .unwrap()
+        .clone();
+    for (id, check) in [(pick, true), (before, false)] {
+        let label = adm_core::i18n::t(&adm_core::theme::palette(&id).unwrap().1.label).to_string();
+        h.get_all_by_label("Settings").next().unwrap().click();
+        settle(&mut h, 3000);
+        h.get_by_label("Theme").click();
+        h.run_steps(3);
+        h.get_all_by_label(&label).last().unwrap().click_accesskit();
+        h.run_steps(3);
+        h.get_by_label_contains("Save settings").click_accesskit();
+        settle(&mut h, 3000);
+        no_error(&h, "Settings save");
+        assert_eq!(h.state().cx.panel_theme.0, id, "{label}: the panel's theme");
+        assert_eq!(&h.state().cx.look.id, &id, "{label}: drawn here at once");
+        if check {
+            assert!(h.state().cx.cfg.appearance.theme.is_empty(), "this computer's own theme cleared");
+            let saved = adm_core::config::decode(&std::fs::read_to_string(&cfg).unwrap()).unwrap();
+            assert!(saved.appearance.theme.is_empty(), "and in desktop.toml");
+            save(&mut h, "15-settings-theme");
+        }
+    }
 }

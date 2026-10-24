@@ -1,10 +1,10 @@
 # AD Manager desktop (Rust)
 
-A second desktop client of the [ad-manager](../README.md) panel, written in Rust with
-[egui/eframe](https://github.com/emilk/egui), at feature parity with the Fyne desktop ([`desktop/`](../desktop),
-[docs/desktop.md](../docs/desktop.md)). It exists to measure whether an immediate-mode Rust GUI is faster: the
-numbers are in [docs/benchmark.md](docs/benchmark.md). The Fyne app stays the shipped desktop; this one is released
-on its own tags (`desktop-rust-vX.Y.Z`).
+The desktop client of the [ad-manager](../README.md) panel, written in Rust with
+[egui/eframe](https://github.com/emilk/egui), matching the web panel's pages, themes and rules (user guide:
+[docs/desktop.md](../docs/desktop.md)). It replaced the Fyne desktop, now archived in [`desktop/`](../desktop) as code
+only; the benchmark that compared them is in [docs/benchmark.md](docs/benchmark.md). It is released on its own tags
+(`desktop-rust-vX.Y.Z`).
 
 | Sign-in | Users |
 |---|---|
@@ -27,7 +27,7 @@ server stays the authority):
   (audit, HTTP, Samba) and **Settings** (language, theme, company, logo, agent token), with the web's dialogs and
   guards (built-in and own accounts, DCs, typed confirmations).
 - It talks **only to the panel**: file servers through the panel's proxy, never with an agent token.
-- The same **`desktop.toml`** as the Fyne app (same keys and lookup: `--config`, `AD_MANAGER_DESKTOP`,
+- **`desktop.toml`** (the keys and lookup of the archived Fyne app: `--config`, `AD_MANAGER_DESKTOP`,
   `.config/desktop.toml` beside the executable, the user config folder), written `0600` and refused when looser.
 - English interface with the pt-BR catalog (`crates/core/assets/i18n/pt-BR.json`); server messages translated with
   the panel's catalog (`/api/i18n`).
@@ -42,7 +42,7 @@ server stays the authority):
   - Linux: Vulkan → OpenGL → software (llvmpipe);
   - macOS: Metal → OpenGL (glow).
 
-  A working fallback is saved as `[graphics]` in desktop.toml (the Fyne app keeps it) and announced under the sign-in
+  A working fallback is saved as `[graphics]` in desktop.toml and announced under the sign-in
   box. It can be changed in **Configure › Graphics › Rendering backend**, which applies at the next start. Choices:
   - Automatic;
   - **wgpu (WebGPU)**, where wgpu picks the backend and the adapter itself: on Windows it prefers DX12/Vulkan, where
@@ -73,15 +73,17 @@ use (`zeroize`).
 
 ## Build and test
 
-Everything runs in the pinned rustXterm toolchain image (Docker); the host needs no Rust:
+Everything runs in Docker (the pinned rustXterm toolchain image, and the Go image for the theme generator); the host
+needs neither Rust nor Go. From the repository root: `make desktop`, `make desktop-check`, `make desktop-shots`,
+`make desktop-themes`; here:
 
 ```bash
-make check     # fmt, clippy -D warnings, unit + UI acceptance tests, cargo deny
+make check     # fmt, clippy -D warnings, unit + UI acceptance tests, cargo deny, themes.json in step with the CSS
 make release   # target/docker/release/ad-manager-desktop-rs
 make dist      # Linux tar.gz and Windows zip in dist/
 make shots     # the docs screenshots (2x, Classic blue, domain.local)
 make mock      # a mock panel with 5,000 users (prints the URL and pin for desktop.toml)
-make bench     # the benchmark against the Fyne app
+make bench     # the benchmark against the archived Fyne app
 ```
 
 Against a real domain, the all-in-one test image ([docs/docker.md](../docs/docker.md), a fictitious `domain.local`

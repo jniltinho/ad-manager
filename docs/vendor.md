@@ -124,7 +124,7 @@ The alternatives were worse:
   way `acl_xattr` does; writing stays in the Python helper.
 - The other dependencies (Echo, go-ldap, asynq, Fyne, Vue, Tailwind etc.) come from the regular registries (Go
   modules and npm), pinned by `go.sum` and `package-lock.json`.
-- On the desktop, `github.com/fyne-io/oksvg` and `github.com/srwiley/rasterx` already came with Fyne (Fyne uses them
+- On the archived Fyne desktop (`desktop/`, kept as code only), `github.com/fyne-io/oksvg` and `github.com/srwiley/rasterx` already came with Fyne (Fyne uses them
   to draw SVG) and are now used directly in `desktop/client.go`: the company's SVG logo is read and drawn with the
   same parser before it goes to the login. An SVG that Fyne would not draw (invalid attribute, no size, nothing
   visible) falls back to the AD Manager logo instead of leaving the login without a logo.

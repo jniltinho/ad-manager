@@ -233,10 +233,12 @@ impl Sync {
                     t("Quarantine"),
                 ];
                 let mut w: [f32; 7] = std::array::from_fn(|i| tw(heads[i], &bold));
+                // the source never shrinks under its tags and a few characters of the path
+                let mut src_floor: f32 = 80.0;
                 for (j, name) in jobs.iter().zip(&names) {
-                    let src = tw(&sync_unc(j), &mono)
-                        + if j.kind == "server" { tag(t("every share")) - space } else { 0.0 }
-                        + tag(auth_text(j));
+                    let tags = if j.kind == "server" { tag(t("every share")) - space } else { 0.0 } + tag(auth_text(j));
+                    let src = tw(&sync_unc(j), &mono) + tags;
+                    src_floor = src_floor.max((tags + tw("\\\\abc…", &mono) + 16.0).ceil());
                     let dest = match j.kind.as_str() {
                         "server" if roots.is_empty() => tw(t("the shares of the same name"), &small),
                         "server" => tw(&roots, &mono),
@@ -266,8 +268,23 @@ impl Sync {
                 // actions stay in view
                 let caps = [224.0, 320.0, 256.0, f32::INFINITY, f32::INFINITY, f32::INFINITY, f32::INFINITY];
                 let w: [f32; 7] = std::array::from_fn(|i| (w[i].ceil() + 16.0).min(caps[i]));
-                let k = ((ui.available_width() - 144.0) / w.iter().sum::<f32>()).max(1.0);
-                let w = w.map(|x| (x * k).floor());
+                let room = ui.available_width() - 144.0;
+                let sum: f32 = w.iter().sum();
+                let w = if sum <= room {
+                    w.map(|x| (x * room / sum).floor())
+                } else {
+                    // too wide: only the cut columns give way (name, source, destination, last run), down to 80
+                    // each; mode, cron and quarantine keep their text whole, as the browser keeps their min-content
+                    let cut = [0, 1, 2, 5];
+                    let floor = |i: usize| if i == 1 { src_floor } else { 80.0 }.min(w[i]);
+                    let flex: f32 = cut.iter().map(|&i| w[i] - floor(i)).sum();
+                    let k = ((sum - room) / flex.max(1.0)).min(1.0);
+                    let mut w = w;
+                    for i in cut {
+                        w[i] = (w[i] - (w[i] - floor(i)) * k).floor();
+                    }
+                    w
+                };
                 let cols = [
                     Column::new(t("Name"), w[0]),
                     Column::new(t("Source"), w[1]),

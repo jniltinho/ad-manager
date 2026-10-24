@@ -341,34 +341,6 @@ mod tests {
         assert!(flat_clears("--shadow-card") && !flat_clears("--shadow-dialog"), "dialog shadows stay flat");
     }
 
-    /// assets/themes.json has the same themes and role colors as the Fyne app's generated palettes (when the
-    /// monorepo is there): a theme change in the web panel shows up here once `go generate` ran in desktop/.
-    #[test]
-    fn themes_json_matches_fyne() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../desktop/themes_gen.go");
-        let Ok(src) = std::fs::read_to_string(path) else {
-            // outside the monorepo there is nothing to compare; CI sets ADM_REQUIRE_FYNE so it never skips there
-            assert!(std::env::var_os("ADM_REQUIRE_FYNE").is_none(), "{path} not found");
-            return;
-        };
-        let re = regex::Regex::new(r#""([a-z0-9-]+)":\s*\{0x(\w\w), 0x(\w\w), 0x(\w\w), 0x(\w\w)\}"#).unwrap();
-        let head = regex::Regex::new(r#"(?m)^\t"([a-z0-9-]+)": \{scheme: "#).unwrap();
-        let starts: Vec<(usize, String)> =
-            head.captures_iter(&src).map(|c| (c.get(0).unwrap().start(), c[1].to_string())).collect();
-        assert_eq!(starts.len(), all().themes.len(), "number of themes");
-        for (i, (at, id)) in starts.iter().enumerate() {
-            let end = starts.get(i + 1).map_or(src.len(), |n| n.0);
-            let p = &all().themes.get(id).unwrap_or_else(|| panic!("{id} missing in themes.json"));
-            let mut n = 0;
-            for c in re.captures_iter(&src[*at..end]) {
-                let hex = |k: usize| u8::from_str_radix(&c[k], 16).unwrap();
-                assert_eq!(p.col(&c[1]), Rgba([hex(2), hex(3), hex(4), hex(5)]), "{id} {}", &c[1]);
-                n += 1;
-            }
-            assert_eq!(n, p.roles.len(), "{id}: number of roles (run make themes)");
-        }
-    }
-
     /// The text roles the pages draw keep the theme's minimum contrast on their backgrounds (the web's contrast
     /// matrix lists the pairs still pending per theme; those are allowed, as in the Fyne test).
     #[test]

@@ -6,12 +6,21 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- A second desktop app in Rust (egui), `desktop-rust/`, at feature parity with the Fyne desktop, to measure whether
-  it is faster: the same panel API, `desktop.toml`, protections, pt-BR catalog and themes; its own CI and release
-  (tags `desktop-rust-v*`), and a benchmark against the Fyne app (`desktop-rust/docs/benchmark.md`). The Fyne app
-  stays the shipped desktop.
+- The desktop app in Rust (egui), `desktop-rust/`, matching the web panel's pages, themes and rules: the same panel
+  API, `desktop.toml`, protections, pt-BR catalog and themes; its own CI and release (tags `desktop-rust-v*`), a
+  benchmark against the Fyne app (`desktop-rust/docs/benchmark.md`), and `make desktop`, `make desktop-check`,
+  `make desktop-shots` and `make desktop-themes`, all in Docker (nothing to install).
+
+### Removed
+- The Fyne desktop app (`desktop/`) is archived: kept only as code to study, it is no longer built by `make`, tested by
+  CI or published by the release (which now carries the server and the `.deb`); its docs and screenshots now show the
+  Rust app.
 
 ### Changed
+- Themes: every theme's shadows are thin and soft (cards, login box, dialogs, window), light and dark; Matrix, Winamp
+  and High contrast keep theirs, Classic gray its bevel.
+- Sync: stopping a running run asks first (web and desktop); a job of every share shows the server's share folders
+  (`/srv/shares`) as its destination; counts follow the interface language; Save settings shows a turning loader.
 - Shares: folder sizes are measured by the agent in the background (every 4 h with jitter, one share at a time at
   idle CPU and I/O priority, 30 min per share, right after a share is created or changed from the panel) and cached
   in memory and in `share-sizes.json` in its state folder, so the page shows them at once with the time of the last

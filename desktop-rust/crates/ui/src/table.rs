@@ -715,7 +715,23 @@ fn draw_cell<A>(
                 }
                 return;
             }
-            let shown = elide(ui, &cl.text, &|s| rich(s, ink), ui.available_width());
+            // the tags keep their room: the text is what gets cut
+            let space = ui.ctx().fonts_mut(|f| f.glyph_width(&egui::FontId::proportional(size), ' '));
+            let tags_w: f32 = cl
+                .tags
+                .iter()
+                .enumerate()
+                .map(|(i, (text, _))| {
+                    let gap = if i == 0 && !cl.text.is_empty() { space } else { 0.0 };
+                    let w = if cl.mono {
+                        crate::widgets::tag_layout_mono(ui, look, text, egui::Color32::PLACEHOLDER).1.x
+                    } else {
+                        crate::widgets::tag_layout(ui, look, text, egui::Color32::PLACEHOLDER, 0.0).1.x
+                    };
+                    gap + w
+                })
+                .sum();
+            let shown = elide(ui, &cl.text, &|s| rich(s, ink), (ui.available_width() - tags_w).max(0.0));
             let r = ui.add(egui::Label::new(rich(shown.clone(), ink)).selectable(false));
             if shown != cl.text {
                 // the whole text for screen readers and on hover (the web's title)

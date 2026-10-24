@@ -1,7 +1,7 @@
-# Release on a tag vX.Y.Z: the CI (ci.yml) runs first; then the Linux job builds the SPA, the server for linux
-# (amd64), the .deb and the desktop app for linux and windows, and the macOS job builds the desktop app as a universal
-# .app (Apple Silicon and Intel). The last job publishes everything with the gh CLI, with the notes of that version in
-# CHANGELOG.md and checksums.txt.
+# Release on a tag vX.Y.Z: the CI (ci.yml) runs first; then the Linux job builds the SPA, the server for linux (amd64)
+# and the .deb, and the last job publishes them with the gh CLI, with the notes of that version in CHANGELOG.md and
+# checksums.txt. The desktop app (Rust) has its own release (desktop-rust-release.yml, tags desktop-rust-v*); the Fyne
+# app in desktop/ is archived and no longer released.
 name: release
 
 on:
@@ -27,9 +27,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache-dependency-path: |
-            go.sum
-            desktop/go.sum
+          cache-dependency-path: go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -40,18 +38,18 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run build
-      - name: Server (linux), .deb and desktop app (linux, windows)
+      - name: Server (linux) and .deb
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq zip upx-ucl libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev gcc-mingw-w64-x86-64
+          sudo apt-get install -y -qq upx-ucl
           VERSION="${GITHUB_REF_NAME}"
           COMMIT="$(git rev-parse --short HEAD)"
           BUILDTIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           PKG="ad-manager/internal/buildinfo"
           LDFLAGS="-s -w -X ${PKG}.Version=${VERSION} -X ${PKG}.Commit=${COMMIT} -X ${PKG}.BuildTime=${BUILDTIME}"
           mkdir -p dist build
-          # the server for linux only (the .deb and the tarball); on Windows only the desktop app is published
+          # the server for linux only (the .deb and the tarball)
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "build/${APP}" .
           upx -q --best --lzma "build/${APP}"
           cp README.md build/
@@ -64,12 +62,6 @@ jobs:
           cp "build/${APP}" dist/ad-manager # nfpm packages dist/ad-manager
           VERSION="${VERSION#v}" "$(go env GOPATH)/bin/nfpm" pkg --packager deb --config packaging/nfpm.yaml --target dist/
           rm -f dist/ad-manager "build/${APP}"
-          # desktop app (Fyne, CGO): native linux, windows through mingw
-          (cd desktop && CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o ../build/ad-manager-desktop . \
-            && CGO_ENABLED=1 GOOS=windows CC=x86_64-w64-mingw32-gcc go build -trimpath \
-              -ldflags "-s -w -H=windowsgui -extldflags=-Wl,--subsystem,windows -X main.version=${VERSION}" -o ../build/ad-manager-desktop.exe .)
-          tar -C build -czf "dist/ad-manager-desktop_${VERSION}_linux_amd64.tar.gz" ad-manager-desktop
-          (cd build && zip -q "../dist/ad-manager-desktop_${VERSION}_windows_amd64.zip" ad-manager-desktop.exe)
           ls -la dist
       - uses: actions/upload-artifact@v4
         with:
@@ -77,26 +69,8 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-  macos:
-    needs: ci
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: desktop/go.mod
-          cache-dependency-path: desktop/go.sum
-      - name: Desktop app (universal .app; the per-architecture builds stay local)
-        working-directory: desktop
-        run: make mac VERSION="${GITHUB_REF_NAME}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos
-          path: dist/ad-manager-desktop_*_darwin_universal.zip
-          if-no-files-found: error
-
   publish:
-    needs: [linux, macos]
+    needs: [linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,7 +91,7 @@ jobs:
           cat >> notes.md <<'NOTES'
 
           ---
-          **Packages:** server for `linux/amd64` (`.tar.gz`, and `.deb` for Ubuntu 26.04); desktop app for Linux, Windows
-          and macOS (a universal `.app`, Apple Silicon and Intel); `checksums.txt`.
+          **Packages:** server for `linux/amd64` (`.tar.gz`, and `.deb` for Ubuntu 26.04); `checksums.txt`. The desktop
+          app (Linux, Windows, macOS) is released on its own `desktop-rust-v*` tags.
           NOTES
           gh release create "$TAG" dist/* --title "$TAG" --notes-file notes.md --verify-tag
