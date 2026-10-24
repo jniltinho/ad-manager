@@ -312,11 +312,12 @@ impl Shares {
                             ui.interact(r, ui.id().with(("dot", a.id)), egui::Sense::hover()).on_hover_text(tip);
                         }
                         ui.label(crate::style::semibold(&a.name, 12.0).color(ink));
-                        ui.add(egui::Label::new(RichText::new(a.place()).size(11.0).color(ink)).truncate());
-                        if matches!(health, Some(Ok(h)) if h.dc) {
-                            widgets::tag(ui, &look, "DC", Tone::Normal);
-                        }
+                        let dc = matches!(health, Some(Ok(h)) if h.dc);
+                        let gap = ui.spacing().item_spacing.x;
+                        let dc_w = if dc { widgets::tag_layout(ui, &look, "DC", ink, 0.0).1.x + gap } else { 0.0 };
                         let link = on.then_some(ink);
+                        // the actions first, at the right (the web's ml-auto), so the host truncates before them and
+                        // the DC tag never runs into "edit"
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
                             if widgets::act(ui, &look, "", t("remove"), link, 11.0).clicked() {
@@ -325,6 +326,17 @@ impl Shares {
                             if widgets::act(ui, &look, "", t("edit"), link, 11.0).clicked() {
                                 return Some(Act::EditServer(a.clone()));
                             }
+                            ui.add_space(gap - 4.0);
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                ui.spacing_mut().item_spacing.x = gap;
+                                let w = (ui.available_width() - dc_w).max(0.0);
+                                ui.allocate_ui(egui::vec2(w, ui.available_height()), |ui| {
+                                    ui.add(egui::Label::new(RichText::new(a.place()).size(11.0).color(ink)).truncate());
+                                });
+                                if dc {
+                                    widgets::tag(ui, &look, "DC", Tone::Normal);
+                                }
+                            });
                             None
                         })
                         .inner

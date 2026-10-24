@@ -722,7 +722,7 @@ fn tag_colors(look: &Look, tone: adm_core::logic::Tone) -> (Color32, Color32) {
 
 /// The galley and box size of a tag: the web's .tag (semibold uppercase at the tag size, 6/1 padding), at least
 /// `min_w` wide (the Users status is 104).
-fn tag_layout(ui: &Ui, look: &Look, text: &str, ink: Color32, min_w: f32) -> (std::sync::Arc<egui::Galley>, Vec2) {
+pub fn tag_layout(ui: &Ui, look: &Look, text: &str, ink: Color32, min_w: f32) -> (std::sync::Arc<egui::Galley>, Vec2) {
     let size = look.px("tag-size", 10.0);
     let font = egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
     let galley = ui.painter().layout_no_wrap(text.to_uppercase(), font, ink);

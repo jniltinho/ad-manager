@@ -215,7 +215,7 @@ const shots = [
     '12-edit-share',
     async () => {
       await go('/shares')
-      await button(/edit/i, row('Finance')).click()
+      await button(/^Finance$/, row('Finance')).click() // the share's name opens its form
       await page
         .getByText(/windows permissions/i)
         .first()
