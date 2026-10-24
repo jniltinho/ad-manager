@@ -129,11 +129,12 @@ impl Ous {
         if let Some(i) = out.clicked
             && let Some(o) = self.ous.get(i).cloned().filter(ou_deletable)
         {
-            let name = o.name.clone();
-            cx.confirm_typed(
+            // a plain confirmation, as the web's (the server refuses an OU that is not empty)
+            cx.confirm(
                 t("Delete OU"),
                 tf!("Delete the OU %s? Only possible when it is empty.", ou_path(&o.dn)),
-                &name,
+                t("Delete"),
+                true,
                 move |cx| {
                     let api = cx.panel.clone();
                     let path = format!("/api/ous?dn={}", q(&o.dn));

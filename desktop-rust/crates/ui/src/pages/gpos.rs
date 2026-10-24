@@ -186,7 +186,7 @@ impl Dialog for GpoList {
                 .and_then(|p| p.file_name())
                 .map_or(t("Choose a file…").to_string(), |n| n.to_string_lossy().into());
             if widgets::button(ui, &look, "📂", &file, Kind::Secondary).clicked() {
-                crate::files::pick_file(cx, move |app, p| {
+                crate::files::pick_file_of(cx, Some((t("GPO backup"), &["gz", "tgz"])), move |app, p| {
                     if let Some(d) = app.cx.dialog_mut::<GpoList>(me) {
                         d.file = Some(p);
                     }

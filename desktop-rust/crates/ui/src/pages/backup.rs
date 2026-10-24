@@ -754,12 +754,29 @@ impl Dialog for Restore {
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
         let code = backup_code(&self.backup.id).to_string();
+        // the head: kind · date (· full, or how an incremental is applied)
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let b = &self.backup;
+            ui.label(crate::style::semibold(backup_kind_name(&b.kind), 12.0).color(look.c("fg-strong")));
+            ui.label(RichText::new(format!("· {}", date(b.started))).size(12.0));
+            if b.kind == "fileserver-data" {
+                let how = if b.full {
+                    t("full")
+                } else {
+                    t("incremental: the full backup and the incrementals up to this one are applied in order")
+                };
+                ui.label(RichText::new(format!("· {how}")).size(12.0).color(look.c("fg-muted")));
+            }
+        });
         let f = &mut self.form;
         match f.kind.as_str() {
             "fileserver-data" => {
                 widgets::label(ui, &look, t("Folders"));
+                // one folder inside them typed: the folders do not apply
+                let one = !f.sub.trim().is_empty();
                 for (name, on) in &mut f.folders {
-                    ui.checkbox(on, name.as_str());
+                    ui.add_enabled(!one, egui::Checkbox::new(on, RichText::new(name.as_str()).monospace().size(12.0)));
                 }
                 widgets::label(ui, &look, t("Or only one folder inside them"));
                 let hint = self.backup.folders.first().map(|x| format!("{x}/Financeiro")).unwrap_or_default();

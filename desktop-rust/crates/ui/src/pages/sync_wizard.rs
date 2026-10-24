@@ -41,6 +41,7 @@ pub fn open(cx: &mut Cx, agent: i64, data: SyncList, job: Option<SyncJob>) {
         items: Vec::new(),
         src_size: None,
         size_label: String::new(),
+        item_sizes: Default::default(),
         dirs: Vec::new(),
         cur_dir: String::new(),
         dest: j.dest.clone(),
@@ -91,6 +92,8 @@ pub struct SyncWizard {
     shares: Vec<String>,
     // 2. what to copy
     items: Vec<String>,
+    /// The size counted for a subfolder (its "size" link), by name.
+    item_sizes: std::collections::HashMap<String, String>,
     src_size: Option<(i64, i64)>,
     size_label: String,
     // 3. where to
@@ -265,6 +268,7 @@ impl SyncWizard {
             w.job.source.path = path;
             w.items = out.dirs;
             w.size_label.clear();
+            w.item_sizes.clear();
             w.src_size = None;
         });
     }
@@ -289,6 +293,36 @@ impl SyncWizard {
             if let Some(w) = wizard(app, me) {
                 w.src_size = Some((out.files, out.bytes));
                 w.size_label = tf!("%d files · %s", out.files, size_text(out.bytes));
+            }
+        });
+    }
+
+    /// Counts one subfolder of the folder on screen (its row's "size" link, as the web's).
+    fn count_item(&mut self, cx: &Cx, item: String) {
+        let me = cx.current_dialog();
+        let s = &self.job.source;
+        let (share, path) = if s.share.is_empty() {
+            (item.clone(), String::new())
+        } else {
+            (s.share.clone(), format!("{}/{item}", s.path).trim_matches('/').to_string())
+        };
+        self.item_sizes.insert(item.clone(), t("Counting…").into());
+        let body = self.creds(&share, &path, json!({ "size": true }));
+        let api = self.api.with_timeout(Duration::from_secs(360));
+        let url = format!("{}/syncs/browse", self.base);
+        #[derive(serde::Deserialize, Default)]
+        #[serde(default)]
+        struct Out {
+            files: i64,
+            bytes: i64,
+        }
+        cx.spawn(async move { api.send::<Out, _>(Method::POST, &url, Some(&body)).await }, move |app, r| {
+            if let Some(w) = wizard(app, me) {
+                let text = match r {
+                    Ok(o) => tf!("%d files · %s", o.files, size_text(o.bytes)),
+                    Err(e) => e.to_string(),
+                };
+                w.item_sizes.insert(item, text);
             }
         });
     }
@@ -612,6 +646,25 @@ impl SyncWizard {
 
     /// A choice as the web's card: an icon, a semibold title and its description; the chosen one stands out.
     fn choice(ui: &mut Ui, look: &crate::style::Look, w: f32, on: bool, icon: &str, title: &str, text: &str) -> bool {
+        Self::choice_if(ui, look, w, on, true, icon, title, text)
+    }
+
+    /// A choice card, greyed and not clickable when `enabled` is false (Kerberos without a domain).
+    #[allow(clippy::too_many_arguments)]
+    fn choice_if(
+        ui: &mut Ui,
+        look: &crate::style::Look,
+        w: f32,
+        on: bool,
+        enabled: bool,
+        icon: &str,
+        title: &str,
+        text: &str,
+    ) -> bool {
+        if !enabled {
+            ui.add_enabled_ui(false, |ui| Self::choice_if(ui, look, w, false, true, icon, title, text));
+            return false;
+        }
         let fill = if on { look.c("row-hover") } else { look.c("surface") };
         let line = if on { look.c("fg-strong") } else { look.c("line") };
         let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
@@ -671,15 +724,18 @@ impl SyncWizard {
         let cw = ((w - 12.0) / 2.0).floor();
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 12.0;
-            if self.data.kerberos {
-                let text = tf!(
+            // shown also when not joined to a domain, greyed with why (as the web's)
+            let text = if self.data.kerberos {
+                tf!(
                     "Same domain, no password kept. Give %s (or Domain Computers) read permission on the share.",
                     machine
-                );
-                if Self::choice(ui, &look, cw, self.kerberos, "🗄", t("This server's machine account (Kerberos)"), &text)
-                {
-                    self.kerberos = true;
-                }
+                )
+            } else {
+                t("Not available: this server is not joined to a domain.").to_string()
+            };
+            let title = t("This server's machine account (Kerberos)");
+            if Self::choice_if(ui, &look, cw, self.kerberos, self.data.kerberos, "🗄", title, &text) {
+                self.kerberos = true;
             }
             let text = t("Another domain or a standalone server; the password is kept encrypted.");
             if Self::choice(ui, &look, cw, !self.kerberos, "🔑", t("User and password"), text) {
@@ -742,6 +798,7 @@ impl SyncWizard {
         let look = cx.look.clone();
         ui.label(RichText::new(t("Open the share and the folder to copy; \"size\" counts what is inside (it can take a while on large folders).")).size(11.0).color(look.c("fg-muted")));
         let mut go: Option<(String, String)> = None;
+        let mut count: Option<String> = None;
         ui.horizontal(|ui| {
             if widgets::button(ui, &look, "⬅", t("Up"), Kind::Secondary).clicked() {
                 let s = &self.job.source;
@@ -755,16 +812,33 @@ impl SyncWizard {
         });
         egui::ScrollArea::vertical().id_salt("sync-items").max_height(300.0).show(ui, |ui| {
             for it in &self.items {
-                if ui.selectable_label(false, format!("📁 {it}")).clicked() {
-                    let s = &self.job.source;
-                    go = Some(if s.share.is_empty() {
-                        (it.clone(), String::new())
-                    } else {
-                        (s.share.clone(), format!("{}/{it}", s.path).trim_matches('/').to_string())
+                ui.horizontal(|ui| {
+                    if ui.selectable_label(false, format!("📁 {it}")).clicked() {
+                        let s = &self.job.source;
+                        go = Some(if s.share.is_empty() {
+                            (it.clone(), String::new())
+                        } else {
+                            (s.share.clone(), format!("{}/{it}", s.path).trim_matches('/').to_string())
+                        });
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        match self.item_sizes.get(it) {
+                            Some(sz) => {
+                                ui.label(RichText::new(sz).size(11.0).color(look.c("fg-muted")));
+                            }
+                            None => {
+                                if widgets::act(ui, &look, "", t("size"), None, 11.0).clicked() {
+                                    count = Some(it.clone());
+                                }
+                            }
+                        }
                     });
-                }
+                });
             }
         });
+        if let Some(it) = count {
+            self.count_item(cx, it);
+        }
         if let Some((share, path)) = go {
             self.open_dir(cx, share, path);
         }

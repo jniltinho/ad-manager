@@ -133,6 +133,9 @@ impl Dialog for OwnPassword {
         ui.add_space(12.0);
         let l = widgets::lbl(ui, &look, t("Confirm"));
         widgets::secret_field(ui, self.ids[2], &mut self.confirm, "", f32::INFINITY).labelled_by(l.id);
+        ui.add_space(6.0);
+        let note = t("Copy the generated password before changing: it is not shown again.");
+        ui.label(egui::RichText::new(note).size(11.0).color(look.c("fg-muted")));
         if let Some(e) = &self.err {
             ui.add_space(6.0);
             ui.colored_label(look.c("err"), e);

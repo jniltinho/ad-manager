@@ -33,9 +33,21 @@ pub fn save_download(
 /// Asks for a file to open; `done` gets it (nothing when the operator cancels, or when the session that asked was
 /// replaced meanwhile).
 pub fn pick_file(cx: &Cx, done: impl FnOnce(&mut App, PathBuf) + Send + 'static) {
+    pick_file_of(cx, None, done);
+}
+
+/// Asks for a file of one kind (`(name, extensions)`, as the web's `accept`); see `pick_file`.
+pub fn pick_file_of(cx: &Cx, kind: Option<(&str, &[&str])>, done: impl FnOnce(&mut App, PathBuf) + Send + 'static) {
     let session = cx.panel.id;
+    let kind = kind.map(|(n, e)| (n.to_string(), e.iter().map(|x| (*x).to_string()).collect::<Vec<_>>()));
     cx.spawn(
-        async move { rfd::AsyncFileDialog::new().pick_file().await.map(|h| h.path().to_path_buf()) },
+        async move {
+            let mut d = rfd::AsyncFileDialog::new();
+            if let Some((name, exts)) = &kind {
+                d = d.add_filter(name, exts);
+            }
+            d.pick_file().await.map(|h| h.path().to_path_buf())
+        },
         move |app, r| {
             if let Some(p) = r
                 && app.cx.panel.id == session
