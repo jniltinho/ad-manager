@@ -196,7 +196,10 @@ impl Dialog for GpoList {
                 });
             }
             let r = ui.add(
-                widgets::line(&mut self.name).hint_text(t("Name of the new GPO")).desired_width(256.0).char_limit(128),
+                widgets::line(&mut self.name)
+                    .hint_text(crate::widgets::hint(t("Name of the new GPO")))
+                    .desired_width(256.0)
+                    .char_limit(128),
             );
             let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(t("Name of the new GPO")));
             let ready = !self.busy && self.file.is_some() && !self.name.trim().is_empty();

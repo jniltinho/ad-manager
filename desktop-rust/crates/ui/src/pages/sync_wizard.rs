@@ -727,7 +727,7 @@ impl SyncWizard {
         widgets::above(ui, &look, t("Source server"), w, |ui, _| {
             ui.add(
                 crate::widgets::line(&mut self.host)
-                    .hint_text(RichText::new("old-fs.example.local").monospace())
+                    .hint_text(RichText::new("old-fs.example.local").monospace().size(12.0))
                     .font(egui::TextStyle::Monospace)
                     .desired_width(w),
             )
@@ -778,7 +778,11 @@ impl SyncWizard {
                 ui.spacing_mut().item_spacing.x = 16.0;
                 let fw = ((w - 16.0) / 2.0).floor();
                 widgets::above(ui, &look, t("User"), fw, |ui, _| {
-                    ui.add(crate::widgets::line(&mut self.user).hint_text("DOMAIN\\user").desired_width(fw))
+                    ui.add(
+                        crate::widgets::line(&mut self.user)
+                            .hint_text(crate::widgets::hint("DOMAIN\\user"))
+                            .desired_width(fw),
+                    )
                 });
                 widgets::above(ui, &look, t("Domain (or the server name)"), fw, |ui, _| {
                     ui.add(crate::widgets::line(&mut self.domain).desired_width(fw))

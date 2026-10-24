@@ -76,11 +76,12 @@ impl Dialog for FileServer {
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
         let l = widgets::lbl(ui, &look, t("Name"));
-        ui.add(widgets::line(&mut self.a.name).hint_text("fs01").desired_width(f32::INFINITY)).labelled_by(l.id);
+        ui.add(widgets::line(&mut self.a.name).hint_text(crate::widgets::hint("fs01")).desired_width(f32::INFINITY))
+            .labelled_by(l.id);
         ui.add_space(12.0);
         let l = widgets::lbl(ui, &look, t("Agent URL"));
         let url = widgets::line(&mut self.a.url)
-            .hint_text("https://fs01.example.local:9443")
+            .hint_text(crate::widgets::hint("https://fs01.example.local:9443").monospace())
             .font(egui::TextStyle::Monospace);
         ui.add(url.desired_width(f32::INFINITY)).labelled_by(l.id);
         ui.add_space(12.0);

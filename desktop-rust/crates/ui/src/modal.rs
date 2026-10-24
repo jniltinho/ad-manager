@@ -384,7 +384,11 @@ impl Dialog for ConfirmTyped {
                 .strong()
                 .color(cx.look.c("fg-strong")),
         );
-        let r = ui.add(crate::widgets::line(&mut self.typed).hint_text(&self.expected).desired_width(f32::INFINITY));
+        let r = ui.add(
+            crate::widgets::line(&mut self.typed)
+                .hint_text(crate::widgets::hint(&self.expected))
+                .desired_width(f32::INFINITY),
+        );
         if std::mem::take(&mut self.focus) {
             r.request_focus();
         }

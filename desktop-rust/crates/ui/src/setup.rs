@@ -365,12 +365,18 @@ impl Setup {
         // the web's form: labels above, 12 points between fields
         let w = 520.0_f32.min(ui.available_width());
         let url = widgets::above(ui, &look, t("Panel URL"), w, |ui, _| {
-            ui.add(crate::widgets::line(&mut self.url).hint_text("https://panel.example.local:8443").desired_width(w))
+            ui.add(
+                crate::widgets::line(&mut self.url)
+                    .hint_text(crate::widgets::hint("https://panel.example.local:8443"))
+                    .desired_width(w),
+            )
         });
         changed |= url.changed();
         ui.add_space(12.0);
         let user = widgets::above(ui, &look, t("User"), w, |ui, _| {
-            ui.add(crate::widgets::line(&mut self.user).hint_text("administrator").desired_width(w))
+            ui.add(
+                crate::widgets::line(&mut self.user).hint_text(crate::widgets::hint("administrator")).desired_width(w),
+            )
         });
         changed |= user.changed();
         ui.add_space(12.0);

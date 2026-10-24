@@ -650,41 +650,64 @@ fn samba_entries(
         }
         let msg_w = (w - date_w - level_w - 2.0 * th_px).max(80.0);
         // the rows' heights, estimated then measured once drawn: only the rows on screen are laid out. A new list
-        // starts over; a new width keeps the heights (rows on screen measure again), so the view does not jump
+        // starts over at the top; a new width estimates again and keeps the entry at the top of the view in place
         let key = (shown.len(), shown.first().copied(), shown.last().copied());
-        if rows.key != key {
+        let width = msg_w.round() as i64;
+        let mut keep = None;
+        if rows.key != key || rows.width != width {
+            if rows.key == key {
+                let (n, within) = rows.anchor;
+                let before: f32 = shown.iter().take(n).map(|&k| estimate(&entries[k], td_py)).sum();
+                keep = Some(before + within);
+            } else {
+                rows.anchor = (0, 0.0);
+            }
             rows.key = key;
+            rows.width = width;
             rows.heights = shown.iter().map(|&k| estimate(&entries[k], td_py)).collect();
         }
         let total: f32 = rows.heights.iter().sum();
-        egui::ScrollArea::vertical().id_salt(("samba-entries", id)).auto_shrink([false, true]).show_viewport(
-            ui,
-            |ui, view| {
-                let (area, _) = ui.allocate_exact_size(egui::vec2(w, total), egui::Sense::hover());
-                let mut y = area.top();
-                let mut changed = false;
-                for (n, &k) in shown.iter().enumerate() {
-                    let h = rows.heights[n];
-                    let (top, bottom) = (y - area.top(), y - area.top() + h);
-                    if bottom >= view.min.y && top <= view.max.y {
-                        let row = egui::Rect::from_min_size(egui::pos2(area.left(), y), egui::vec2(w, h));
-                        let drawn =
-                            samba_row(ui, look, &entries[k], (n, k), row, (date_w, level_w, msg_w, th_px, td_py));
-                        if (drawn - h).abs() > 0.5 {
-                            rows.heights[n] = drawn;
-                            changed = true;
-                        }
-                        // the next row under what this one took, not its estimate (no overlap this frame)
-                        y += drawn;
-                        continue;
+        let mut area_box = egui::ScrollArea::vertical().id_salt(("samba-entries", id)).auto_shrink([false, true]);
+        if let Some(offset) = keep {
+            area_box = area_box.vertical_scroll_offset(offset);
+        }
+        area_box.show_viewport(ui, |ui, view| {
+            let (area, _) = ui.allocate_exact_size(egui::vec2(w, total), egui::Sense::hover());
+            let mut y = area.top();
+            let mut changed = false;
+            let mut anchored = false;
+            for (n, &k) in shown.iter().enumerate() {
+                let h = rows.heights[n];
+                let (top, bottom) = (y - area.top(), y - area.top() + h);
+                if bottom >= view.min.y && top <= view.max.y {
+                    if !anchored {
+                        // the entry at the top of the view and how far into it: kept across a resize
+                        rows.anchor = (n, (view.min.y - top).max(0.0));
+                        anchored = true;
                     }
-                    y += h;
+                    let row = egui::Rect::from_min_size(egui::pos2(area.left(), y), egui::vec2(w, h));
+                    let drawn = samba_row(
+                        ui,
+                        look,
+                        &entries[k],
+                        (n, egui::Id::new(("samba-row", id, k))),
+                        row,
+                        (date_w, level_w, msg_w, th_px, td_py),
+                    );
+                    if (drawn - h).abs() > 0.5 {
+                        rows.heights[n] = drawn;
+                        changed = true;
+                    }
+                    // the next row under what this one took, not its estimate (no overlap this frame)
+                    y += drawn;
+                    continue;
                 }
-                if changed {
-                    ui.ctx().request_repaint();
-                }
-            },
-        );
+                y += h;
+            }
+            if changed {
+                ui.ctx().request_repaint();
+            }
+        });
     });
 }
 
@@ -692,6 +715,9 @@ fn samba_entries(
 #[derive(Default)]
 struct RowHeights {
     key: (usize, Option<usize>, Option<usize>),
+    width: i64,
+    /// The row at the top of the view and the offset into it.
+    anchor: (usize, f32),
     heights: Vec<f32>,
 }
 
@@ -706,15 +732,16 @@ fn samba_row(
     ui: &mut Ui,
     look: &crate::style::Look,
     e: &SambaEntry,
-    (n, k): (usize, usize),
+    (n, row_id): (usize, egui::Id),
     row: egui::Rect,
     (date_w, level_w, msg_w, th_px, td_py): (f32, f32, f32, f32, f32),
 ) -> f32 {
     let under = ui.painter().add(egui::Shape::Noop);
     let mut child = ui.new_child(
         egui::UiBuilder::new()
-            // the entry's own id: a selection or focus stays with its entry while rows scroll in and out
-            .id_salt(("samba-row", k))
+            // the entry's own id (not salted with the parent's counter): a selection or focus stays with its entry
+            // while rows scroll in and out
+            .id(row_id)
             .max_rect(row.with_max_y(row.top() + 10_000.0))
             .layout(egui::Layout::left_to_right(egui::Align::Min)),
     );

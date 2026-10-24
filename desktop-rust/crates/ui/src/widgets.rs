@@ -137,6 +137,7 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
     let w = ui.available_width();
     let bar = look.px("card-head-bar-w", 4.0);
     let size = look.px("card-head-size", 12.0);
+    let key = title.to_string();
     let title =
         if look.p.text("card-head-transform") == "uppercase" { title.to_uppercase() } else { title.to_string() };
     let rich = if look.px("card-head-weight", 600.0) >= 600.0 {
@@ -151,22 +152,34 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
         .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top: 7, bottom: 8 })
         .show(ui, |ui| {
             ui.set_width(w - 24.0 - bar);
-            // the head's line, not a control's 28 points (a row starts at this height: set before it opens)
+            // the head's line, not a control's 28 points (a row starts at this height: set before it opens); the
+            // row as tall as last frame's, so the title centers on the buttons at its right
             ui.spacing_mut().interact_size.y = 0.0;
-            ui.horizontal(|ui| {
+            let row_id = ui.id().with(("card-head-row", key.as_str()));
+            let prev = ui.ctx().data(|d| d.get_temp::<f32>(row_id)).unwrap_or(0.0);
+            let row = ui.horizontal(|ui| {
+                ui.set_min_height(prev);
                 ui.label(rich);
                 if !note.is_empty() {
                     // the web's gap-3 between the title and its note
                     ui.add_space(12.0 - ui.spacing().item_spacing.x);
                     ui.add(egui::Label::new(RichText::new(note).size(size).color(look.c("fg-muted"))).truncate());
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // what sits in the head is semibold as the head (the web's .card-h buttons inherit it)
-                    ui.style_mut().override_font_id =
-                        Some(egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())));
-                    right(ui)
-                });
+                let right_h = ui
+                    .with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // what sits in the head is semibold as the head (the web's .card-h buttons inherit it)
+                        ui.style_mut().override_font_id =
+                            Some(egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())));
+                        right(ui);
+                        ui.min_rect().height()
+                    })
+                    .inner;
+                if (right_h - prev).abs() > 0.5 {
+                    ui.ctx().data_mut(|d| d.insert_temp(row_id, right_h));
+                    ui.ctx().request_repaint();
+                }
             });
+            let _ = row;
         })
         .response;
     let mut shapes = crate::depth::box_shapes(r.rect, look.gradient("card-head"), look.c("card-head"), &[]);
@@ -291,7 +304,8 @@ pub fn cardtabs_at(
         .with_min_y(ui.clip_rect().top() - by)
         .intersect(band.union(ui.clip_rect()));
     let mut painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(clip);
-    painter.set_opacity(ui.painter().opacity()); // a disabled strip fades as the ui's own painter would
+    // a disabled strip at the web's .cardtab:disabled opacity 0.6 (egui's blend: 0.5 here, as disabled_alpha)
+    painter.set_opacity(if ui.is_enabled() { ui.painter().opacity() } else { 0.5 });
     // the tabs answer clicks over the whole part drawn: a ui with the same clip
     let mut band_ui = ui.new_child(egui::UiBuilder::new().max_rect(band));
     band_ui.set_clip_rect(clip);
@@ -479,7 +493,7 @@ pub fn suggest(
             st.closed = true;
         }
     }
-    let response = ui.add(line(text).id(id).hint_text(hint).desired_width(width));
+    let response = ui.add(line(text).id(id).hint_text(crate::widgets::hint(hint)).desired_width(width));
     if response.changed() {
         st.active = None;
         st.closed = false;
@@ -617,8 +631,10 @@ fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>,
     if ui.is_rect_visible(rect) {
         let fade = |col: Color32| if ui.is_enabled() { col } else { col.gamma_multiply(0.5) };
         let first_row = galley.rows.first().map_or(14.0, |r| r.height());
+        // the text centered in the row (a label beside it shares its line), the box on its first line
+        let y0 = rect.top() + (rect.height() - galley.size().y).max(0.0) / 2.0;
         let b = egui::Rect::from_min_size(
-            egui::pos2(rect.left(), rect.top() + (first_row - 14.0).max(0.0) / 2.0 + 1.0),
+            egui::pos2(rect.left(), y0 + (first_row - 14.0).max(0.0) / 2.0 + 1.0),
             egui::vec2(14.0, 14.0),
         );
         let p = ui.painter();
@@ -642,7 +658,7 @@ fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>,
             p.rect_stroke(b, 0.0, egui::Stroke::new(1.0, fade(c.line)), egui::StrokeKind::Inside);
         }
         if !label.is_empty() {
-            p.galley(egui::pos2(rect.left() + 19.0, rect.top()), galley, fade(c.ink));
+            p.galley(egui::pos2(rect.left() + 19.0, y0), galley, fade(c.ink));
         }
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -947,8 +963,7 @@ pub fn mini_table_aligned<const N: usize>(
             (widest + 2.0 * th_px).max(mins[i])
         })
         .collect();
-    let sum: f32 = natural.iter().sum::<f32>().max(1.0);
-    let col_w: Vec<f32> = natural.iter().map(|n| n * w / sum).collect();
+    let col_w = share_widths(&natural, &mins, last.is_some(), w);
     // rows touch each other, as the web's
     let spacing = std::mem::replace(&mut ui.spacing_mut().item_spacing.y, 0.0);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
@@ -1019,6 +1034,27 @@ pub fn mini_table_aligned<const N: usize>(
     ui.spacing_mut().item_spacing.y = spacing;
 }
 
+/// The columns' widths for `w`: the natural widths shared in proportion when they fit; else each column keeps its
+/// minimum (and the links column its natural width) and only what is past those shrinks, long values truncating.
+fn share_widths(natural: &[f32], mins: &[f32], links_last: bool, w: f32) -> Vec<f32> {
+    let sum: f32 = natural.iter().sum::<f32>().max(1.0);
+    if sum <= w {
+        return natural.iter().map(|n| n * w / sum).collect();
+    }
+    let last = natural.len().saturating_sub(1);
+    let base: Vec<f32> = (0..natural.len())
+        .map(|i| if links_last && i == last { natural[i] } else { mins[i].min(natural[i]) })
+        .collect();
+    let extra: Vec<f32> = natural.iter().zip(&base).map(|(n, b)| n - b).collect();
+    let room = w - base.iter().sum::<f32>();
+    let extra_sum: f32 = extra.iter().sum::<f32>().max(1.0);
+    if room <= 0.0 {
+        let k = w / base.iter().sum::<f32>().max(1.0);
+        return base.iter().map(|b| b * k).collect();
+    }
+    base.iter().zip(&extra).map(|(b, e)| b + e * room / extra_sum).collect()
+}
+
 /// A labeled form (two columns: bold label, field) laid out by egui's grid.
 pub fn form<R>(ui: &mut Ui, id: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
     // the web's forms stack each label over its field; `end_row` does nothing outside a grid
@@ -1062,6 +1098,11 @@ pub fn status_square(ui: &mut Ui) -> (egui::Rect, Response) {
 /// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).
 pub const LEADING: f32 = 1.5;
 
+/// A field's placeholder at the control's 12 px (egui draws it in the body's 11 whatever the field's font).
+pub fn hint(text: impl ToString) -> RichText {
+    RichText::new(text.to_string()).size(12.0)
+}
+
 /// A single-line text edit as the web's .inp: a 28 px border box with 8 px side padding, the text vertically centered.
 pub fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
     egui::TextEdit::singleline(text)
@@ -1074,7 +1115,7 @@ pub fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
 
 /// A single-line text field of `width` (INFINITY: the rest of the row).
 pub fn field(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> Response {
-    ui.add(line(text).hint_text(hint).desired_width(width))
+    ui.add(line(text).hint_text(crate::widgets::hint(hint)).desired_width(width))
 }
 
 /// A label above its field, as the web's .lbl: small semibold uppercase in the muted ink.
@@ -1150,7 +1191,7 @@ pub fn secret_id(name: &str) -> egui::Id {
 
 /// A password field of its own id (hidden text).
 pub fn secret_field(ui: &mut Ui, id: egui::Id, text: &mut String, hint: &str, width: f32) -> Response {
-    ui.add(line(text).id(id).password(true).hint_text(hint).desired_width(width))
+    ui.add(line(text).id(id).password(true).hint_text(crate::widgets::hint(hint)).desired_width(width))
 }
 
 /// Forgets a text field's egui state: its text history (undo) is gone with it.
@@ -1217,5 +1258,19 @@ mod tests {
             }
         }
         assert!(missing.is_empty(), "no glyph for {missing:?}");
+    }
+}
+
+#[cfg(test)]
+mod share_tests {
+    #[test]
+    fn minimums_survive_a_narrow_table() {
+        // a long data value: the name keeps its 200, the links their natural 40, the rest shrinks
+        let w = super::share_widths(&[220.0, 90.0, 60.0, 900.0, 40.0], &[200.0, 0.0, 0.0, 0.0, 0.0], true, 700.0);
+        assert!((w.iter().sum::<f32>() - 700.0).abs() < 0.01);
+        assert!(w[0] >= 200.0 && (w[4] - 40.0).abs() < 0.01, "{w:?}");
+        // all fit: shared in proportion
+        let f = super::share_widths(&[100.0, 100.0], &[0.0, 0.0], false, 400.0);
+        assert_eq!(f, vec![200.0, 200.0]);
     }
 }

@@ -74,7 +74,7 @@ impl OuPicker {
 
 /// The search field of a list page, as the web's (its placeholder, no icon).
 pub fn search(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> egui::Response {
-    let r = ui.add(crate::widgets::line(text).hint_text(hint).desired_width(width));
+    let r = ui.add(crate::widgets::line(text).hint_text(crate::widgets::hint(hint)).desired_width(width));
     let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(adm_core::i18n::t("Filter")));
     r
 }

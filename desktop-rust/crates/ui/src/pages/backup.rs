@@ -588,7 +588,7 @@ impl Backup {
                                 let w = ui.available_width() - th_px - 2.0;
                                 ui.add(
                                     egui::TextEdit::multiline(&mut row.folders)
-                                        .hint_text(hint)
+                                        .hint_text(crate::widgets::hint(hint).monospace())
                                         .font(egui::TextStyle::Monospace)
                                         .desired_rows(2)
                                         .desired_width(w),

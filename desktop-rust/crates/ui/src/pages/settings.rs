@@ -310,11 +310,11 @@ impl Settings {
                             ui.horizontal_top(|ui| {
                                 ui.spacing_mut().item_spacing.x = 16.0;
                                 widgets::above(ui, &look, t("Company name (footer)"), cw, |ui, _| {
-                                    ui.add(crate::widgets::line(&mut f.company).char_limit(80).hint_text("AD Manager").desired_width(cw))
+                                    ui.add(crate::widgets::line(&mut f.company).char_limit(80).hint_text(crate::widgets::hint("AD Manager")).desired_width(cw))
                                 });
                                 widgets::above(ui, &look, t("Support link"), cw, |ui, _| {
                                     let hint = "https://github.com/jniltinho/ad-manager/wiki";
-                                    ui.add(crate::widgets::line(&mut f.support).hint_text(hint).desired_width(cw))
+                                    ui.add(crate::widgets::line(&mut f.support).hint_text(crate::widgets::hint(hint)).desired_width(cw))
                                 });
                             });
                             ui.add_space(12.0);

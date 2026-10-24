@@ -240,11 +240,13 @@ impl Dialog for Dns {
                     ui.spacing_mut().item_spacing.x = 8.0;
                     let names: Vec<String> = TYPES.iter().map(|s| (*s).to_string()).collect();
                     widgets::select(ui, "dns-type", t("Record type"), &mut self.kind, &names, 80.0);
-                    ui.add(widgets::line(&mut self.name).hint_text(t("Name")).desired_width(128.0));
+                    ui.add(
+                        widgets::line(&mut self.name).hint_text(crate::widgets::hint(t("Name"))).desired_width(128.0),
+                    );
                     ui.label(RichText::new(format!(".{}", self.zone)).size(12.0).color(muted));
                     let hint =
                         if self.kind == 0 { "192.168.10.50".to_string() } else { format!("host.{}", cx.me.domain) };
-                    ui.add(widgets::line(&mut self.data).hint_text(hint).desired_width(192.0));
+                    ui.add(widgets::line(&mut self.data).hint_text(crate::widgets::hint(hint)).desired_width(192.0));
                     ui.add(widgets::line(&mut self.ttl).desired_width(80.0)).on_hover_text("TTL");
                     let ready = !self.name.trim().is_empty() && !self.data.trim().is_empty();
                     if ui

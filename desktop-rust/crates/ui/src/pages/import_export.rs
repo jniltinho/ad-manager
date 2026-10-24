@@ -652,7 +652,7 @@ impl ImportExport {
                 widgets::above(ui, &look, t("Source server"), cw, |ui, _| {
                     ui.add(
                         widgets::line(&mut s.share_host)
-                            .hint_text("fs01.example.local")
+                            .hint_text(crate::widgets::hint("fs01.example.local").monospace())
                             .font(egui::TextStyle::Monospace)
                             .desired_width(cw),
                     )
@@ -678,7 +678,9 @@ impl ImportExport {
         }
         ui.add_space(8.0);
         widgets::above(ui, &look, t("Save as profile (without the password)"), w, |ui, _| {
-            ui.add(widgets::line(&mut s.save_as).hint_text(t("e.g. legacy-2008")).desired_width(w))
+            ui.add(
+                widgets::line(&mut s.save_as).hint_text(crate::widgets::hint(t("e.g. legacy-2008"))).desired_width(w),
+            )
         });
         ui.add_space(8.0);
         let some = s.objects || s.gpos || s.dns || s.shares || s.passwords;

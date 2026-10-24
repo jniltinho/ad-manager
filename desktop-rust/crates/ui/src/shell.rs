@@ -318,8 +318,11 @@ impl Shell {
         search.spacing_mut().item_spacing.x = 0.0;
         let go = widgets::button(&mut search, &look, crate::icons::SEARCH, t("Search"), Kind::Primary).clicked();
         let w = search.available_width();
-        let field =
-            search.add(widgets::line(&mut self.search).hint_text(t("Search user, login or e-mail…")).desired_width(w));
+        let field = search.add(
+            widgets::line(&mut self.search)
+                .hint_text(crate::widgets::hint(t("Search user, login or e-mail…")))
+                .desired_width(w),
+        );
         let _ = search.ctx().accesskit_node_builder(field.id, |n| n.set_label(t("Global search")));
         let enter = field.lost_focus() && search.input(|i| i.key_pressed(egui::Key::Enter));
         if (go || enter) && !self.search.trim().is_empty() {
