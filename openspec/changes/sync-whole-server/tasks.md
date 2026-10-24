@@ -13,10 +13,10 @@
 
 - [x] 2.1 `openapi.yaml`: the job's `kind`, browse's `targets` and its answer
 - [x] 2.2 Web wizard and jobs table; pt-BR
-- [ ] 2.3 Rust desktop wizard and jobs table; pt-BR; fixtures and UI test
+- [x] 2.3 Rust desktop wizard and jobs table; pt-BR; fixtures and UI test
 
 ## 3. Validate
 
-- [ ] 3.1 `make check && make test`; `make -C desktop-rust check`
+- [x] 3.1 `make check && make test`; `make -C desktop-rust check`
 - [x] 3.2 All-in-one container: a server job against a second SMB server or the container itself
-- [ ] 3.3 Codex review; screenshots of the wizard step if it changed visibly
+- [x] 3.3 Codex review; screenshots of the wizard step if it changed visibly

@@ -92,6 +92,8 @@ async function setup(page, info) {
   await page.route('**/api/agents/*/shares', json(SHARES))
   await page.route('**/api/agents/*/dirs', json({ roots: ['/srv/dados'] }))
   await page.route('**/api/agents/*/sizes*', json({ sizes: { Financeiro: 5583457484, Publico: 734003200 } }))
+  // added after the HAR was recorded: the import credential (Settings), none kept
+  await page.route('**/api/settings/import-credential', json({ user: '', set: false }))
   await page.route(`**/api/password-link/${VALID}`, (r) =>
     json(r.request().method() === 'POST' ? {} : { user: 'diego.rocha', name: 'Diego Rocha', expires: '2026-10-19T09:30:00-03:00' })(r),
   )
@@ -478,6 +480,11 @@ test('more states', async ({ page }, info) => {
   await holdToasts(page, true)
   await page.locator('dialog[open] .pnl-foot .btn, dialog[open] button.btn').first().click()
   await shot(page, 'toast-warn', '.toast.warn.show', true)
+  // the import's log dialog follows the write: closed first (a modal dialog takes the clicks over the toast)
+  await page
+    .locator('dialog[open]')
+    .getByRole('button', { name: /^(Fechar|Close)$/ })
+    .click()
   await holdToasts(page, false)
   expect(missing).toEqual([])
   // the login page loads twice (first visit, then the login helper)
