@@ -7,7 +7,7 @@ import { auth, get, post, del, enc } from '../api'
 import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
 import { confirmTyped } from '../dialogs'
-import { agentHost, formatDate, timeAgo } from '../util'
+import { agentHost, formatDate, spinner, timeAgo } from '../util'
 import ShareSessionsDialog from '../components/dialogs/ShareSessionsDialog.vue'
 import FileServerDialog from '../components/dialogs/FileServerDialog.vue'
 import ShareFormDialog from '../components/dialogs/ShareFormDialog.vue'
@@ -107,6 +107,8 @@ async function loadSizes(target, refresh = false) {
 // the clock of "scanned … ago" and of the 6-hour staleness, also while nothing is polled
 const now = ref(Date.now())
 const clock = setInterval(() => (now.value = Date.now()), 60000)
+// the Refresh icon turns while the list reloads or the agent measures, at least briefly
+const listSpin = spinner(() => loading.value || !!sizeInfo.value?.scanning)
 onBeforeUnmount(() => {
   gone = true
   clearTimeout(poll)
@@ -171,6 +173,7 @@ watch(current, loadShares)
 
 // ── domain controller health (agent on a DC): replication and consistency checks, read only
 const dc = ref(null)
+const dcSpin = spinner(() => !!dc.value?.loading) // the Check again icon turns while the checks run
 // replication and the database check load on their own: a slow dbcheck does not hold the replication back, and a
 // failure of one does not hide the other
 async function loadDC(refresh = false) {
@@ -349,7 +352,7 @@ const stateNames = {
         <span class="font-normal normal-case text-fg-muted">{{ t('read only') }}</span>
         <div class="ml-auto flex gap-2 normal-case">
           <button class="btn-ghost" :disabled="dc?.loading" @click="loadDC(true)">
-            <RefreshCw :size="13" /> {{ dc?.loading ? t('Checking…') : t('Check again') }}
+            <RefreshCw :size="13" :class="dcSpin && 'motion-safe:animate-spin'" /> {{ dc?.loading ? t('Checking…') : t('Check again') }}
           </button>
         </div>
       </div>
@@ -433,7 +436,9 @@ const stateNames = {
           <button class="btn-ghost" :disabled="status[current.id] === 'down'" @click="sessions = true">
             <Users :size="13" /> {{ t('Sessions') }}
           </button>
-          <button class="btn-ghost" :disabled="!!sizeInfo?.scanning" @click="refresh"><RefreshCw :size="13" /> {{ t('Refresh') }}</button>
+          <button class="btn-ghost" :disabled="!!sizeInfo?.scanning" @click="refresh">
+            <RefreshCw :size="13" :class="listSpin && 'motion-safe:animate-spin'" /> {{ t('Refresh') }}
+          </button>
           <button class="btn" :disabled="status[current.id] === 'down'" @click="openNew">
             <FolderPlus :size="13" /> {{ t('New share') }}
           </button>

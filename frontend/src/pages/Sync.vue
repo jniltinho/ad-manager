@@ -8,7 +8,7 @@ import { del, enc, get, post } from '../api'
 import { confirmTyped } from '../dialogs'
 import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
-import { agentHost, formatDate } from '../util'
+import { agentHost, formatDate, spinner } from '../util'
 import BackupTabs from '../components/BackupTabs.vue'
 import SyncWizardDialog from '../components/dialogs/SyncWizardDialog.vue'
 import QuarantineDialog from '../components/QuarantineDialog.vue'
@@ -21,6 +21,7 @@ const currentId = ref(0)
 const data = ref(null) // { jobs, runs, roots, file_server, kerberos }
 const error = ref('')
 const loading = ref(false)
+const spin = spinner(loading) // the refresh icon turns while loading, at least briefly
 const agentsLoaded = ref(false)
 let timer = null
 onUnmounted(() => clearTimeout(timer))
@@ -179,7 +180,9 @@ const details = ref(null)
         <section class="card">
           <div class="card-h flex items-center justify-between">
             {{ t('Servers') }}
-            <button class="act normal-case" :disabled="loading" @click="load"><RefreshCw :size="12" /> {{ t('refresh') }}</button>
+            <button class="act normal-case" :disabled="loading" @click="load">
+              <RefreshCw :class="spin && 'motion-safe:animate-spin'" :size="12" /> {{ t('refresh') }}
+            </button>
           </div>
           <ul class="side-nav divide-y divide-line text-[12px]">
             <li

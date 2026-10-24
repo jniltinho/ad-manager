@@ -16,7 +16,7 @@
   --color-link: #ffff00;
   --color-link-hover: #ffff99;
   --color-page: #000000;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(255, 255, 255, 0.18);
   --color-surface: #000000;
   --color-surface-2: #000000;
   --color-surface-3: #1a1a1a;
@@ -161,7 +161,7 @@
   --color-login-field-line: #ffffff;
   --color-login-focus: #ffff00; /* AAA: solid, 3 px (--focus-ring-w) */
   --color-logo-plate: #ffffff;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: none;
   --bg-tabs: none;
   --bg-tab-on: none;

@@ -1,4 +1,5 @@
 <script setup>
+import { spinner } from '../util'
 // Samba log viewer for one host: the files of the log directory on the left,
 // the newest entries of the selected file on the right. `base` is the API path
 // ('/samba/logs' for the panel's own host, '/agents/:id/samba/logs' for a file server).
@@ -16,6 +17,7 @@ const listError = ref('')
 const current = ref('')
 const entries = ref([])
 const loading = ref(false)
+const spin = spinner(loading) // the refresh icon turns while loading, at least briefly
 const error = ref('')
 const search = ref('')
 const lines = ref(500)
@@ -101,7 +103,7 @@ const levelClass = (l) =>
         >
         <span class="text-[12px] text-fg-muted">{{ t('{n} entries (newest first)', { n: visible.length }) }}</span>
         <button type="button" class="btn-ghost ml-auto" :disabled="loading" @click="refresh">
-          <RefreshCw :size="13" /> {{ t('Refresh') }}
+          <RefreshCw :class="spin && 'motion-safe:animate-spin'" :size="13" /> {{ t('Refresh') }}
         </button>
       </form>
       <p v-if="error" class="mb-2 border-l-4 border-err bg-err-soft px-3 py-2 text-[12px]">{{ error }}</p>

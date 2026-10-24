@@ -559,6 +559,8 @@ impl Shares {
         }
         let (total, warn, total_tip, scan) = self.size_head();
         let scanning = self.sizes.as_ref().is_some_and(|s| s.scanning.is_some());
+        // the icon turns while the list loads or the agent measures (the web's)
+        let spin = scanning || self.loading;
         let has = !self.shares.is_empty();
         let mut head = None;
         let right = |ui: &mut Ui| {
@@ -575,13 +577,7 @@ impl Shares {
             {
                 head = Some(Act::NewShare);
             }
-            if ui
-                .add_enabled_ui(!scanning, |ui| {
-                    widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary)
-                })
-                .inner
-                .clicked()
-            {
+            if ui.add_enabled_ui(!scanning, |ui| widgets::refresh(ui, &look, t("Refresh"), spin)).inner.clicked() {
                 head = Some(Act::Refresh);
             }
             if ui

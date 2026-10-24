@@ -236,7 +236,8 @@
   --shadow-invalid: 0 0 0 2px rgba(198, 40, 40, 0.2);
   --shadow-card: var(--bevel-raised), 0 2px 6px rgba(17, 48, 88, 0.12);
   --shadow-field: var(--bevel-sunken);
-  --shadow-table-head: var(--bevel-raised), 0 1px 0 var(--color-cn-dark);
+  --shadow-table-head:
+    var(--bevel-raised), inset 0 -1px 0 rgba(0, 0, 0, 0.12); /* inside the band: an outer line showed as a stray dash under it */
   --shadow-dialog: 0 6px 24px rgba(0, 0, 0, 0.35);
   --shadow-pop: 0 6px 16px rgba(14, 23, 45, 0.28);
   --shadow-tip: 0 3px 10px rgba(14, 23, 45, 0.3);

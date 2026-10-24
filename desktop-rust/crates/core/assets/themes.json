@@ -387,7 +387,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -416,6 +415,17 @@
        "pos": 1
       }
      ]
+    }
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(17, 48, 88, 0.25) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#11305840",
+     "w": 1,
+     "h": 1
     }
    },
    "shadow": {
@@ -974,7 +984,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -991,6 +1000,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(7, 6, 15, 0.25) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#07060f40",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -1610,7 +1630,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -1627,6 +1646,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(227, 228, 235, 0.18) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#e3e4eb2e",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -2253,7 +2283,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -2270,6 +2299,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(35, 38, 41, 0.25) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#23262940",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -2890,7 +2930,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -2907,6 +2946,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(252, 252, 252, 0.18) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#fcfcfc2e",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -3546,7 +3596,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -3563,6 +3612,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(0, 0, 0, 0.25) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#00000040",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -4104,10 +4164,20 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": null,
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(0, 0, 0, 0.25) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#00000040",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -4939,7 +5009,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -4956,6 +5025,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(242, 242, 242, 0.18) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#f2f2f22e",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -5582,7 +5662,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -5611,6 +5690,17 @@
        "pos": 1
       }
      ]
+    }
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(0, 0, 0, 0.25) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#00000040",
+     "w": 1,
+     "h": 1
     }
    },
    "shadow": {
@@ -6223,7 +6313,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -6252,6 +6341,17 @@
        "pos": 1
       }
      ]
+    }
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#ffffff2e",
+     "w": 1,
+     "h": 1
     }
    },
    "shadow": {
@@ -7140,9 +7240,10 @@
     ],
     "table-head": [
      {
+      "inset": true,
       "dx": 0,
-      "dy": 1,
-      "color": "#0e172dff"
+      "dy": -1,
+      "color": "#0000001f"
      }
     ],
     "tabs": []
@@ -7491,7 +7592,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -7508,6 +7608,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(204, 204, 220, 0.18) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#ccccdc2e",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -8010,10 +8121,20 @@
     "dialog-head": null,
     "footer": null,
     "header": null,
-    "page": null,
     "tab-on": null,
     "table-head": null,
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#ffffff2e",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -9903,7 +10024,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -9920,6 +10040,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(21, 27, 38, 0.25) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#151b2640",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [
@@ -10539,7 +10670,6 @@
       }
      ]
     },
-    "page": null,
     "tab-on": null,
     "table-head": {
      "dir": "to bottom",
@@ -10556,6 +10686,17 @@
      ]
     },
     "tabs": null
+   },
+   "bg_other": {
+    "page": "radial-gradient(rgba(231, 231, 240, 0.18) 1px, transparent 1px)"
+   },
+   "pattern": {
+    "page": {
+     "kind": "dots",
+     "color": "#e7e7f02e",
+     "w": 1,
+     "h": 1
+    }
    },
    "shadow": {
     "app": [

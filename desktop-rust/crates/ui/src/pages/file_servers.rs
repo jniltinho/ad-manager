@@ -17,7 +17,7 @@ use zeroize::Zeroizing;
 use crate::app::Cx;
 use crate::modal::{Dialog, Flow, footer};
 use crate::style::Look;
-use crate::widgets::{self, Kind};
+use crate::widgets;
 
 /// What `GET /api/agents/{id}/health` says of a server.
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -418,11 +418,7 @@ pub fn dc_ui(ui: &mut Ui, look: &Look, name: &str, dc: &DcHealth, h: f32) -> boo
     let busy = dc.loading();
     let right = |ui: &mut Ui| {
         let label = if busy { t("Checking…") } else { t("Check again") };
-        if ui
-            .add_enabled_ui(!busy, |ui| widgets::button(ui, look, crate::icons::REFRESH, label, Kind::Secondary))
-            .inner
-            .clicked()
-        {
+        if ui.add_enabled_ui(!busy, |ui| widgets::refresh(ui, look, label, busy)).inner.clicked() {
             again = true;
         }
     };

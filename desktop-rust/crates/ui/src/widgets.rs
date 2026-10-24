@@ -87,6 +87,111 @@ pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> 
     r
 }
 
+/// How long a refresh icon turns at least after a click (a quick reload still shows its spin), and one turn's time
+/// (the web's animate-spin).
+const SPIN_MIN: f64 = 0.6;
+const SPIN_TURN: f64 = 1.0;
+
+/// The angle of a refresh icon that turns while `busy` and for [`SPIN_MIN`] after a click (recorded by
+/// [`spin_clicked`]); None when it rests. Asks for the next frame while it turns.
+fn spin_angle(ui: &Ui, id: egui::Id, busy: bool) -> Option<f32> {
+    let now = ui.input(|i| i.time);
+    let key = id.with("spin-since");
+    let since = ui.ctx().data(|d| d.get_temp::<f64>(key));
+    let since = match (since, busy) {
+        (None, true) => {
+            ui.ctx().data_mut(|d| d.insert_temp(key, now));
+            now
+        }
+        (Some(s), _) if busy || now - s < SPIN_MIN => s,
+        (Some(_), _) => {
+            ui.ctx().data_mut(|d| d.remove::<f64>(key));
+            return None;
+        }
+        (None, false) => return None,
+    };
+    ui.ctx().request_repaint();
+    Some((((now - since) / SPIN_TURN).fract() * std::f64::consts::TAU) as f32)
+}
+
+/// Starts a refresh icon's minimum spin after its control was clicked.
+fn spin_clicked(ui: &Ui, id: egui::Id, r: &Response) {
+    if r.clicked() {
+        let now = ui.input(|i| i.time);
+        ui.ctx().data_mut(|d| d.insert_temp(id.with("spin-since"), now));
+    }
+}
+
+/// `icon` turned by `angle` around its center, which sits `left` points right of `rect`'s left edge.
+fn paint_spun(ui: &Ui, rect: egui::Rect, left: f32, icon: &str, size: f32, ink: Color32, angle: f32) {
+    let g = ui.painter().layout_no_wrap(icon.to_string(), egui::FontId::proportional(size), ink);
+    let half = g.size() / 2.0;
+    let center = egui::pos2(rect.left() + left + half.x, rect.center().y);
+    let rot = egui::emath::Rot2::from_angle(angle);
+    let pos = center - rot * half;
+    ui.painter().add(egui::epaint::TextShape::new(pos, g, ink).with_angle(angle));
+}
+
+/// The text of a control whose icon turns: the icon kept in place but invisible (drawn turned over it), then the label.
+fn spun_text(icon: &str, gap: &str, label: &str, font: egui::FontId, ink: Color32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(icon, 0.0, egui::TextFormat::simple(font.clone(), Color32::TRANSPARENT));
+    if !label.is_empty() {
+        job.append(&format!("{gap}{label}"), 0.0, egui::TextFormat::simple(font, ink));
+    }
+    job
+}
+
+/// A refresh button (the web's ghost button with its turning icon): its icon turns while `busy` and briefly after
+/// each click.
+pub fn refresh(ui: &mut Ui, look: &Look, label: &str, busy: bool) -> Response {
+    let id = ui.next_auto_id();
+    let Some(angle) = spin_angle(ui, id, busy) else {
+        let r = button(ui, look, crate::icons::REFRESH, label, Kind::Secondary);
+        spin_clicked(ui, id, &r);
+        return r;
+    };
+    let size = look.px("control-text", 12.0);
+    let disabled = !ui.is_enabled();
+    let (fill, ink, line) = colors(look, Kind::Secondary);
+    let (fill, ink, line) = if disabled {
+        let s = look.c("surface");
+        (fill.lerp_to_gamma(s, 0.5), ink.lerp_to_gamma(s, 0.5), line.lerp_to_gamma(s, 0.5))
+    } else {
+        (fill, ink, line)
+    };
+    let job = spun_text(crate::icons::REFRESH, "  ", label, egui::FontId::proportional(size), ink);
+    let r = ui.scope(|ui| {
+        ui.set_opacity(1.0);
+        boxed(ui, look, egui::Button::new(job), Kind::Secondary, line, fill, 0.0)
+    });
+    let r = r.inner;
+    let pad = ui.spacing().button_padding.x;
+    paint_spun(ui, r.rect, pad, crate::icons::REFRESH, size, ink, angle);
+    if !label.is_empty() {
+        let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    }
+    spin_clicked(ui, id, &r);
+    r
+}
+
+/// A refresh link (the web's .act refresh): its icon turns while `busy` and briefly after each click.
+pub fn refresh_act(ui: &mut Ui, look: &Look, label: &str, size: f32, busy: bool) -> Response {
+    let id = ui.next_auto_id();
+    let Some(angle) = spin_angle(ui, id, busy) else {
+        let r = act(ui, look, crate::icons::REFRESH, label, None, size);
+        spin_clicked(ui, id, &r);
+        return r;
+    };
+    let ink = look.c("link");
+    let job = spun_text(crate::icons::REFRESH, " ", label, egui::FontId::proportional(size), ink);
+    let r = ui.add(egui::Button::new(job).frame(false));
+    paint_spun(ui, r.rect, ui.spacing().button_padding.x, crate::icons::REFRESH, size, ink, angle);
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    spin_clicked(ui, id, &r);
+    r.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 /// A label without its icons (private-use glyphs a screen reader cannot read), as a control's accessible name.
 pub fn spoken(label: &str) -> String {
     label.chars().filter(|c| !('\u{e000}'..='\u{f8ff}').contains(c)).collect::<String>().trim().to_string()
@@ -135,9 +240,10 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
 
 /// A toolbar's refresh button: disabled while `busy` (a reload in flight), so a click shows it is working.
 pub fn refresh_button(ui: &mut Ui, look: &Look, busy: bool) -> bool {
-    ui.add_enabled_ui(!busy, |ui| icon_button(ui, look, crate::icons::REFRESH, adm_core::i18n::t("Refresh")))
-        .inner
-        .clicked()
+    let name = adm_core::i18n::t("Refresh");
+    let r = ui.add_enabled_ui(!busy, |ui| refresh(ui, look, "", busy)).inner;
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name.to_string()));
+    r.on_hover_text(name).clicked()
 }
 
 /// An icon-only button with its name as tooltip.

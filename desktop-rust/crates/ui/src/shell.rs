@@ -43,11 +43,12 @@ impl Page {
     pub fn label(self) -> &'static str {
         match self {
             Self::Home => t("Home"),
-            Self::Users => t("Users"),
+            // Users, Computers and Shares stay in English in every language (short, steady tab widths)
+            Self::Users => "Users",
             Self::Groups => t("Groups"),
             Self::Ous => t("OUs"),
-            Self::Computers => t("Computers"),
-            Self::Shares => t("Shares"),
+            Self::Computers => "Computers",
+            Self::Shares => "Shares",
             Self::Backup => t("Backup"),
             Self::Sync => t("Sync"),
             Self::Logs => t("Logs"),

@@ -12,7 +12,7 @@
   --color-link: #6e9fff;
   --color-link-hover: #8ab2ff;
   --color-page: #111217;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(204, 204, 220, 0.18);
   --color-surface: #181b1f;
   --color-surface-2: #22252b;
   --color-surface-3: #22252b;
@@ -157,7 +157,7 @@
   --color-login-field-line: rgba(204, 204, 220, 0.5);
   --color-login-focus: rgba(110, 159, 255, 0.4);
   --color-logo-plate: #f4f5f5;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: none;
   --bg-tab-on: none;

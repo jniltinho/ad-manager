@@ -1,6 +1,27 @@
 // Dependency-free helpers: dates, CSV download, password generator.
+import { ref, watch } from 'vue'
 import { auth } from './api'
 import { locale, t } from './i18n'
+
+// spinner is true while busy() is, and for at least `ms` after it turned true: a refresh icon still visibly turns
+// when the reload answers at once.
+export function spinner(busy, ms = 600) {
+  const on = ref(false)
+  let since = 0
+  let timer = 0
+  watch(
+    busy,
+    (v) => {
+      clearTimeout(timer)
+      if (v) {
+        on.value = true
+        since = Date.now()
+      } else timer = setTimeout(() => (on.value = false), Math.max(0, ms - (Date.now() - since)))
+    },
+    { immediate: true },
+  )
+  return on
+}
 
 // formatDate shows date and time in the interface language ("—" when empty).
 export function formatDate(iso) {

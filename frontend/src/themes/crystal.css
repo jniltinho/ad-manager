@@ -12,7 +12,7 @@
   --color-link: #0043a8; /* AAA, was #0060c8 */
   --color-link-hover: #00479a; /* AAA on row-hover (tables), was #004fa6 */
   --color-page: #ececec;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(0, 0, 0, 0.25);
   --color-surface: #ffffff;
   --color-surface-2: #f5f5f7;
   --color-surface-3: #e8e8ed;
@@ -157,7 +157,7 @@
   --color-login-field-line: #8e8e93;
   --color-login-focus: #0064e1; /* AAA: solid, 3 px (--focus-ring-w), >= 3:1 against the login box; was rgba(0, 100, 225, 0.4) */
   --color-logo-plate: transparent;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
   --bg-tab-on: none;
@@ -255,7 +255,7 @@
   --color-link: #78c2ff; /* AAA on row-hover too, was #62b6ff, before #4ea2ff */
   --color-link-hover: #88c1ff; /* AAA on row-hover (tables), was #77b8ff */
   --color-page: #323232;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(255, 255, 255, 0.18);
   --color-surface: #1e1e1e;
   --color-surface-2: #2a2a2a;
   --color-surface-3: #2c2c2e;
@@ -400,7 +400,7 @@
   --color-login-field-line: #7c7c80;
   --color-login-focus: #4ea2ff; /* AAA: solid, 3 px (--focus-ring-w), >= 3:1 against the login box; was rgba(78, 162, 255, 0.4) */
   --color-logo-plate: #f4f5f5;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
   --bg-tab-on: none;

@@ -93,6 +93,50 @@ struct Audit {
     action: usize,
     failures: bool,
     table: TableState,
+    /// The columns' widths for the rows shown and the room (recomputed when either changes).
+    widths: Option<(u64, [f32; 6])>,
+}
+
+/// The web's auto table layout of the audit (no fixed widths): each column's max-content (its heading or widest cell
+/// plus the 8-point paddings); when they fit, the room left is shared in proportion to them, as the browser does;
+/// otherwise the columns that wrap there (operator, target, result) shrink toward their longest word first.
+fn auto_widths(ui: &Ui, all: &[AuditEvent], vis: &[usize], avail: f32) -> [f32; 6] {
+    let w = |s: &str, f: &egui::FontId| {
+        ui.painter().layout_no_wrap(s.to_string(), f.clone(), egui::Color32::PLACEHOLDER).size().x
+    };
+    let reg = egui::FontId::proportional(12.0);
+    let bold = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let mono = egui::FontId::monospace(11.0);
+    let heads = [t("Date"), t("Operator"), t("Source"), t("Action"), t("Target"), t("Result")];
+    let mut max: [f32; 6] = std::array::from_fn(|i| w(heads[i], &bold));
+    let mut min = max;
+    let word = |s: &str, f: &egui::FontId| s.split_whitespace().map(|x| w(x, f)).fold(0.0, f32::max);
+    for &i in vis {
+        let e = &all[i];
+        let cells: [(String, &egui::FontId, bool); 6] = [
+            (when(&e.time), &reg, false),
+            (e.actor.clone(), &bold, true),
+            (e.ip.clone(), &reg, false),
+            (e.action.clone(), &mono, false),
+            (e.target.clone(), &reg, true),
+            (if e.result == "ok" { "ok".into() } else { e.result.clone() }, &reg, true),
+        ];
+        for (k, (s, f, wraps)) in cells.iter().enumerate() {
+            let full = w(s, f);
+            max[k] = max[k].max(full);
+            min[k] = min[k].max(if *wraps { word(s, f) } else { full });
+        }
+    }
+    let (max, min) = (max.map(|x| x + 16.0), min.map(|x| x + 16.0));
+    let (sum_max, sum_min): (f32, f32) = (max.iter().sum(), min.iter().sum());
+    if sum_max <= avail {
+        max.map(|x| x * avail / sum_max)
+    } else if sum_min < avail {
+        let k = (avail - sum_min) / (sum_max - sum_min);
+        std::array::from_fn(|i| min[i] + (max[i] - min[i]) * k)
+    } else {
+        min
+    }
 }
 
 impl Audit {
@@ -151,7 +195,7 @@ impl Audit {
             ui.label(RichText::new(n).size(12.0).color(look.c("fg-muted")));
             widgets::toolbar_end(ui, |ui| {
                 export = widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked();
-                if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
+                if widgets::refresh(ui, &look, t("Refresh"), false).clicked() {
                     self.reload(cx);
                 }
                 if cx.me.asynqmon
@@ -165,16 +209,32 @@ impl Audit {
         });
         widgets::toolbar_gap(ui, &look);
         let (all, vis) = (&self.all, &self.visible);
-        // the web's auto layout: the result as narrow as its "ok" tags, wider once an error shows
-        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 92.4 } else { 240.0 };
+        // the room the table will have: its scroll bar's 14 points when the rows do not fit (as table::Table works it)
+        let row_h = table::row_text(ui.ctx());
+        let room = ui.available_height().min(ui.ctx().content_rect().height() - 306.0);
+        let fits = 31.0 + vis.len() as f32 * row_h <= room;
+        let avail = ui.available_width() - if fits { 0.0 } else { 14.0 };
+        let key = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            (vis, all.len(), avail.to_bits()).hash(&mut h);
+            h.finish()
+        };
+        let widths = match self.widths {
+            Some((k, w)) if k == key => w,
+            _ => {
+                let w = auto_widths(ui, all, vis, avail);
+                self.widths = Some((key, w));
+                w
+            }
+        };
         let cols = [
-            // the web's auto layout at 1280 (its th widths)
-            Column::new(t("Date"), 236.0),
-            Column::new(t("Operator"), 172.4),
-            Column::new(t("Source"), 130.0),
-            Column::new(t("Action"), 181.1),
-            Column::new(t("Target"), 240.0).fill(),
-            Column::new(t("Result"), result_w),
+            Column::new(t("Date"), widths[0]),
+            Column::new(t("Operator"), widths[1]),
+            Column::new(t("Source"), widths[2]),
+            Column::new(t("Action"), widths[3]),
+            Column::new(t("Target"), widths[4]).fill(),
+            Column::new(t("Result"), widths[5]),
         ];
         let mut hover = None;
         let out = table::Table {
@@ -300,7 +360,7 @@ impl Http {
             ui.label(RichText::new(n).size(12.0).color(look.c("fg-muted")));
             widgets::toolbar_end(ui, |ui| {
                 export = widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked();
-                if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
+                if widgets::refresh(ui, &look, t("Refresh"), false).clicked() {
                     self.reload(cx);
                 }
             });
@@ -601,7 +661,7 @@ impl SambaView {
                     let count = tf!("%d entries (newest first)", shown.len());
                     ui.label(RichText::new(count).size(12.0).color(muted));
                     widgets::toolbar_end(ui, |ui| {
-                        if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
+                        if widgets::refresh(ui, &look, t("Refresh"), false).clicked() {
                             self.load(cx, i);
                         }
                     });

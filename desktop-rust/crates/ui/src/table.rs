@@ -490,7 +490,10 @@ fn show<A>(
             egui::pos2(rect.right(), rect.top() + head_h),
         );
         if gutter.width() > 0.0 {
-            crate::depth::paint_box(ui.painter(), gutter, head_grad, head_fill, head_shadow);
+            // without the outer layers: under the heads the rows cover the band's drop shadow, here nothing would
+            // (a stray dash under the band, above the bar)
+            let inner: Vec<_> = head_shadow.iter().copied().filter(|l| l.inset).collect();
+            crate::depth::paint_box(ui.painter(), gutter, head_grad, head_fill, &inner);
             ui.painter().hline(gutter.x_range(), gutter.bottom() - 0.5, egui::Stroke::new(1.0, line));
         }
     }
@@ -603,7 +606,12 @@ fn draw_cell<A>(
                     crate::widgets::tag_button(ui, look, &cl.text, cl.tone)
                 }
             } else {
-                let shown = elide(ui, &text, &|s| rich(s, ink), ui.available_width());
+                // an action column's links are never cut (the web's .act links overflow their cell)
+                let shown = if c.compact.is_some() {
+                    text.clone()
+                } else {
+                    elide(ui, &text, &|s| rich(s, ink), ui.available_width())
+                };
                 let r = ui.add(egui::Button::new(rich(shown.clone(), ink)).frame(false));
                 if shown != text {
                     let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(text.clone()));
@@ -664,7 +672,7 @@ fn draw_cell<A>(
 }
 
 /// `text` cut as the browser's text-overflow: ellipsis cuts it: the longest start whose right edge plus the "…" fits
-/// in `max_w`, its trailing spaces dropped (egui's own truncation keeps a glyph whose left edge fits: one more).
+/// in `max_w` (egui's own truncation keeps a glyph whose left edge fits: one more).
 fn elide(ui: &Ui, text: &str, make: &dyn Fn(String) -> RichText, max_w: f32) -> String {
     let w = |s: &str| {
         egui::WidgetText::from(make(s.to_string()))
@@ -679,7 +687,7 @@ fn elide(ui: &Ui, text: &str, make: &dyn Fn(String) -> RichText, max_w: f32) -> 
     let ends: Vec<usize> = text.char_indices().map(|(i, _)| i).skip(1).chain(std::iter::once(text.len())).collect();
     // the widths grow with the prefix: the last end that fits
     let n = ends.partition_point(|&e| w(&text[..e]) <= room + 0.01);
-    let cut = if n == 0 { "" } else { text[..ends[n - 1]].trim_end() };
+    let cut = if n == 0 { "" } else { &text[..ends[n - 1]] };
     format!("{cut}…")
 }
 
@@ -715,7 +723,11 @@ mod tests {
             assert_eq!(elide(ui, "abcdef", &make, w("abcdef")), "abcdef", "fits");
             // "abcd…" is half a point too wide: the browser shows "abc…" (egui's own keeps the d, its left edge fits)
             assert_eq!(elide(ui, "abcdefghijkl", &make, w("abcd") + w("…") - 0.5), "abc…");
-            assert_eq!(elide(ui, "ab defghijkl", &make, w("ab d") + w("…") - 0.5), "ab…", "the trailing space dropped");
+            assert_eq!(
+                elide(ui, "ab defghijkl", &make, w("ab d") + w("…") - 0.5),
+                "ab …",
+                "the space kept, as the browser"
+            );
         });
         h.run();
     }

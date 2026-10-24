@@ -116,7 +116,7 @@ impl Backup {
             ui.spacing_mut().item_spacing.x = 20.0;
             ui.vertical(|ui| {
                 ui.set_width(300.0);
-                let right = |ui: &mut Ui| refresh = widgets::act(ui, &look, crate::icons::REFRESH, t("refresh"), None, 12.0).clicked();
+                let right = |ui: &mut Ui| refresh = widgets::refresh_act(ui, &look, t("refresh"), 12.0, false).clicked();
                 widgets::panel(ui, &look, (t("Servers"), ""), right, 0.0, |ui| {
                     for (i, s) in self.servers.iter().enumerate() {
                         let on = self.cur == Some(i);

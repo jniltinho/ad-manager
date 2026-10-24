@@ -12,7 +12,7 @@
   --color-link: #6f2ad9;
   --color-link-hover: #5a1fc0;
   --color-page: #f6f7fb;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(21, 27, 38, 0.25);
   --color-surface: #ffffff;
   --color-surface-2: #fafafd;
   --color-surface-3: #f1efff;
@@ -157,7 +157,7 @@
   --color-login-field-line: #8b90a0;
   --color-login-focus: rgba(111, 42, 217, 0.4);
   --color-logo-plate: transparent;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: none;
   --bg-tab-on: none;
@@ -245,7 +245,7 @@
   --color-link: #b886ff;
   --color-link-hover: #cba6ff;
   --color-page: #0e0d19;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(231, 231, 240, 0.18);
   --color-surface: #171624;
   --color-surface-2: #1d1c2c;
   --color-surface-3: #2c2546;
@@ -390,7 +390,7 @@
   --color-login-field-line: #6b6a80;
   --color-login-focus: rgba(184, 134, 255, 0.4);
   --color-logo-plate: #f4f5f5;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: none;
   --bg-tab-on: none;

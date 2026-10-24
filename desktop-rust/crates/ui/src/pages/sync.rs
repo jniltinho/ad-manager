@@ -125,7 +125,7 @@ impl Sync {
             ui.spacing_mut().item_spacing.x = 20.0;
             ui.vertical(|ui| {
                 ui.set_width(260.0);
-                let right = |ui: &mut Ui| refresh = widgets::act(ui, &look, crate::icons::REFRESH, t("refresh"), None, 12.0).clicked();
+                let right = |ui: &mut Ui| refresh = widgets::refresh_act(ui, &look, t("refresh"), 12.0, false).clicked();
                 widgets::panel(ui, &look, (t("Servers"), ""), right, 0.0, |ui| {
                     for (i, a) in self.agents.iter().enumerate() {
                         let on = self.pick == i && self.cur.is_some();
