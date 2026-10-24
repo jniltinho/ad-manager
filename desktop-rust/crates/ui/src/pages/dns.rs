@@ -145,7 +145,7 @@ impl Dialog for Dns {
                     .map(|z| if z.reverse { format!("{} ({})", z.name, t("reverse")) } else { z.name.clone() })
                     .collect();
                 let mut i = self.zones.iter().position(|z| z.name == self.zone).unwrap_or(0);
-                if widgets::select(ui, "dns-zone", &mut i, &names, 288.0)
+                if widgets::select(ui, "dns-zone", t("Zone"), &mut i, &names, 288.0)
                     && let Some(z) = self.zones.get(i)
                 {
                     go = Some((z.name.clone(), Vec::new()));
@@ -226,7 +226,7 @@ impl Dialog for Dns {
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
                     let names: Vec<String> = TYPES.iter().map(|s| (*s).to_string()).collect();
-                    widgets::select(ui, "dns-type", &mut self.kind, &names, 80.0);
+                    widgets::select(ui, "dns-type", t("Record type"), &mut self.kind, &names, 80.0);
                     ui.add(widgets::line(&mut self.name).hint_text(t("Name")).desired_width(128.0));
                     ui.label(RichText::new(format!(".{}", self.zone)).size(12.0).color(muted));
                     let hint =

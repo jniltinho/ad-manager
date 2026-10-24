@@ -199,7 +199,10 @@ impl Login {
                         let id = ui.id().with(("login-label", label));
                         ui.painter().galley(at, g, ink);
                         ui.add_space(2.0 + 8.0);
-                        add(ui, id)
+                        let r = add(ui, id);
+                        // the label is painted: the field carries its name for screen readers
+                        let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(label.to_string()));
+                        r
                     })
                     .inner
                 };

@@ -177,7 +177,7 @@ impl Dialog for NewOu {
         widgets::field(ui, &mut self.desc, "", f32::INFINITY).labelled_by(l.id);
         ui.add_space(12.0);
         widgets::lbl(ui, &look, t("Inside"));
-        self.inside.ui(ui, "new-ou-inside", ui.available_width());
+        self.inside.ui(ui, "new-ou-inside", t("Inside"), ui.available_width());
         let f = footer(ui, cx, Some(t("Create")), "", false, true);
         if f.ok {
             let n = self.name.trim().to_string();

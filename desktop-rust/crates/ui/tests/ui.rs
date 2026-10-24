@@ -686,3 +686,42 @@ fn import_from_another_ad_previews_then_writes() {
     e.h.run_steps(4);
     assert!(e.h.query_by_label_contains("Finished: 3 action(s).").is_some(), "the log dialog");
 }
+
+/// Every text field and select of the main screens has an accessible name (its label above, or its own).
+#[test]
+fn every_field_has_a_name() {
+    use egui::accesskit::Role;
+    let mut e = env();
+    let mut nameless = Vec::new();
+    let mut check = |e: &mut Env, screen: &str| {
+        e.h.run_steps(3);
+        for role in [Role::TextInput, Role::PasswordInput, Role::ComboBox, Role::MultilineTextInput] {
+            for n in e.h.query_all_by_role(role) {
+                let d = format!("{n:?}");
+                if !d.contains("label: \"") || d.contains("label: \"\"") {
+                    nameless.push(format!("{screen}: {d}"));
+                }
+            }
+        }
+    };
+    check(&mut e, "sign-in");
+    e.click("Configure");
+    check(&mut e, "configure");
+    e.click("Cancel");
+    e.sign_in();
+    e.wait("the shell", |a, _| matches!(&a.screen, Screen::Shell(_)));
+    check(&mut e, "home");
+    e.users_page();
+    check(&mut e, "users");
+    e.click("➕  New user");
+    check(&mut e, "new user");
+    e.key(egui::Key::Escape);
+    for page in ["Groups", "Computers", "Shares", "Logs", "Settings", "Import/export"] {
+        e.h.get_by_label(page).click();
+        e.h.run_steps(6);
+        check(&mut e, page);
+    }
+    e.h.get_by_label("From another AD").click();
+    check(&mut e, "import from AD");
+    assert!(nameless.is_empty(), "fields without a name:\n{}", nameless.join("\n"));
+}

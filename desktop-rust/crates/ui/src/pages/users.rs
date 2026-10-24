@@ -194,7 +194,7 @@ impl Users {
             }
             let labels: Vec<String> = UserFilter::ALL.iter().map(|f| f.label(days)).collect();
             let mut i = UserFilter::ALL.iter().position(|f| *f == self.filter).unwrap_or(0);
-            if widgets::select(ui, "users-filter", &mut i, &labels, 176.0) {
+            if widgets::select(ui, "users-filter", t("Status"), &mut i, &labels, 176.0) {
                 self.filter = UserFilter::ALL[i];
                 self.apply(cx);
             }
@@ -668,7 +668,7 @@ impl Dialog for NewUser {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
             widgets::lbl(ui, &look, t("OU"));
-            self.ou.ui(ui, "new-user-ou", w);
+            self.ou.ui(ui, "new-user-ou", t("OU"), w);
         });
         ui.add_space(12.0);
         ui.vertical(|ui| {
@@ -879,7 +879,7 @@ impl Dialog for MoveUser {
         let look = cx.look.clone();
         ui.spacing_mut().item_spacing.y = 4.0;
         widgets::lbl(ui, &look, t("Destination"));
-        self.picker.ui(ui, "move-user-ou", ui.available_width());
+        self.picker.ui(ui, "move-user-ou", t("Destination"), ui.available_width());
         let f = footer(ui, cx, Some(t("Move")), "", false, self.picker.chosen());
         if f.ok && self.picker.chosen() {
             let api = cx.panel.clone();
@@ -1012,7 +1012,7 @@ impl Dialog for PasswordDialog {
             ui.spacing_mut().item_spacing.y = 4.0;
             widgets::lbl(ui, &look, t("Valid for"));
             let labels: Vec<String> = VALIDITY.iter().map(|v| t(v.0).to_string()).collect();
-            widgets::select(ui, "password-hours", &mut self.hours, &labels, 160.0);
+            widgets::select(ui, "password-hours", t("Valid for"), &mut self.hours, &labels, 160.0);
             ui.add_space(12.0);
             widgets::callout(
                 ui,

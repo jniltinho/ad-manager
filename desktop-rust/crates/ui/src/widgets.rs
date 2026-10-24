@@ -815,17 +815,20 @@ pub fn lbl(ui: &mut Ui, look: &Look, s: &str) -> Response {
 pub fn select(
     ui: &mut Ui,
     id: impl std::hash::Hash + std::fmt::Debug,
+    name: &str,
     sel: &mut usize,
     options: &[String],
     width: f32,
 ) -> bool {
     let before = *sel;
     let shown = options.get(*sel).cloned().unwrap_or_default();
-    egui::ComboBox::from_id_salt(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+    let r = egui::ComboBox::from_id_salt(id).width(width).selected_text(shown).show_ui(ui, |ui| {
         for (i, o) in options.iter().enumerate() {
             ui.selectable_value(sel, i, o);
         }
     });
+    // its name for screen readers (the web's aria-label), also when a label above names it visually
+    let _ = ui.ctx().accesskit_node_builder(r.response.id, |n| n.set_label(name.to_string()));
     *sel != before
 }
 

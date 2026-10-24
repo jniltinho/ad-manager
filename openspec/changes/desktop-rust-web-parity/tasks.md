@@ -48,8 +48,8 @@
 
 - [ ] 5.1 Focus order, tab strips by keyboard, field focus recipe vs the theme's focus-visible ring (paint-only top
       layer), scroll into view, popup/modal ordering, dialog focus trap and restore.
-- [ ] 5.2 `labelled_by` on every field and select; names on icon links.
-- [ ] 5.3 Contrast test over every theme and state.
+- [x] 5.2 `labelled_by` on every field and select; names on icon links.
+- [x] 5.3 Contrast test over every theme and state.
 
 ## 5b. Audit closure
 

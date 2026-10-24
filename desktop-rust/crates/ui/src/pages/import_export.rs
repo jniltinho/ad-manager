@@ -383,6 +383,7 @@ impl ImportExport {
                             widgets::select(
                                 ui,
                                 "export-server",
+                                t("File server"),
                                 &mut self.server,
                                 &names,
                                 ui.available_width() - 132.0,
@@ -499,7 +500,7 @@ impl ImportExport {
                         } else {
                             widgets::lbl(ui, &look, t("Target server"));
                             let names: Vec<String> = self.servers.iter().map(|a| a.name.clone()).collect();
-                            if widgets::select(ui, "import-target", &mut self.server, &names, ui.available_width() - 8.0) {
+                            if widgets::select(ui, "import-target", t("Target server"), &mut self.server, &names, ui.available_width() - 8.0) {
                                 self.plan = None;
                             }
                             ui.add_space(8.0);

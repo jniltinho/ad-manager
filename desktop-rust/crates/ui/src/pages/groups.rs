@@ -107,7 +107,7 @@ impl Groups {
                 self.apply();
             }
             let kinds = [t("All types").to_string(), t("Security").into(), t("Distribution").into()];
-            if widgets::select(ui, "groups-kind", &mut self.kind, &kinds, 160.0) {
+            if widgets::select(ui, "groups-kind", t("Group type"), &mut self.kind, &kinds, 160.0) {
                 self.apply();
             }
             ui.label(
@@ -420,6 +420,7 @@ impl Dialog for NewGroup {
                 widgets::select(
                     ui,
                     "group-type",
+                    t("Group type"),
                     &mut self.kind,
                     &[t("Security").into(), t("Distribution").into()],
                     half,
@@ -431,6 +432,7 @@ impl Dialog for NewGroup {
                 widgets::select(
                     ui,
                     "group-scope",
+                    t("Scope"),
                     &mut self.scope,
                     &[t("Global").into(), t("Domain local").into(), t("Universal").into()],
                     half,
@@ -439,7 +441,7 @@ impl Dialog for NewGroup {
         });
         ui.add_space(12.0);
         widgets::lbl(ui, &look, t("OU"));
-        self.ou.ui(ui, "group-ou", ui.available_width());
+        self.ou.ui(ui, "group-ou", t("OU"), ui.available_width());
         let f = footer(ui, cx, Some(t("Create")), "", false, true);
         if f.ok {
             let name = self.name.trim().to_string();

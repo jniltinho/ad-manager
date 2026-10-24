@@ -758,7 +758,7 @@ impl Dialog for ShareDialog {
                         if self.roots.is_empty() { vec![f.root.clone()] } else { self.roots.clone() };
                     let names: Vec<String> = roots.iter().map(|r| format!("{}/", r.trim_end_matches('/'))).collect();
                     let mut i = roots.iter().position(|r| *r == f.root).unwrap_or(0);
-                    if widgets::select(ui, "share-root", &mut i, &names, 216.0) {
+                    if widgets::select(ui, "share-root", t("Root"), &mut i, &names, 216.0) {
                         f.root = roots[i].clone();
                     }
                     let edit = crate::widgets::line(&mut f.sub).font(egui::TextStyle::Monospace);

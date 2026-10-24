@@ -218,7 +218,7 @@ impl Backup {
                                 ui.spacing_mut().item_spacing.y = 4.0;
                                 widgets::lbl(ui, &look, t("Kind"));
                                 let names: Vec<String> = cur.kinds.iter().map(|k| backup_kind_name(k)).collect();
-                                widgets::select(ui, "backup-kind", &mut self.now.kind, &names, 384.0);
+                                widgets::select(ui, "backup-kind", t("Kind"), &mut self.now.kind, &names, 384.0);
                             });
                         }
                         if kind == "fileserver-data" {
@@ -498,7 +498,14 @@ impl Backup {
                             .on_hover_text(t("Name"));
                         });
                         cell(ui, widths[1], &mut |ui| {
-                            widgets::select(ui, ("sched-kind", r), &mut row.kind, &kinds, fw(widths[1]) - 8.0);
+                            widgets::select(
+                                ui,
+                                ("sched-kind", r),
+                                t("Kind"),
+                                &mut row.kind,
+                                &kinds,
+                                fw(widths[1]) - 8.0,
+                            );
                         });
                         cell(ui, widths[2], &mut |ui| {
                             ui.spacing_mut().item_spacing.x = 2.0;
@@ -704,7 +711,7 @@ impl Dialog for SendBackup {
             ui.label(self.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
             ui.end_row();
             widgets::label(ui, &look, t("Kind"));
-            widgets::select(ui, "send-kind", &mut self.kind, &names, 320.0);
+            widgets::select(ui, "send-kind", t("Kind"), &mut self.kind, &names, 320.0);
             ui.end_row();
         });
         widgets::wrapped(

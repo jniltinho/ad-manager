@@ -88,7 +88,7 @@ impl Computers {
             if self.systems.is_empty() {
                 self.systems.push(t("All systems").into());
             }
-            changed |= widgets::select(ui, "computers-os", &mut self.system, &self.systems.clone(), 256.0);
+            changed |= widgets::select(ui, "computers-os", t("System"), &mut self.system, &self.systems.clone(), 256.0);
             changed |= ui
                 .checkbox(&mut self.only_inactive, RichText::new(tf!("no logon for %d+ days", days)).size(12.0))
                 .changed();
@@ -279,7 +279,7 @@ impl Dialog for MoveComputer {
         let look = cx.look.clone();
         ui.spacing_mut().item_spacing.y = 4.0;
         widgets::lbl(ui, &look, t("Destination"));
-        self.picker.ui(ui, "move-computer-ou", ui.available_width());
+        self.picker.ui(ui, "move-computer-ou", t("Destination"), ui.available_width());
         let f = footer(ui, cx, Some(t("Move")), "", false, self.picker.chosen());
         if f.ok && self.picker.chosen() {
             let target = self.picker.dn();

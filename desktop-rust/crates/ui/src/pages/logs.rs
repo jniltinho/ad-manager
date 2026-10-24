@@ -131,7 +131,7 @@ impl Audit {
             if self.actions.is_empty() {
                 self.actions.push(t("All actions").into());
             }
-            changed |= widgets::select(ui, "audit-action", &mut self.action, &self.actions.clone(), 224.0);
+            changed |= widgets::select(ui, "audit-action", t("Action"), &mut self.action, &self.actions.clone(), 224.0);
             changed |= ui.checkbox(&mut self.failures, RichText::new(t("failures only")).size(12.0)).changed();
             if changed {
                 self.apply();
@@ -271,7 +271,7 @@ impl Http {
             ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
             let mut changed = super::search(ui, &mut self.search, t("Filter by path, operator, IP…"), 256.0).changed();
             let codes = [t("All codes").to_string(), "2xx".into(), "3xx".into(), "4xx".into(), "5xx".into()];
-            changed |= widgets::select(ui, "http-code", &mut self.class, &codes, 160.0);
+            changed |= widgets::select(ui, "http-code", t("Code"), &mut self.class, &codes, 160.0);
             changed |= ui.checkbox(&mut self.errors, RichText::new(t("errors only")).size(12.0)).changed();
             if changed {
                 self.apply();
@@ -556,7 +556,7 @@ impl SambaView {
                     let r = super::search(ui, &mut self.search, t("Search in the messages…"), 288.0);
                     let mut reload = r.lost_focus() && ui.input(|x| x.key_pressed(egui::Key::Enter));
                     let labels: Vec<String> = LINES.iter().map(|n| tf!("last %d", n)).collect();
-                    reload |= widgets::select(ui, ("samba-lines", i), &mut self.lines, &labels, 160.0);
+                    reload |= widgets::select(ui, ("samba-lines", i), t("Entries"), &mut self.lines, &labels, 160.0);
                     ui.checkbox(&mut self.errors, RichText::new(t("level 0 only (errors)")).size(12.0));
                     let count = if self.current.is_empty() || self.count == t("Loading…") {
                         self.count.clone()

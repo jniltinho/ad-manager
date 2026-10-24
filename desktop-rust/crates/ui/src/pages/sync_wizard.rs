@@ -1009,7 +1009,7 @@ impl SyncWizard {
             widgets::label(ui, &look, t("When"));
             let mut labels: Vec<String> = PRESETS.iter().map(|p| t(p.1).to_string()).collect();
             labels.push(t("Custom (cron)…").into());
-            if widgets::select(ui, "sync-when", &mut self.preset, &labels, 240.0)
+            if widgets::select(ui, "sync-when", t("When"), &mut self.preset, &labels, 240.0)
                 && let Some(p) = PRESETS.get(self.preset)
             {
                 self.form.cron = p.0.into();
