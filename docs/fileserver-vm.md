@@ -68,8 +68,9 @@ FS_REALM=domain.local FS_DOMAIN=DOMAIN FS_DEB=$PWD/../../dist/ad-manager_X_amd64
 ```
 
 With `FS_IMPORT_READY=1` the agent also gets the GPO-import and password-migration write modes for the panel's
-*From another AD* import (`--import-ready`: one root-only `/opt/ad-manager/import.pass`; delete it after the import;
-see [password-migration.md](password-migration.md)) — without it, ticking **Passwords** fails with "no agent on a
+*From another AD* import (`--import-ready`: `import_modes = true`, the administrator credential encrypted in the panel's
+database, no password on the VM; remove it in *Settings* after the import; see
+[password-migration.md](password-migration.md)) — without it, ticking **Passwords** fails with "no agent on a
 domain controller of this domain with the password migration mode on".
 
 `samba.sh` runs `scripts/samba-setup.py new-dc --panel --files --share-root /srv/shares` (see

@@ -319,10 +319,10 @@ paths:
       requestBody: { content: { multipart/form-data: { schema: { type: object } } } }
       responses: { "200": { description: "Actions with result and generated passwords" } }
   /api/ad-sources:
-    get: { tags: [Import/export], summary: Saved source AD profiles (no passwords), responses: { "200": { description: OK } } }
+    get: { tags: [Import/export], summary: "Saved source AD profiles (never a password; has_password: one is kept sealed)", responses: { "200": { description: OK } } }
   /api/ad-sources/{id}:
     parameters: [{ $ref: "#/components/parameters/id" }]
-    delete: { tags: [Import/export], summary: Delete a source AD profile, responses: { "204": { description: Deleted } } }
+    delete: { tags: [Import/export], summary: Delete a source AD profile and its kept password, responses: { "204": { description: Deleted } } }
   /api/import/ad/plan:
     post:
       tags: [Import/export]
@@ -618,7 +618,7 @@ paths:
     post:
       tags: [Group Policy]
       summary: Restore a GPO from a backup, always as a new GPO (new GUID, not linked)
-      description: "Run by the first agent on a domain controller of this domain whose health says gpo_restore: true — the agent's explicit write mode (gpo_restore_user and a 0600 gpo_restore_password_file in its configuration; otherwise every agent on a DC is read only). samba-tool gpo restore with that account; the archive is a backup from GET /api/gpos/{guid}/backup (only policy/{GUID}/ folders and files, up to 4 MiB). 409 when a GPO already has the name; 503 when no agent can restore. sync lists the other domain controllers: Samba does not replicate SYSVOL, so the new GPO's folder must be copied to them. Audited as gpo.restore, refusals included."
+      description: "Run by the first agent on a domain controller of this domain whose health says gpo_restore: true — the agent's explicit write mode (import_modes, with the import credential kept in the panel sent along; or gpo_restore_user and a 0600 gpo_restore_password_file in its configuration; otherwise every agent on a DC is read only). samba-tool gpo restore with that account; the archive is a backup from GET /api/gpos/{guid}/backup (only policy/{GUID}/ folders and files, up to 4 MiB). 409 when a GPO already has the name; 503 when no agent can restore. sync lists the other domain controllers: Samba does not replicate SYSVOL, so the new GPO's folder must be copied to them. Audited as gpo.restore, refusals included."
       requestBody:
         required: true
         content:
@@ -801,6 +801,17 @@ paths:
       requestBody: { content: { multipart/form-data: { schema: { type: object, properties: { logo: { type: string, format: binary } } } } } }
       responses: { "204": { description: Saved } }
     delete: { tags: [Settings], summary: Remove the logo, responses: { "204": { description: Removed } } }
+  /api/settings/import-credential:
+    get: { tags: [Settings], summary: "The import credential: {user, set}, never the password", responses: { "200": { description: OK } } }
+    put:
+      tags: [Settings]
+      summary: Set the import credential (the administrator the DC agent's GPO restore/import uses)
+      description: "Checked as a Domain Admin of this domain, then sealed in the panel's database (AES-256-GCM, the sync passwords' key) and sent to the agent with each GPO task. Audited as settings.import_credential (the user, never the password)."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [user, password], properties: { user: { type: string, example: Administrator }, password: { type: string, format: password } } } } }
+      responses: { "200": { description: "{user, set}" }, "400": { $ref: "#/components/responses/Error" }, "401": { $ref: "#/components/responses/Error" }, "403": { $ref: "#/components/responses/Error" } }
+    delete: { tags: [Settings], summary: Remove the import credential (audited as settings.import_credential.delete), responses: { "200": { description: "{user, set: false}" } } }
   /api/setup/login:
     post:
       tags: [Setup]
@@ -866,14 +877,15 @@ components:
         application/json:
           schema:
             type: object
-            required: [url, domain, user, password]
+            required: [url, domain, user]
             properties:
               url: { type: string, example: "ldaps://dc01.example.local" }
               domain: { type: string, example: example.local }
               user: { type: string }
-              password: { type: string, format: password }
+              password: { type: string, format: password, description: "empty: the password kept with the profile, when url, domain and user are that profile's" }
+              profile: { type: integer, description: "id of the saved profile whose kept password to use when password is empty" }
               insecure: { type: boolean }
-              save_as: { type: string, description: saves the profile without the password }
+              save_as: { type: string, description: "saves the profile, its password sealed in the panel's database (AES-256-GCM, bound to the profile)" }
               objects: { type: boolean, default: true }
               gpos: { type: boolean, default: false }
               dns: { type: boolean, default: false, description: "A, CNAME and PTR records read over LDAP; never records of domain controllers, SOA, NS, SRV, _msdcs or the zone root" }
@@ -908,7 +920,7 @@ components:
         share_root: { type: string, default: /srv/shares }
         files: { type: boolean, description: "new-dc, dc-join, restore-dc: this DC also serves files (its agent registered in the panel)" }
         backup: { type: string, description: "restore-dc: the DC backup (.tar.bz2) on this server" }
-        import_ad: { type: boolean, default: false, description: "new-dc with files only: turn on this DC agent's GPO-import and password-migration write modes for the administrator (password in /opt/ad-manager/import.pass, 0600 root; delete it to turn both off), for the From another AD import after the setup. Otherwise refused with setup: invalid import_ad" }
+        import_ad: { type: boolean, default: false, description: "new-dc with files only: turn on this DC agent's GPO-import and password-migration write modes for the administrator (import_modes = true; the credential kept encrypted in the panel's database, Settings → Import from an existing AD), for the From another AD import after the setup. Otherwise refused with setup: invalid import_ad" }
     UserInput:
       type: object
       properties:

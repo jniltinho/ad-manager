@@ -37,7 +37,12 @@ get('/agents')
     if (r.length) server.value = shareSrc.value.agent = r[0].id
   })
   .catch(() => {})
-const source = ref({ url: 'ldap://', domain: '', user: '', password: '', insecure: true, save_as: '' })
+const source = ref({ url: 'ldap://', domain: '', user: '', password: '', insecure: true, save_as: '', profile: 0 })
+// a picked profile with a kept password: the field may stay empty (the panel uses it for that same source only)
+const keptPassword = computed(() => {
+  const p = profiles.value.find((x) => x.id === source.value.profile)
+  return !!(p && p.has_password && p.url === source.value.url && p.domain === source.value.domain && p.user === source.value.user)
+})
 // what "From another AD" brings: objects (users, groups, OUs, computers), GPOs, the shares of one file server
 const what = ref({ objects: true, gpos: false, dns: false, dynamic: false, zones: false, shares: false, passwords: false })
 const shareSrc = ref({ host: '', agent: null, map: 'E:\\=/srv/shares' })
@@ -80,7 +85,15 @@ function switchMode(k) {
   plan.value = null
 }
 function useProfile(p) {
-  Object.assign(source.value, { url: p.url, domain: p.domain, user: p.user, insecure: p.insecure, save_as: p.name, password: '' })
+  Object.assign(source.value, {
+    url: p.url,
+    domain: p.domain,
+    user: p.user,
+    insecure: p.insecure,
+    save_as: p.name,
+    password: '',
+    profile: p.has_password ? p.id : 0,
+  })
 }
 async function removeProfile(p) {
   if (!(await askConfirm(t('Delete the profile {name}?', { name: p.name })))) return
@@ -418,7 +431,15 @@ function downloadPasswords() {
           </div>
           <div>
             <label class="lbl" for="op">{{ t('Password') }}</label
-            ><input id="op" v-model="source.password" type="password" class="inp" autocomplete="off" required />
+            ><input
+              id="op"
+              v-model="source.password"
+              type="password"
+              class="inp"
+              autocomplete="off"
+              :required="!keptPassword"
+              :placeholder="keptPassword ? t('Kept password (encrypted)') : ''"
+            />
           </div>
           <label class="flex items-center gap-2 text-[12px]"
             ><input v-model="source.insecure" type="checkbox" /> {{ t('Accept self-signed certificate') }}</label
@@ -472,7 +493,7 @@ function downloadPasswords() {
             </div>
           </fieldset>
           <div>
-            <label class="lbl" for="os">{{ t('Save as profile (without the password)') }}</label
+            <label class="lbl" for="os">{{ t('Save as profile (the password is kept encrypted)') }}</label
             ><input id="os" v-model.trim="source.save_as" class="inp" :placeholder="t('e.g. legacy-2008')" />
           </div>
           <button

@@ -76,6 +76,33 @@ async function removeLogo() {
 }
 
 // agent token: shown once; the file server keeps only its hash
+// the import credential (the target administrator the DC agent's GPO import uses), kept sealed by the panel
+const importCred = ref({ user: '', set: false })
+const importForm = ref({ user: 'Administrator', password: '' })
+const importBusy = ref(false)
+get('/settings/import-credential')
+  .then((r) => (importCred.value = r))
+  .catch(() => {})
+async function saveImportCred() {
+  importBusy.value = true
+  try {
+    importCred.value = await put('/settings/import-credential', importForm.value)
+    importForm.value.password = ''
+    toast.success(t('Import credential saved (encrypted).'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+  importBusy.value = false
+}
+async function removeImportCred() {
+  if (!(await askConfirm(t('Remove the import credential?'), { ok: t('Remove') }))) return
+  try {
+    importCred.value = await del('/settings/import-credential')
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
 const agentToken = ref(null)
 async function newAgentToken() {
   try {
@@ -248,6 +275,36 @@ const readonlyRows = computed(() => {
           {{ t('Edit /opt/ad-manager/config.toml and restart the ad-manager service to change these.') }}
         </p>
         <p class="px-3 pb-2 text-[11px] text-fg-muted">{{ t('Signed in as {user}.', { user: auth.user }) }}</p>
+      </section>
+
+      <section class="card">
+        <div class="card-h">{{ t('Import from an existing AD') }}</div>
+        <form class="space-y-3 px-3 py-3 text-[12px]" @submit.prevent="saveImportCred">
+          <p class="text-fg-muted">
+            {{
+              t(
+                "This domain's administrator, for the GPO import of From another AD: kept encrypted in the panel's database and sent to the DC agent with each task only. Remove it after the import.",
+              )
+            }}
+          </p>
+          <p v-if="importCred.set" class="font-semibold text-ok">{{ t('Kept for {user}.', { user: importCred.user }) }}</p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="lbl" for="icu">{{ t('User') }}</label
+              ><input id="icu" v-model.trim="importForm.user" class="inp" autocomplete="off" required />
+            </div>
+            <div>
+              <label class="lbl" for="icp">{{ t('Password') }}</label
+              ><input id="icp" v-model="importForm.password" type="password" class="inp" autocomplete="new-password" required />
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn-ghost" :disabled="importBusy"><KeyRound :size="13" /> {{ t('Save') }}</button>
+            <button v-if="importCred.set" type="button" class="btn-ghost" @click="removeImportCred">
+              <Trash2 :size="13" /> {{ t('Remove') }}
+            </button>
+          </div>
+        </form>
       </section>
 
       <section class="card">

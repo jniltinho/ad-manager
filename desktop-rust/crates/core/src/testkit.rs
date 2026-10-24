@@ -256,8 +256,9 @@ pub fn demo(users: usize) -> Arc<Route> {
             // a session that ended, for the tests of the 401 handling
             "/api/expired-probe" => (401, json!({"error": "session expired"}).to_string()),
             "/api/ad-sources" => ok(
-                json!([{"id":1,"name":"legacy-2008","url":"ldap://old-dc.old.local","domain":"old.local","user":"migrator","insecure":true}]),
+                json!([{"id":1,"name":"legacy-2008","url":"ldap://old-dc.old.local","domain":"old.local","user":"migrator","insecure":true,"has_password":true}]),
             ),
+            "/api/settings/import-credential" => ok(json!({"user": "Administrator", "set": true})),
             "/api/settings" => ok(json!({"stored": true, "logo": false,
                 "settings": {"lang":"en","session_minutes":30,"inactive_days":90,"password_length":14,"default_ou":"",
                     "company":"Example Company Ltd","support_url":"","swagger":false,"theme":"classic-blue","flat":false},

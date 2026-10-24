@@ -39,7 +39,7 @@ from pathlib import Path
 
 OPT = Path("/opt/ad-manager")
 CONFIG = OPT / "config.toml"
-IMPORT_PASS = OPT / "import.pass"  # --import-ready: the administrator password of both import write modes
+IMPORT_PASS = OPT / "import.pass"  # the former --import-ready password file (no longer written; see import_gates)
 SAM_LDB = Path("/var/lib/samba/private/sam.ldb")
 SAMBA_CA = Path("/var/lib/samba/private/tls/ca.pem")
 PACKAGES = ("samba samba-ad-dc samba-ad-provision winbind libnss-winbind libpam-winbind krb5-user smbclient "
@@ -744,7 +744,7 @@ def dc_files(args):
         name = socket.gethostname().split(".")[0].lower() + " (DC)"
         # the panel's database stays its user's: registered as ad-manager
         reg = subprocess.run(["runuser", "-u", "ad-manager", "--", "ad-manager", "agent", "register-local", "--config", str(CONFIG),
-                              "--name", name], input=r.stdout, capture_output=True, text=True)
+                              "--name", name], input=r.stdout, capture_output=True, text=True, env=service_env())
         if reg.returncode:
             # without the registration the token is of no use: dropped, so running again makes and registers a new one
             (OPT / "agent.token").unlink(missing_ok=True)
@@ -757,10 +757,7 @@ def dc_files(args):
         sh("systemctl", "restart", "ad-manager-agent")
 
 
-IMPORT_GATES = """gpo_restore_user = "{admin}"
-gpo_restore_password_file = "{file}"
-password_migration_user = "{admin}@{realm}"
-password_migration_password_file = "{file}"
+IMPORT_GATES = """import_modes = true
 """
 
 
@@ -779,24 +776,44 @@ def write_secret(path, text):
         raise
 
 
+def service_env():
+    """The environment the panel's unit runs with: ours plus EnvironmentFile=-/opt/ad-manager/env (AD_DB and the
+    other overrides), so a command run as the service user opens the same database as the panel."""
+    env = dict(os.environ)
+    f = OPT / "env"
+    for line in (f.read_text().splitlines() if f.exists() else []):
+        k, sep, v = line.strip().partition("=")
+        if sep and k and not k.startswith("#"):
+            env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+
+
 def import_gates(args):
     """--import-ready: this DC agent's GPO-import and password-migration write modes, for the "From another AD"
-    import right after the setup (docs/password-migration.md). The administrator password goes to one root-only file
-    both modes point to; deleting it turns both off."""
-    log(f"write modes for the import from an existing AD (delete {IMPORT_PASS} after the import)")
+    import right after the setup (docs/password-migration.md). The agent gets the switch `import_modes = true` (no
+    secret on disk); the administrator credential is sealed in the panel's database by `ad-manager
+    import-credential`, run as the service user with the password on stdin (Settings → Import from an existing AD
+    shows and removes it)."""
+    log("write modes for the import from an existing AD (remove the credential in Settings after the import)")
     if DRY:
-        print(f"[dry-run] write {IMPORT_PASS} (0600)")
-        print(f"[dry-run] [agent] gpo_restore_* and password_migration_* in {CONFIG}")
+        print(f"[dry-run] [agent] import_modes = true in {CONFIG}")
+        print("[dry-run] ad-manager import-credential --user <admin> (password on stdin, as ad-manager)")
         return
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", args.admin):
         fail(f"--admin {args.admin}: letters, digits, '.', '_' or '-' only")
-    write_secret(IMPORT_PASS, args.admin_pw + "\n")
     text = CONFIG.read_text()
-    if not re.search(r"^\s*gpo_restore_user\s*=", text, re.M):
+    if not re.search(r"^\s*import_modes\s*=", text, re.M):
         tables = re.findall(r"^\s*\[+([^\]]+)\]", text, re.M)
         if not tables or tables[-1].strip() != "agent":
-            fail(f"{CONFIG}: [agent] is not the last section; add the import keys by hand (docs/password-migration.md)")
-        write_config(text.rstrip("\n") + "\n" + IMPORT_GATES.format(admin=args.admin, realm=args.realm.lower(), file=IMPORT_PASS))
+            fail(f"{CONFIG}: [agent] is not the last section; add import_modes = true by hand (docs/password-migration.md)")
+        write_config(text.rstrip("\n") + "\n" + IMPORT_GATES)
+    r = subprocess.run(["runuser", "-u", "ad-manager", "--", str(OPT / "ad-manager"), "--config", str(CONFIG),
+                        "import-credential", "--user", args.admin], input=args.admin_pw + "\n", text=True,
+                       capture_output=True, check=False, env=service_env())
+    if r.returncode != 0:
+        fail(f"import credential: {(r.stdout + r.stderr).strip()}")
+    if IMPORT_PASS.exists():  # a former run's clear-text file: the credential is in the panel now
+        IMPORT_PASS.unlink()
     if not JSON_LOG:  # the wizard's agent restarts at its end; from the command line it reloads the modes now
         sh("systemctl", "restart", "ad-manager-agent")
 

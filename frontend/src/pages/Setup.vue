@@ -206,7 +206,6 @@ const plan = ref({
 const roleInfo = computed(() => ROLES.find((r) => r.id === plan.value.role))
 const isDC = computed(() => DC_ROLES.includes(plan.value.role))
 const needsPassword = computed(() => roleNeedsPassword(plan.value.role))
-const IMPORT_PASS = '/opt/ad-manager/import.pass' // samba-setup.py --import-ready
 // the import write modes are this DC agent's: only a new domain whose DC also serves files can have them
 const importReady = computed(() => plan.value.role === 'new-dc' && plan.value.files && plan.value.import_ad)
 const sent = computed(() => ({ ...plan.value, import_ad: importReady.value }))
@@ -347,8 +346,7 @@ const summary = computed(() => {
   if (importReady.value)
     s.push(
       t(
-        "This DC's agent gets the write modes to import GPOs and passwords from an existing AD, with the administrator password in {file} (root only) until you delete it.",
-        { file: IMPORT_PASS },
+        "This DC's agent gets the write modes to import GPOs and passwords from an existing AD; the administrator credential is kept encrypted in the panel (Settings) until you remove it.",
       ),
     )
   if (diag.value?.samba_files) s.push(t('Before any change, the Samba already here is backed up (shown under Backup).'))
@@ -608,7 +606,7 @@ function retry() {
             <p id="h-import_ad" class="mt-1 text-[11px] text-fg-muted">
               {{
                 t(
-                  "Turns on this DC agent's write modes for the import (Import/export → From another AD) with the administrator password kept in a root-only file; delete it after the import.",
+                  "Turns on this DC agent's write modes for the import (Import/export → From another AD), with the administrator credential kept encrypted in the panel; remove it after the import.",
                 )
               }}
             </p>
@@ -773,7 +771,7 @@ function retry() {
               {{ t('To bring users, groups, DNS, GPOs, shares and passwords from an existing AD: Import/export → From another AD.') }}
             </li>
             <li v-if="importReady">
-              {{ t('After the import, turn the write modes off: {cmd}', { cmd: `sudo rm ${IMPORT_PASS}` }) }}
+              {{ t('After the import, remove the import credential in Settings → Import from an existing AD.') }}
             </li>
             <li v-if="isDC">{{ t('Point the DNS of the computers to {ip} and join them to the domain.', { ip: plan.ip }) }}</li>
             <li v-if="plan.role === 'member' || (isDC && plan.files)">{{ t('Create the shared folders in Shares.') }}</li>

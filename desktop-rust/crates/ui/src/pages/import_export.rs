@@ -1,6 +1,6 @@
 //! Import/export as the web's page: export the current domain's OUs, groups, users and computers as CSV (and a file
 //! server's folders and permissions); import CSV files, another AD (objects, GPOs, DNS, shares, passwords; saved
-//! profiles without the password) or folders onto a file server. Every import first previews its plan; writing asks
+//! profiles, their password kept encrypted) or folders onto a file server. Every import first previews its plan; writing asks
 //! once more, and a log dialog follows it. Import only creates and updates: it never deletes nor removes members.
 
 use std::collections::BTreeMap;
@@ -40,7 +40,7 @@ struct PlanOut {
     counts: BTreeMap<String, i64>,
 }
 
-/// A saved source AD (`GET /api/ad-sources`): never its password.
+/// A saved source AD (`GET /api/ad-sources`): never its password, only whether one is kept sealed.
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(default)]
 struct Profile {
@@ -50,6 +50,7 @@ struct Profile {
     domain: String,
     user: String,
     insecure: bool,
+    has_password: bool,
 }
 
 const EXPORTS: [(&str, &str); 4] =
@@ -96,6 +97,8 @@ struct Source {
     user: String,
     password: Zeroizing<String>,
     pwd_id: egui::Id,
+    /// The profile used, when it keeps a password: an empty password then uses it (for that server and user only).
+    profile: i64,
     insecure: bool,
     save_as: String,
     objects: bool,
@@ -118,6 +121,7 @@ impl Default for Source {
             user: String::new(),
             password: Zeroizing::default(),
             pwd_id: widgets::secret_id("import-ad-password"),
+            profile: 0,
             insecure: true,
             save_as: String::new(),
             objects: true,
@@ -288,7 +292,7 @@ impl ImportExport {
     fn ad_body(&self) -> Zeroizing<Vec<u8>> {
         let s = &self.source;
         let mut v = json!({
-            "url": s.url.trim(), "domain": s.domain.trim(), "user": s.user.trim(), "insecure": s.insecure,
+            "url": s.url.trim(), "domain": s.domain.trim(), "user": s.user.trim(), "profile": s.profile, "insecure": s.insecure,
             "save_as": s.save_as.trim(), "objects": s.objects, "gpos": s.gpos, "dns": s.dns,
             "include_dynamic": s.dynamic, "create_zones": s.zones, "passwords": s.passwords,
         });
@@ -582,6 +586,18 @@ impl ImportExport {
         preview
     }
 
+    /// The chosen profile keeps a password and the form still names its server and user (as the server checks).
+    fn kept_password(&self) -> bool {
+        let s = &self.source;
+        self.profiles.iter().any(|p| {
+            p.id == s.profile
+                && p.has_password
+                && p.url == s.url.trim()
+                && p.domain.eq_ignore_ascii_case(s.domain.trim())
+                && p.user.eq_ignore_ascii_case(s.user.trim())
+        })
+    }
+
     /// "From another AD"; true when Connect and preview was clicked.
     fn ad_form(&mut self, ui: &mut Ui, cx: &mut Cx) -> bool {
         let look = cx.look.clone();
@@ -611,6 +627,7 @@ impl ImportExport {
             });
             ui.add_space(8.0);
         }
+        let kept = self.kept_password();
         let s = &mut self.source;
         widgets::above(ui, &look, t("Source DC URL"), w, |ui, _| {
             ui.add(widgets::line(&mut s.url).font(egui::TextStyle::Monospace).desired_width(w))
@@ -624,7 +641,9 @@ impl ImportExport {
         });
         ui.add_space(8.0);
         let (pwd_id, pwd) = (s.pwd_id, &mut s.password);
-        widgets::above(ui, &look, t("Password"), w, |ui, _| widgets::secret_field(ui, pwd_id, pwd, "", w));
+        widgets::above(ui, &look, t("Password"), w, |ui, _| {
+            widgets::secret_field(ui, pwd_id, pwd, if kept { t("Kept password (encrypted)") } else { "" }, w)
+        });
         ui.add_space(4.0);
         crate::widgets::check(ui, &mut s.insecure, RichText::new(t("Accept self-signed certificate")).size(12.0));
         ui.add_space(8.0);
@@ -704,7 +723,7 @@ impl ImportExport {
             });
         }
         ui.add_space(8.0);
-        widgets::above(ui, &look, t("Save as profile (without the password)"), w, |ui, _| {
+        widgets::above(ui, &look, t("Save as profile (the password is kept encrypted)"), w, |ui, _| {
             ui.add(
                 widgets::line(&mut s.save_as).hint_text(crate::widgets::hint(t("e.g. legacy-2008"))).desired_width(w),
             )
@@ -733,6 +752,7 @@ impl ImportExport {
             s.user = p.user;
             s.insecure = p.insecure;
             s.save_as = p.name;
+            s.profile = if p.has_password { p.id } else { 0 };
             s.password = Zeroizing::default();
         }
         if let Some(p) = drop_profile {

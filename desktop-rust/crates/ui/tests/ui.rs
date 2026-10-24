@@ -763,6 +763,7 @@ fn import_from_another_ad_previews_then_writes() {
         (body["domain"].as_str(), body["user"].as_str(), body["password"].as_str()),
         (Some("old.local"), Some("migrator"), Some("Old#Pass1"))
     );
+    assert_eq!(body["profile"].as_i64(), Some(1), "the profile keeps its password: the server may use it");
     e.h.run_steps(4);
     assert!(e.h.query_by_label_contains("4 actions, 3 change(s)").is_some(), "the plan's head");
     e.h.get_by_label_contains("Write to the domain").click_accesskit();

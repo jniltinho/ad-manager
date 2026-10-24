@@ -1,6 +1,7 @@
 //! Settings as the web's page: the panel's runtime settings (language, theme and flat look, session timeout,
 //! Swagger; inactive days, password length, default OU; company, support link, logo) saved with
-//! `PUT /api/settings`, the values from config.toml (read only) and a new file server agent token. The theme saved
+//! `PUT /api/settings`, the values from config.toml (read only), the import credential (kept encrypted by the panel)
+//! and a new file server agent token. The theme saved
 //! here is every operator's; Configure › Appearance can still override it on this computer.
 
 use adm_core::i18n::{self, t};
@@ -20,6 +21,14 @@ struct Loaded {
     readonly: Map<String, Value>,
     stored: bool,
     logo: bool,
+}
+
+/// `GET /api/settings/import-credential`: the user, never the password.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct ImportCred {
+    user: String,
+    set: bool,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -98,9 +107,17 @@ pub struct Settings {
     ous: Vec<OrgUnit>,
     busy: bool,
     token: Option<AgentToken>,
+    import: ImportCred,
+    import_user: String,
+    import_pw: zeroize::Zeroizing<String>,
+    import_busy: bool,
 }
 
 /// The fields that show a generated token and its command: forgotten with the session (egui keeps their text).
+fn import_pw_field() -> egui::Id {
+    crate::widgets::secret_id("settings-import-password")
+}
+
 fn token_field(k: usize) -> egui::Id {
     egui::Id::new(("settings-token", k))
 }
@@ -112,6 +129,8 @@ impl Settings {
         for k in 0..2 {
             crate::widgets::forget_field(ctx, token_field(k));
         }
+        self.import_pw = Default::default();
+        crate::widgets::forget_field(ctx, import_pw_field());
     }
 
     pub fn load(&mut self, cx: &Cx) {
@@ -120,11 +139,16 @@ impl Settings {
             async move {
                 let l: Loaded = api.get("/api/settings").await?;
                 let ous = crate::pages::users::fetch_ous(&api).await.unwrap_or_default();
-                Ok((l, ous))
+                let ic = api.get::<ImportCred>("/api/settings/import-credential").await.unwrap_or_default();
+                Ok((l, ous, ic))
             },
-            |app, (l, ous)| {
+            |app, (l, ous, ic)| {
                 app.with_shell(|s, _| {
                     let p = &mut s.settings;
+                    if p.import_user.is_empty() {
+                        p.import_user = if ic.user.is_empty() { "Administrator".into() } else { ic.user.clone() };
+                    }
+                    p.import = ic;
                     p.form = Form::from(l.settings.clone(), &ous);
                     p.ous = ous;
                     p.loaded = Some(l);
@@ -379,6 +403,8 @@ impl Settings {
                     ui.set_width(right_w);
                     self.readonly_card(ui, cx, &loaded);
                     ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
+                    self.import_card(ui, cx);
+                    ui.add_space(20.0 - ui.spacing().item_spacing.y);
                     token = self.token_card(ui, cx);
                 });
             });
@@ -483,6 +509,105 @@ impl Settings {
                 });
             },
         );
+    }
+
+    /// The import credential: this domain's administrator for the GPO import, kept encrypted by the panel.
+    fn import_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        let (mut save, mut remove) = (false, false);
+        widgets::panel(
+            ui,
+            &look,
+            (t("Import from an existing AD"), ""),
+            |_| {},
+            0.0,
+            |ui| {
+                egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.spacing_mut().item_spacing.y = 12.0; // the web's space-y-3
+                    widgets::para(
+                        ui,
+                        t("This domain's administrator, for the GPO import of From another AD: kept encrypted in the panel's database and sent to the DC agent with each task only. Remove it after the import."),
+                        12.0,
+                        look.c("fg-muted"),
+                    );
+                    if self.import.set {
+                        let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+                        ui.label(RichText::new(tf!("Kept for %s.", self.import.user)).font(font).color(look.c("ok")));
+                    }
+                    let cw = ((ui.available_width() - 8.0) / 2.0).floor();
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        widgets::above(ui, &look, t("User"), cw, |ui, _| {
+                            ui.add(widgets::line(&mut self.import_user).desired_width(cw))
+                        });
+                        let pw = &mut self.import_pw;
+                        widgets::above(ui, &look, t("Password"), cw, |ui, _| {
+                            widgets::secret_field(ui, import_pw_field(), pw, "", cw)
+                        });
+                    });
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        let can = !self.import_busy && !self.import_user.trim().is_empty() && !self.import_pw.is_empty();
+                        save = ui
+                            .add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::KEY, t("Save"), Kind::Secondary))
+                            .inner
+                            .clicked();
+                        if self.import.set {
+                            remove = widgets::button(ui, &look, crate::icons::TRASH, t("Remove"), Kind::Secondary).clicked();
+                        }
+                    });
+                });
+            },
+        );
+        if save {
+            self.import_busy = true;
+            let body = adm_core::api::json_with_secret(
+                &json!({ "user": self.import_user.trim() }),
+                "password",
+                &self.import_pw,
+            );
+            let api = cx.panel.clone();
+            let session = cx.panel.id;
+            cx.spawn(
+                async move { api.send_bytes::<ImportCred>(Method::PUT, "/api/settings/import-credential", &body).await },
+                move |app, r| {
+                    if app.cx.panel.id != session {
+                        return;
+                    }
+                    app.with_shell(|s, _| s.settings.import_busy = false);
+                    match r {
+                        Ok(ic) => {
+                            app.with_shell(|s, cx| {
+                                s.settings.import = ic;
+                                s.settings.import_pw = Default::default();
+                                crate::widgets::forget_field(&cx.ctx, import_pw_field());
+                            });
+                            app.cx.set_status(t("Import credential saved (encrypted)."));
+                        }
+                        Err(e) => app.cx.handle_error(e),
+                    }
+                },
+            );
+        }
+        if remove {
+            cx.confirm(
+                t("Import from an existing AD"),
+                t("Remove the import credential?").into(),
+                t("Remove"),
+                true,
+                |cx| {
+                    let api = cx.panel.clone();
+                    cx.run(
+                        async move {
+                            api.send::<ImportCred, _>(Method::DELETE, "/api/settings/import-credential", None::<&()>)
+                                .await
+                        },
+                        |app, ic| app.with_shell(|s, _| s.settings.import = ic),
+                    );
+                },
+            );
+        }
     }
 
     /// A new file server agent token, shown once with the command to run on the server; true when asked.
