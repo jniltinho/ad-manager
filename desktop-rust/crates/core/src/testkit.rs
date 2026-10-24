@@ -239,6 +239,8 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"name":"PC-FIN-01","sam":"PC-FIN-01$","dn":"CN=PC-FIN-01,CN=Computers,DC=domain,DC=local","dns_name":"pc-fin-01.domain.local","os":"Windows 11 Pro","os_version":"10.0 (26100)","enabled":true,"is_dc":false,"last_logon":"2026-10-20T08:00:00Z"},
                 {"name":"PC-OLD-02","sam":"PC-OLD-02$","dn":"CN=PC-OLD-02,CN=Computers,DC=domain,DC=local","dns_name":"pc-old-02.domain.local","os":"Windows 7 Professional","os_version":"6.1 (7601)","enabled":false,"is_dc":false,"last_logon":"2025-01-10T08:00:00Z"},
             ])),
+            // a session that ended, for the tests of the 401 handling
+            "/api/expired-probe" => (401, json!({"error": "session expired"}).to_string()),
             "/api/settings" => ok(json!({"stored": true, "logo": false,
                 "settings": {"lang":"en","session_minutes":30,"inactive_days":90,"password_length":14,"default_ou":"",
                     "company":"Example Company Ltd","support_url":"","swagger":false,"theme":"classic-blue","flat":false},

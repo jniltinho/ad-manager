@@ -162,7 +162,9 @@ impl Shell {
                 ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
             app.set_clip_rect(rect);
             app.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            self.header(&mut app, cx);
+            if let Some(n) = self.header(&mut app, cx) {
+                nav = Some(n);
+            }
             if let Some(n) = self.tabs(&mut app, cx) {
                 nav = Some(n);
             }
@@ -310,7 +312,8 @@ impl Shell {
         let _ = search.ctx().accesskit_node_builder(field.id, |n| n.set_label(t("Global search")));
         let enter = field.lost_focus() && search.input(|i| i.key_pressed(egui::Key::Enter));
         if (go || enter) && !self.search.trim().is_empty() {
-            nav = Some(Nav::Search(std::mem::take(&mut self.search).trim().to_string()));
+            // the term stays in the field, as the web's
+            nav = Some(Nav::Search(self.search.trim().to_string()));
         }
         nav
     }

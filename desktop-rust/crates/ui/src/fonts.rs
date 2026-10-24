@@ -249,7 +249,8 @@ fn data(f: &Face) -> FontData {
 }
 
 /// Wide system faces tried, in order, for the symbols the theme's face lacks.
-const SYMBOLS: [&str; 6] = ["DejaVu Sans", "Noto Sans", "Segoe UI Symbol", "Segoe UI", "Lucida Grande", "Arial Unicode MS"];
+const SYMBOLS: [&str; 6] =
+    ["DejaVu Sans", "Noto Sans", "Segoe UI Symbol", "Segoe UI", "Lucida Grande", "Arial Unicode MS"];
 
 /// The egui fonts of a theme: its sans stack as the proportional family (and `semibold`), its mono stack as the
 /// monospace family; egui's bundled fonts stay behind them for symbols and emoji.

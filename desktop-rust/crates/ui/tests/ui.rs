@@ -569,3 +569,28 @@ fn configure_theme_applies_at_once_and_is_saved() {
     e.h.step();
     assert_eq!(e.app().cx.look.id, "classic-blue", "the panel's theme again");
 }
+
+#[test]
+fn global_search_opens_users_with_every_status() {
+    let mut e = env();
+    e.users_page();
+    e.h.get_by_label("Global search").click();
+    e.h.step();
+    e.type_text("bruno.silva");
+    e.key(egui::Key::Enter);
+    e.h.run_steps(3);
+    assert!(matches!(&e.app().screen, Screen::Shell(s) if s.page() == adm_ui::shell::Page::Users));
+    let shown = e.visible_users();
+    assert!(!shown.is_empty() && shown.iter().all(|u| u.sam.contains("bruno.silva")), "filtered by the term");
+}
+
+#[test]
+fn an_expired_session_heard_by_any_call_goes_back_to_sign_in() {
+    let mut e = env();
+    e.sign_in();
+    e.wait("the shell", |a, _| matches!(&a.screen, Screen::Shell(_)));
+    // a call whose result nobody reads (cx.spawn, not cx.run)
+    let api = e.app().cx.panel.clone();
+    e.h.state_mut().cx.spawn(async move { api.act(reqwest::Method::GET, "/api/expired-probe").await }, |_, _| {});
+    e.wait("the sign-in screen", |a, _| matches!(&a.screen, Screen::Login(_)));
+}

@@ -60,6 +60,8 @@ pub struct Api {
     pub id: u64,
     /// A bearer token (tests); the app always uses the session cookie.
     token: Arc<str>,
+    /// Set by any answer that says the session ended (401), whoever made the call: the app goes back to sign-in.
+    expired: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl std::fmt::Debug for Api {
@@ -69,6 +71,19 @@ impl std::fmt::Debug for Api {
 }
 
 impl Api {
+    /// Whether an answer said this session ended (also to a call whose error the caller showed or ignored).
+    pub fn expired(&self) -> bool {
+        self.expired.load(Ordering::Relaxed)
+    }
+
+    fn check(&self, status: StatusCode, path: &str, data: &[u8]) -> ApiResult<()> {
+        let r = check(status, path, data, self.token.is_empty());
+        if r == Err(ApiError::SessionExpired) {
+            self.expired.store(true, Ordering::Relaxed);
+        }
+        r
+    }
+
     pub fn new(base: &str, trust: &Trust) -> ApiResult<Self> {
         let cfg = tls::client_config(trust).map_err(|e| ApiError::msg(e.to_string()))?;
         let client = reqwest::Client::builder()
@@ -87,6 +102,7 @@ impl Api {
             timeout: Some(Duration::from_secs(20)),
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             token: Arc::from(""),
+            expired: Default::default(),
         })
     }
 
@@ -155,7 +171,7 @@ impl Api {
         let resp = r.send().await.map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         Ok(data)
     }
 
@@ -213,7 +229,7 @@ impl Api {
             .map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         self.get("/api/me").await
     }
 
@@ -267,7 +283,7 @@ impl Api {
         let status = resp.status();
         if !status.is_success() {
             let data = read_capped(resp).await.unwrap_or_default();
-            check(status, &path, &data, self.token.is_empty())?;
+            self.check(status, &path, &data)?;
             return Err(ApiError::msg(format!("{path}: HTTP {}", status.as_u16())));
         }
         let mut f = tokio::fs::File::create(to).await.map_err(|e| ApiError::msg(e.to_string()))?;
@@ -284,7 +300,7 @@ impl Api {
         let resp = self.request(Method::GET, &url, None).send().await.map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         Ok(String::from_utf8_lossy(&data).into_owned())
     }
 
@@ -308,7 +324,7 @@ impl Api {
             .map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())
+        self.check(status, &path, &data)
     }
 
     pub async fn upload<T: DeserializeOwned + Default>(&self, path: &str, from: &Path) -> ApiResult<T> {
@@ -326,7 +342,7 @@ impl Api {
         let resp = r.send().await.map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         decode(&data)
     }
 }

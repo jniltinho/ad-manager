@@ -469,6 +469,10 @@ impl App {
     pub fn frame(&mut self, ui: &mut Ui) {
         self.zoom(ui.ctx());
         self.pump();
+        // any call of this session heard that it ended: back to sign-in (as the web's 401 handling)
+        if matches!(self.screen, Screen::Shell(_)) && self.cx.panel.expired() && self.cx.go.is_none() {
+            self.cx.go = Some(Go::Login);
+        }
         self.cx.hover = None;
         let modal_open = !self.cx.dialogs.is_empty();
         match &mut self.screen {

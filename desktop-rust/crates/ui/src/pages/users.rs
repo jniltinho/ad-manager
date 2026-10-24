@@ -82,6 +82,7 @@ impl Users {
     /// Shows the accounts matching the header's global search.
     pub fn search_for(&mut self, cx: &Cx, term: &str) {
         self.search = term.to_string();
+        self.filter = UserFilter::All; // the web's search shows every status
         if self.loaded {
             self.apply(cx);
         }
