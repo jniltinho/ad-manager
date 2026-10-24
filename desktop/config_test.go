@@ -139,6 +139,30 @@ func TestCheckURLAndSaveConfig(t *testing.T) {
 	}
 }
 
+// TestGraphicsKept: the Rust desktop's [graphics] section survives this app's decode and save, and a config without
+// it writes none.
+func TestGraphicsKept(t *testing.T) {
+	c, err := decodeConfig([]byte("lang = \"en\"\n[panel]\nurl = \"https://p:8443\"\nuser = \"joe\"\n\n[graphics]\ngpu_backend = \"dx12\"\n"))
+	if err != nil || c.Graphics.GPUBackend != "dx12" {
+		t.Fatalf("decode: %+v %v", c, err)
+	}
+	path := filepath.Join(t.TempDir(), "desktop.toml")
+	if err := saveConfig(path, c); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(path)
+	if !strings.Contains(string(b), "[graphics]") || !strings.Contains(string(b), "gpu_backend = 'dx12'") && !strings.Contains(string(b), `gpu_backend = "dx12"`) {
+		t.Fatalf("[graphics] lost:\n%s", b)
+	}
+	c.Graphics.GPUBackend = ""
+	if err := saveConfig(path, c); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(path); strings.Contains(string(b), "graphics") {
+		t.Fatalf("an empty [graphics] was written:\n%s", b)
+	}
+}
+
 // TestLegacyAgentTokensRemoved: a config of an older version that still lists file servers with their tokens is read
 // without them and rewritten at once (0600) without them, keeping the rest.
 func TestLegacyAgentTokensRemoved(t *testing.T) {

@@ -268,15 +268,15 @@ catalog, and color the interface with the panel theme's roles (18 themes, flat l
 
 ### Requirement: Rust desktop crash-safe graphics start
 The app SHALL plan its graphics backend before the window exists: a `gpu-starting` marker that no running instance
-holds SHALL move the start to the next safer backend of the platform's ladder, otherwise the backend saved in
-`graphics.toml` applies; `--safe-gpu` and `WGPU_BACKEND` override the plan. The marker SHALL be removed after 3
-painted frames.
+holds SHALL move the start to the next safer backend of the platform's ladder, otherwise the backend saved as
+`[graphics] gpu_backend` in desktop.toml applies; `--safe-gpu` and `WGPU_BACKEND` override the plan. The marker SHALL
+be emptied (never removed) after 3 completed frames.
 
 #### Scenario: A start that died
 - **WHEN** the last start on OpenGL (Windows) left a marker that no process holds
 - **THEN** this start uses DX12, the sign-in screen says "The graphics driver stopped the last start (gl); now using
-  dx12. Change it in Configure.", and once 3 frames painted `graphics.toml` gets `gpu_backend = "dx12"` and the
-  marker is removed, desktop.toml untouched
+  dx12. Change it in Configure.", and once 3 frames painted desktop.toml gets `[graphics] gpu_backend = "dx12"` with
+  the rest of its configuration unchanged, the marker is emptied, and after sign-in the notice is in the status line
 
 #### Scenario: Another instance starting
 - **WHEN** another process holds the marker's lock while this instance starts
@@ -289,7 +289,7 @@ painted frames.
 
 #### Scenario: Software is never saved silently
 - **WHEN** a crash moves the start down to the software rung
-- **THEN** the launch prefers a software adapter and `graphics.toml` is not changed
+- **THEN** the launch prefers a software adapter and `[graphics]` is not changed
 
 #### Scenario: Safe start
 - **WHEN** the app is started with `--safe-gpu`
@@ -307,9 +307,13 @@ painted frames.
   software adapter the first usable one is picked so the window opens
 
 #### Scenario: Graphics changed in Configure
-- **WHEN** the operator, signed out and offline, changes only Graphics in Configure and saves
-- **THEN** `graphics.toml` is written without a panel test, the screen says "Applies at the next start." and
-  desktop.toml is unchanged
+- **WHEN** the operator, signed out and offline, changes the Rendering backend in Configure › Graphics
+- **THEN** desktop.toml gets `[graphics] gpu_backend` at once, without a panel test, the rest of the file unchanged,
+  and the screen says "Applies at the next start. After a driver crash AD Manager picks a safer one."
+
+#### Scenario: The Fyne app keeps the choice
+- **WHEN** the Fyne desktop saves its Configure on a desktop.toml that has `[graphics]`
+- **THEN** the section is still there
 
 #### Scenario: WARP renders
 - **WHEN** the Windows CI job runs the WARP smoke test

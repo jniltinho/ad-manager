@@ -13,4 +13,4 @@ pub mod style;
 pub mod table;
 pub mod widgets;
 
-pub use app::{App, Start, StartError};
+pub use app::{App, GpuStart, Start, StartError};

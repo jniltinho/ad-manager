@@ -73,6 +73,33 @@ pub struct Cx {
     pub brand: crate::login::PublicBrand,
     /// The window title wanted (sent to the window when it changes).
     pub title: String,
+    /// Notices of the graphics start: the fallback is shown under the sign-in box, and all go to the status line
+    /// when the shell opens.
+    pub gpu_notes: Vec<GpuNote>,
+}
+
+/// A notice of the graphics start, translated when shown (the language can change after the start).
+pub enum GpuNote {
+    /// The start on the first backend died; now the second.
+    Fallback(adm_core::gpu::Backend, adm_core::gpu::Backend),
+    /// The marker could not be taken or written: no crash protection for this start.
+    Unprotected(String),
+    /// The working fallback could not be saved to desktop.toml.
+    SaveFailed(String),
+}
+
+impl GpuNote {
+    pub fn text(&self) -> String {
+        match self {
+            Self::Fallback(crashed, now) => adm_core::tf!(
+                "The graphics driver stopped the last start (%s); now using %s. Change it in Configure.",
+                crashed.name(),
+                now.name()
+            ),
+            Self::Unprotected(e) => format!("{}{e}", t("Graphics start protection is off for this start: ")),
+            Self::SaveFailed(e) => format!("{}{e}", t("The graphics choice could not be saved: ")),
+        }
+    }
 }
 
 impl Cx {
@@ -243,6 +270,8 @@ pub struct App {
     kept: Option<Box<shell::Shell>>,
     /// Modal heights of the last frame (to keep their top at 10% of the window when they fit).
     heights: Vec<f32>,
+    /// The graphics start until it counts as working.
+    gpu: Option<GpuStart>,
     _rt: Option<tokio::runtime::Runtime>,
 }
 
@@ -251,6 +280,17 @@ pub struct Start {
     pub platform: Arc<dyn Platform>,
     pub config: Result<adm_core::config::Loaded, String>,
     pub version: &'static str,
+    /// The crash-safe graphics start (none in tests).
+    pub gpu: Option<GpuStart>,
+}
+
+/// The crash-safe graphics start handed over by the binary (design D12; the plan and the marker are `adm_core::gpu`).
+pub struct GpuStart {
+    pub plan: adm_core::gpu::Plan,
+    /// Why this start has no crash protection (the marker could not be taken or written), for the status line.
+    pub warning: Option<String>,
+    /// Clears the marker; called once [`adm_core::gpu::START_FRAMES`] frames painted.
+    pub on_started: Box<dyn FnOnce() + Send>,
 }
 
 impl App {
@@ -296,6 +336,7 @@ impl App {
             version: start.version,
             brand: Default::default(),
             title: String::new(),
+            gpu_notes: Vec::new(),
         };
         let mut app = Self {
             cx,
@@ -305,14 +346,49 @@ impl App {
             last_frame: None,
             kept: None,
             heights: Vec::new(),
+            gpu: None,
             _rt: own,
         };
+        if let Some(g) = start.gpu {
+            if let Some((crashed, now)) = g.plan.notice() {
+                app.cx.gpu_notes.push(GpuNote::Fallback(crashed, now));
+            }
+            if let Some(w) = &g.warning {
+                app.cx.gpu_notes.push(GpuNote::Unprotected(w.clone()));
+            }
+            app.gpu = Some(g);
+        }
         app.screen = match failed {
             Some(e) => Screen::Failed(e),
             None if needs_setup => Screen::Setup(Box::new(setup::Setup::new(&app.cx, setup::Back::None))),
             None => Screen::Login(Box::new(login::Login::new(&mut app.cx))),
         };
         Ok(app)
+    }
+
+    /// Once [`adm_core::gpu::START_FRAMES`] frames completed (and eframe painted them: a frame's extra layout passes
+    /// do not count) the graphics start counts as working: the marker is emptied, and a hardware fallback reached
+    /// after a crash is saved as `[graphics]` in desktop.toml — when the file exists; on a first run it is kept for
+    /// Configure's Save (nothing is written before it). A write error becomes a notice.
+    pub fn gpu_started(&mut self, ctx: &Context) {
+        if self.gpu.is_none() {
+            return;
+        }
+        if ctx.cumulative_frame_nr() < u64::from(adm_core::gpu::START_FRAMES) {
+            ctx.request_repaint();
+            return;
+        }
+        let Some(g) = self.gpu.take() else { return };
+        if let Some(b) = g.plan.to_save() {
+            adm_core::gpu::set_choice(&mut self.cx.cfg, b);
+            if self.cx.cfg_path.exists()
+                && let Err(e) = adm_core::config::save(self.cx.platform.as_ref(), &self.cx.cfg_path, &self.cx.cfg)
+            {
+                self.cx.set_status(GpuNote::SaveFailed(e.to_string()).text());
+                self.cx.gpu_notes.push(GpuNote::SaveFailed(e.to_string()));
+            }
+        }
+        (g.on_started)();
     }
 
     pub fn shell(&mut self) -> Option<&mut shell::Shell> {
@@ -467,6 +543,10 @@ impl App {
         if let Some((msg, err)) = self.cx.notice.take() {
             self.cx.set_status(format!("{}{err}", t(&msg)));
         }
+        if !self.cx.gpu_notes.is_empty() {
+            let notes: Vec<String> = self.cx.gpu_notes.drain(..).map(|n| n.text()).collect();
+            self.cx.set_status(notes.join("  ·  "));
+        }
         self.screen = Screen::Shell(Box::new(shell::Shell::new(&mut self.cx)));
     }
 }
@@ -485,6 +565,7 @@ impl eframe::App for App {
         }
         self.last_frame = Some(std::time::Instant::now());
         self.frame(ui);
+        self.gpu_started(&ui.ctx().clone());
     }
 
     fn raw_input_hook(&mut self, ctx: &Context, raw: &mut egui::RawInput) {

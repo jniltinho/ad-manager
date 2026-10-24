@@ -1,4 +1,5 @@
-//! Configure: the panel URL, the account and the language. Test reads the certificate (one the system does not trust
+//! Configure: the panel URL, the account and the language, and the graphics backend (saved at once as `[graphics]` in
+//! desktop.toml: it needs no panel test and applies at the next start). Test reads the certificate (one the system does not trust
 //! is pinned once the operator accepts it), the panel health and signs in; Save writes desktop.toml (no password, no
 //! token) and opens the app with that session. A test whose values were edited, retested or cancelled — also one that
 //! finishes after that — is signed out.
@@ -53,6 +54,9 @@ pub struct Setup {
     write_err: Option<String>,
     focus: bool,
     pwd_id: egui::Id,
+    /// Configure › Graphics: the index in `adm_core::gpu::choices`, and the result of saving it.
+    gpu: usize,
+    gpu_msg: Option<Result<(), String>>,
 }
 
 /// Test generations are unique across Configure screens: a test of a screen that was left never counts in a new one.
@@ -78,6 +82,42 @@ impl Setup {
             write_err: None,
             focus: true,
             pwd_id: crate::widgets::secret_id("setup-password"),
+            gpu: {
+                let saved = adm_core::gpu::choice(&cx.cfg);
+                adm_core::gpu::choices(adm_core::gpu::Os::current()).iter().position(|b| *b == saved).unwrap_or(0)
+            },
+            gpu_msg: None,
+        }
+    }
+
+    /// Configure › Graphics, as rustXterm's Settings › Display › Graphics: the rendering backend, saved at once as
+    /// `[graphics]` in desktop.toml (only that changes: the rest stays as saved), with the same hint.
+    fn graphics_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        let os = adm_core::gpu::Os::current();
+        let choices = adm_core::gpu::choices(os);
+        let names: Vec<String> = choices.iter().map(|b| t(b.label(os)).to_string()).collect();
+        let before = self.gpu;
+        widgets::form(ui, "setup-graphics", |ui| {
+            widgets::labeled_select(ui, &look, t("Rendering backend"), "setup-gpu", &mut self.gpu, &names, 200.0);
+            ui.end_row();
+        });
+        if self.gpu != before
+            && let Some(b) = choices.get(self.gpu)
+        {
+            adm_core::gpu::set_choice(&mut cx.cfg, *b);
+            // saved at once into the configuration as it is on disk; on a first run, with the rest by Save
+            self.gpu_msg = Some(if cx.cfg_path.exists() {
+                config::save(cx.platform.as_ref(), &cx.cfg_path, &cx.cfg).map_err(|e| e.to_string())
+            } else {
+                Ok(())
+            });
+        }
+        widgets::muted(ui, &look, t("Applies at the next start. After a driver crash AD Manager picks a safer one."));
+        if let Some(Err(e)) = &self.gpu_msg {
+            ui.label(
+                RichText::new(format!("{}{e}", t("The graphics choice could not be saved: "))).color(look.c("err")),
+            );
         }
     }
 
@@ -171,6 +211,7 @@ impl Setup {
         n.panel.url = self.base();
         n.panel.user = self.user.trim().to_string();
         n.lang = LANG_CODES[self.lang.min(2)].to_string();
+        n.graphics = cx.cfg.graphics.clone();
         if self.tested.is_none() {
             // signed in, same account: only the language changes, the session and the trust stay
             n.panel.fingerprint = cx.cfg.panel.fingerprint.clone();
@@ -212,6 +253,7 @@ impl Setup {
                     ui.painter().rect_filled(r, 0.0, look.c("accent"));
                     egui::ScrollArea::vertical().max_height(ui.available_height() - 70.0).show(ui, |ui| {
                         widgets::card(ui, &look, t("Panel"), |ui| self.panel_card(ui, cx));
+                        widgets::card(ui, &look, t("Graphics"), |ui| self.graphics_card(ui, cx));
                         widgets::muted(
                             ui,
                             &look,
@@ -272,9 +314,8 @@ impl Setup {
             }
             changed |= r.changed();
             ui.end_row();
-            widgets::label(ui, &look, t("Language"));
             let names = [t("Panel default").to_string(), "Português".into(), "English".into()];
-            widgets::select(ui, "setup-lang", &mut self.lang, &names, 200.0);
+            widgets::labeled_select(ui, &look, t("Language"), "setup-lang", &mut self.lang, &names, 200.0);
             ui.end_row();
         });
         if changed {

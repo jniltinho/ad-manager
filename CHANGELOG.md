@@ -11,6 +11,10 @@ All notable changes to this project are documented here. The format follows
   (tags `desktop-rust-v*`), and a benchmark against the Fyne app (`desktop-rust/docs/benchmark.md`). The Fyne app
   stays the shipped desktop.
 
+### Changed
+- Desktop app: saving Configure keeps the `[graphics]` section of desktop.toml, where the Rust desktop stores its
+  rendering backend.
+
 ## [0.22.0] — 2026-10-23
 
 **The desktop's user edit dialog shows the group count, and Echo v5.4.2.**

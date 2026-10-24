@@ -28,6 +28,11 @@ adm-platform-windows.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 adm-platform-macos.workspace = true
+# Metal (wgpu) → OpenGL (glow) fallback: glow is compiled in on macOS only.
+eframe = { workspace = true, features = ["glow"] }
+
+[dev-dependencies]
+tokio.workspace = true
 
 [lints]
 workspace = true

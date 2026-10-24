@@ -162,14 +162,23 @@ its tests and the corrections below:
   Linux `vulkan → gl → cpu`; macOS `auto (Metal) → gl`, `cpu` terminal — on macOS `gl` and `cpu` both mean
   `eframe::Renderer::Glow`, the safest renderer once Metal is out (hardware-preferred OpenGL, not guaranteed CPU
   rendering). eframe's `glow` feature only on macOS; Linux and Windows render through wgpu.
-- **Where the choice lives**: `graphics.toml` (0600) in the folder of desktop.toml, `gpu_backend = "dx12"` — not in
-  desktop.toml, so the first-run rule (nothing written to desktop.toml before a successful test and Save) holds, and
-  the Fyne app, which rewrites desktop.toml, never drops it. `Plan::to_save` = a hardware backend reached after a
-  crash (never `cpu`, never on a forced launch), written once 3 frames painted; a write failure is a status notice.
+- **Where the choice lives**: one file, as the user asked: `[graphics] gpu_backend = "dx12"` in desktop.toml (`auto`
+  writes no key). The Fyne app keeps the section when it rewrites the file (`desktop/config.go` `Graphics`, test
+  `TestGraphicsKept`). The first-run rule holds: nothing is written to desktop.toml before a successful test and
+  Save, so on a first run the choice stays in memory and Save writes it with the rest. `Plan::to_save` is a hardware
+  backend reached after a crash, never `cpu` and never on a forced launch. It is written into the configuration as
+  saved once 3 frames completed (`Context::cumulative_frame_nr`: a frame's extra layout passes do not count), and a
+  write failure is a notice.
+- **The marker is emptied, never removed**: removing a locked file lets a start that opened it just before take the
+  lock of an unlinked file. An empty marker means the last start painted (Codex review).
 - **Notice before sign-in**: the fallback notice ("The graphics driver stopped the last start (gl); now using dx12.
-  Change it in Configure.") is shown under the sign-in box (and in the status line once signed in).
-- **Configure › Graphics**: a select of `auto` plus the OS's ladder. Changing only it saves `graphics.toml` at once —
-  no panel test needed, nothing else written — and says "Applies at the next start."
+  Change it in Configure.") is shown under the sign-in box. Once signed in, it goes to the status line together with
+  any marker or save error. The notices are translated when shown.
+- **Configure › Graphics**: as rustXterm's Settings › Display › Graphics.
+  - A **Rendering backend** select of `auto` plus the OS's ladder.
+  - Changing it saves `[graphics]` into desktop.toml at once, with no panel test needed and the rest of the file as
+    saved.
+  - The hint reads "Applies at the next start. After a driver crash AD Manager picks a safer one."
 - **Adapter choice** (as rustXterm): for an explicit backend, `native_adapter_selector` keeps only adapters that
   support the window surface and `pick_adapter` ranks them: normal → hardware OpenGL first, then discrete,
   integrated, virtual, other, CPU; software → a CPU adapter first, the WARP entry that owns the output before the other

@@ -5,6 +5,7 @@
 pub mod api;
 pub mod config;
 pub mod forms;
+pub mod gpu;
 pub mod i18n;
 pub mod logic;
 pub mod model;
