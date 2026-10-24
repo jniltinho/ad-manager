@@ -111,8 +111,18 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
         b.fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0, line)).min_size(egui::vec2(w, crate::style::control_h())),
     );
     let (bg, shadow) = parts(kind, r.hovered());
-    // a disabled button's colors come mixed (see button): its flat fill, no gradient
-    let gradient = if ui.is_enabled() { look.gradient(bg) } else { None };
+    // a disabled button's colors come mixed (see button): its gradient's stops mixed the same way
+    let mixed = (!ui.is_enabled()).then(|| look.gradient(bg)).flatten().map(|g| {
+        let s = look.c("surface");
+        let mut g = g.clone();
+        for stop in &mut g.stops {
+            let c = stop.color.0;
+            let m = Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]).lerp_to_gamma(s, 0.5);
+            stop.color = adm_core::theme::Rgba(m.to_srgba_unmultiplied());
+        }
+        g
+    });
+    let gradient = if ui.is_enabled() { look.gradient(bg) } else { mixed.as_ref() };
     let shapes = crate::depth::box_shapes(r.rect, gradient, fill, look.shadows(shadow));
     ui.painter().set(under, egui::Shape::Vec(shapes));
     r
@@ -1156,7 +1166,8 @@ fn flex_widths(natural: &[f32], room: f32) -> Vec<f32> {
 pub fn combo(id_salt: impl egui::AsIdSalt) -> egui::ComboBox {
     egui::ComboBox::from_id_salt(id_salt).icon(|ui, rect, _, _| {
         let ink = ui.ctx().data(|d| d.get_temp::<Color32>(egui::Id::new(SELECT_ARROW))).unwrap_or(Color32::GRAY);
-        let r = egui::Rect::from_center_size(rect.center(), egui::vec2(10.0, 6.0));
+        // the web's "right 8px" inside the 1 px border: 5 points right of egui's icon slot
+        let r = egui::Rect::from_center_size(rect.center() + egui::vec2(5.0, 0.0), egui::vec2(10.0, 6.0));
         ui.painter().add(egui::Shape::convex_polygon(
             vec![r.left_top(), r.right_top(), r.center_bottom()],
             ink,
@@ -1274,6 +1285,38 @@ pub fn toolbar_end<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
 /// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).
 pub const LEADING: f32 = 1.5;
 
+/// A paragraph as the web's: `size` points at its line of 1.5, broken as a browser does — whole words on a row while
+/// the row's visible text fits the available width (its last space hangs past the edge; egui would instead move the
+/// word before a space that does not fit). A word longer than the row overflows, as in the browser.
+pub fn para(ui: &mut Ui, text: impl Into<String>, size: f32, color: Color32) -> Response {
+    let text = text.into();
+    let font = egui::FontId::proportional(size);
+    let w = ui.available_width();
+    let width = |s: &str| ui.painter().layout_no_wrap(s.to_string(), font.clone(), color).size().x;
+    let mut rows: Vec<String> = Vec::new();
+    for line in text.split('\n') {
+        let mut row = String::new();
+        for word in line.split(' ') {
+            let candidate = if row.is_empty() { word.to_string() } else { format!("{row} {word}") };
+            if !row.is_empty() && width(&candidate) > w {
+                rows.push(std::mem::replace(&mut row, word.to_string()));
+            } else {
+                row = candidate;
+            }
+        }
+        rows.push(row);
+    }
+    let job = egui::text::LayoutJob::single_section(
+        rows.join("\n"),
+        egui::TextFormat { font_id: font, color, line_height: Some(LEADING * size), ..Default::default() },
+    );
+    let g = ui.painter().layout_job(job);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, g.size().y), egui::Sense::hover());
+    ui.painter().galley(rect.min, g, color);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &text));
+    resp
+}
+
 /// A field's placeholder at the control's 12 px (egui draws it in the body's 11 whatever the field's font).
 pub fn hint(text: impl ToString) -> RichText {
     RichText::new(text.to_string()).size(12.0)
@@ -1296,7 +1339,12 @@ pub fn field(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> Response
 
 /// A label above its field, as the web's .lbl: small semibold uppercase in the muted ink.
 pub fn lbl(ui: &mut Ui, look: &Look, s: &str) -> Response {
-    let r = ui.label(crate::style::semibold(s.to_uppercase(), 11.0).color(look.c("fg-muted")));
+    // the web's .lbl: 11 px semibold capitals, tracking-wide (0.025em), in the page's line of 1.5
+    let text = crate::style::semibold(s.to_uppercase(), 11.0)
+        .extra_letter_spacing(0.025 * 11.0)
+        .line_height(Some(LEADING * 11.0))
+        .color(look.c("fg-muted"));
+    let r = ui.label(text);
     // drawn in capitals, named as written (the web's text-transform leaves the accessible name alone)
     let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_value(s.to_string()));
     r
@@ -1465,5 +1513,26 @@ mod flex_tests {
     fn a_wide_label_keeps_its_width() {
         assert_eq!(super::flex_widths(&[90.0, 140.0, 70.0], 342.0), vec![101.0, 140.0, 101.0]);
         assert_eq!(super::flex_widths(&[90.0, 100.0, 70.0], 360.0), vec![120.0, 120.0, 120.0]);
+    }
+
+    #[test]
+    fn a_paragraph_wraps_as_a_browser() {
+        // "aaa aaa" fills the row exactly: the space after it hangs, so the second word stays (egui alone moves it down)
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let font = egui::FontId::proportional(11.0);
+            let w = ui.painter().layout_no_wrap("aaa aaa".into(), font, egui::Color32::WHITE).size().x;
+            ui.allocate_ui(egui::vec2(w, 200.0), |ui| {
+                let h = super::para(ui, "aaa aaa aaa", 11.0, egui::Color32::WHITE).rect.height();
+                // rows of 16.5, rounded to whole points
+                assert!((32.0..=35.0).contains(&h), "two rows, not three: {h}");
+            });
+            // a point narrower, the second word itself no longer fits: it goes to the next row
+            ui.allocate_ui(egui::vec2(w - 1.0, 200.0), |ui| {
+                let h = super::para(ui, "aaa aaa aaa", 11.0, egui::Color32::WHITE).rect.height();
+                assert!((48.0..=52.0).contains(&h), "three rows: {h}");
+            });
+        });
+        out.textures_delta.clear(); // no renderer to hand the font atlas to
     }
 }

@@ -150,12 +150,12 @@ impl Sync {
                         ui.add_space(12.0);
                     }
                 });
-                ui.add_space(20.0);
-                ui.label(
-                    RichText::new(t("The server's agent brings folders from an SMB share (Windows or Samba) with the rclone engine built into ad-manager: signed SMB, with the server's machine account (Kerberos) or a user and password kept encrypted. Files take the destination folder's Windows permissions."))
-                        .size(11.0)
-                        .line_height(Some(widgets::LEADING * 11.0))
-                        .color(look.c("fg-muted")),
+                ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
+                widgets::para(
+                    ui,
+                    t("The server's agent brings folders from an SMB share (Windows or Samba) with the rclone engine built into ad-manager: signed SMB, with the server's machine account (Kerberos) or a user and password kept encrypted. Files take the destination folder's Windows permissions."),
+                    11.0,
+                    look.c("fg-muted"),
                 );
             });
             ui.vertical(|ui| {
@@ -216,7 +216,7 @@ impl Sync {
                     Column::new(t("When (cron)"), 100.0),
                     Column::new(t("Last run"), 180.0),
                     Column::new(t("Quarantine"), 90.0),
-                    Column::new("", 144.0).right(), // the web's w-36
+                    Column::new("", 144.0).right().fixed(), // the web's w-36
                 ];
                 let me = &*self;
                 let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();
@@ -298,11 +298,7 @@ impl Sync {
                 cx.hover = hover.or(cx.hover.take());
                 act = out.clicked;
                 if jobs.is_empty() && self.cur.is_some() {
-                    ui.add_space(12.0);
-                    ui.vertical_centered(|ui| {
-                        ui.label(RichText::new(t("No sync jobs.")).size(12.0).color(look.c("fg-muted")))
-                    });
-                    ui.add_space(12.0);
+                    table::empty_row(ui, &look, t("No sync jobs."));
                 }
             },
         );
@@ -447,10 +443,7 @@ impl Sync {
                 cx.hover = hover.or(cx.hover.take());
                 act = out.clicked;
                 if runs.is_empty() && self.cur.is_some() && self.info.is_empty() {
-                    ui.add_space(12.0);
-                    ui.vertical_centered(|ui| {
-                        ui.label(RichText::new(t("No runs yet.")).size(12.0).color(look.c("fg-muted")))
-                    });
+                    table::empty_row(ui, &look, t("No runs yet."));
                 }
             },
         );

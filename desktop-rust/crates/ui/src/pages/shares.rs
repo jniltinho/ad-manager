@@ -364,7 +364,7 @@ impl Shares {
         if add {
             *act = Some(Act::NewServer);
         }
-        ui.add_space(20.0);
+        ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
         let left = h - (ui.cursor().top() - top);
         let queue = |ui: &mut Ui| {
             if cx.me.asynqmon
@@ -378,7 +378,8 @@ impl Shares {
         widgets::panel(ui, &look, (t("Tasks of this session"), ""), queue, left, |ui| {
             egui::ScrollArea::vertical().id_salt("share-tasks").auto_shrink([false, true]).show(ui, |ui| {
                 if self.tasks.is_empty() {
-                    ui.add_space(8.0);
+                    // the web's py-2 row: its 8 less the 5 the panel's spacing already puts under the head
+                    ui.add_space(3.0);
                     ui.horizontal(|ui| {
                         ui.add_space(12.0);
                         ui.label(RichText::new(t("None.")).size(12.0).color(look.c("fg-muted")));
@@ -464,8 +465,8 @@ impl Shares {
                 Column::new(t("Name"), (w * 0.16).floor()),
                 Column::new(t("Path"), (w * 0.19).floor()),
                 Column::new(t("Size"), 80.0).right(),
-                Column::new(t("Write access"), (w * 0.22).floor()),
-                Column::new(t("Read access"), (w * 0.15).floor()),
+                Column::new(t("Write access"), (w * 0.20).floor()),
+                Column::new(t("Read access"), (w * 0.14).floor()),
                 Column::new(t("Comment"), 90.0).fill(),
                 Column::new(t("Actions"), 96.0).right(), // only remove: the name is the edit link (the web's w-24)
             ];

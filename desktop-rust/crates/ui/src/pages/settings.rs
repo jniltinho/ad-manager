@@ -223,10 +223,10 @@ impl Settings {
         let muted = look.c("fg-muted");
         // the web's .help: 4 px under its control, its own line height
         let note = |ui: &mut Ui, s: &str| {
-            // the web's mt-1 plus the half-leading a browser puts above the text (egui puts it all below)
-            ui.add_space(6.0);
-            let text = RichText::new(s).size(11.0).line_height(Some(widgets::LEADING * 11.0)).color(muted);
-            ui.add(egui::Label::new(text).wrap());
+            // the web's mt-1 plus the half-leading a browser puts above the text (egui puts it all below), less egui's
+            // spacing between items
+            ui.add_space(4.5);
+            widgets::para(ui, s, 11.0, muted);
         };
         let mut save = false;
         let mut discard = false;
@@ -241,7 +241,7 @@ impl Settings {
                     ui.set_width(left_w);
                     if !loaded.stored {
                         widgets::callout(ui, &look, widgets::Note::Warn, t("No local database (db.path): settings cannot be saved."));
-                        ui.add_space(20.0);
+                        ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
                     }
                     let f = &mut self.form;
                     // General
@@ -278,7 +278,7 @@ impl Settings {
                             note(ui, t("Only for signed-in administrators, like the queue monitor. Keep it off in production."));
                         });
                     });
-                    ui.add_space(20.0);
+                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
                     // Users
                     widgets::panel(ui, &look, (t("Users"), ""), |_| {}, 0.0, |ui| {
                         egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
@@ -303,7 +303,7 @@ impl Settings {
                             });
                         });
                     });
-                    ui.add_space(20.0);
+                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
                     // Company
                     widgets::panel(ui, &look, (t("Company"), ""), |_| {}, 0.0, |ui| {
                         egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
@@ -321,38 +321,44 @@ impl Settings {
                             ui.add_space(12.0);
                             widgets::lbl(ui, &look, t("Logo (login page and header)"));
                             ui.add_space(4.0);
-                            ui.horizontal_top(|ui| {
+                            // as the web's flex-wrap row: the 224 x 64 preview and the buttons centered beside it, the
+                            // notes on the next line (gap-3)
+                            ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 12.0;
-                                // the logo as the header draws it, on the third surface
+                                // the logo as the header draws it, on the third surface, at its own aspect (object-contain)
                                 egui::Frame::new()
                                     .fill(look.c("surface-3"))
                                     .stroke(egui::Stroke::new(1.0, look.c("line")))
                                     .inner_margin(egui::Margin::same(8))
                                     .show(ui, |ui| {
-                                        let (r, _) = ui.allocate_exact_size(egui::vec2(208.0, 48.0), egui::Sense::hover());
+                                        let (r, _) = ui.allocate_exact_size(egui::vec2(206.0, 46.0), egui::Sense::hover());
                                         let img = match &cx.brand.logo {
                                             Some(l) if loaded.logo => l.image(ui, r.size()),
                                             _ => crate::logo::product_navy(ui, r.size()),
                                         };
-                                        img.fit_to_exact_size(r.size()).paint_at(ui, r);
+                                        let size = img.size().or_else(|| img.load_and_calc_size(ui, r.size())).unwrap_or(r.size());
+                                        let k = (r.width() / size.x.max(1.0)).min(r.height() / size.y.max(1.0));
+                                        img.paint_at(ui, egui::Rect::from_center_size(r.center(), size * k));
                                     });
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.spacing_mut().item_spacing.x = 8.0;
-                                        let can = loaded.stored;
-                                        upload = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::UPLOAD, t("Upload logo"), Kind::Secondary)).inner.clicked();
-                                        if loaded.logo {
-                                            remove = widgets::button(ui, &look, crate::icons::TRASH, t("Use the default logo"), Kind::Secondary).clicked();
-                                        }
-                                    });
-                                    note(ui, t("PNG, JPEG or SVG up to 512 KiB."));
-                                    note(ui, t("Maximum size: 660 × 220 px (width × height), ratio 3:1."));
-                                    note(ui, t("Shown at up to 195 × 65 px on the login page and 40 px high in the header."));
-                                });
+                                ui.spacing_mut().item_spacing.x = 8.0;
+                                let can = loaded.stored;
+                                upload = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::IMAGE_UP, t("Upload logo"), Kind::Secondary)).inner.clicked();
+                                if loaded.logo {
+                                    remove = widgets::button(ui, &look, crate::icons::TRASH, t("Use the default logo"), Kind::Secondary).clicked();
+                                }
                             });
+                            ui.add_space(12.0 - ui.spacing().item_spacing.y);
+                            // the web's leading-snug lines, one under the other
+                            let lines = [
+                                t("PNG, JPEG or SVG up to 512 KiB."),
+                                t("Maximum size: 660 × 220 px (width × height), ratio 3:1."),
+                                t("Shown at up to 195 × 65 px on the login page and 40 px high in the header."),
+                            ]
+                            .join("\n");
+                            ui.add(egui::Label::new(RichText::new(lines).size(11.0).line_height(Some(1.375 * 11.0)).color(muted)).wrap());
                         });
                     });
-                    ui.add_space(20.0);
+                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         let label = if self.busy { t("Saving…") } else { t("Save settings") };
@@ -365,7 +371,7 @@ impl Settings {
                 ui.vertical(|ui| {
                     ui.set_width(right_w);
                     self.readonly_card(ui, cx, &loaded);
-                    ui.add_space(20.0);
+                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
                     token = self.token_card(ui, cx);
                 });
             });
@@ -459,16 +465,11 @@ impl Settings {
                 egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     let muted = look.c("fg-muted");
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(t(
-                                "Edit /opt/ad-manager/config.toml and restart the ad-manager service to change these.",
-                            ))
-                            .size(11.0)
-                            .line_height(Some(widgets::LEADING * 11.0))
-                            .color(muted),
-                        )
-                        .wrap(),
+                    widgets::para(
+                        ui,
+                        t("Edit /opt/ad-manager/config.toml and restart the ad-manager service to change these."),
+                        11.0,
+                        muted,
                     );
                     ui.add_space(8.0); // the web's paragraph gap
                     ui.label(RichText::new(tf!("Signed in as %s.", cx.me.user)).size(11.0).color(muted));

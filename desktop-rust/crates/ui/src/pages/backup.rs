@@ -150,12 +150,12 @@ impl Backup {
                         ui.add_space(12.0);
                     }
                 });
-                ui.add_space(20.0);
-                ui.label(
-                    RichText::new(t("Each agent makes and keeps its server's backups in its backup folder (default /var/backups/ad-manager); the schedules run on the agent, with the panel off too. A DC backup holds the domain's secrets."))
-                        .size(11.0)
-                        .line_height(Some(widgets::LEADING * 11.0))
-                        .color(look.c("fg-muted")),
+                ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
+                widgets::para(
+                    ui,
+                    t("Each agent makes and keeps its server's backups in its backup folder (default /var/backups/ad-manager); the schedules run on the agent, with the panel off too. A DC backup holds the domain's secrets."),
+                    11.0,
+                    look.c("fg-muted"),
                 );
             });
             ui.vertical(|ui| {
@@ -165,7 +165,7 @@ impl Backup {
                     self.list(ui, cx, keys, if agent { (h * 0.58).floor() } else { h });
                 }
                 if agent {
-                    ui.add_space(20.0);
+                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
                     self.schedules_ui(ui, cx);
                 }
             });
@@ -293,7 +293,7 @@ impl Backup {
                     Column::new(t("Origin"), 180.0),
                     Column::new(t("Size"), 90.0).right(),
                     Column::new(t("Status"), 110.0),
-                    Column::new("", 160.0).right(), // the web's w-40
+                    Column::new("", 160.0).right().fixed(), // the web's w-40
                 ];
                 let rows = &cur.backups;
                 let mut hover = None;
@@ -354,15 +354,7 @@ impl Backup {
                     act = out.clicked;
                 }
                 if rows.is_empty() {
-                    // the web's empty row: its text centered, a border under it
-                    let (row, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 40.0), egui::Sense::hover());
-                    let g = ui.painter().layout_no_wrap(
-                        t("No backups yet.").to_string(),
-                        egui::FontId::proportional(12.0),
-                        muted,
-                    );
-                    ui.painter().galley(row.center() - g.size() / 2.0, g, muted);
-                    ui.painter().hline(row.x_range(), row.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
+                    table::empty_row(ui, &look, t("No backups yet."));
                 }
             },
         );

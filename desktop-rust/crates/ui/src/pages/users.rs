@@ -280,20 +280,20 @@ impl Users {
 
 fn columns() -> Vec<Column> {
     vec![
-        // the web's column starts with real data (login 133, OU 109, the status pair 193, last logon 166)
-        Column::new(t("Login"), 133.0),
-        Column::new(t("Name"), 130.0),
+        // the web's columns at 1280 with real data (its th widths)
+        Column::new(t("Login"), 130.0),
+        Column::new(t("Name"), 120.0),
         Column::new(t("E-mail"), 150.0).fill(),
-        Column::new(t("OU"), 109.0),
+        Column::new(t("OU"), 108.0),
         Column::new(t("Status"), 120.0).badge_w(104.0),
         Column::new("", 73.0).badge(),
         Column::new(t("Last logon"), 166.0),
         // the web's link widths (icon and name), so they fit at the app's 1280 px
         // each link's width and the web's 12-point gap after it
-        Column::new(t("Actions"), 88.0).compact(COMPACT).span(4),
-        Column::new("", 58.0).compact(COMPACT).covered(),
-        Column::new("", 62.0).compact(COMPACT).covered(),
-        Column::new("", 66.0).compact(COMPACT).covered(),
+        Column::new(t("Actions"), 85.0).compact(COMPACT).span(4),
+        Column::new("", 56.0).compact(COMPACT).covered(),
+        Column::new("", 60.0).compact(COMPACT).covered(),
+        Column::new("", 64.0).compact(COMPACT).covered(),
     ]
 }
 
@@ -1007,8 +1007,7 @@ impl Dialog for PasswordDialog {
             });
             ui.add_space(8.0);
             let note = tf!("Valid until %s. Send it to the user through a trusted channel.", date(expires));
-            let note = RichText::new(note).size(12.0).line_height(Some(widgets::LEADING * 12.0));
-            ui.add(egui::Label::new(note.color(look.c("fg-muted"))).wrap());
+            widgets::para(ui, note, 12.0, look.c("fg-muted"));
         } else if self.tab == 0 {
             ui.spacing_mut().item_spacing.y = 4.0;
             let l = widgets::lbl(ui, &look, t("New password"));

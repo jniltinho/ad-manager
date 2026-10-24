@@ -133,13 +133,19 @@ impl Computers {
             });
         });
         widgets::toolbar_gap(ui, &look);
+        // the web's auto layout at 1280 (its th widths); the links' column grows when a row has all three
+        let three = self
+            .visible
+            .iter()
+            .filter_map(|&i| self.all.get(i))
+            .any(|x| x.enabled && !x.is_dc && x.os.to_lowercase().contains("server"));
         let cols = [
-            Column::new(t("Name"), 170.0),
+            Column::new(t("Name"), 156.0),
             Column::new(t("System"), 250.0).fill(),
-            Column::new(t("Version"), 110.0),
-            Column::new(t("Status"), 120.0).badge(),
-            Column::new(t("Last logon (approx.)"), 160.0),
-            Column::new(t("Actions"), 260.0).compact(96.0).right(),
+            Column::new(t("Version"), 108.0),
+            Column::new(t("Status"), 144.0).badge(),
+            Column::new(t("Last logon (approx.)"), 206.0),
+            Column::new(t("Actions"), if three { 260.0 } else { 183.0 }).compact(96.0).right(),
         ];
         let now = Utc::now();
         let (all, vis) = (&self.all, &self.visible);

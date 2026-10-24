@@ -105,10 +105,10 @@ impl Ous {
         widgets::toolbar_gap(ui, &look);
         let cols = [
             // the web's shares with real data: about a fifth for the name, more than a third for the description
-            Column::new(t("Name"), 250.0),
-            Column::new(t("Description"), 440.0),
+            Column::new(t("Name"), 259.0),
+            Column::new(t("Description"), 450.0),
             Column::new("DN", 300.0).fill(),
-            Column::new(t("Actions"), 90.0).right(),
+            Column::new(t("Actions"), 106.0).right(),
         ];
         let (ous, tr) = (&self.ous, &self.tree);
         let mut hover = None;

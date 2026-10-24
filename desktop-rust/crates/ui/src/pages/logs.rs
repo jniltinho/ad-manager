@@ -166,12 +166,13 @@ impl Audit {
         widgets::toolbar_gap(ui, &look);
         let (all, vis) = (&self.all, &self.visible);
         // the web's auto layout: the result as narrow as its "ok" tags, wider once an error shows
-        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 90.0 } else { 240.0 };
+        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 93.0 } else { 240.0 };
         let cols = [
-            Column::new(t("Date"), 240.0), // the web's auto layout gives the date more room
-            Column::new(t("Operator"), 130.0),
-            Column::new(t("Source"), 110.0),
-            Column::new(t("Action"), 150.0),
+            // the web's auto layout at 1280 (its th widths)
+            Column::new(t("Date"), 239.0),
+            Column::new(t("Operator"), 174.0),
+            Column::new(t("Source"), 131.0),
+            Column::new(t("Action"), 183.0),
             Column::new(t("Target"), 240.0).fill(),
             Column::new(t("Result"), result_w),
         ];
@@ -302,14 +303,14 @@ impl Http {
         });
         widgets::toolbar_gap(ui, &look);
         let cols = [
-            Column::new(t("Date"), 150.0),
+            Column::new(t("Date"), 152.0), // the web's w-38
             Column::new(t("Source"), 112.0),
             Column::new(t("Operator"), 128.0),
             Column::new(t("Method"), 64.0),
             Column::new(t("Path"), 260.0).fill(),
             Column::new(t("Code"), 64.0).badge_w(40.0),
             Column::new("ms", 64.0).right(),
-            Column::new(t("Error"), 180.0),
+            Column::new(t("Error"), 213.0), // the web's 18% at 1280
         ];
         let (all, vis) = (&self.all, &self.visible);
         let mut hover = None;

@@ -156,14 +156,15 @@ impl Groups {
             .map(|g| ui.painter().layout_no_wrap(g.name.clone(), font.clone(), egui::Color32::PLACEHOLDER).size().x)
             .fold(0.0, f32::max);
         let cols = [
-            Column::new(t("Group"), (longest + 2.0 * look.px("td-px", 8.0) + 4.0).clamp(200.0, 420.0)),
-            Column::new("", 80.0).badge(),
-            Column::new(t("Group type"), 95.0),
-            Column::new(t("Scope"), 100.0),
-            Column::new(t("Members"), 80.0).right(),
+            Column::new(t("Group"), (longest + 2.0 * look.px("td-px", 8.0)).clamp(200.0, 420.0)),
+            // the web's widths at 1280 (its th widths)
+            Column::new("", 73.0).badge(),
+            Column::new(t("Group type"), 91.0),
+            Column::new(t("Scope"), 94.0),
+            Column::new(t("Members"), 78.0).right(),
             Column::new(t("Description"), 200.0).fill(),
-            Column::new(t("Actions"), 95.0).compact(34.0).span(2),
-            Column::new("", 75.0).compact(34.0).covered(),
+            Column::new(t("Actions"), 85.0).compact(34.0).span(2),
+            Column::new("", 67.0).compact(34.0).covered(),
         ];
         let (gs, vis) = (&self.groups, &self.visible);
         let mut hover = None;

@@ -700,15 +700,7 @@ impl SyncWizard {
                         ui.spacing_mut().item_spacing.y = 4.0;
                         let title = crate::style::semibold(format!("{icon}  {title}"), 12.0).color(look.c("fg")); // the web's plain ink
                         ui.label(title);
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(text)
-                                    .size(11.0)
-                                    .line_height(Some(widgets::LEADING * 11.0))
-                                    .color(look.c("fg-muted")),
-                            )
-                            .wrap(),
-                        );
+                        widgets::para(ui, text, 11.0, look.c("fg-muted"));
                     });
                 });
         });

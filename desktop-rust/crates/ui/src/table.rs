@@ -32,6 +32,8 @@ pub struct Column {
     pub fill: bool,
     /// Empty, the table gives this column all its spare width (the web's max-w-0 cell that absorbs it).
     pub greedy: bool,
+    /// Its width also in an empty table (the web's w-* on its heading); otherwise an empty table sizes it by its heading.
+    pub fixed: bool,
 }
 
 impl Column {
@@ -46,7 +48,14 @@ impl Column {
             span: 1,
             fill: false,
             greedy: false,
+            fixed: false,
         }
+    }
+
+    /// As wide also in an empty table (the web's w-* on its heading).
+    pub fn fixed(mut self) -> Self {
+        self.fixed = true;
+        self
     }
 
     /// The fill column that also takes all the spare width of an empty table (the web's max-w-0 cell).
@@ -299,8 +308,7 @@ fn show<A>(
         let mut head_w: Vec<f32> = cols
             .iter()
             .map(|c| {
-                // an untitled column (the links') keeps its width, as the web's w-* on its empty heading
-                if c.title.is_empty() && c.span == 1 {
+                if c.fixed {
                     return c.width;
                 }
                 ui.painter().layout_no_wrap(c.title.clone(), font.clone(), egui::Color32::PLACEHOLDER).size().x
@@ -452,6 +460,16 @@ fn show<A>(
         ui.painter().rect_stroke(framed.response.rect, 0.0, egui::Stroke::new(1.0, line), egui::StrokeKind::Inside);
     }
     out
+}
+
+/// The web's empty-table row (`py-3 text-center text-fg-muted` across the columns): 42 points with the table's line
+/// under it.
+pub fn empty_row(ui: &mut Ui, look: &crate::style::Look, text: &str) {
+    let muted = look.c("fg-muted");
+    let (row, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 42.0), Sense::hover());
+    let g = ui.painter().layout_no_wrap(text.to_string(), egui::FontId::proportional(12.0), muted);
+    ui.painter().galley(row.center() - g.size() / 2.0, g, muted);
+    ui.painter().hline(row.x_range(), row.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
 }
 
 /// Draws `add` with the cell's side padding, from the left or (numbers) from the right.
