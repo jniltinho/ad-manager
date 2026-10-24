@@ -4,6 +4,7 @@
 
 pub mod backup;
 pub mod computers;
+pub mod gpos;
 pub mod groups;
 pub mod home;
 pub mod logs;

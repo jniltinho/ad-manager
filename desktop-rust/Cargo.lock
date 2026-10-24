@@ -203,6 +203,7 @@ version = "0.1.0"
 dependencies = [
  "adm-core",
  "adm-platform",
+ "base64 0.22.1",
  "chrono",
  "eframe",
  "egui",

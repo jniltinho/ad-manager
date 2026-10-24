@@ -102,11 +102,27 @@ pub struct Cell<A> {
     pub bold: bool,
     /// Monospace (a DN, a path, an action id).
     pub mono: bool,
+    /// Indented (a tree level) and led by a marker in the accent color (the web's OU tree: ■ at the root, └ below).
+    pub indent: f32,
+    pub marker: &'static str,
+    /// A tag after the text (the web's "container" beside an OU name).
+    pub tag: Option<(String, Tone)>,
 }
 
 impl<A> Cell<A> {
     pub fn new(text: impl Into<String>, tone: Tone) -> Self {
-        Self { text: text.into(), tone, link: None, bold: false, mono: false }
+        Self { text: text.into(), tone, link: None, bold: false, mono: false, indent: 0.0, marker: "", tag: None }
+    }
+
+    pub fn tree(mut self, level: usize) -> Self {
+        self.indent = 22.0 * level as f32;
+        self.marker = if level == 0 { "root" } else { "child" };
+        self
+    }
+
+    pub fn with_tag(mut self, text: impl Into<String>, tone: Tone) -> Self {
+        self.tag = Some((text.into(), tone));
+        self
     }
 
     pub fn bold(mut self) -> Self {
@@ -406,8 +422,32 @@ fn draw_cell<A>(
             let _ = crate::widgets::tag_w(ui, look, &cl.text, cl.tone, c.badge_w);
         }
         None => {
+            if cl.indent > 0.0 {
+                ui.add_space(cl.indent);
+            }
+            if !cl.marker.is_empty() {
+                // drawn, not typed: egui's fonts have no box-drawing glyphs (the web's ■ and └)
+                let (r, _) = ui.allocate_exact_size(egui::vec2(10.0, size), Sense::hover());
+                let accent = look.c("accent");
+                if cl.marker == "root" {
+                    ui.painter().rect_filled(
+                        egui::Rect::from_center_size(r.center(), egui::vec2(6.0, 6.0)),
+                        0.0,
+                        accent,
+                    );
+                } else {
+                    let s = egui::Stroke::new(1.0, accent);
+                    ui.painter().vline(r.left() + 2.0, r.top()..=r.center().y, s);
+                    ui.painter().hline(r.left() + 2.0..=r.right(), r.center().y, s);
+                }
+                ui.add_space(4.0);
+            }
             let t = rich(cl.text.clone(), ink);
             ui.add(egui::Label::new(t).truncate().selectable(false));
+            if let Some((text, tone)) = &cl.tag {
+                ui.add_space(6.0);
+                let _ = crate::widgets::tag(ui, look, text, *tone);
+            }
         }
     }
 }

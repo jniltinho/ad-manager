@@ -171,6 +171,48 @@ pub struct Me {
     pub settings: MeSettings,
 }
 
+/// A Group Policy Object and where it is linked (`GET /api/gpos`).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Gpo {
+    pub guid: String,
+    pub dn: String,
+    pub name: String,
+    pub user_enabled: bool,
+    pub machine_enabled: bool,
+    pub user_version: i64,
+    pub machine_version: i64,
+    #[serde(deserialize_with = "nd")]
+    pub extensions: Vec<String>,
+    #[serde(deserialize_with = "nd")]
+    pub links: Vec<GpoLink>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct GpoLink {
+    pub target: String,
+    pub enforced: bool,
+    pub disabled: bool,
+    pub order: i64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct GpoContainer {
+    pub dn: String,
+    pub block_inheritance: bool,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Gpos {
+    #[serde(deserialize_with = "nd")]
+    pub gpos: Vec<Gpo>,
+    #[serde(deserialize_with = "nd")]
+    pub containers: Vec<GpoContainer>,
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct PolicySummary {

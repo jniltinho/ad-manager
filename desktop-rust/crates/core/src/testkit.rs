@@ -209,6 +209,10 @@ pub fn demo(users: usize) -> Arc<Route> {
                     "os": {"Windows 11 Pro": 11, "Windows 10 Pro": 4, "Windows Server 2022 Standard": 1, "Samba": 1, "Windows 7 Professional": 1}}))
             }
             "/api/users" => (200, list_json.clone()),
+            "/api/gpos" => ok(json!({"gpos": [
+                {"guid":"{31B2F340-016D-11D2-945F-00C04FB984F9}","name":"Default Domain Policy","user_enabled":true,"machine_enabled":true,"user_version":0,"machine_version":3,"extensions":["Security"],"links":[{"target":"DC=domain,DC=local","enforced":false,"disabled":false,"order":1}]},
+                {"guid":"{6AC1786C-016F-11D2-945F-00C04FB984F9}","name":"Default Domain Controllers Policy","user_enabled":true,"machine_enabled":true,"user_version":0,"machine_version":1,"extensions":["Security"],"links":[{"target":"OU=Domain Controllers,DC=domain,DC=local","enforced":false,"disabled":false,"order":1}]}],
+                "containers": []})),
             "/api/groups" => ok(json!([
                 {"name":"Domain Admins","type":"security","scope":"global","protected":true,"member_count":2,"description":"Designated administrators of the domain"},
                 {"name":"Domain Users","type":"security","scope":"global","protected":true,"member_count":users,"description":"All domain users"},
