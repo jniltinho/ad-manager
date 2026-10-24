@@ -184,7 +184,7 @@ impl Backup {
         let look = cx.look.clone();
         let Some(cur) = self.current().cloned() else { return };
         let name = if cur.id == 0 { t("This panel").to_string() } else { cur.name.clone() };
-        let title = format!("{}  {name}", crate::icons::ARCHIVE);
+        let title = format!("{}   {name}", crate::icons::ARCHIVE);
         let note = tf!("%d backup(s)", cur.backups.len());
         let mut act: Option<(Act, usize)> = None;
         widgets::panel(
@@ -462,144 +462,152 @@ impl Backup {
         let mut save = false;
         let kinds: Vec<String> = cur.kinds.iter().map(|k| backup_kind_name(k)).collect();
         let roots = cur.roots.join(", ");
-        widgets::panel(ui, &look, (&format!("{}  {}", crate::icons::CALENDAR, t("Schedules")), ""), right, 0.0, |ui| {
-            let muted = look.c("fg-muted");
-            // the columns: name, kind, cron, chains, days, full every, on, delete
-            // the kind takes what the others leave
-            let mut widths = [136.0, 0.0, 150.0, 100.0, 90.0, 176.0, 40.0, 36.0];
-            widths[1] = (ui.available_width() - widths.iter().sum::<f32>() - 12.0).max(160.0);
-            let heads = [
-                t("Name"),
-                t("Kind"),
-                t("When (cron)"),
-                t("Keep chains"),
-                t("Keep days"),
-                t("New full every (days)"),
-                t("On"),
-                "",
-            ];
-            let (th_px, head_h) = (look.px("th-px", 8.0), 31.0);
-            let (hr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), head_h), egui::Sense::hover());
-            crate::depth::paint_box(
-                ui.painter(),
-                hr,
-                look.gradient("table-head"),
-                look.c("table-head"),
-                look.shadows("table-head"),
-            );
-            ui.painter().hline(hr.x_range(), hr.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
-            let mut x = hr.left();
-            let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
-            for (i, h) in heads.iter().enumerate() {
-                let g = ui.painter().layout_no_wrap(h.to_string(), font.clone(), look.c("on-table-head"));
-                ui.painter().galley(
-                    egui::pos2(x + th_px, hr.center().y - g.size().y / 2.0),
-                    g,
-                    look.c("on-table-head"),
+        widgets::panel(
+            ui,
+            &look,
+            (&format!("{}   {}", crate::icons::CALENDAR, t("Schedules")), ""),
+            right,
+            0.0,
+            |ui| {
+                let muted = look.c("fg-muted");
+                // the columns: name, kind, cron, chains, days, full every, on, delete
+                // the kind takes what the others leave
+                let mut widths = [136.0, 0.0, 150.0, 100.0, 90.0, 176.0, 40.0, 36.0];
+                widths[1] = (ui.available_width() - widths.iter().sum::<f32>() - 12.0).max(160.0);
+                let heads = [
+                    t("Name"),
+                    t("Kind"),
+                    t("When (cron)"),
+                    t("Keep chains"),
+                    t("Keep days"),
+                    t("New full every (days)"),
+                    t("On"),
+                    "",
+                ];
+                let (th_px, head_h) = (look.px("th-px", 8.0), 31.0);
+                let (hr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), head_h), egui::Sense::hover());
+                crate::depth::paint_box(
+                    ui.painter(),
+                    hr,
+                    look.gradient("table-head"),
+                    look.c("table-head"),
+                    look.shadows("table-head"),
                 );
-                x += widths[i];
-            }
-            let mut drop = None;
-            for (r, row) in self.rows.iter_mut().enumerate() {
-                let data = cur.kinds.get(row.kind).is_some_and(|k| k == "fileserver-data");
-                egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 4)).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        let cell = |ui: &mut Ui, w: f32, add: &mut dyn FnMut(&mut Ui)| {
-                            ui.allocate_ui_with_layout(
-                                egui::vec2(w, crate::style::control_h()),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    ui.add_space(th_px);
-                                    ui.set_width(w - th_px);
-                                    add(ui);
-                                },
-                            );
-                        };
-                        let fw = |w: f32| w - 2.0 * th_px;
-                        cell(ui, widths[0], &mut |ui| {
-                            ui.add(
-                                crate::widgets::line(&mut row.id)
-                                    .font(egui::TextStyle::Monospace)
-                                    .desired_width(fw(widths[0])),
-                            )
-                            .on_hover_text(t("Name"));
-                        });
-                        cell(ui, widths[1], &mut |ui| {
-                            widgets::select(
-                                ui,
-                                ("sched-kind", r),
-                                t("Kind"),
-                                &mut row.kind,
-                                &kinds,
-                                fw(widths[1]) - 8.0,
-                            );
-                        });
-                        cell(ui, widths[2], &mut |ui| {
-                            ui.spacing_mut().item_spacing.x = 2.0;
-                            ui.add(
-                                crate::widgets::line(&mut row.cron)
-                                    .font(egui::TextStyle::Monospace)
-                                    .desired_width(fw(widths[2]) - 26.0),
-                            );
-                            egui::ComboBox::from_id_salt(("sched-preset", r)).width(0.0).selected_text("").show_ui(
-                                ui,
-                                |ui| {
-                                    for (c, label) in CRON_PRESETS {
-                                        if ui.selectable_label(row.cron == c, format!("{c}  ·  {}", t(label))).clicked()
-                                        {
-                                            row.cron = c.into();
+                ui.painter().hline(hr.x_range(), hr.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
+                let mut x = hr.left();
+                let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+                for (i, h) in heads.iter().enumerate() {
+                    let g = ui.painter().layout_no_wrap(h.to_string(), font.clone(), look.c("on-table-head"));
+                    ui.painter().galley(
+                        egui::pos2(x + th_px, hr.center().y - g.size().y / 2.0),
+                        g,
+                        look.c("on-table-head"),
+                    );
+                    x += widths[i];
+                }
+                let mut drop = None;
+                for (r, row) in self.rows.iter_mut().enumerate() {
+                    let data = cur.kinds.get(row.kind).is_some_and(|k| k == "fileserver-data");
+                    egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 4)).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            let cell = |ui: &mut Ui, w: f32, add: &mut dyn FnMut(&mut Ui)| {
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(w, crate::style::control_h()),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        ui.add_space(th_px);
+                                        ui.set_width(w - th_px);
+                                        add(ui);
+                                    },
+                                );
+                            };
+                            let fw = |w: f32| w - 2.0 * th_px;
+                            cell(ui, widths[0], &mut |ui| {
+                                ui.add(
+                                    crate::widgets::line(&mut row.id)
+                                        .font(egui::TextStyle::Monospace)
+                                        .desired_width(fw(widths[0])),
+                                )
+                                .on_hover_text(t("Name"));
+                            });
+                            cell(ui, widths[1], &mut |ui| {
+                                widgets::select(
+                                    ui,
+                                    ("sched-kind", r),
+                                    t("Kind"),
+                                    &mut row.kind,
+                                    &kinds,
+                                    fw(widths[1]) - 8.0,
+                                );
+                            });
+                            cell(ui, widths[2], &mut |ui| {
+                                ui.spacing_mut().item_spacing.x = 2.0;
+                                ui.add(
+                                    crate::widgets::line(&mut row.cron)
+                                        .font(egui::TextStyle::Monospace)
+                                        .desired_width(fw(widths[2]) - 26.0),
+                                );
+                                egui::ComboBox::from_id_salt(("sched-preset", r)).width(0.0).selected_text("").show_ui(
+                                    ui,
+                                    |ui| {
+                                        for (c, label) in CRON_PRESETS {
+                                            if ui
+                                                .selectable_label(row.cron == c, format!("{c}  ·  {}", t(label)))
+                                                .clicked()
+                                            {
+                                                row.cron = c.into();
+                                            }
                                         }
-                                    }
-                                },
-                            );
+                                    },
+                                );
+                            });
+                            for (i, v) in [(3, &mut row.chains), (4, &mut row.days)] {
+                                cell(ui, widths[i], &mut |ui| {
+                                    ui.add(crate::widgets::line(v).desired_width(fw(widths[i])));
+                                });
+                            }
+                            cell(ui, widths[5], &mut |ui| {
+                                ui.add_enabled(data, crate::widgets::line(&mut row.every).desired_width(64.0));
+                            });
+                            cell(ui, widths[6], &mut |ui| {
+                                crate::widgets::check(ui, &mut row.enabled, "").on_hover_text(t("On"));
+                            });
+                            cell(ui, widths[7], &mut |ui| {
+                                let del = widgets::act(ui, &look, crate::icons::TRASH, "", None, 12.0);
+                                if widgets::named(ui, del, t("Delete")).clicked() {
+                                    drop = Some(r);
+                                }
+                            });
                         });
-                        for (i, v) in [(3, &mut row.chains), (4, &mut row.days)] {
-                            cell(ui, widths[i], &mut |ui| {
-                                ui.add(crate::widgets::line(v).desired_width(fw(widths[i])));
+                        if data {
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                ui.add_space(th_px);
+                                let hint = tf!("Folders (one per line, inside %s)", roots);
+                                let w = ui.available_width() - th_px - 2.0;
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut row.folders)
+                                        .hint_text(hint)
+                                        .font(egui::TextStyle::Monospace)
+                                        .desired_rows(2)
+                                        .desired_width(w),
+                                );
                             });
                         }
-                        cell(ui, widths[5], &mut |ui| {
-                            ui.add_enabled(data, crate::widgets::line(&mut row.every).desired_width(64.0));
-                        });
-                        cell(ui, widths[6], &mut |ui| {
-                            crate::widgets::check(ui, &mut row.enabled, "").on_hover_text(t("On"));
-                        });
-                        cell(ui, widths[7], &mut |ui| {
-                            let del = widgets::act(ui, &look, crate::icons::TRASH, "", None, 12.0);
-                            if widgets::named(ui, del, t("Delete")).clicked() {
-                                drop = Some(r);
-                            }
-                        });
                     });
-                    if data {
-                        ui.add_space(4.0);
-                        ui.horizontal(|ui| {
-                            ui.add_space(th_px);
-                            let hint = tf!("Folders (one per line, inside %s)", roots);
-                            let w = ui.available_width() - th_px - 2.0;
-                            ui.add(
-                                egui::TextEdit::multiline(&mut row.folders)
-                                    .hint_text(hint)
-                                    .font(egui::TextStyle::Monospace)
-                                    .desired_rows(2)
-                                    .desired_width(w),
-                            );
-                        });
-                    }
-                });
-                let y = ui.cursor().top();
-                ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
-            }
-            if let Some(r) = drop {
-                self.rows.remove(r);
-            }
-            if self.rows.is_empty() {
-                ui.add_space(12.0);
-                ui.vertical_centered(|ui| ui.label(RichText::new(t("No schedules.")).size(12.0).color(muted)));
-                ui.add_space(12.0);
-            }
-            egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                    let y = ui.cursor().top();
+                    ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+                }
+                if let Some(r) = drop {
+                    self.rows.remove(r);
+                }
+                if self.rows.is_empty() {
+                    ui.add_space(12.0);
+                    ui.vertical_centered(|ui| ui.label(RichText::new(t("No schedules.")).size(12.0).color(muted)));
+                    ui.add_space(12.0);
+                }
+                egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
                     save = widgets::button(ui, &look, crate::icons::CHECK, t("Save schedules"), Kind::Primary).clicked();
@@ -613,7 +621,8 @@ impl Backup {
                     );
                 });
             });
-        });
+            },
+        );
         if add {
             let n = self.rows.len() + 1;
             self.rows.push(SchedRow {

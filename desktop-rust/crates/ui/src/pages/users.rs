@@ -966,8 +966,12 @@ impl Dialog for PasswordDialog {
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
         let tabs = [t("Set password"), t("Send link to the user")];
-        if let Some(i) = widgets::cardtabs(ui, &look, "password-tabs", &tabs, self.tab)
-            && self.link.is_none()
+        // once the link exists the tabs are disabled and drawn so, as the web's
+        let done = self.link.is_some();
+        let picked =
+            ui.add_enabled_ui(!done, |ui| widgets::cardtabs(ui, &look, "password-tabs", &tabs, self.tab)).inner;
+        if let Some(i) = picked
+            && !done
         {
             self.tab = i;
         }

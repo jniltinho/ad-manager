@@ -162,7 +162,7 @@ impl Dialog for Dns {
                     }
                 }
             });
-            ui.add_space(12.0);
+            ui.add_space(5.0); // the web's 12 to the table, egui's spacing counted in
         }
         let mut delete = None;
         if self.loading {
@@ -174,10 +174,10 @@ impl Dialog for Dns {
                 .iter()
                 .map(|x| {
                     [
-                        RichText::new(&x.name).monospace(),
+                        RichText::new(&x.name).monospace().size(11.0),
                         RichText::new(&x.kind),
                         RichText::new(x.ttl.to_string()),
-                        RichText::new(&x.data).monospace(),
+                        RichText::new(&x.data).monospace().size(11.0),
                         RichText::new(""),
                     ]
                 })
@@ -220,10 +220,13 @@ impl Dialog for Dns {
             };
             // the web's dialog table: framed on every side
             egui::Frame::new().stroke(egui::Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
-                widgets::mini_table(
+                // the web's columns: a wide name, the TTL at the right
+                widgets::mini_table_aligned(
                     ui,
                     &look,
                     [t("Name"), t("Record type"), "TTL", t("Data"), ""],
+                    [false, false, true, false, false],
+                    [200.0, 0.0, 0.0, 0.0, 0.0],
                     &rows,
                     Some(&mut cell),
                 );
@@ -269,7 +272,7 @@ impl Dialog for Dns {
                     }
                 });
             }
-            ui.add_space(8.0);
+            ui.add_space(2.0); // the web's ~9 to the note
             ui.label(
                 RichText::new(t("With your account, on the domain controller of the panel. Records of the domain controllers, SOA, NS and SRV are not changed here."))
                     .size(11.0)
@@ -381,7 +384,7 @@ impl Dialog for Sessions {
                     .map(|x| {
                         [
                             crate::style::semibold(&x.user, 12.0),
-                            RichText::new(&x.client).monospace(),
+                            RichText::new(&x.client).monospace().size(11.0),
                             RichText::new(x.open_files.to_string()),
                             RichText::new(duration(x.active_seconds)),
                             RichText::new(duration(x.idle_seconds)),
@@ -394,6 +397,7 @@ impl Dialog for Sessions {
                         &look,
                         [t("User"), t("Client"), t("Open files"), t("Connected for"), t("Idle for")],
                         [false, false, true, true, true],
+                        [0.0; 5],
                         &rows,
                         None,
                     );
@@ -403,7 +407,7 @@ impl Dialog for Sessions {
                 }
             }
         }
-        ui.add_space(8.0);
+        ui.add_space(2.0); // the web's ~15 to the note (the table's frame and spacing count)
         ui.label(
             RichText::new(t("Read with your account: it needs to be an administrator of that server."))
                 .size(11.0)

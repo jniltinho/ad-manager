@@ -156,7 +156,8 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
             ui.horizontal(|ui| {
                 ui.label(rich);
                 if !note.is_empty() {
-                    ui.add_space(6.0);
+                    // the web's gap-3 between the title and its note
+                    ui.add_space(12.0 - ui.spacing().item_spacing.x);
                     ui.add(egui::Label::new(RichText::new(note).size(size).color(look.c("fg-muted"))).truncate());
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -190,19 +191,21 @@ pub fn panel<R>(
     min_h: f32,
     add: impl FnOnce(&mut Ui) -> R,
 ) -> R {
-    Frame::new()
-        .fill(look.c("surface"))
-        .stroke(Stroke::new(1.0, look.c("line")))
-        .show(ui, |ui| {
-            ui.set_min_height((min_h - 2.0).max(0.0));
-            ui.spacing_mut().item_spacing.y = 0.0;
-            // a card without a title (its own tabs on top)
-            if !head.0.is_empty() {
-                card_head_note(ui, look, head.0, head.1, right);
-            }
-            add(ui)
-        })
-        .inner
+    // the web's .card shadow under the frame (its outer layers; the fill covers the rest)
+    let under = ui.painter().add(egui::Shape::Noop);
+    let r = Frame::new().fill(look.c("surface")).stroke(Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
+        ui.set_min_height((min_h - 2.0).max(0.0));
+        ui.spacing_mut().item_spacing.y = 0.0;
+        // a card without a title (its own tabs on top)
+        if !head.0.is_empty() {
+            card_head_note(ui, look, head.0, head.1, right);
+        }
+        add(ui)
+    });
+    let outer: Vec<_> = look.shadows("card").iter().filter(|l| !l.inset).cloned().collect();
+    ui.painter()
+        .set(under, egui::Shape::Vec(crate::depth::box_shapes(r.response.rect, None, Color32::TRANSPARENT, &outer)));
+    r.inner
 }
 
 /// An item of a side list (the web's .side-nav li: px 12, py 8, 12 px text): the current one in the theme's nav-on
@@ -287,7 +290,8 @@ pub fn cardtabs_at(
         .expand2(egui::vec2(bx, 0.0))
         .with_min_y(ui.clip_rect().top() - by)
         .intersect(band.union(ui.clip_rect()));
-    let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(clip);
+    let mut painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(clip);
+    painter.set_opacity(ui.painter().opacity()); // a disabled strip fades as the ui's own painter would
     // the tabs answer clicks over the whole part drawn: a ui with the same clip
     let mut band_ui = ui.new_child(egui::UiBuilder::new().max_rect(band));
     band_ui.set_clip_rect(clip);
@@ -595,9 +599,10 @@ fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>,
         other => other,
     };
     let label = text.text().to_string();
-    let wrap_w = ui.available_width() - 22.0;
+    // the box, the web's ~5-point gap, the label
+    let wrap_w = ui.available_width() - 19.0;
     let galley = text.into_galley(ui, Some(egui::TextWrapMode::Wrap), wrap_w, egui::TextStyle::Body);
-    let size = egui::vec2(14.0 + if label.is_empty() { 0.0 } else { 8.0 + galley.size().x }, galley.size().y.max(18.0));
+    let size = egui::vec2(14.0 + if label.is_empty() { 0.0 } else { 5.0 + galley.size().x }, galley.size().y.max(18.0));
     let (rect, mut resp) = ui.allocate_exact_size(size, egui::Sense::click());
     if resp.clicked() {
         if radio {
@@ -637,7 +642,7 @@ fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>,
             p.rect_stroke(b, 0.0, egui::Stroke::new(1.0, fade(c.line)), egui::StrokeKind::Inside);
         }
         if !label.is_empty() {
-            p.galley(egui::pos2(rect.left() + 22.0, rect.top()), galley, fade(c.ink));
+            p.galley(egui::pos2(rect.left() + 19.0, rect.top()), galley, fade(c.ink));
         }
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -812,11 +817,12 @@ pub enum Note {
 pub fn callout(ui: &mut Ui, look: &Look, kind: Note, text: &str) -> Response {
     let (bg, bar, ink) = match kind {
         Note::Info => (look.c("surface-2"), look.c("accent"), look.c("fg-muted")),
-        Note::Warn => (look.c("warn-soft"), look.c("warn"), look.c("on-warn-soft")),
+        // the web's box keeps the page's ink: the warning color is the bar's
+        Note::Warn => (look.c("warn-soft"), look.c("warn"), look.c("fg")),
     };
     let r = Frame::new()
         .fill(bg)
-        .inner_margin(Margin { left: 12, right: 10, top: 8, bottom: 8 })
+        .inner_margin(Margin { left: 16, right: 10, top: 8, bottom: 8 })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             let size = look.px("control-text", 12.0);
@@ -899,22 +905,25 @@ pub fn mini_table<const N: usize>(
     rows: &[[RichText; N]],
     last: Option<&mut RowCell<'_>>,
 ) {
-    mini_table_aligned(ui, look, heads, [false; N], rows, last);
+    mini_table_aligned(ui, look, heads, [false; N], [0.0; N], rows, last);
 }
 
-/// `mini_table` with the columns marked in `right` aligned at the right (the web's text-right numbers).
+/// `mini_table` with the columns marked in `right` aligned at the right (the web's text-right numbers) and each
+/// column at least `mins` wide. Cells are 12 px unless sized (a mono cell at the web's 11).
+#[allow(clippy::too_many_arguments)]
 pub fn mini_table_aligned<const N: usize>(
     ui: &mut Ui,
     look: &Look,
     heads: [&str; N],
     right: [bool; N],
+    mins: [f32; N],
     rows: &[[RichText; N]],
     mut last: Option<&mut RowCell<'_>>,
 ) {
     let w = ui.available_width();
     let (th_px, th_py, td_py) = (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-py", 4.0));
     let head_h = (12.0 * 1.5 + 2.0 * th_py + 1.0).round();
-    let row_h = (12.0 * 1.5 + 2.0 * td_py + 1.0).round();
+    let row_h = (12.0 * 1.5 + 2.0 * td_py + 2.0).round(); // as the list tables' rows
     // the web's auto layout: each column as wide as its widest cell, the spare width shared in proportion
     let measure = |t: RichText, semibold: bool| {
         let font = egui::FontId::new(
@@ -931,11 +940,11 @@ pub fn mini_table_aligned<const N: usize>(
     let spans = |r: &[RichText; N]| N > 1 && !r[0].text().is_empty() && r[1..].iter().all(|c| c.text().is_empty());
     let natural: Vec<f32> = (0..N)
         .map(|i| {
-            let cells = rows.iter().filter(|r| !spans(r)).map(|r| measure(r[i].clone().size(12.0), false));
+            let cells = rows.iter().filter(|r| !spans(r)).map(|r| measure(r[i].clone(), false));
             let widest = cells.fold(measure(RichText::new(heads[i]), true), f32::max);
             // the last column of links (`last`) has no text to measure: room for an icon link
             let widest = if i + 1 == N && last.is_some() { widest.max(24.0) } else { widest };
-            widest + 2.0 * th_px
+            (widest + 2.0 * th_px).max(mins[i])
         })
         .collect();
     let sum: f32 = natural.iter().sum::<f32>().max(1.0);
@@ -999,7 +1008,9 @@ pub fn mini_table_aligned<const N: usize>(
                         egui::Layout::left_to_right(egui::Align::Center)
                     };
                     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell_rect).layout(layout));
-                    child.add(egui::Label::new(cell.clone().size(12.0)).truncate());
+                    // a plain cell at 12 px (a styled one, mono at 11, keeps its own)
+                    child.style_mut().text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(12.0));
+                    child.add(egui::Label::new(cell.clone()).truncate());
                 }
             }
             x += col_w[i];
@@ -1054,6 +1065,8 @@ pub const LEADING: f32 = 1.5;
 /// A single-line text edit as the web's .inp: a 28 px border box with 8 px side padding, the text vertically centered.
 pub fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
     egui::TextEdit::singleline(text)
+        // the web's --control-text (12 px), its placeholder too (egui's body text is the page's 11)
+        .font(egui::TextStyle::Button)
         .margin(Margin::symmetric(8, 0))
         .min_size(egui::vec2(0.0, crate::style::control_h()))
         .vertical_align(egui::Align::Center)

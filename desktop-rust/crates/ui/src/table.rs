@@ -272,7 +272,8 @@ fn show<A>(
     let text = look.px("control-text", 12.0);
     let (th_px, th_py, td_px, td_py) =
         (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-px", 8.0), look.px("td-py", 4.0));
-    let row_h = if t.row_h > 0.0 { t.row_h } else { (text * 1.5 + 2.0 * td_py + 1.0).round() };
+    // the web's 28-29 points: a line of 1.5, its padding and the divider, plus the point a browser rounds up
+    let row_h = if t.row_h > 0.0 { t.row_h } else { (text * 1.5 + 2.0 * td_py + 2.0).round() };
     let head_h = (text * 1.5 + 2.0 * th_py + 1.0).round();
     // the scroll bar's room only when the rows do not fit
     let fits = head_h + rows as f32 * row_h <= ui.available_height();
@@ -420,8 +421,12 @@ fn draw_cell<A>(
     out: &mut TableOut<A>,
 ) {
     let size = look.px("control-text", 12.0);
-    // a link is its text alone, as the web's .act (egui's button padding made the gaps wider)
+    // a link is its text alone, as the web's .act (egui's button padding made the gaps wider); a right-aligned
+    // cell keeps the .act's px-1 at its end
     ui.spacing_mut().button_padding.x = 0.0;
+    if c.right && (cl.link.is_some() || !cl.more.is_empty()) {
+        ui.add_space(4.0);
+    }
     let mut ink = look.tone(cl.tone);
     let rich = |s: String, ink: egui::Color32| {
         let r = if cl.bold { crate::style::semibold(s, size) } else { RichText::new(s).size(size) };
@@ -437,7 +442,8 @@ fn draw_cell<A>(
         ui.spacing_mut().item_spacing.x = 8.0;
         for (text, tone, l) in all {
             let ink = if tone == Tone::Normal { look.c("link") } else { look.tone(tone) };
-            let s = if icon_only { l.icon.to_string() } else { format!("{} {}", l.icon, text).trim().to_string() };
+            let s =
+                if icon_only { l.icon.to_string() } else { format!("{}\u{2009}{}", l.icon, text).trim().to_string() };
             let resp = ui.add(egui::Button::new(rich(s, ink)).frame(false));
             link_done(ui, resp, l, hover, out);
         }
@@ -452,7 +458,7 @@ fn draw_cell<A>(
             let text = match (l.icon.is_empty(), icon_only || cl.text.is_empty()) {
                 (true, _) => cl.text.clone(),
                 (false, true) => l.icon.to_string(),
-                (false, false) => format!("{} {}", l.icon, cl.text),
+                (false, false) => format!("{}\u{2009}{}", l.icon, cl.text), // the web's gap-0.5
             };
             let resp = if c.badge && !cl.text.is_empty() && (l.icon.is_empty() || l.tag) {
                 if l.tag && !l.icon.is_empty() {

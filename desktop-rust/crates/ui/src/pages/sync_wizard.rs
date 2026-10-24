@@ -608,7 +608,7 @@ impl SyncWizard {
             ui.spacing_mut().item_spacing.x = 8.0;
             for (i, s) in names.iter().enumerate() {
                 let on = i == self.step;
-                let (r, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
+                let (r, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover()); // the web's 24
                 if on {
                     ui.painter().rect_filled(r, 0.0, look.c("action"));
                 } else {
@@ -642,10 +642,11 @@ impl SyncWizard {
         ui.add_space(6.0);
         let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
         ui.painter().rect_filled(r, 0.0, look.c("surface-2"));
-        ui.add_space(12.0);
+        // the web's 15 points to the step's title and 20 under it (egui's item spacing counted in)
+        ui.add_space(7.0);
         let head = tf!("Step %d of %d: %s", self.step + 1, names.len(), names[self.step.min(4)]);
         ui.label(crate::style::semibold(head, 13.0).color(look.c("fg-strong")));
-        ui.add_space(4.0);
+        ui.add_space(12.0);
         if let Some(i) = go {
             self.show(cx, i);
         }
@@ -697,7 +698,7 @@ impl SyncWizard {
                     ui.set_width(w - 34.0);
                     ui.vertical(|ui| {
                         ui.spacing_mut().item_spacing.y = 4.0;
-                        let title = crate::style::semibold(format!("{icon}  {title}"), 12.0).color(look.c("fg-strong"));
+                        let title = crate::style::semibold(format!("{icon}  {title}"), 12.0).color(look.c("fg")); // the web's plain ink
                         ui.label(title);
                         ui.add(
                             egui::Label::new(

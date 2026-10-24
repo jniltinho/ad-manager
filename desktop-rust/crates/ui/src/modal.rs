@@ -208,18 +208,24 @@ fn draw_footer(ui: &mut Ui, look: &crate::style::Look, req: &FootReq) -> Footer 
         .horizontal(|ui| {
             // 8 above the buttons here, 8 under them in the body's bottom margin: the web's 44-point band
             ui.set_min_height(crate::style::control_h() + FOOT_PAD);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| match &req.ok {
-                Some(label) => {
-                    // right to left: Cancel at the right end, the primary action before it
-                    f.cancel = widgets::button(ui, look, "", t("Cancel"), Kind::Secondary).clicked();
-                    let kind = if req.danger { Kind::Danger } else { Kind::Primary };
-                    f.ok = ui
-                        .add_enabled_ui(req.enabled, |ui| widgets::button(ui, look, crate::icons::CHECK, label, kind))
-                        .inner
-                        .clicked();
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
+                // the web's footer padding (px-3) is 4 less than the body's
+                ui.add_space(12.0 - BODY.0);
+                match &req.ok {
+                    Some(label) => {
+                        // right to left: Cancel at the right end, the primary action before it
+                        f.cancel = widgets::button(ui, look, "", t("Cancel"), Kind::Secondary).clicked();
+                        let kind = if req.danger { Kind::Danger } else { Kind::Primary };
+                        f.ok = ui
+                            .add_enabled_ui(req.enabled, |ui| {
+                                widgets::button(ui, look, crate::icons::CHECK, label, kind)
+                            })
+                            .inner
+                            .clicked();
+                    }
+                    // only a way out: the web's ghost button
+                    None => f.ok = widgets::button(ui, look, "", &req.close, Kind::Secondary).clicked(),
                 }
-                // only a way out: the web's ghost button
-                None => f.ok = widgets::button(ui, look, "", &req.close, Kind::Secondary).clicked(),
             });
         })
         .response;

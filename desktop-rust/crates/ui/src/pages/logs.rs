@@ -649,8 +649,9 @@ fn samba_entries(
             );
         }
         let msg_w = (w - date_w - level_w - 2.0 * th_px).max(80.0);
-        // the rows' heights, estimated then measured once drawn: only the rows on screen are laid out
-        let key = (w.round() as i64, shown.len(), shown.first().copied(), shown.last().copied());
+        // the rows' heights, estimated then measured once drawn: only the rows on screen are laid out. A new list
+        // starts over; a new width keeps the heights (rows on screen measure again), so the view does not jump
+        let key = (shown.len(), shown.first().copied(), shown.last().copied());
         if rows.key != key {
             rows.key = key;
             rows.heights = shown.iter().map(|&k| estimate(&entries[k], td_py)).collect();
@@ -667,11 +668,15 @@ fn samba_entries(
                     let (top, bottom) = (y - area.top(), y - area.top() + h);
                     if bottom >= view.min.y && top <= view.max.y {
                         let row = egui::Rect::from_min_size(egui::pos2(area.left(), y), egui::vec2(w, h));
-                        let drawn = samba_row(ui, look, &entries[k], n, row, (date_w, level_w, msg_w, th_px, td_py));
+                        let drawn =
+                            samba_row(ui, look, &entries[k], (n, k), row, (date_w, level_w, msg_w, th_px, td_py));
                         if (drawn - h).abs() > 0.5 {
                             rows.heights[n] = drawn;
                             changed = true;
                         }
+                        // the next row under what this one took, not its estimate (no overlap this frame)
+                        y += drawn;
+                        continue;
                     }
                     y += h;
                 }
@@ -686,7 +691,7 @@ fn samba_entries(
 /// The measured heights of the Samba rows for one width and list.
 #[derive(Default)]
 struct RowHeights {
-    key: (i64, usize, Option<usize>, Option<usize>),
+    key: (usize, Option<usize>, Option<usize>),
     heights: Vec<f32>,
 }
 
@@ -701,13 +706,15 @@ fn samba_row(
     ui: &mut Ui,
     look: &crate::style::Look,
     e: &SambaEntry,
-    n: usize,
+    (n, k): (usize, usize),
     row: egui::Rect,
     (date_w, level_w, msg_w, th_px, td_py): (f32, f32, f32, f32, f32),
 ) -> f32 {
     let under = ui.painter().add(egui::Shape::Noop);
     let mut child = ui.new_child(
         egui::UiBuilder::new()
+            // the entry's own id: a selection or focus stays with its entry while rows scroll in and out
+            .id_salt(("samba-row", k))
             .max_rect(row.with_max_y(row.top() + 10_000.0))
             .layout(egui::Layout::left_to_right(egui::Align::Min)),
     );

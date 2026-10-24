@@ -360,6 +360,23 @@ impl Home {
                         ui.spacing_mut().interact_size.y = 0.0;
                         ui.set_width(ui.available_width());
                         let row_w = ui.available_width();
+                        // one bar scale for every row: 60% of the row, or what a narrow card leaves after the name
+                        // and the widest count (so a longer bar always means a bigger count)
+                        let widest = systems
+                            .iter()
+                            .map(|(_, n)| {
+                                ui.painter()
+                                    .layout_no_wrap(
+                                        n.to_string(),
+                                        egui::FontId::proportional(12.0),
+                                        egui::Color32::PLACEHOLDER,
+                                    )
+                                    .size()
+                                    .x
+                            })
+                            .fold(0.0, f32::max);
+                        let full =
+                            (row_w * 0.6).min(row_w - 192.0 - widest - 3.0 * ui.spacing().item_spacing.x).max(1.0);
                         for (os, n) in systems {
                             ui.horizontal(|ui| {
                                 let name = if os.is_empty() { t("not reported").to_string() } else { os.clone() };
@@ -369,15 +386,7 @@ impl Home {
                                         .on_hover_text(&name);
                                 });
                                 let old = ["XP", "2003", "2008 Standard"].iter().any(|k| os.contains(k));
-                                // the web's bar: n/max of 60% of the row, never pushing the count out of a
-                                // narrow window's card
-                                let count = ui.painter().layout_no_wrap(
-                                    n.to_string(),
-                                    egui::FontId::proportional(12.0),
-                                    egui::Color32::PLACEHOLDER,
-                                );
-                                let room = ui.available_width() - count.size().x - 2.0 * ui.spacing().item_spacing.x;
-                                let bw = (row_w * 0.6 * n as f32 / max as f32).min(room);
+                                let bw = full * n as f32 / max as f32;
                                 let (r, _) =
                                     ui.allocate_exact_size(egui::vec2(bw.max(1.0), 12.0), egui::Sense::hover());
                                 ui.painter().rect_filled(

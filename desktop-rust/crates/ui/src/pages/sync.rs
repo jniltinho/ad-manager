@@ -131,7 +131,8 @@ impl Sync {
                         let on = self.pick == i && self.cur.is_some();
                         let r = widgets::side_item(ui, &look, on, i == 0, |ui, ink| {
                             ui.vertical(|ui| {
-                                ui.spacing_mut().item_spacing.y = 0.0;
+                                // the web's two lines, 16 points apart
+                                ui.spacing_mut().item_spacing.y = 2.0;
                                 ui.label(crate::style::semibold(&a.name, 12.0).color(ink));
                                 ui.label(RichText::new(a.host()).size(11.0).color(ink));
                             });
@@ -161,7 +162,7 @@ impl Sync {
                 ui.set_width(ui.available_width());
                 let top = ui.cursor().top();
                 ui.allocate_ui(egui::vec2(ui.available_width(), (h * 0.4).floor()), |ui| self.jobs_ui(ui, cx, keys));
-                ui.add_space(20.0);
+                ui.add_space(14.0); // the web's gap-5, egui's item spacing counted in
                 let left = h - (ui.cursor().top() - top);
                 self.runs_ui(ui, cx, left);
             });
@@ -189,7 +190,7 @@ impl Sync {
         widgets::panel(
             ui,
             &look,
-            (&format!("{}  {}", crate::icons::FOLDER_SYNC, t("Sync jobs")), ""),
+            (&format!("{}   {}", crate::icons::FOLDER_SYNC, t("Sync jobs")), ""),
             right,
             0.0,
             |ui| {
