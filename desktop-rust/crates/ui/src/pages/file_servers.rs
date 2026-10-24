@@ -103,8 +103,12 @@ impl Dialog for FileServer {
         let f = footer(ui, cx, Some(t("Save")), "", false, ready);
         if f.ok && ready {
             self.busy = true;
-            let body = json!({ "id": self.a.id, "name": self.a.name.trim(), "url": self.a.url.trim(),
-                "token": &*self.token, "insecure": self.a.insecure });
+            // the token straight into a wiped buffer, not a Value kept while the request runs
+            let body = adm_core::api::json_with_secret(
+                &json!({ "id": self.a.id, "name": self.a.name.trim(), "url": self.a.url.trim(), "insecure": self.a.insecure }),
+                "token",
+                &self.token,
+            );
             let (method, path) = if editing {
                 (Method::PUT, format!("/api/agents/{}", self.a.id))
             } else {
@@ -112,7 +116,7 @@ impl Dialog for FileServer {
             };
             let api = cx.panel.clone();
             let name = self.a.name.trim().to_string();
-            cx.run(async move { api.act_with(method, &path, &body).await }, move |app, ()| {
+            cx.run(async move { api.send_bytes::<()>(method, &path, &body).await }, move |app, ()| {
                 app.cx.set_status(tf!("Server %s saved.", name));
                 app.with_shell(|s, cx| s.shares.load(cx));
             });

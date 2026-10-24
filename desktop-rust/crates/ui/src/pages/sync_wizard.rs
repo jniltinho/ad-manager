@@ -55,6 +55,7 @@ pub fn open(cx: &mut Cx, agent: i64, data: SyncList, job: Option<SyncJob>) {
         cron_ok: true,
         done: false,
         run: None,
+        saving: false,
         reached: 0,
         data,
         job: j,
@@ -112,6 +113,8 @@ pub struct SyncWizard {
     done: bool,
     // 5. the preview, followed here
     run: Option<SyncRun>,
+    /// A save in flight: no second one meanwhile.
+    saving: bool,
     /// The furthest step reached: the done ones can be opened again (not from the preview).
     reached: usize,
 }
@@ -123,19 +126,18 @@ fn wizard(app: &mut App, id: u64) -> Option<&mut SyncWizard> {
 
 impl SyncWizard {
     /// The request body with the source's credentials (and the job, when editing: its stored password is used).
-    fn creds(&self, share: &str, path: &str, extra: Value) -> Value {
+    fn creds(&self, share: &str, path: &str, extra: Value) -> Zeroizing<Vec<u8>> {
         let mut src = self.job.source.clone();
         src.share = share.into();
         src.path = path.into();
-        let mut b =
-            json!({ "source": src, "password": self.password.as_str(), "password_file": self.job.password_file });
+        let mut b = json!({ "source": src, "password_file": self.job.password_file });
         if !self.is_new {
             b["job"] = json!(self.job.id);
         }
         if let (Some(b), Value::Object(e)) = (b.as_object_mut(), extra) {
             b.extend(e);
         }
-        b
+        adm_core::api::json_with_secret(&b, "password", &self.password)
     }
 
     /// Copies step 1's fields into the job ("DOMAIN\user" and "user@domain" split).
@@ -211,7 +213,7 @@ impl SyncWizard {
             #[serde(default)]
             steps: Vec<CheckStep>,
         }
-        cx.run(async move { api.send::<Out, _>(Method::POST, &path, Some(&body)).await }, move |app, out| {
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &path, &body).await }, move |app, out| {
             app.cx.set_status("");
             let Some(w) = wizard(app, me) else { return };
             let names = |n: &str| match n {
@@ -262,7 +264,7 @@ impl SyncWizard {
             #[serde(default)]
             dirs: Vec<String>,
         }
-        cx.run(async move { api.send::<Out, _>(Method::POST, &url, Some(&body)).await }, move |app, out| {
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, out| {
             let Some(w) = wizard(app, me) else { return };
             w.job.source.share = share;
             w.job.source.path = path;
@@ -289,7 +291,7 @@ impl SyncWizard {
             #[serde(default)]
             bytes: i64,
         }
-        cx.run(async move { api.send::<Out, _>(Method::POST, &url, Some(&body)).await }, move |app, out| {
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, out| {
             if let Some(w) = wizard(app, me) {
                 w.src_size = Some((out.files, out.bytes));
                 w.size_label = tf!("%d files · %s", out.files, size_text(out.bytes));
@@ -316,7 +318,7 @@ impl SyncWizard {
             files: i64,
             bytes: i64,
         }
-        cx.spawn(async move { api.send::<Out, _>(Method::POST, &url, Some(&body)).await }, move |app, r| {
+        cx.spawn(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, r| {
             if let Some(w) = wizard(app, me) {
                 let text = match r {
                     Ok(o) => tf!("%d files · %s", o.files, size_text(o.bytes)),
@@ -450,6 +452,9 @@ impl SyncWizard {
 
     fn save(&mut self, cx: &mut Cx, preview: bool) {
         let me = cx.current_dialog();
+        if self.saving {
+            return;
+        }
         if !self.cron_ok || (self.is_new && !self.dest_ok) {
             cx.show_info(t("Sync"), t("Not a valid schedule (min hour day month weekday)."));
             return;
@@ -463,7 +468,9 @@ impl SyncWizard {
         };
         let api = self.api.clone();
         let path = format!("{}/syncs/{}", self.base, esc(&job.id));
-        cx.run(
+        self.saving = true;
+        let session = cx.panel.id;
+        cx.spawn(
             async move {
                 api.act_with(Method::PUT, &path, &job).await?;
                 if preview {
@@ -473,7 +480,17 @@ impl SyncWizard {
                 }
                 Ok(None)
             },
-            move |app, run| {
+            move |app, r: adm_core::api::ApiResult<Option<SyncRun>>| {
+                if let Some(w) = wizard(app, me) {
+                    w.saving = false;
+                }
+                if app.cx.panel.id != session {
+                    return;
+                }
+                let run = match r {
+                    Ok(run) => run,
+                    Err(e) => return app.cx.handle_error(e),
+                };
                 app.with_shell(|s, cx| s.sync.reload(cx));
                 let Some(r) = run else {
                     app.cx.set_status(t("Sync job saved."));
@@ -567,7 +584,8 @@ impl SyncWizard {
         );
         if run_now {
             let api = self.api.clone();
-            let path = format!("{}/syncs/{}/run", self.base, esc(&self.form.id));
+            // the previewed job (the run's), not the form's id, editable meanwhile
+            let path = format!("{}/syncs/{}/run", self.base, esc(&r.job));
             cx.run(async move { api.act(Method::POST, &path).await }, |app, ()| {
                 app.cx.set_status(t("Sync queued."));
                 app.with_shell(|s, cx| s.sync.reload(cx));

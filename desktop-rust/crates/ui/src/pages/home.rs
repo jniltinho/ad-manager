@@ -21,6 +21,8 @@ pub struct Home {
     login: String,
     loaded: bool,
     generation: u64,
+    /// The two card rows' heights, from the last frame.
+    rows: [f32; 2],
 }
 
 /// One alert row: tag, tone role, text, and its link with what it does.
@@ -40,13 +42,19 @@ pub enum AlertGo {
 }
 
 /// A panel as the web's .card with its .card-h, the content drawn by `add` without padding (each part pads itself).
-fn panel(ui: &mut Ui, look: &crate::style::Look, title: &str, add: impl FnOnce(&mut Ui)) {
+/// A card at least `min_h` high (the web's grid row stretches its cards to the tallest); returns its own height.
+fn panel(ui: &mut Ui, look: &crate::style::Look, title: &str, min_h: f32, add: impl FnOnce(&mut Ui)) -> f32 {
     let under = ui.painter().add(egui::Shape::Noop);
+    let mut natural = 0.0;
     let r = ui
         .vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             widgets::card_head(ui, look, title, |_| {});
             add(ui);
+            natural = ui.min_rect().height();
+            if natural < min_h {
+                ui.add_space(min_h - natural);
+            }
         })
         .response;
     let mut shapes = crate::depth::box_shapes(r.rect, None, look.c("surface"), look.shadows("card"));
@@ -57,6 +65,16 @@ fn panel(ui: &mut Ui, look: &crate::style::Look, title: &str, add: impl FnOnce(&
         egui::StrokeKind::Inside,
     ));
     ui.painter().set(under, egui::Shape::Vec(shapes));
+    natural
+}
+
+/// Keeps a row's height (the taller card's, measured last frame) and asks for a frame when it changed.
+fn row_height(ui: &Ui, row: &mut f32, a: f32, b: f32) {
+    let h = a.max(b);
+    if (h - *row).abs() > 0.5 {
+        *row = h;
+        ui.ctx().request_repaint();
+    }
 }
 
 impl Home {
@@ -194,31 +212,34 @@ impl Home {
         ui.add_space(20.0);
         // the reset box (a third) and the domain controllers (two thirds)
         let third = (w - 20.0 * 2.0) / 3.0;
+        let [r0, r1] = self.rows;
+        let (mut ha, mut hb) = (0.0, 0.0);
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 20.0;
             ui.allocate_ui(egui::vec2(third, 0.0), |ui| {
                 ui.set_width(third);
-                panel(ui, &look, t("Reset password / unlock"), |ui| {
+                ha = panel(ui, &look, t("Reset password / unlock"), r0, |ui| {
                     egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                        ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            quick = widgets::button(ui, &look, "🔑", t("Open"), Kind::Primary).clicked();
                             // the logins as suggestions with their names (the web's quick box)
                             let options: Vec<(String, String)> = self
                                 .data
                                 .as_ref()
                                 .map(|(_, us)| us.iter().map(|u| (u.sam.clone(), u.name.clone())).collect())
                                 .unwrap_or_default();
-                            let w = ui.available_width() - 88.0;
+                            let w = ui.available_width();
                             let id = egui::Id::new("home-quick");
                             let sg = widgets::suggest(ui, &look, id, &mut self.login, &options, t("user login"), w);
                             let _ = ui.ctx().accesskit_node_builder(sg.response.id, |n| n.set_label(t("Login")));
-                            quick = widgets::button(ui, &look, "🔑", t("Open"), Kind::Primary).clicked() || sg.enter;
+                            quick |= sg.enter;
                         });
                     });
                 });
             });
             ui.allocate_ui(egui::vec2(ui.available_width(), 0.0), |ui| {
                 ui.set_width(ui.available_width());
-                panel(ui, &look, t("Domain controllers"), |ui| {
+                hb = panel(ui, &look, t("Domain controllers"), r0, |ui| {
                     let rows: Vec<[RichText; 3]> = s.map_or_else(Vec::new, |s| {
                         s.dcs
                             .iter()
@@ -252,14 +273,16 @@ impl Home {
                 });
             });
         });
+        row_height(ui, &mut self.rows[0], ha, hb);
         ui.add_space(20.0);
         // the alerts and the operating systems, half each
         let half = (w - 20.0) / 2.0;
+        let (mut hc, mut hd) = (0.0, 0.0);
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 20.0;
             ui.allocate_ui(egui::vec2(half, 0.0), |ui| {
                 ui.set_width(half);
-                panel(ui, &look, t("Alerts"), |ui| match &alerts {
+                hc = panel(ui, &look, t("Alerts"), r1, |ui| match &alerts {
                     None => {
                         egui::Frame::new()
                             .inner_margin(egui::Margin::symmetric(12, 8))
@@ -307,7 +330,7 @@ impl Home {
             });
             ui.allocate_ui(egui::vec2(ui.available_width(), 0.0), |ui| {
                 ui.set_width(ui.available_width());
-                panel(ui, &look, t("Operating systems"), |ui| {
+                hd = panel(ui, &look, t("Operating systems"), r1, |ui| {
                     let mut systems: Vec<(String, i64)> =
                         s.map_or_else(Vec::new, |s| s.os.iter().map(|(k, v)| (k.clone(), *v)).collect());
                     systems.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
@@ -339,6 +362,7 @@ impl Home {
                 });
             });
         });
+        row_height(ui, &mut self.rows[1], hc, hd);
         if quick {
             self.quick(cx);
         }

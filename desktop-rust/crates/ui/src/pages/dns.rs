@@ -323,10 +323,17 @@ pub fn sessions(cx: &mut Cx, host: String) {
     let id = cx.push(Sessions { host: host.clone(), list: None, error: None });
     let api = cx.panel.clone();
     let url = format!("/api/computers/sessions?host={}", q(&host));
-    cx.spawn(async move { api.get::<Vec<Session>>(&url).await }, move |app, r: Result<Vec<Session>, ApiError>| {
+    // the reply is {"host", "sessions"}, as the web's dialog reads it
+    #[derive(serde::Deserialize, Default)]
+    #[serde(default)]
+    struct Out {
+        #[serde(deserialize_with = "adm_core::model::nd")]
+        sessions: Vec<Session>,
+    }
+    cx.spawn(async move { api.get::<Out>(&url).await }, move |app, r: Result<Out, ApiError>| {
         if let Some(d) = app.cx.dialog_mut::<Sessions>(id) {
             match r {
-                Ok(l) => d.list = Some(l),
+                Ok(o) => d.list = Some(o.sessions),
                 Err(e) => d.error = Some(e.to_string()),
             }
         }
@@ -371,10 +378,11 @@ impl Dialog for Sessions {
                         ]
                     })
                     .collect();
-                widgets::mini_table(
+                widgets::mini_table_aligned(
                     ui,
                     &look,
                     [t("User"), t("Client"), t("Open files"), t("Connected for"), t("Idle for")],
+                    [false, false, true, true, true],
                     &rows,
                     None,
                 );

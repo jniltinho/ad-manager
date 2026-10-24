@@ -10,7 +10,7 @@ use adm_core::i18n::{date, t};
 use adm_core::logic::{
     self, Tone, UserAction, UserFilter, editable, inactive, ou_name, parent_dn, user_actions, user_status,
 };
-use adm_core::model::{Group, OrgUnit, User, is_set};
+use adm_core::model::{Group, OrgUnit, User};
 use adm_core::tf;
 use chrono::{DateTime, Utc};
 use egui::{RichText, Ui};
@@ -274,17 +274,18 @@ impl Users {
 
 fn columns() -> Vec<Column> {
     vec![
-        Column::new(t("Login"), 130.0),
-        Column::new(t("Name"), 140.0),
-        Column::new(t("E-mail"), 160.0).fill(),
+        Column::new(t("Login"), 120.0),
+        Column::new(t("Name"), 130.0),
+        Column::new(t("E-mail"), 150.0).fill(),
         Column::new(t("OU"), 100.0),
         Column::new(t("Status"), 120.0).badge_w(104.0),
-        Column::new("", 130.0).badge().compact(104.0),
-        Column::new(t("Last logon"), 140.0),
-        Column::new(t("Actions"), 95.0).compact(COMPACT).span(4),
-        Column::new("", 75.0).compact(COMPACT).covered(),
-        Column::new("", 75.0).compact(COMPACT).covered(),
-        Column::new("", 75.0).compact(COMPACT).covered(),
+        Column::new("", 84.0).badge(),
+        Column::new(t("Last logon"), 160.0),
+        // the web's link widths (icon and name), so they fit at the app's 1280 px
+        Column::new(t("Actions"), 92.0).compact(COMPACT).span(4),
+        Column::new("", 62.0).compact(COMPACT).covered(),
+        Column::new("", 64.0).compact(COMPACT).covered(),
+        Column::new("", 70.0).compact(COMPACT).covered(),
     ]
 }
 
@@ -328,15 +329,8 @@ pub fn cell(
             (false, true) => Cell::plain(t("unlock")).link("🔓", tf!("Unlock %s", x.sam), (UserAction::Unlock, i)),
             (false, false) => Cell::plain(""),
         },
-        6 => {
-            if !is_set(&x.last_logon) {
-                Cell::new(t("never"), Tone::Muted)
-            } else if inactive(x, days, now) {
-                Cell::new(date(x.last_logon), Tone::Warn)
-            } else {
-                Cell::plain(date(x.last_logon))
-            }
-        }
+        // "—" when never logged on, in the warning ink when inactive (never counts), as the web's cell
+        6 => Cell::new(date(x.last_logon), if inactive(x, days, now) { Tone::Warn } else { Tone::Normal }),
         C_PASSWORD => {
             Cell::plain(t("password")).link("🔑", tf!("Set a password for %s", x.sam), (UserAction::Password, i))
         }

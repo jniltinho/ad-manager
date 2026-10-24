@@ -202,7 +202,7 @@ fn delete_link_acts_on_its_row_not_the_selected_one() {
     // select row A by its name, then click the delete link of row B
     e.h.get_all_by_label(&a.name).next().unwrap().click();
     e.h.step();
-    // the link's accessible name says what it does to whom (the icon alone is drawn at 1280 px)
+    // the link's accessible name says what it does to whom (the icon alone is drawn when narrow)
     e.h.get_by_label(&format!("Delete {}", b.sam)).click();
     e.h.step();
     e.h.step();
@@ -344,14 +344,14 @@ fn share_edit_sends_the_same_name_and_the_lists() {
 }
 
 #[test]
-fn compact_icons_at_1280_and_names_when_wide() {
+fn names_at_1280_and_compact_icons_when_narrow() {
     let compact = |e: &Env| matches!(&e.app().screen, Screen::Shell(s) if s.users.compact());
     let mut e = env();
     e.users_page();
-    assert!(compact(&e), "1280 px: icons only");
-    let mut w = env_sized(60, 1900.0);
-    w.users_page();
-    assert!(!compact(&w), "wide: icon and name");
+    assert!(!compact(&e), "1280 px: icon and name, as the web");
+    let mut n = env_sized(60, 1000.0);
+    n.users_page();
+    assert!(compact(&n), "narrow: icons only");
 }
 
 #[test]
@@ -654,6 +654,59 @@ fn home_quick_box_suggests_logins_and_warns_on_unknown_ones() {
     e.key(egui::Key::Enter);
     e.h.run_steps(2);
     assert_eq!(e.app().cx.status, "Login not found.");
+}
+
+/// The confirmation over the share form gets its own footer click: Restore queues the restore, not a save.
+#[test]
+fn restore_confirmed_over_the_share_form_restores() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Shares").click();
+    e.wait("the shares", |_, m| !m.sent("GET", "/api/agents/1/shares").is_empty());
+    e.h.step();
+    e.click("Edit finance");
+    e.wait("the history", |_, m| !m.sent("GET", "/api/agents/1/acl/history").is_empty());
+    e.h.run_steps(3);
+    e.h.query_all_by_label("Restore").next().expect("a restore link").click_accesskit();
+    e.h.run_steps(3);
+    let ok = e.h.query_all_by_label_contains("Restore").last().expect("the confirmation's button");
+    ok.click();
+    e.wait("the task", |_, m| !m.sent("POST", "/api/agents/1/tasks").is_empty());
+    let t = &e.sent("POST", "/api/agents/1/tasks")[0].json();
+    assert_eq!(t["type"], "acl:restore");
+    assert_eq!(t["payload"]["path"], "/srv/shares/finance");
+}
+
+/// The SMB sessions of a computer come in the server's envelope ({"host", "sessions"}).
+#[test]
+fn smb_sessions_read_the_envelope() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Computers").click();
+    e.wait("the computers", |_, m| !m.sent("GET", "/api/computers").is_empty());
+    e.h.run_steps(3);
+    e.h.query_all_by_label_contains("SMB sessions").next().expect("a sessions link").click_accesskit();
+    e.wait("the sessions", |_, m| !m.sent("GET", "/api/computers/sessions").is_empty());
+    e.h.run_steps(4);
+    assert!(e.h.query_by_label_contains("DOMAIN\\bruno.silva").is_some(), "a session row");
+}
+
+/// The quarantine opens with its files (the reply reaches the dialog just opened).
+#[test]
+fn quarantine_opens_with_its_files() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Backup").click();
+    e.h.run_steps(3);
+    e.h.get_by_label("Sync").click();
+    e.wait("the jobs", |_, m| !m.sent("GET", "/api/agents/1/syncs").is_empty());
+    e.h.run_steps(3);
+    e.h.get_by_label_contains("Quarantine of finance").click_accesskit();
+    e.wait("the files", |_, m| {
+        !m.sent("GET", "/api/agents/1/syncs/quarantines/20261022-0100-finance/files").is_empty()
+    });
+    e.h.run_steps(4);
+    assert!(e.h.query_all_by_label_contains("old-budget.xlsx").next().is_some(), "the files on opening");
 }
 
 #[test]

@@ -31,7 +31,7 @@ pub fn open(cx: &mut Cx, agent: i64, j: SyncJob, first: &str) {
             .filter(|s| s.low)
             .map(|s| tf!("Little free space on %s: %s of %s.", s.root, size_text(s.free), size_text(s.total)))
             .collect();
-        let mut d = QuarantineDialog {
+        let d = QuarantineDialog {
             base,
             job: j,
             qs,
@@ -45,8 +45,9 @@ pub fn open(cx: &mut Cx, agent: i64, j: SyncJob, first: &str) {
             done: false,
         };
         let i = d.qs.iter().position(|q| q.name == first).unwrap_or(0);
-        d.load(&app.cx, i);
-        app.cx.push(d);
+        // opened first: the reply goes to this dialog by its instance id
+        let id = app.cx.push(d);
+        app.with_dialog::<QuarantineDialog>(id, |d, cx| d.load(cx, i));
     });
 }
 

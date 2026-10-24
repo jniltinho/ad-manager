@@ -205,6 +205,18 @@ impl Api {
         self.call(method, path, Some(&erased::Wrap(body))).await.map(|_| ())
     }
 
+    /// method path with a body already serialized (one with a secret, from `json_with_secret`), the answer decoded.
+    pub async fn send_bytes<T: DeserializeOwned + Default>(
+        &self,
+        method: Method,
+        path: &str,
+        body: &[u8],
+    ) -> ApiResult<T> {
+        let raw: &serde_json::value::RawValue =
+            serde_json::from_slice(body).map_err(|e| ApiError::Other(e.to_string()))?;
+        self.send(method, path, Some(&raw)).await
+    }
+
     /// Signs in (`POST /api/login`) and reads the session (`GET /api/me`). The body that carries the password is
     /// wiped once sent.
     pub async fn login(&self, user: &str, password: &SecretString) -> ApiResult<crate::model::Me> {
@@ -286,7 +298,7 @@ impl Api {
             self.check(status, &path, &data)?;
             return Err(ApiError::msg(format!("{path}: HTTP {}", status.as_u16())));
         }
-        let mut f = tokio::fs::File::create(to).await.map_err(|e| ApiError::msg(e.to_string()))?;
+        let mut f = create_private_file(to).await.map_err(|e| ApiError::msg(e.to_string()))?;
         let mut s = resp.bytes_stream();
         while let Some(chunk) = s.next().await {
             f.write_all(&chunk.map_err(|e| transport(&e))?).await.map_err(|e| ApiError::msg(e.to_string()))?;
@@ -484,6 +496,40 @@ async fn read_capped(resp: reqwest::Response) -> ApiResult<Vec<u8>> {
     Ok(out)
 }
 
+/// The object `v` as JSON with `key` set to `secret` last, written straight into a buffer wiped when dropped: the
+/// secret never sits in a plain `Value` or `String` while the request runs.
+pub fn json_with_secret(v: &serde_json::Value, key: &str, secret: &str) -> Zeroizing<Vec<u8>> {
+    let mut out = Zeroizing::new(serde_json::to_vec(v).unwrap_or_default());
+    if out.last() != Some(&b'}') {
+        return out;
+    }
+    out.pop(); // the closing brace
+    if out.len() > 1 {
+        out.push(b',');
+    }
+    out.extend_from_slice(&serde_json::to_vec(key).unwrap_or_default());
+    out.push(b':');
+    out.extend_from_slice(&Zeroizing::new(serde_json::to_vec(secret).unwrap_or_default()));
+    out.push(b'}');
+    out
+}
+
+/// Creates (or truncates) `to` readable by its owner only, also when it already existed: a download may hold the
+/// domain's secrets (a DC backup, generated passwords).
+pub async fn create_private_file(to: &Path) -> std::io::Result<tokio::fs::File> {
+    let mut o = tokio::fs::OpenOptions::new();
+    o.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    o.mode(0o600);
+    let f = o.open(to).await?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        f.set_permissions(std::fs::Permissions::from_mode(0o600)).await?;
+    }
+    Ok(f)
+}
+
 /// A transport error: the known TLS refusal in the interface language, else the error and its causes.
 fn transport(e: &reqwest::Error) -> ApiError {
     let full = chain(e);
@@ -537,6 +583,16 @@ pub fn q(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn json_with_secret_puts_it_last() {
+        let v: serde_json::Value =
+            serde_json::from_slice(&json_with_secret(&serde_json::json!({"a": 1}), "pw", "x\"y")).unwrap();
+        assert_eq!(v, serde_json::json!({"a": 1, "pw": "x\"y"}));
+        let e: serde_json::Value =
+            serde_json::from_slice(&json_with_secret(&serde_json::json!({}), "pw", "z")).unwrap();
+        assert_eq!(e, serde_json::json!({"pw": "z"}));
+    }
+
     use super::*;
     use crate::tls::tests::{self_signed, serve};
 

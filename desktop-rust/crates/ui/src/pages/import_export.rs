@@ -32,8 +32,11 @@ struct Action {
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(default)]
 struct PlanOut {
+    #[serde(deserialize_with = "adm_core::model::nd")]
     plan: Vec<Action>,
+    #[serde(deserialize_with = "adm_core::model::nd")]
     passwords: BTreeMap<String, String>,
+    #[serde(deserialize_with = "adm_core::model::nd")]
     counts: BTreeMap<String, i64>,
 }
 
@@ -153,6 +156,11 @@ pub struct ImportExport {
 }
 
 impl ImportExport {
+    /// Forgets the source password's field (its text and undo history in egui).
+    pub fn forget(&mut self, ctx: &egui::Context) {
+        crate::widgets::forget_field(ctx, self.source.pwd_id);
+    }
+
     pub fn load(&mut self, cx: &Cx) {
         let api = cx.panel.clone();
         cx.spawn(
@@ -185,7 +193,8 @@ impl ImportExport {
     /// Reads the plan (or writes it, `apply`) of the mode on screen.
     fn send(&mut self, cx: &mut Cx, apply: bool) {
         self.busy = true;
-        let api = cx.panel.clone();
+        // the server lets an import with passwords run up to 33 minutes (and GPOs, DNS for 15)
+        let api = cx.panel.with_timeout(std::time::Duration::from_secs(35 * 60));
         let mode = self.mode;
         if apply {
             let (title, phase) = match mode {
@@ -223,7 +232,12 @@ impl ImportExport {
                 }
             };
         let log = self.log;
+        let session = cx.panel.id;
         cx.spawn(job, move |app, r| {
+            // a reply of a session replaced meanwhile (signed out) reaches nothing
+            if app.cx.panel.id != session {
+                return;
+            }
             let log_id = log.filter(|_| apply);
             match r {
                 Ok(out) => {
@@ -281,14 +295,7 @@ impl ImportExport {
             let agent = self.servers.get(s.share_agent).map_or(0, |a| a.id);
             v["shares"] = json!({ "host": s.share_host.trim(), "agent": agent, "map": s.share_map.trim() });
         }
-        // the password goes in last, straight into the wiped buffer
-        let mut out = Zeroizing::new(serde_json::to_vec(&v).unwrap_or_default());
-        out.pop(); // the closing brace
-        let pw = Zeroizing::new(serde_json::to_vec(&*s.password).unwrap_or_default());
-        out.extend_from_slice(b",\"password\":");
-        out.extend_from_slice(&pw);
-        out.push(b'}');
-        out
+        adm_core::api::json_with_secret(&v, "password", &s.password)
     }
 
     fn apply(&mut self, cx: &mut Cx) {

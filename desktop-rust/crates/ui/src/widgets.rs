@@ -614,13 +614,30 @@ pub fn tag_w(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone, 
     resp
 }
 
-/// A tag that is a link (an editable account's status, 104 wide as the web's): a button drawn as the tag.
+/// A tag that is a link (an editable account's status, 104 wide as the web's): a button drawn as the tag, with the
+/// web's power icon after the text (drawn: the system fonts may lack ⏻).
 pub fn tag_button(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
     let (fill, ink) = tag_colors(look, tone);
-    let (galley, size) = tag_layout(ui, look, text, ink, 104.0);
+    let (icon, gap) = (9.0, 4.0);
+    let (galley, mut size) = tag_layout(ui, look, text, ink, 104.0);
+    size.x = size.x.max((galley.size().x + gap + icon + 2.0 * look.px("tag-px", 6.0)).ceil());
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
-    ui.painter().rect_filled(rect, 0.0, fill);
-    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, ink);
+    let p = ui.painter();
+    p.rect_filled(rect, 0.0, fill);
+    let left = rect.center().x - (galley.size().x + gap + icon) / 2.0;
+    let c = egui::pos2(left + galley.size().x + gap + icon / 2.0, rect.center().y + 0.5);
+    p.galley(egui::pos2(left, rect.center().y - galley.size().y / 2.0), galley, ink);
+    let stroke = Stroke::new(1.2, ink);
+    let r = icon / 2.0 - 0.5;
+    // the ring open at the top (from 1 to 11 o'clock), the bar through the gap
+    let ring: Vec<egui::Pos2> = (0..=20)
+        .map(|i| {
+            let a = -std::f32::consts::FRAC_PI_2 + 0.6 + i as f32 * (std::f32::consts::TAU - 1.2) / 20.0;
+            c + egui::vec2(a.cos(), a.sin()) * r
+        })
+        .collect();
+    p.add(egui::Shape::line(ring, stroke));
+    p.line_segment([c - egui::vec2(0.0, r + 0.5), c - egui::vec2(0.0, 0.5)], stroke);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, text));
     resp
 }
@@ -780,6 +797,18 @@ pub fn mini_table<const N: usize>(
     look: &Look,
     heads: [&str; N],
     rows: &[[RichText; N]],
+    last: Option<&mut RowCell<'_>>,
+) {
+    mini_table_aligned(ui, look, heads, [false; N], rows, last);
+}
+
+/// `mini_table` with the columns marked in `right` aligned at the right (the web's text-right numbers).
+pub fn mini_table_aligned<const N: usize>(
+    ui: &mut Ui,
+    look: &Look,
+    heads: [&str; N],
+    right: [bool; N],
+    rows: &[[RichText; N]],
     mut last: Option<&mut RowCell<'_>>,
 ) {
     let w = ui.available_width();
@@ -827,7 +856,8 @@ pub fn mini_table<const N: usize>(
             egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
             look.c("on-table-head"),
         );
-        ui.painter().galley(egui::pos2(x + th_px, rect.center().y - g.size().y / 2.0), g, look.c("on-table-head"));
+        let gx = if right[i] { x + col_w[i] - th_px - g.size().x } else { x + th_px };
+        ui.painter().galley(egui::pos2(gx, rect.center().y - g.size().y / 2.0), g, look.c("on-table-head"));
         x += col_w[i];
     }
     for (r, row) in rows.iter().enumerate() {
@@ -849,7 +879,11 @@ pub fn mini_table<const N: usize>(
                     f(&mut child, r);
                 }
                 _ => {
-                    let layout = egui::Layout::left_to_right(egui::Align::Center);
+                    let layout = if right[i] {
+                        egui::Layout::right_to_left(egui::Align::Center)
+                    } else {
+                        egui::Layout::left_to_right(egui::Align::Center)
+                    };
                     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell_rect).layout(layout));
                     child.add(egui::Label::new(cell.clone().size(12.0)).truncate());
                 }

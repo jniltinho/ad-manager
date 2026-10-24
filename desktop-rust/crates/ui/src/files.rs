@@ -66,7 +66,11 @@ pub fn save_csv(cx: &Cx, name: &str, rows: Vec<Vec<String>>) {
         async move {
             let Some(h) = rfd::AsyncFileDialog::new().set_file_name(&name).save_file().await else { return Ok(None) };
             let p = h.path().to_path_buf();
-            tokio::fs::write(&p, text).await.map_err(|e| adm_core::api::ApiError::Other(e.to_string()))?;
+            // private: the export may be generated passwords
+            let io = |e: std::io::Error| adm_core::api::ApiError::Other(e.to_string());
+            let mut f = adm_core::api::create_private_file(&p).await.map_err(io)?;
+            tokio::io::AsyncWriteExt::write_all(&mut f, text.as_bytes()).await.map_err(io)?;
+            tokio::io::AsyncWriteExt::flush(&mut f).await.map_err(io)?;
             Ok(Some(p))
         },
         |app, r| {

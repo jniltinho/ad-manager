@@ -189,12 +189,15 @@ pub fn demo(users: usize) -> Arc<Route> {
                 ),
                 "/api/agents/1/tasks" => ok(json!({"id": "t1", "state": "pending"})),
                 "/api/import/ad/plan" | "/api/import/ad/apply" | "/api/import/plan" | "/api/import/apply" => {
+                    // the server's preview has no passwords yet: null, as Go encodes a nil map
+                    let passwords =
+                        if p.ends_with("/plan") { json!(null) } else { json!({"ana.souza":"Gen-Pass-0001"}) };
                     ok(json!({"plan":[
                     {"kind":"ou.create","target":"OU=Sales,DC=domain,DC=local","detail":"","result":"created","ok":true},
                     {"kind":"user.create","target":"ana.souza","detail":"Ana Souza → OU=Sales","result":"created","ok":true},
                     {"kind":"member.add","target":"Sales","detail":"ana.souza","result":"added","ok":true},
                     {"kind":"skip","target":"Administrator","detail":"protected account","result":"","ok":true}],
-                    "passwords":{"ana.souza":"Gen-Pass-0001"},"counts":{"users":24,"groups":12,"ous":5,"computers":8}}))
+                    "passwords":passwords,"counts":{"users":24,"groups":12,"ous":5,"computers":8}}))
                 }
                 "/api/agents/1/syncs/public/preview" => {
                     ok(json!({"id": "p1", "job": "public", "preview": true, "status": "running"}))
@@ -272,9 +275,9 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"name":"fs01","type":"A","ttl":1200,"data":"192.168.10.20"},
                 {"name":"intranet","type":"CNAME","ttl":3600,"data":"fs01.domain.local."}],
                 "nodes": [{"name":"_sites","children":1},{"name":"_tcp","children":4},{"name":"DomainDnsZones","children":2}]})),
-            "/api/computers/sessions" => ok(json!([
+            "/api/computers/sessions" => ok(json!({"host":"ws01.domain.local","sessions":[
                 {"user":"DOMAIN\\bruno.silva","client":"192.168.10.51","open_files":3,"active_seconds":7500,"idle_seconds":40},
-                {"user":"DOMAIN\\ana.souza","client":"192.168.10.62","open_files":0,"active_seconds":180,"idle_seconds":180}])),
+                {"user":"DOMAIN\\ana.souza","client":"192.168.10.62","open_files":0,"active_seconds":180,"idle_seconds":180}]})),
             "/api/agents" => ok(json!([{"id":1,"name":"FS01","url":"https://fs01.domain.local:8445"}])),
             "/api/policy" => ok(
                 json!({"complexity":true,"min_length":7,"history":24,"min_age_days":1,"max_age_days":42,"lockout_threshold":10,"lockout_minutes":30,"lockout_window_minutes":30}),
@@ -299,6 +302,12 @@ pub fn demo(users: usize) -> Arc<Route> {
             "/api/agents/1/backup-schedules" => ok(
                 json!([{"id":"nightly","kind":"fileserver-data","cron":"0 1 * * *","retention":{"chains":4,"days":0},"enabled":true}]),
             ),
+            "/api/agents/1/syncs/quarantines" => ok(json!({"quarantines":[
+                {"name":"20261022-0100-finance","job":"finance","run":"r1","dest":"/srv/shares/finance","created":"2026-10-22T01:04:38Z","files":2,"size":3145728}],
+                "space":[]})),
+            "/api/agents/1/syncs/quarantines/20261022-0100-finance/files" => ok(json!({"files":[
+                {"path":"finance/old-budget.xlsx","size":2097152,"in_dest":false,"modified":"2026-09-30T18:00:00Z"},
+                {"path":"finance/notes.txt","size":1048576,"in_dest":true,"modified":"2026-10-01T10:00:00Z"}]})),
             "/api/agents/1/syncs" => ok(
                 json!({"jobs":[{"id":"finance","name":"finance · old-fs","rev":2,"approved_rev":2,"source":{"host":"old-fs.domain.local","share":"dados","path":"finance","auth":"kerberos"},
                 "dest":"/srv/shares/finance","mode":"mirror","cron":"0 1 * * *","enabled":true,"max_delete":100,"max_delete_pct":20,"reinherit":true},

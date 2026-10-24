@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for Secret {
 
 /// Go's zero time ("0001-01-01T00:00:00Z") and a missing value are both "unset".
 /// A Go `null` (nil slice or map) decodes as the empty value.
-fn nd<'de, D: serde::Deserializer<'de>, T: Default + Deserialize<'de>>(d: D) -> Result<T, D::Error> {
+pub fn nd<'de, D: serde::Deserializer<'de>, T: Default + Deserialize<'de>>(d: D) -> Result<T, D::Error> {
     Option::<T>::deserialize(d).map(Option::unwrap_or_default)
 }
 

@@ -46,6 +46,7 @@ pub const BODY: (f32, f32) = (16.0, 12.0);
 
 /// Draws a dialog in its frame (title bar, bar, body).
 pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
+    let did = cx.current_dialog();
     let look = cx.look.clone();
     let w = web_width(d.width(), ui.ctx().content_rect().width());
     let mut flow = Flow::Keep;
@@ -120,7 +121,7 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
                 if let Some(req) = ui.ctx().data(|d| d.get_temp::<FootReq>(foot_req_id())) {
                     let clicks = draw_footer(ui, &look, &req);
                     if clicks.ok || clicks.cancel {
-                        ui.ctx().data_mut(|d| d.insert_temp(foot_clicks_id(), clicks));
+                        ui.ctx().data_mut(|d| d.insert_temp(foot_clicks_id(did), clicks));
                         ui.ctx().request_repaint();
                     }
                 }
@@ -171,19 +172,20 @@ fn foot_req_id() -> egui::Id {
     egui::Id::new("adm-dialog-foot-req")
 }
 
-fn foot_clicks_id() -> egui::Id {
-    egui::Id::new("adm-dialog-foot-clicks")
+/// Per dialog: a dialog under another (a confirmation over a form) must not take the top one's clicks.
+fn foot_clicks_id(dialog: u64) -> egui::Id {
+    egui::Id::new(("adm-dialog-foot-clicks", dialog))
 }
 
 /// The footer as the web's: a band across the dialog (the theme's dialog-foot recipe, a line on top) with the buttons
 /// at the right, the primary one (`ok`, or the single `close`) first, then Cancel. `enabled` greys the OK. The
 /// dialog's `show` draws it under the body, which scrolls when taller than the window (the web's max-h 72%); what
 /// its buttons did reaches the dialog on the next frame.
-pub fn footer(ui: &mut Ui, _cx: &Cx, ok: Option<&str>, close: &str, danger: bool, enabled: bool) -> Footer {
+pub fn footer(ui: &mut Ui, cx: &Cx, ok: Option<&str>, close: &str, danger: bool, enabled: bool) -> Footer {
     let req = FootReq { ok: ok.map(str::to_string), close: close.to_string(), danger, enabled };
     ui.ctx().data_mut(|d| {
         d.insert_temp(foot_req_id(), req);
-        d.remove_temp::<Footer>(foot_clicks_id()).unwrap_or_default()
+        d.remove_temp::<Footer>(foot_clicks_id(cx.current_dialog())).unwrap_or_default()
     })
 }
 

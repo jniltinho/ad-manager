@@ -536,6 +536,10 @@ impl App {
         match &mut self.screen {
             Screen::Login(l) => l.forget(&self.cx.ctx),
             Screen::Setup(s) => s.forget(&self.cx.ctx),
+            Screen::Shell(s) => {
+                s.settings.forget(&self.cx.ctx);
+                s.import.forget(&self.cx.ctx);
+            }
             _ => {}
         }
         match go {

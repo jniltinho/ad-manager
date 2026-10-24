@@ -100,7 +100,20 @@ pub struct Settings {
     token: Option<AgentToken>,
 }
 
+/// The fields that show a generated token and its command: forgotten with the session (egui keeps their text).
+fn token_field(k: usize) -> egui::Id {
+    egui::Id::new(("settings-token", k))
+}
+
 impl Settings {
+    /// Forgets the token fields' egui state (their text and undo history).
+    pub fn forget(&mut self, ctx: &egui::Context) {
+        self.token = None;
+        for k in 0..2 {
+            crate::widgets::forget_field(ctx, token_field(k));
+        }
+    }
+
     pub fn load(&mut self, cx: &Cx) {
         let api = cx.panel.clone();
         cx.run(
@@ -124,12 +137,17 @@ impl Settings {
         self.busy = true;
         let body = self.form.body(&self.ous);
         let api = cx.panel.clone();
+        let session = cx.panel.id;
         cx.spawn(
             async move {
                 api.act_with(Method::PUT, "/api/settings", &body).await?;
                 api.get::<Me>("/api/me").await
             },
-            |app, r| {
+            move |app, r| {
+                // a reply of a session replaced meanwhile (signed out) reaches nothing
+                if app.cx.panel.id != session {
+                    return;
+                }
                 app.with_shell(|s, _| s.settings.busy = false);
                 match r {
                     Ok(me) => {
@@ -471,10 +489,13 @@ impl Settings {
                 asked = widgets::button(ui, &look, "🔑", t("Generate token"), Kind::Secondary).clicked();
                 if let Some(tk) = &self.token {
                     let w = ui.available_width();
-                    for (label, value, done) in [
+                    for (k, (label, value, done)) in [
                         (t("Token (shown only now)"), &tk.token, t("Token copied.")),
                         (t("Command on the file server"), &tk.command, t("Command copied.")),
-                    ] {
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
                         ui.vertical(|ui| {
                             ui.spacing_mut().item_spacing.y = 4.0;
                             let l = widgets::lbl(ui, &look, label);
@@ -488,7 +509,9 @@ impl Settings {
                                         cx.set_status(done);
                                     }
                                     let mut v = value.clone();
-                                    let edit = crate::widgets::line(&mut v).font(egui::FontId::monospace(11.0));
+                                    let edit = crate::widgets::line(&mut v)
+                                        .id(token_field(k))
+                                        .font(egui::FontId::monospace(11.0));
                                     ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
                                 },
                             );

@@ -4,7 +4,6 @@
 use adm_core::i18n::t;
 use egui::Ui;
 use reqwest::Method;
-use serde_json::json;
 use zeroize::Zeroizing;
 
 use crate::app::Cx;
@@ -45,11 +44,18 @@ impl OwnPassword {
         }
         self.busy = true;
         self.err = None;
-        let body = json!({ "old": &*self.current, "new": &*self.next });
+        #[derive(serde::Serialize)]
+        struct Change<'a> {
+            old: &'a str,
+            new: &'a str,
+        }
+        // both passwords straight into a wiped buffer, not a Value kept while the request runs
+        let body =
+            Zeroizing::new(serde_json::to_vec(&Change { old: &self.current, new: &self.next }).unwrap_or_default());
         let api = cx.panel.clone();
         let session = cx.panel.id;
         let me = cx.current_dialog();
-        cx.spawn(async move { api.act_with(Method::POST, "/api/me/password", &body).await }, move |app, r| {
+        cx.spawn(async move { api.send_bytes::<()>(Method::POST, "/api/me/password", &body).await }, move |app, r| {
             if app.cx.panel.id != session {
                 return;
             }
