@@ -36,6 +36,20 @@ pub struct Panel {
     pub user: String,
 }
 
+/// The graphics backend chosen in Configure › Graphics or reached after a driver crash (design D12).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Graphics {
+    /// "auto", "gl", "dx12", "vulkan" or "cpu" (`adm_core::gpu::Backend`); empty = auto.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub gpu_backend: String,
+}
+
+impl Graphics {
+    pub fn is_empty(&self) -> bool {
+        self.gpu_backend.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
@@ -43,6 +57,9 @@ pub struct Config {
     /// "pt-BR" or "en"; empty = the panel's default.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub lang: String,
+    /// `[graphics]`: the rendering backend (the Fyne app keeps it when it rewrites the file).
+    #[serde(default, skip_serializing_if = "Graphics::is_empty")]
+    pub graphics: Graphics,
     /// The file still listed file servers (`[[agents]]` with tokens, no longer used).
     #[serde(skip)]
     pub had_agents: bool,

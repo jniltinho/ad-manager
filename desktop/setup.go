@@ -145,6 +145,7 @@ func (u *ui) setup(back func()) {
 
 	save = newButton(t("Save"), theme.DocumentSaveIcon(), func() {
 		n := config{}
+		n.Graphics = c.Graphics // the Rust desktop's choice, kept
 		n.Panel.URL = strings.TrimRight(strings.TrimSpace(panelURL.Text), "/")
 		n.Panel.User = strings.TrimSpace(user.Text)
 		n.Lang = langCodes[max(0, language.SelectedIndex())]

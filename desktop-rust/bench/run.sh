@@ -9,6 +9,10 @@
 #   MOCK  (default target/docker/release/examples/mock_panel — cargo build --release -p adm-core --example mock_panel
 #          --features testkit)
 #
+# Graphics: both draw with OpenGL on Mesa llvmpipe. The Rust app renders through wgpu (design D12), so it runs with
+# WGPU_BACKEND=gl (its GL backend on llvmpipe, as Fyne's GL) and --gpu-info, whose lines go to machine.txt. Each run has
+# its own HOME and XDG folders, so neither app's persisted window or preferences carry over between runs.
+#
 # Readiness (the same for both): the mock answered the request a step waits for, then the process's CPU time did not
 # move for 300 ms (the frame is painted and the app idle). A step not ready in 30 s fails the run. The sign-in window
 # is measured when it maps, and its memory 3 s later (a blinking caret is never idle).
@@ -87,8 +91,14 @@ TABLE_AT="740 500"
 # one run: prints "cold idle signin users_pss scroll"
 run() {
     local app=$1 bin=$2 t0 t1 t2 t3 mark cpu0 cpu1 h0 h1 win
+    local home=$work/home-$app-$run_n
+    rm -rf "$home"
+    mkdir -p "$home/.config" "$home/.local/share" "$home/.cache"
+    local extra=()
+    [ "$app" = rust ] && extra=(--gpu-info)
     t0=$(now_ms)
-    "$bin" --config "$cfg" >"$work/$app.log" 2>&1 &
+    HOME=$home XDG_CONFIG_HOME=$home/.config XDG_DATA_HOME=$home/.local/share XDG_CACHE_HOME=$home/.cache \
+        WGPU_BACKEND=gl "$bin" --config "$cfg" "${extra[@]}" >"$work/$app.log" 2>&1 &
     app_pid=$!
     until win=$(xdotool search --onlyvisible --name "AD Manager" 2>/dev/null | head -n 1) && [ -n "$win" ]; do
         sleep 0.005
@@ -143,6 +153,12 @@ run() {
     kill "$app_pid"
     wait "$app_pid" 2>/dev/null || true
     app_pid=
+    # the graphics the run used (the Rust app's --gpu-info), kept per run; a Rust run without it fails
+    cp "$work/$app.log" "$OUT/$app-$run_n.log"
+    if [ "$app" = rust ] && ! grep -q '^gpu: adapter' "$work/$app.log"; then
+        echo "rust: no --gpu-info adapter line" >&2
+        return 1
+    fi
     echo "$((t1 - t0)) $idle $((t3 - t2)) $users $((cpu1 - cpu0)) $((s1 - s0))"
 }
 
@@ -157,6 +173,7 @@ median() { sort -n | awk '{a[NR]=$1} END {print (NR % 2) ? a[(NR + 1) / 2] : (a[
     echo "fyne: $FYNE ($(stat -c %s "$FYNE") bytes, $(strings "$FYNE" | grep -o 'v[0-9][0-9.]*-[0-9]*-g[0-9a-f]*' | head -n 1))"
     echo "rust: $RUST ($(stat -c %s "$RUST") bytes, $("$RUST" --version 2>/dev/null))"
     echo "users: $USERS, runs: $RUNS (+1 warm-up each, discarded), alternating fyne/rust"
+    echo "rust graphics: wgpu with WGPU_BACKEND=gl (OpenGL on llvmpipe), fresh HOME/XDG per run"
 } >"$OUT/machine.txt"
 echo "app run cold_ms idle_pss_mib signin_to_users_ms users_pss_mib scroll_cpu_ms scroll_wall_ms" >"$OUT/raw.txt"
 
@@ -175,6 +192,7 @@ for i in $(seq 1 "$RUNS"); do
         r=$(run "$app" "$bin")
         echo "run $i $app: $r" >&2
         echo "$app $i $r" >>"$OUT/raw.txt"
+        [ "$app" = rust ] && grep '^gpu:' "$OUT/rust-$i.log" | sed "s/^/rust run $i /" >>"$OUT/machine.txt"
         RES[$app]+="$r"$'\n'
     done
 done

@@ -30,6 +30,24 @@ The same as the Fyne app, against the same panel API, with the same rules (the s
   the panel's catalog (`/api/i18n`).
 - The panel's 18 themes (`crates/core/assets/themes.json`, generated from `desktop/themes_gen.go`) in their flat
   look: the same colors, without drawn gradients and shadows.
+- A **crash-safe graphics start** (rustXterm's design). The app renders through wgpu. Before the window opens it
+  takes a `gpu-starting` marker next to desktop.toml, and a start that dies in the graphics driver makes the next
+  start try a safer backend:
+  - Windows: OpenGL → DirectX 12 → Vulkan → software (WARP);
+  - Linux: Vulkan → OpenGL → software (llvmpipe);
+  - macOS: Metal → OpenGL (glow).
+
+  A working fallback is saved as `[graphics]` in desktop.toml (the Fyne app keeps it) and announced under the sign-in
+  box. It can be changed in **Configure › Graphics › Rendering backend**, which applies at the next start. Choices:
+  - Automatic;
+  - **wgpu (WebGPU)**, where wgpu picks the backend and the adapter itself: on Windows it prefers DX12/Vulkan, where
+    Automatic prefers OpenGL;
+  - the OS's backends (Vulkan, OpenGL, DirectX 12, Software). Flags and variables:
+  - `--safe-gpu` forces the software path for one start;
+  - `WGPU_BACKEND` forces wgpu's own choice;
+  - `--gpu-info` prints the backend and adapter used.
+
+  The window is 1280×800 (minimum 800×600) and eframe restores its size and position.
 
 ## Layout
 

@@ -9,6 +9,7 @@ members = [
     "crates/ui",
 ]
 resolver = "3"
+exclude = ["vendor"]
 
 [workspace.package]
 version = "0.1.0"
@@ -37,7 +38,10 @@ adm-platform-windows = { path = "crates/platform-windows" }
 adm-platform-macos = { path = "crates/platform-macos" }
 adm-ui = { path = "crates/ui" }
 
-eframe = { version = "=0.36.2", default-features = false, features = ["glow", "wayland", "x11", "accesskit", "default_fonts"] }
+# wgpu on every OS, the GPU first and software only as the last fallback (design D12, as rustXterm): Linux Vulkan → GL
+# → software; Windows GL → DX12 → Vulkan → WARP. The glow renderer is added on macOS only, for the Metal → OpenGL
+# fallback (apps/ad-manager-desktop-rs/Cargo.toml). `persistence` keeps the window.
+eframe = { version = "=0.36.2", default-features = false, features = ["wgpu", "wayland", "x11", "accesskit", "default_fonts", "persistence"] }
 egui = "=0.36.2"
 egui_extras = { version = "=0.36.2", features = ["image", "svg"] }
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg"] }
@@ -76,3 +80,7 @@ debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 1
+
+[patch.crates-io]
+# wgpu-hal 30.0.1 + DX12 keeps the output-owning WARP adapter (GPU-less Windows VMs; vendor/README.md).
+wgpu-hal = { path = "vendor/wgpu-hal" }

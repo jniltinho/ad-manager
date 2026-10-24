@@ -1,0 +1,11 @@
+date: 2026-10-23T23:08:42-03:00
+cpu: AMD Ryzen 9 9900X 12-Core Processor (24 threads)
+memory: 186Gi
+kernel: 6.8.0-147-generic
+gl: Mesa llvmpipe on Xvfb 1920x1080x24, 96 dpi (LIBGL_ALWAYS_SOFTWARE=1)
+fyne: ../dist/desktop/linux-amd64/ad-manager-desktop (26973456 bytes, v0.21.0-2-gd4dffd4)
+rust: target/docker/release/ad-manager-desktop-rs (27677256 bytes, ad-manager-desktop-rs 0.1.0)
+users: 5000, runs: 5 (+1 warm-up each, discarded), alternating fyne/rust
+rust graphics: wgpu with WGPU_BACKEND=gl (OpenGL on llvmpipe), fresh HOME/XDG per run
+rust gpu: backend env (WGPU_BACKEND), renderer wgpu
+rust gpu: adapter llvmpipe (LLVM 20.1.2, 256 bits) (Cpu, Gl)

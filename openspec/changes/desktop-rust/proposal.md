@@ -50,10 +50,10 @@ the Rust one is an experiment that ships separately until the numbers decide.
   crashes while the window's device is created kills the process where no Rust error handling runs, so every launch
   would die the same way. Before the window exists the app plans its backend: `--safe-gpu` forces software for one
   launch; a `gpu-starting` marker in the config folder, holding the backend being tried under an OS file lock and
-  removed after 3 painted frames, tells a later launch that a start died (a marker nobody holds) and moves it to the
+  emptied after 3 painted frames, tells a later launch that a start died (a marker nobody holds) and moves it to the
   next safer backend of the platform's ladder (Windows OpenGL → DX12 → Vulkan → software/WARP; Linux Vulkan → OpenGL →
-  software/llvmpipe; macOS Metal → the glow renderer); otherwise the saved `gpu_backend` choice (`graphics.toml` beside
-  desktop.toml, set in Configure › Graphics: auto, gl, dx12, vulkan, cpu) applies; `WGPU_BACKEND` forces wgpu's
+  software/llvmpipe; macOS Metal → the glow renderer); otherwise the saved `gpu_backend` choice (`[graphics]` in desktop.toml,
+  set in Configure › Graphics: auto, gl, dx12, vulkan, cpu) applies; `WGPU_BACKEND` forces wgpu's
   choice and then nothing is promoted or saved. A hardware fallback that worked is saved and said before sign-in;
   software is never saved silently. The marker is locked before it is written (fixing a race of the original). Linux and Windows render through
   wgpu (glow is compiled in only on macOS, as rustXterm), with the adapter picked among the surface-compatible ones
