@@ -42,7 +42,7 @@ pub fn web_width(requested: f32, window: f32) -> f32 {
 }
 
 /// The body's padding, as the web's .pnl-body (px 16, py 12).
-const BODY: (f32, f32) = (16.0, 12.0);
+pub const BODY: (f32, f32) = (16.0, 12.0);
 
 /// Draws a dialog in its frame (title bar, bar, body).
 pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {

@@ -215,6 +215,85 @@ pub fn side_item<R>(
     egui::InnerResponse::new(r.inner, resp)
 }
 
+/// The web's `.cardtabs.fit` at the top of a dialog: a band across the dialog's whole width (over the body's
+/// padding) with tabs as wide as their labels, the current one in the theme's cardtab-on colors with its bar at the
+/// left. Returns the tab clicked.
+pub fn cardtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize) -> Option<usize> {
+    let (bx, by) = crate::modal::BODY;
+    let h = 34.0;
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
+    let band =
+        egui::Rect::from_min_max(egui::pos2(r.left() - bx, r.top() - by), egui::pos2(r.right() + bx, r.bottom()));
+    let painter = ui.painter().with_clip_rect(ui.clip_rect().union(band));
+    painter.rect_filled(band, 0.0, look.c("cardtabs"));
+    let upper = look.p.text("cardtab-transform") == "uppercase";
+    let bar = look.px("cardtab-bar-w", 4.0);
+    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let mut x = band.left() + look.px("cardtabs-pad", 0.0);
+    let mut out = None;
+    for (i, label) in tabs.iter().enumerate() {
+        let on = i == sel;
+        let text = if upper { label.to_uppercase() } else { label.to_string() };
+        let ink = if on { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
+        let g = ui.painter().layout_no_wrap(text, font.clone(), ink);
+        let w = g.size().x + 24.0 + if on { bar } else { 0.0 };
+        let top = if on { band.top() } else { band.top() + look.px("cardtab-inset-top", 0.0) };
+        let tab = egui::Rect::from_min_max(egui::pos2(x, top), egui::pos2(x + w, band.bottom()));
+        let resp = ui
+            .interact(tab.intersect(ui.clip_rect()), ui.id().with((id, i)), egui::Sense::click())
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        let fill = if on {
+            look.c("cardtab-on")
+        } else if resp.hovered() {
+            look.c("cardtab-hover")
+        } else {
+            look.c("cardtab")
+        };
+        let shadow = if on { look.shadows("cardtab-on") } else { look.shadows("cardtab") };
+        painter.extend(crate::depth::box_shapes(tab, None, fill, shadow));
+        if on && bar > 0.0 {
+            painter.rect_filled(
+                egui::Rect::from_min_size(tab.min, egui::vec2(bar, tab.height())),
+                0.0,
+                look.c("cardtab-bar"),
+            );
+        }
+        let left = tab.left() + 12.0 + if on { bar } else { 0.0 };
+        painter.galley(egui::pos2(left, tab.center().y - g.size().y / 2.0), g, ink);
+        let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
+            n.set_role(egui::accesskit::Role::Tab);
+            n.set_label(label.to_string());
+            if on {
+                n.set_selected(true);
+            }
+        });
+        if resp.clicked() && !on {
+            out = Some(i);
+        }
+        x += w + look.px("cardtabs-gap", 0.0);
+    }
+    painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
+    ui.add_space(12.0);
+    out
+}
+
+/// A field with its label above, `w` wide (the web's .lbl over an .inp in a grid cell).
+pub fn above(
+    ui: &mut Ui,
+    look: &Look,
+    label: &str,
+    w: f32,
+    add: impl FnOnce(&mut Ui, egui::Id) -> Response,
+) -> Response {
+    ui.vertical(|ui| {
+        ui.set_width(w);
+        ui.spacing_mut().item_spacing.y = 4.0;
+        let l = lbl(ui, look, label);
+        add(ui, l.id).labelled_by(l.id)
+    })
+    .inner
+}
+
 /// A small link inside a list item or a card head (the web's .act): `ink` when given (the current item's text color),
 /// else the link color.
 pub fn act(ui: &mut Ui, look: &Look, icon: &str, label: &str, ink: Option<Color32>, size: f32) -> Response {
@@ -345,9 +424,9 @@ pub enum Note {
 /// A callout as the web's notes: a tinted box with a bar on the left (accent for information, warning for a
 /// recommendation), the text at a 1.5 line height.
 pub fn callout(ui: &mut Ui, look: &Look, kind: Note, text: &str) -> Response {
-    let (bg, bar) = match kind {
-        Note::Info => (look.c("surface-2"), look.c("accent")),
-        Note::Warn => (look.c("warn-fill").gamma_multiply(0.12), look.c("warn")),
+    let (bg, bar, ink) = match kind {
+        Note::Info => (look.c("surface-2"), look.c("accent"), look.c("fg-muted")),
+        Note::Warn => (look.c("warn-soft"), look.c("warn"), look.c("on-warn-soft")),
     };
     let r = Frame::new()
         .fill(bg)
@@ -359,8 +438,8 @@ pub fn callout(ui: &mut Ui, look: &Look, kind: Note, text: &str) -> Response {
                 text.to_string(),
                 egui::TextFormat {
                     font_id: egui::FontId::proportional(size),
-                    color: look.c("fg"),
-                    line_height: Some(size * 1.6),
+                    color: ink,
+                    line_height: Some(size * 1.625),
                     ..Default::default()
                 },
             );
@@ -368,7 +447,7 @@ pub fn callout(ui: &mut Ui, look: &Look, kind: Note, text: &str) -> Response {
             ui.label(job);
         })
         .response;
-    ui.painter().rect_filled(egui::Rect::from_min_size(r.rect.min, egui::vec2(3.0, r.rect.height())), 0.0, bar);
+    ui.painter().rect_filled(egui::Rect::from_min_size(r.rect.min, egui::vec2(4.0, r.rect.height())), 0.0, bar);
     r
 }
 

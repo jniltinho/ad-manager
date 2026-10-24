@@ -441,7 +441,7 @@ fn shots() {
     e.h.run_steps(3);
     e.click("Send link to the user");
     save(&mut e, "10-password-link");
-    e.click("✔  OK");
+    e.click("✔  Generate link");
     e.wait("the link", |_, m| !m.sent("POST", "/api/users/bruno.silva/password-link").is_empty());
     save(&mut e, "11-link-generated");
     e.key(egui::Key::Escape);

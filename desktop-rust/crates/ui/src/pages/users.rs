@@ -397,36 +397,41 @@ fn new_password(cx: &Cx) -> Zeroizing<String> {
     Zeroizing::new(logic::generate_password(logic::password_length(&cx.me)).unwrap_or_default())
 }
 
-/// The password field (shown, to be read out or copied) with its generate and copy buttons; `id` is the field's own
-/// (forgotten with its undo history when the dialog closes).
-fn password_field(ui: &mut Ui, cx: &mut Cx, id: egui::Id, pw: &mut Zeroizing<String>) {
+/// The user fields as the web's 2-column grid (labels above, 16 points between columns, 12 between rows): `first`
+/// draws the cell before them (the login), then display name; first and last name; e-mail and phone; job title and
+/// department; description.
+fn fields_form(ui: &mut Ui, cx: &Cx, f: &mut UserFields, first: impl FnOnce(&mut Ui, f32)) {
     let look = cx.look.clone();
-    ui.horizontal(|ui| {
-        ui.add(crate::widgets::line(&mut **pw).id(id).font(egui::TextStyle::Monospace).desired_width(260.0));
-        if widgets::icon_button(ui, &look, "⟳", t("Generate")).clicked() {
-            *pw = new_password(cx);
+    let cw = ((ui.available_width() - 16.0) / 2.0).floor();
+    let mut first = Some(first);
+    let cells: [[Option<usize>; 2]; 5] =
+        [[None, Some(0)], [Some(1), Some(2)], [Some(3), Some(4)], [Some(5), Some(6)], [Some(7), None]];
+    for (r, row) in cells.iter().enumerate() {
+        if r > 0 {
+            ui.add_space(12.0);
         }
-        if widgets::icon_button(ui, &look, "📋", t("Copy")).clicked() {
-            ui.ctx().copy_text(pw.to_string());
-            cx.set_status(t("Password copied."));
-        }
-    });
-}
-
-/// The two columns of user fields.
-fn fields_form(ui: &mut Ui, cx: &Cx, f: &mut UserFields) {
-    let look = cx.look.clone();
-    ui.columns(2, |cols| {
-        for (side, range) in [(0usize, 0..4), (1, 4..8)] {
-            widgets::form(&mut cols[side], &format!("user-fields-{side}"), |ui| {
-                for i in range {
-                    widgets::label(ui, &look, t(USER_FIELDS[i].1));
-                    ui.add(crate::widgets::line(&mut f.0[i]).desired_width(220.0));
-                    ui.end_row();
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            for (c, cell) in row.iter().enumerate() {
+                match cell {
+                    Some(i) => {
+                        widgets::above(ui, &look, t(USER_FIELDS[*i].1), cw, |ui, _| {
+                            ui.add(crate::widgets::line(&mut f.0[*i]).desired_width(cw))
+                        });
+                    }
+                    None if r == 0 && c == 0 => {
+                        if let Some(add) = first.take() {
+                            ui.vertical(|ui| {
+                                ui.set_width(cw);
+                                add(ui, cw);
+                            });
+                        }
+                    }
+                    None => {}
                 }
-            });
-        }
-    });
+            }
+        });
+    }
 }
 
 /// A list of groups with remove buttons and a picker to add one. Returns the group added or removed.
@@ -479,7 +484,7 @@ fn group_list(
 /// Opens the new-user dialog (a copy of `tpl`: OU, job title, department, description and groups).
 pub fn new_user(cx: &mut Cx, tpl: Option<User>) {
     let api = cx.panel.clone();
-    cx.run(async move { Ok((fetch_ous(&api).await?, group_names(&api).await?)) }, move |app, (ous, names)| {
+    cx.run(async move { fetch_ous(&api).await }, move |app, ous| {
         let cx = &mut app.cx;
         let mut ou = cx.me.settings.default_ou.clone();
         if ou.is_empty() {
@@ -501,9 +506,7 @@ pub fn new_user(cx: &mut Cx, tpl: Option<User>) {
             ou: OuPicker::new(&ous, &ou),
             pw,
             must_change: true,
-            names,
             groups,
-            pick: 0,
             busy: false,
             done: false,
             focus: true,
@@ -519,9 +522,8 @@ pub struct NewUser {
     pw: Zeroizing<String>,
     pw_id: egui::Id,
     must_change: bool,
-    names: Vec<String>,
+    /// The template's groups, added after the account is created.
     groups: Vec<String>,
-    pick: usize,
     busy: bool,
     done: bool,
     focus: bool,
@@ -612,34 +614,69 @@ impl Dialog for NewUser {
             return Flow::Close;
         }
         let look = cx.look.clone();
-        widgets::form(ui, "new-user-top", |ui| {
-            let r = widgets::labeled_field(ui, &look, t("Login (sAMAccountName)"), &mut self.sam, "", 300.0);
-            if std::mem::take(&mut self.focus) {
+        let (sam, focus) = (&mut self.sam, &mut self.focus);
+        fields_form(ui, cx, &mut self.fields, |ui, w| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, t("Login (sAMAccountName)"));
+            let r = ui.add(crate::widgets::line(sam).char_limit(20).desired_width(w)).labelled_by(l.id);
+            if std::mem::take(focus) {
                 r.request_focus();
             }
-            ui.end_row();
-            widgets::label(ui, &look, t("OU"));
-            self.ou.ui(ui, "new-user-ou", 400.0);
-            ui.end_row();
         });
-        fields_form(ui, cx, &mut self.fields);
-        widgets::form(ui, "new-user-pw", |ui| {
-            widgets::label(ui, &look, t("Initial password"));
-            password_field(ui, cx, self.pw_id, &mut self.pw);
-            ui.end_row();
-            ui.label("");
+        ui.add_space(12.0);
+        let w = ui.available_width();
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            widgets::lbl(ui, &look, t("OU"));
+            self.ou.ui(ui, "new-user-ou", w);
+        });
+        ui.add_space(12.0);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, t("Initial password"));
+            // the field takes what the button leaves, the button flush at the right (the web's flex row)
+            ui.allocate_ui_with_layout(
+                egui::vec2(w, crate::style::control_h()),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    if widgets::button(ui, &look, "", t("generate"), Kind::Secondary).clicked() {
+                        self.pw = new_password(cx);
+                    }
+                    let edit = crate::widgets::line(&mut *self.pw).id(self.pw_id).font(egui::TextStyle::Monospace);
+                    ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
+                },
+            );
+            ui.add_space(4.0);
             ui.checkbox(&mut self.must_change, t("Require change at next logon"));
-            ui.end_row();
         });
-        widgets::label(ui, &look, t("Groups"));
-        // the new user's groups are only collected here; they are added after the account is created
-        match group_list(ui, cx, "new-user-groups", &self.names, &self.groups, &mut self.pick) {
-            Some(GroupEvent::Add(g)) => {
-                self.groups.push(g);
-                self.groups.sort();
+        // the template's groups, added after the account is created
+        if !self.groups.is_empty() {
+            ui.add_space(12.0);
+            widgets::lbl(ui, &look, t("Groups (from the template)"));
+            ui.add_space(4.0);
+            let mut drop = None;
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+                for g in &self.groups {
+                    egui::Frame::new()
+                        .fill(look.c("surface-3"))
+                        .stroke(egui::Stroke::new(1.0, look.c("line")))
+                        .inner_margin(egui::Margin::symmetric(8, 2))
+                        .show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.label(RichText::new(g).size(11.0));
+                            let r = widgets::act(ui, &look, "", "×", None, 11.0);
+                            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(tf!("remove %s", g)));
+                            if r.clicked() {
+                                drop = Some(g.clone());
+                            }
+                        });
+                }
+            });
+            if let Some(g) = drop {
+                self.groups.retain(|x| *x != g);
             }
-            Some(GroupEvent::Remove(g)) => self.groups.retain(|x| *x != g),
-            None => {}
         }
         let f = footer(ui, cx, Some(t("Create")), "", false, !self.busy);
         if f.ok && !self.busy {
@@ -731,26 +768,32 @@ impl Dialog for EditUser {
             return Flow::Close;
         }
         let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, 0, format!("👤 {}", t("Account")));
-            ui.selectable_value(&mut self.tab, 1, format!("☰ {}", Self::groups_label(self.groups.len())));
-        });
-        ui.separator();
+        let groups = Self::groups_label(self.groups.len());
+        if let Some(i) = widgets::cardtabs(ui, &look, "edit-user-tabs", &[t("Account"), &groups], self.tab) {
+            self.tab = i;
+        }
         if self.tab == 0 {
-            widgets::form(ui, "edit-user-login", |ui| {
-                widgets::label(ui, &look, t("Login"));
-                ui.label(format!("{} · {}", self.user.sam, self.user.upn));
-                ui.end_row();
+            let login = format!("{} · {}", self.user.sam, self.user.upn);
+            fields_form(ui, cx, &mut self.fields, |ui, _| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                widgets::lbl(ui, &look, t("Login"));
+                ui.add_space(4.0);
+                ui.label(RichText::new(login).monospace().size(12.0));
             });
-            fields_form(ui, cx, &mut self.fields);
-            ui.separator();
+            ui.add_space(12.0);
+            let y = ui.cursor().top();
+            ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+            ui.add_space(12.0);
+            let muted = look.c("fg-muted");
             ui.columns(3, |c| {
-                let small = |s: String| RichText::new(s).size(11.0);
+                let small = |s: String| RichText::new(s).size(12.0).color(muted);
                 c[0].label(small(tf!("Created: %s", date(self.user.created))));
                 c[1].label(small(tf!("Last logon: %s", date(self.user.last_logon))));
                 c[2].label(small(tf!("Password changed: %s", date(self.user.pwd_last_set))));
             });
-            ui.add(egui::Label::new(RichText::new(format!("{} · {}", self.user.dn, self.user.sid)).size(11.0)).wrap());
+            ui.add_space(4.0);
+            let ids = format!("{} · {}", self.user.dn, self.user.sid);
+            ui.add(egui::Label::new(RichText::new(ids).monospace().size(11.0).color(muted)).wrap());
         } else {
             match group_list(ui, cx, "edit-user-groups", &self.names, &self.groups, &mut self.pick) {
                 Some(GroupEvent::Add(g)) => self.member(cx, g, true),
@@ -839,6 +882,10 @@ pub struct PasswordDialog {
     unlock: bool,
     tab: usize,
     hours: usize,
+    visible: bool,
+    busy: bool,
+    /// The link generated: shown here with copy, the dialog then only closes.
+    link: Option<(String, Option<DateTime<Utc>>)>,
     after: Option<crate::app::Job>,
 }
 
@@ -853,6 +900,9 @@ impl PasswordDialog {
             unlock,
             tab: 0,
             hours: 1,
+            visible: true,
+            busy: false,
+            link: None,
             after: None,
         }
     }
@@ -873,38 +923,76 @@ impl Dialog for PasswordDialog {
         widgets::forget_field(ctx, self.pw_id);
     }
 
-    fn width(&self) -> f32 {
-        600.0
-    }
-
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, 0, format!("👤 {}", t("Set password")));
-            ui.selectable_value(&mut self.tab, 1, format!("✉ {}", t("Send link to the user")));
-        });
-        ui.separator();
-        if self.tab == 0 {
-            widgets::form(ui, "password-set", |ui| {
-                widgets::label(ui, &look, t("New password"));
-                password_field(ui, cx, self.pw_id, &mut self.pw);
-                ui.end_row();
-                ui.label("");
-                ui.checkbox(&mut self.must_change, t("Require change at next logon"));
-                ui.end_row();
-                ui.label("");
-                ui.checkbox(&mut self.unlock, t("Unlock the account too"));
-                ui.end_row();
+        let tabs = [t("Set password"), t("Send link to the user")];
+        if let Some(i) = widgets::cardtabs(ui, &look, "password-tabs", &tabs, self.tab)
+            && self.link.is_none()
+        {
+            self.tab = i;
+        }
+        let w = ui.available_width();
+        // a row of a field and the ghost buttons glued to its right (the web's flex row)
+        let glued = |ui: &mut Ui, add: &mut dyn FnMut(&mut Ui)| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(w, crate::style::control_h()),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    add(ui);
+                },
+            );
+        };
+        if let Some((url, expires)) = self.link.clone() {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, &tf!("Link for %s", self.user.sam));
+            glued(ui, &mut |ui| {
+                if widgets::button(ui, &look, "", t("copy"), Kind::Secondary).clicked() {
+                    ui.ctx().copy_text(url.clone());
+                    cx.set_status(t("Link copied."));
+                }
+                let mut v = url.clone();
+                let edit = crate::widgets::line(&mut v).font(egui::FontId::monospace(12.0));
+                ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
             });
+            ui.add_space(8.0);
+            let note = tf!("Valid until %s. Send it to the user through a trusted channel.", date(expires));
+            ui.add(egui::Label::new(RichText::new(note).size(12.0).color(look.c("fg-muted"))).wrap());
+        } else if self.tab == 0 {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, t("New password"));
+            let (pw, pw_id, visible) = (&mut self.pw, self.pw_id, &mut self.visible);
+            glued(ui, &mut |ui| {
+                if widgets::button(ui, &look, "", t("copy"), Kind::Secondary).clicked() {
+                    ui.ctx().copy_text(pw.to_string());
+                    cx.set_status(t("Password copied."));
+                }
+                if widgets::button(ui, &look, "", t("generate"), Kind::Secondary).clicked() {
+                    *pw = new_password(cx);
+                }
+                let label = if *visible { t("hide") } else { t("show") };
+                if widgets::button(ui, &look, "", label, Kind::Secondary).clicked() {
+                    *visible = !*visible;
+                }
+                let edit =
+                    crate::widgets::line(&mut **pw).id(pw_id).password(!*visible).font(egui::TextStyle::Monospace);
+                ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
+            });
+            ui.add_space(12.0);
+            ui.checkbox(&mut self.must_change, t("Require change at next logon"));
+            ui.add_space(4.0);
+            // only a locked account can be unlocked
+            ui.add_enabled(self.user.locked, egui::Checkbox::new(&mut self.unlock, t("Unlock the account too")));
         } else {
-            widgets::form(ui, "password-link", |ui| {
-                widgets::label(ui, &look, t("Valid for"));
-                let labels: Vec<String> = VALIDITY.iter().map(|v| t(v.0).to_string()).collect();
-                widgets::select(ui, "password-hours", &mut self.hours, &labels, 160.0);
-                ui.end_row();
-            });
-            widgets::wrapped(
+            ui.spacing_mut().item_spacing.y = 4.0;
+            widgets::lbl(ui, &look, t("Valid for"));
+            let labels: Vec<String> = VALIDITY.iter().map(|v| t(v.0).to_string()).collect();
+            widgets::select(ui, "password-hours", &mut self.hours, &labels, 160.0);
+            ui.add_space(12.0);
+            widgets::callout(
                 ui,
+                &look,
+                widgets::Note::Info,
                 &format!(
                     "{} {}",
                     t(
@@ -914,8 +1002,20 @@ impl Dialog for PasswordDialog {
                 ),
             );
         }
-        let f = footer(ui, cx, Some(t("OK")), "", false, true);
-        if f.ok {
+        let ok = if self.link.is_some() {
+            t("Close")
+        } else if self.busy {
+            t("Please wait…")
+        } else if self.tab == 1 {
+            t("Generate link")
+        } else {
+            t("Reset")
+        };
+        let f = footer(ui, cx, Some(ok), "", false, !self.busy);
+        if f.ok && self.link.is_some() {
+            return Flow::Close;
+        }
+        if f.ok && !self.busy {
             let api = cx.panel.clone();
             let x = self.user.clone();
             let after = self.after.take();
@@ -929,18 +1029,36 @@ impl Dialog for PasswordDialog {
                 }
                 let hours = VALIDITY[self.hours.min(3)].1;
                 let path = format!("/api/users/{}/password-link", esc(&x.sam));
-                cx.run(
+                let me = cx.current_dialog();
+                self.busy = true;
+                cx.spawn(
                     async move { api.send::<Link, _>(Method::POST, &path, Some(&json!({ "hours": hours }))).await },
                     move |app, r| {
-                        let url = format!("{}/password/{}", app.cx.panel.base.trim_end_matches('/'), r.token);
+                        let base = app.cx.panel.base.trim_end_matches('/').to_string();
+                        let d = app.cx.dialog_mut::<PasswordDialog>(me);
+                        let r = match r {
+                            Ok(r) => r,
+                            Err(e) => {
+                                if let Some(d) = d {
+                                    d.busy = false;
+                                }
+                                app.cx.handle_error(e);
+                                return;
+                            }
+                        };
+                        let url = format!("{base}/password/{}", r.token);
+                        if let Some(d) = d {
+                            d.busy = false;
+                            d.link = Some((url, r.expires));
+                        }
                         app.cx.set_status(tf!("Password link for %s generated.", x.sam));
-                        app.cx.push(ShowLink { sam: x.sam, url, expires: r.expires });
                         reload(app);
                         if let Some(a) = after {
                             a(app);
                         }
                     },
                 );
+                return Flow::Keep;
             } else {
                 #[derive(serde::Serialize)]
                 struct Body<'a> {
@@ -975,40 +1093,6 @@ impl Dialog for PasswordDialog {
             return Flow::Close;
         }
         if f.cancel { Flow::Close } else { Flow::Keep }
-    }
-}
-
-/// A generated password link with a copy button.
-pub struct ShowLink {
-    sam: String,
-    url: String,
-    expires: Option<DateTime<Utc>>,
-}
-
-impl Dialog for ShowLink {
-    fn title(&self) -> String {
-        tf!("Link for %s", self.sam)
-    }
-
-    fn width(&self) -> f32 {
-        640.0
-    }
-
-    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
-        let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            let mut v = self.url.clone();
-            ui.add(crate::widgets::line(&mut v).font(egui::TextStyle::Monospace).desired_width(470.0));
-            if widgets::button(ui, &look, "📋", t("copy"), Kind::Secondary).clicked() {
-                ui.ctx().copy_text(self.url.clone());
-                cx.set_status(t("Link copied."));
-            }
-        });
-        widgets::wrapped(
-            ui,
-            &tf!("Valid until %s. Send it to the user through a trusted channel.", date(self.expires)),
-        );
-        if footer(ui, cx, None, t("Close"), false, true).ok { Flow::Close } else { Flow::Keep }
     }
 }
 
