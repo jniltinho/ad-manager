@@ -175,7 +175,10 @@ its tests and the corrections below:
   Change it in Configure.") is shown under the sign-in box. Once signed in, it goes to the status line together with
   any marker or save error. The notices are translated when shown.
 - **Configure › Graphics**: as rustXterm's Settings › Display › Graphics.
-  - A **Rendering backend** select of `auto` plus the OS's ladder.
+  - A **Rendering backend** select of `auto`, `wgpu` and the OS's ladder.
+    - `wgpu` is wgpu's own choice of backend and adapter, with no preference of the app. On Windows it differs from
+      `auto`, which prefers OpenGL.
+    - `wgpu` is on no ladder: a crash on it starts the ladder from the top, and on macOS it moves to glow.
   - Changing it saves `[graphics]` into desktop.toml at once, with no panel test needed and the rest of the file as
     saved.
   - The hint reads "Applies at the next start. After a driver crash AD Manager picks a safer one."

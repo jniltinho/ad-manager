@@ -38,7 +38,11 @@ The same as the Fyne app, against the same panel API, with the same rules (the s
   - macOS: Metal → OpenGL (glow).
 
   A working fallback is saved as `[graphics]` in desktop.toml (the Fyne app keeps it) and announced under the sign-in
-  box. It can be changed in **Configure › Graphics › Rendering backend**, which applies at the next start. Flags and variables:
+  box. It can be changed in **Configure › Graphics › Rendering backend**, which applies at the next start. Choices:
+  - Automatic;
+  - **wgpu (WebGPU)**, where wgpu picks the backend and the adapter itself: on Windows it prefers DX12/Vulkan, where
+    Automatic prefers OpenGL;
+  - the OS's backends (Vulkan, OpenGL, DirectX 12, Software). Flags and variables:
   - `--safe-gpu` forces the software path for one start;
   - `WGPU_BACKEND` forces wgpu's own choice;
   - `--gpu-info` prints the backend and adapter used.

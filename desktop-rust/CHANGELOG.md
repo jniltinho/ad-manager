@@ -15,7 +15,8 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
   - A working hardware fallback is saved as `[graphics] gpu_backend` in desktop.toml, which the Fyne app keeps. It is
     announced under the sign-in box and in the status line.
   - **Configure › Graphics › Rendering backend**, as rustXterm's, saves the choice at once without a panel test. It
-    applies at the next start.
+    applies at the next start. The choices are Automatic, **wgpu (WebGPU)** (wgpu's own choice of backend and adapter)
+    and the OS's backends.
   - Flags and variables: `--safe-gpu`, `--gpu-info` and `WGPU_BACKEND`.
   - The adapter choice prefers hardware OpenGL, and the output-owning WARP adapter on GPU-less Windows VMs (vendored
     `wgpu-hal` patch).

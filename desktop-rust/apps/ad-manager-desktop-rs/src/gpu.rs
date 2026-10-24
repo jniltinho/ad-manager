@@ -7,15 +7,16 @@ use adm_core::gpu::{Backend, Os};
 use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup};
 use eframe::wgpu::{self, Backends, DeviceType};
 
-/// wgpu setup for `backend`; `None` keeps eframe's default: on macOS (Metal, or the glow renderer chosen in
-/// `main.rs`), on a launch forced by `WGPU_BACKEND`, and for `Auto` off Windows.
+/// wgpu setup for `backend`; `None` keeps eframe's default (wgpu's own choice of backend and adapter): for `Wgpu`, on
+/// macOS (Metal, or the glow renderer chosen in `main.rs`), on a launch forced by `WGPU_BACKEND`, and for `Auto` off
+/// Windows.
 pub fn configuration(backend: Backend, os: Os, forced: bool) -> Option<WgpuConfiguration> {
     let windows = os == Os::Windows;
-    if os == Os::Macos || forced || (backend == Backend::Auto && !windows) {
+    if os == Os::Macos || forced || backend == Backend::Wgpu || (backend == Backend::Auto && !windows) {
         return None;
     }
     let backends = match backend {
-        Backend::Auto => Backends::all(),
+        Backend::Auto | Backend::Wgpu => Backends::all(),
         Backend::Gl => Backends::GL,
         Backend::Dx12 => Backends::DX12,
         Backend::Vulkan => Backends::VULKAN,
@@ -98,6 +99,7 @@ mod tests {
         assert!(configuration(Backend::Gl, Os::Macos, false).is_none(), "macOS: Metal or glow, never reconfigured");
         assert!(configuration(Backend::Dx12, Os::Windows, true).is_none(), "WGPU_BACKEND forced");
         assert!(configuration(Backend::Auto, Os::Windows, false).is_some(), "Windows auto: hardware GL first");
+        assert!(configuration(Backend::Wgpu, Os::Windows, false).is_none(), "wgpu: its own choice");
         assert!(configuration(Backend::Cpu, Os::Linux, false).is_some());
     }
 }

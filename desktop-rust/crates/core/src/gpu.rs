@@ -30,6 +30,10 @@ const FORCED: &str = "env";
 pub enum Backend {
     /// The platform default: hardware OpenGL first on Windows, wgpu's choice on Linux, Metal on macOS.
     Auto,
+    /// wgpu's own choice (the WebGPU implementation picks the backend and the adapter, no preference of the app):
+    /// differs from `Auto` on Windows, where wgpu prefers DX12/Vulkan; not on any ladder, a crash on it starts the
+    /// ladder from the top.
+    Wgpu,
     Gl,
     Dx12,
     Vulkan,
@@ -40,6 +44,7 @@ pub enum Backend {
 impl Backend {
     pub fn parse(s: &str) -> Self {
         match s.trim().to_ascii_lowercase().as_str() {
+            "wgpu" | "webgpu" => Self::Wgpu,
             "gl" | "opengl" => Self::Gl,
             "dx12" => Self::Dx12,
             "vulkan" => Self::Vulkan,
@@ -51,6 +56,7 @@ impl Backend {
     pub fn name(self) -> &'static str {
         match self {
             Self::Auto => "auto",
+            Self::Wgpu => "wgpu",
             Self::Gl => "gl",
             Self::Dx12 => "dx12",
             Self::Vulkan => "vulkan",
@@ -63,6 +69,7 @@ impl Backend {
         match (self, os) {
             (Self::Auto, Os::Macos) => "Automatic (Metal)",
             (Self::Auto, _) => "Automatic",
+            (Self::Wgpu, _) => "wgpu (WebGPU)",
             (Self::Gl, _) => "OpenGL",
             (Self::Dx12, _) => "DirectX 12",
             (Self::Vulkan, _) => "Vulkan",
@@ -105,7 +112,7 @@ pub fn ladder(os: Os) -> &'static [Backend] {
 
 /// The choices of Configure › Graphics: automatic, then the ladder.
 pub fn choices(os: Os) -> Vec<Backend> {
-    let mut v = vec![Backend::Auto];
+    let mut v = vec![Backend::Auto, Backend::Wgpu];
     v.extend(ladder(os).iter().copied().filter(|b| *b != Backend::Auto));
     v
 }
@@ -115,9 +122,13 @@ fn effective(b: Backend, os: Os) -> Backend {
     if b == Backend::Auto { ladder(os)[0] } else { b }
 }
 
-/// The next safer backend after a start on `tried` died.
+/// The next safer backend after a start on `tried` died (wgpu's own choice is followed by the whole ladder: its
+/// first rung, or glow after Metal on macOS).
 pub fn next(tried: Backend, os: Os) -> Backend {
     let l = ladder(os);
+    if tried == Backend::Wgpu {
+        return if os == Os::Macos { Backend::Gl } else { l[0] };
+    }
     let tried = effective(tried, os);
     l.iter().position(|b| *b == tried).and_then(|i| l.get(i + 1)).copied().unwrap_or(Backend::Cpu)
 }
@@ -263,8 +274,12 @@ mod tests {
         assert_eq!(next(Backend::Auto, Os::Macos), Backend::Gl, "Metal falls back to glow");
         assert_eq!(next(Backend::Gl, Os::Macos), Backend::Cpu);
         assert_eq!(next(Backend::Vulkan, Os::Macos), Backend::Cpu, "not on the macOS ladder");
-        assert_eq!(choices(Os::Macos), vec![Backend::Auto, Backend::Gl]);
-        assert_eq!(choices(Os::Linux), vec![Backend::Auto, Backend::Vulkan, Backend::Gl, Backend::Cpu]);
+        assert_eq!(choices(Os::Macos), vec![Backend::Auto, Backend::Wgpu, Backend::Gl]);
+        assert_eq!(choices(Os::Linux), vec![Backend::Auto, Backend::Wgpu, Backend::Vulkan, Backend::Gl, Backend::Cpu]);
+        assert_eq!(next(Backend::Wgpu, Os::Windows), Backend::Gl, "wgpu's choice died: the ladder from the top");
+        assert_eq!(next(Backend::Wgpu, Os::Linux), Backend::Vulkan);
+        assert_eq!(next(Backend::Wgpu, Os::Macos), Backend::Gl);
+        assert_eq!(Backend::parse("WebGPU"), Backend::Wgpu);
     }
 
     #[test]
