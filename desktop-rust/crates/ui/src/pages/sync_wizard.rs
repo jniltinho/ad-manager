@@ -332,7 +332,7 @@ impl SyncWizard {
         cx.run(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, out| {
             if let Some(w) = wizard(app, me) {
                 w.src_size = Some((out.files, out.bytes));
-                w.size_label = tf!("%d files · %s", out.files, size_text(out.bytes));
+                w.size_label = tf!("%d files · %s", adm_core::i18n::count(out.files), size_text(out.bytes));
             }
         });
     }
@@ -359,7 +359,7 @@ impl SyncWizard {
         cx.spawn(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, r| {
             if let Some(w) = wizard(app, me) {
                 let text = match r {
-                    Ok(o) => tf!("%d files · %s", o.files, size_text(o.bytes)),
+                    Ok(o) => tf!("%d files · %s", adm_core::i18n::count(o.files), size_text(o.bytes)),
                     Err(e) => e.to_string(),
                 };
                 w.item_sizes.insert(item, text);
@@ -1205,7 +1205,7 @@ impl SyncWizard {
             src = format!("{} · {} · {who}", sync_unc(&self.job), t("every share"));
         }
         if let Some((f, b)) = self.src_size {
-            src = format!("{src} · {}", tf!("%d files · %s", f, size_text(b)));
+            src = format!("{src} · {}", tf!("%d files · %s", adm_core::i18n::count(f), size_text(b)));
         }
         let mut dst = self.job.dest.clone();
         if self.job.kind == "server" {

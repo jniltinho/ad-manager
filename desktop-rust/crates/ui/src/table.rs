@@ -704,6 +704,10 @@ fn draw_cell<A>(
                 let tink = look.tone(*tone);
                 let shown = elide(ui, tail, &|s| rich(s, tink), ui.available_width());
                 let r = ui.add(egui::Label::new(rich(shown.clone(), tink)).selectable(false));
+                if shown != *tail {
+                    // the whole text for screen readers
+                    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(tail.clone()));
+                }
                 if !cl.tip.is_empty() {
                     let _ = r.on_hover_text(&cl.tip);
                 } else if shown != *tail {
@@ -725,10 +729,15 @@ fn draw_cell<A>(
             for (i, (text, tone)) in cl.tags.iter().enumerate() {
                 // after a text the web's tag is an inline element: one space of the cell's font from it (a tag alone
                 // starts at the cell's padding)
-                if i > 0 || !cl.text.is_empty() {
+                // tags side by side touch (Vue drops the line break between them)
+                if i == 0 && !cl.text.is_empty() {
                     ui.add_space(ui.ctx().fonts_mut(|f| f.glyph_width(&egui::FontId::proportional(size), ' ')));
                 }
-                let _ = crate::widgets::tag(ui, look, text, *tone);
+                let _ = if cl.mono {
+                    crate::widgets::tag_mono(ui, look, text, *tone)
+                } else {
+                    crate::widgets::tag(ui, look, text, *tone)
+                };
             }
         }
     }

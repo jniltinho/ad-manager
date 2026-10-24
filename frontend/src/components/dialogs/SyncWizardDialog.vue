@@ -23,7 +23,7 @@ import {
 } from 'lucide-vue-next'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { enc, get, post, put } from '../../api'
-import { serverText, t } from '../../i18n'
+import { locale, serverText, t } from '../../i18n'
 import { toast } from '../../toasts'
 import Modal from '../Modal.vue'
 
@@ -207,7 +207,7 @@ function sizeText(path) {
   if (!v) return ''
   if (v === 'busy') return t('counting…')
   if (typeof v === 'string') return v
-  return t('{n} files · {size}', { n: v.files.toLocaleString(), size: bytes(v.bytes) })
+  return t('{n} files · {size}', { n: v.files.toLocaleString(locale()), size: bytes(v.bytes) })
 }
 const sourceSize = computed(() => {
   const v = sizes.value[sizeKey(j.value.source.path)]
@@ -834,7 +834,8 @@ function onEnter() {
                 <span class="text-fg-muted">
                   · {{ j.source.auth === 'ntlm' ? j.source.user + (j.source.domain ? '@' + j.source.domain : '') : t('machine account') }}
                   <template v-if="sourceSize">
-                    · {{ t('{n} files · {size}', { n: sourceSize.files.toLocaleString(), size: bytes(sourceSize.bytes) }) }}</template
+                    ·
+                    {{ t('{n} files · {size}', { n: sourceSize.files.toLocaleString(locale()), size: bytes(sourceSize.bytes) }) }}</template
                   >
                 </span>
               </td>

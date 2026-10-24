@@ -99,7 +99,7 @@ const phaseText = (p) => {
     case 'copying':
       if (p.total) return share + t('copying {n} of {total}', { n: p.transfers || 0, total: p.total })
       // nothing new planned yet: rclone compares the files (its checks)
-      return share + (p.checks ? t('comparing {n} files', { n: p.checks.toLocaleString() }) : t('copying'))
+      return share + (p.checks ? t('comparing {n} files', { n: p.checks.toLocaleString(locale()) }) : t('copying'))
     case 'acl':
       return share + t('applying Windows permissions') + (p.acl_items ? ` (${p.acl_items})` : '')
     case 'finalizing':
@@ -247,7 +247,14 @@ const details = ref(null)
                     <span v-if="j.kind === 'server'" class="tag bg-surface-2 text-fg-muted">{{ t('every share') }}</span>
                     <span class="tag bg-surface-2 text-fg-muted">{{ j.source.auth === 'ntlm' ? 'NTLM' : 'Kerberos' }}</span>
                   </td>
-                  <td v-if="j.kind === 'server'" class="max-w-64 truncate text-[11px] whitespace-nowrap text-fg-muted">
+                  <td
+                    v-if="j.kind === 'server' && data?.roots?.length"
+                    class="max-w-64 truncate font-mono text-[11px] whitespace-nowrap"
+                    :title="t('the shares of the same name')"
+                  >
+                    {{ data.roots.join(', ') }}
+                  </td>
+                  <td v-else-if="j.kind === 'server'" class="max-w-64 truncate text-[11px] whitespace-nowrap text-fg-muted">
                     {{ t('the shares of the same name') }}
                   </td>
                   <td v-else class="max-w-64 truncate font-mono text-[11px] whitespace-nowrap" :title="j.dest">{{ j.dest }}</td>

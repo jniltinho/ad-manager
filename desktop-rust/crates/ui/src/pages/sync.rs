@@ -210,6 +210,8 @@ impl Sync {
                 let me = &*self;
                 let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();
                 let (jobs, runs, qs) = (&self.data.jobs, &self.data.runs, &self.qs.quarantines);
+                // a server job's destination: this server's share folders (each source share into its namesake)
+                let roots = self.data.roots.join(", ");
                 // the web's auto table layout: each column as wide as its content (heading or widest cell, plus the
                 // 8-point paddings), the room left shared in proportion to them; the actions keep their w-36
                 let reg = egui::FontId::proportional(12.0);
@@ -220,7 +222,7 @@ impl Sync {
                     ui.painter().layout_no_wrap(s.to_string(), f.clone(), egui::Color32::PLACEHOLDER).size().x
                 };
                 let space = tw(" ", &reg);
-                let tag = |s: &str| space + widgets::tag_layout(ui, &look, s, egui::Color32::PLACEHOLDER, 0.0).1.x;
+                let tag = |s: &str| space + widgets::tag_layout_mono(ui, &look, s, egui::Color32::PLACEHOLDER).1.x;
                 let heads = [
                     t("Name"),
                     t("Source"),
@@ -233,12 +235,12 @@ impl Sync {
                 let mut w: [f32; 7] = std::array::from_fn(|i| tw(heads[i], &bold));
                 for (j, name) in jobs.iter().zip(&names) {
                     let src = tw(&sync_unc(j), &mono)
-                        + if j.kind == "server" { tag(t("every share")) } else { 0.0 }
+                        + if j.kind == "server" { tag(t("every share")) - space } else { 0.0 }
                         + tag(auth_text(j));
-                    let dest = if j.kind == "server" {
-                        tw(t("the shares of the same name"), &small)
-                    } else {
-                        tw(&j.dest, &mono)
+                    let dest = match j.kind.as_str() {
+                        "server" if roots.is_empty() => tw(t("the shares of the same name"), &small),
+                        "server" => tw(&roots, &mono),
+                        _ => tw(&j.dest, &mono),
                     };
                     let cron = if j.enabled && !j.cron.is_empty() { tw(&j.cron, &mono) } else { tw("—", &reg) };
                     let q = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum::<i64>();
@@ -260,7 +262,10 @@ impl Sync {
                         w[k] = w[k].max(x);
                     }
                 }
-                let w = w.map(|x| x.ceil() + 16.0);
+                // the web's max-w-56, max-w-80 and max-w-64 (name, source, destination): a long path is cut, the
+                // actions stay in view
+                let caps = [224.0, 320.0, 256.0, f32::INFINITY, f32::INFINITY, f32::INFINITY, f32::INFINITY];
+                let w: [f32; 7] = std::array::from_fn(|i| (w[i].ceil() + 16.0).min(caps[i]));
                 let k = ((ui.available_width() - 144.0) / w.iter().sum::<f32>()).max(1.0);
                 let w = w.map(|x| (x * k).floor());
                 let cols = [
@@ -296,7 +301,10 @@ impl Sync {
                             }
                             cell.with_tag(auth_text(j), Tone::Normal)
                         }
-                        2 if j.kind == "server" => Cell::new(t("the shares of the same name"), Tone::Muted).small(),
+                        2 if j.kind == "server" && roots.is_empty() => {
+                            Cell::new(t("the shares of the same name"), Tone::Muted).small()
+                        }
+                        2 if j.kind == "server" => Cell::plain(&roots).mono().tip(t("the shares of the same name")),
                         2 => Cell::plain(&j.dest).mono(),
                         3 if j.mode == "mirror" && j.approved != j.rev => {
                             Cell::plain(t("mirror")).with_tail(format!(" · {}", t("preview needed")), Tone::Warn)
@@ -541,7 +549,7 @@ fn phase_text(r: &SyncRun) -> String {
     let phase = match p.phase.as_str() {
         "preparing" => t("preparing").into(),
         "copying" if p.total > 0 => tf!("copying %d of %d", p.transfers, p.total),
-        "copying" if p.checks > 0 => tf!("comparing %d files", p.checks),
+        "copying" if p.checks > 0 => tf!("comparing %d files", adm_core::i18n::count(p.checks)),
         "copying" => t("copying").into(),
         "acl" if p.acl_items > 0 => format!("{} ({})", t("applying Windows permissions"), p.acl_items),
         "acl" => t("applying Windows permissions").into(),

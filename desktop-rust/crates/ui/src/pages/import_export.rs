@@ -140,6 +140,8 @@ impl Default for Source {
 
 #[derive(Default)]
 pub struct ImportExport {
+    /// The left column fitted without scrolling last frame (the web's overflow-auto shows no bar then).
+    left_fits: bool,
     servers: Vec<Agent>,
     server: usize,
     mode: Mode,
@@ -336,12 +338,20 @@ impl ImportExport {
                 ui.vertical(|ui| {
                     // the web's 360-point column with its scroll bar inside: the cards 349.6 wide, the plan at 20
                     // points from the column (egui draws its bar beside the content: the content is the 350)
-                    ui.set_width(354.5); // egui's bar takes 6 inside and 6.5 beside: cards ≈349, the column ≈361
-                    egui::ScrollArea::vertical()
+                    // egui's bar takes 6 inside and 6.5 beside: cards ≈349, the column ≈361; without a bar the cards
+                    // fill the 360
+                    let fits = self.left_fits;
+                    ui.set_width(if fits { 360.0 } else { 354.5 });
+                    let bar = if fits {
+                        egui::scroll_area::ScrollBarVisibility::AlwaysHidden
+                    } else {
+                        egui::scroll_area::ScrollBarVisibility::AlwaysVisible
+                    };
+                    let out = egui::ScrollArea::vertical()
                         .id_salt("import-left")
                         .max_height(h)
                         .auto_shrink([false, true])
-                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                        .scroll_bar_visibility(bar)
                         .show(ui, |ui| {
                             // the cards' frames as wide as their content (not over the bar's room)
                             ui.set_width(ui.available_width());
@@ -349,6 +359,8 @@ impl ImportExport {
                             ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
                             preview = self.import_card(ui, cx);
                         });
+                    // wider, the column is shorter: once it fits it stays so (no flicker at the edge)
+                    self.left_fits = out.content_size.y <= out.inner_rect.height() + 0.5;
                 });
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
@@ -524,7 +536,14 @@ impl ImportExport {
                             let chosen = self.files.get(f).and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned());
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 8.0;
-                                if widgets::button(ui, &look, crate::icons::FOLDER_OPEN, t("Choose a file…"), Kind::Secondary).clicked() {
+                                // the web's file:… button: flat, a 1-point line on the surface, 28 high, 12 px text
+                                ui.spacing_mut().button_padding.x = 12.0;
+                                let pick = egui::Button::new(RichText::new(t("Choose a file…")).size(12.0).color(look.c("fg-strong")))
+                                    .fill(look.c("surface"))
+                                    .stroke(egui::Stroke::new(1.0, look.c("line")))
+                                    .corner_radius(0.0)
+                                    .min_size(egui::vec2(0.0, 28.0));
+                                if ui.add(pick).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                                     crate::files::pick_file_of(cx, Some(("CSV", &["csv"])), move |app, p| {
                                         Self::page(app, |s, _| {
                                             s.files.insert(f, p);

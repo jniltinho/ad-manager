@@ -440,8 +440,7 @@ impl Settings {
                                 widgets::action_button(ui, &look, crate::icons::CHECK, (t("Save settings"), t("Saving…")), Kind::Primary, busy)
                             })
                             .inner
-                            .clicked()
-                            && !busy;
+                            .clicked();
                         discard = widgets::button(ui, &look, crate::icons::ROTATE, t("Discard changes"), Kind::Secondary).clicked();
                     });
                     // the token under the form (the web's left column): two columns of about the same height

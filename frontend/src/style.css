@@ -234,20 +234,20 @@
   --shadow-btn-danger: var(--bevel-raised), 0 1px 2px rgba(90, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   --shadow-field-focus: 0 0 0 2px rgba(17, 48, 88, 0.22);
   --shadow-invalid: 0 0 0 2px rgba(198, 40, 40, 0.2);
-  --shadow-card: var(--bevel-raised), 0 2px 6px rgba(17, 48, 88, 0.12);
+  --shadow-card: var(--bevel-raised), 0 0 3px rgba(17, 48, 88, 0.1);
   --shadow-field: var(--bevel-sunken);
   --shadow-table-head:
     var(--bevel-raised), inset 0 -1px 0 rgba(0, 0, 0, 0.12); /* inside the band: an outer line showed as a stray dash under it */
-  --shadow-dialog: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --shadow-dialog: 0 2px 8px rgba(0, 0, 0, 0.16);
   --shadow-pop: 0 6px 16px rgba(14, 23, 45, 0.28);
   --shadow-tip: 0 3px 10px rgba(14, 23, 45, 0.3);
   --shadow-app: 0 1px 4px rgba(0, 0, 0, 0.16); /* a soft, thin edge around the window */
   --shadow-tabs: 0 2px 4px rgba(14, 23, 45, 0.4);
   --shadow-tab-on: inset 0 -3px 0 var(--color-cn-accent);
   --shadow-subtab-on: inset 0 -3px 0 var(--color-cn-accent);
-  --shadow-card-hover: 0 6px 14px rgba(17, 48, 88, 0.22);
+  --shadow-card-hover: 0 1px 4px rgba(17, 48, 88, 0.16);
   --shadow-nav-on: 0 0 #0000;
-  --shadow-login-box: 0 2px 6px rgba(0, 0, 0, 0.18);
+  --shadow-login-box: 0 0 4px rgba(0, 0, 0, 0.14);
   --bg-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23113058'/%3E%3C/svg%3E");
   --tab-divider-w: 0px;
   /* top tabs: relief of the inactive ones, gap between tabs, how much lower the inactive ones start (classic tab

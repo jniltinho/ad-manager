@@ -201,8 +201,9 @@ pub fn busy_button(ui: &mut Ui, look: &Look, label: &str, busy_label: &str, kind
 /// web's Save settings).
 pub fn action_button(ui: &mut Ui, look: &Look, icon: &str, labels: (&str, &str), kind: Kind, busy: bool) -> Response {
     let id = ui.next_auto_id();
+    // disabled while it turns (the web's :disabled for its whole spin): a second click sends nothing
     let r = match spin_angle(ui, id, busy) {
-        Some(a) => spun_button(ui, look, crate::icons::LOADER, labels.1, kind, a),
+        Some(a) => ui.add_enabled_ui(false, |ui| spun_button(ui, look, crate::icons::LOADER, labels.1, kind, a)).inner,
         None => button(ui, look, icon, labels.0, kind),
     };
     spin_clicked(ui, id, &r);
@@ -892,8 +893,23 @@ fn tag_colors(look: &Look, tone: adm_core::logic::Tone) -> (Color32, Color32) {
 /// The galley and box size of a tag: the web's .tag (semibold uppercase at the tag size, 6/1 padding), at least
 /// `min_w` wide (the Users status is 104).
 pub fn tag_layout(ui: &Ui, look: &Look, text: &str, ink: Color32, min_w: f32) -> (std::sync::Arc<egui::Galley>, Vec2) {
-    let size = look.px("tag-size", 10.0);
-    let font = egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let font = egui::FontId::new(look.px("tag-size", 10.0), egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    tag_layout_in(ui, look, text, ink, min_w, font)
+}
+
+/// A tag's text in a monospace cell: the web's .tag keeps the cell's font-mono.
+pub fn tag_layout_mono(ui: &Ui, look: &Look, text: &str, ink: Color32) -> (std::sync::Arc<egui::Galley>, Vec2) {
+    tag_layout_in(ui, look, text, ink, 0.0, egui::FontId::monospace(look.px("tag-size", 10.0)))
+}
+
+fn tag_layout_in(
+    ui: &Ui,
+    look: &Look,
+    text: &str,
+    ink: Color32,
+    min_w: f32,
+    font: egui::FontId,
+) -> (std::sync::Arc<egui::Galley>, Vec2) {
     let galley = ui.painter().layout_no_wrap(text.to_uppercase(), font, ink);
     let (px, py) = (look.px("tag-px", 6.0), look.px("tag-py", 1.0));
     let w = (galley.size().x + 2.0 * px).max(min_w).ceil();
@@ -914,6 +930,20 @@ pub fn tag_w(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone, 
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
     ui.painter().rect_filled(rect, 0.0, fill);
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
+    resp
+}
+
+/// A tag in a monospace cell (the web's tag after a UNC path).
+pub fn tag_mono(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+    let (fill, ink) = tag_colors(look, tone);
+    let (galley, size) = tag_layout_mono(ui, look, text, ink);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, fill);
+    // the web's semibold: egui's monospace has no bold face, so the text is drawn twice half a point apart
+    let at = rect.center() - galley.size() / 2.0 - egui::vec2(0.25, 0.0);
+    ui.painter().galley(at, galley.clone(), ink);
+    ui.painter().galley(at + egui::vec2(0.5, 0.0), galley, ink);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
     resp
 }
