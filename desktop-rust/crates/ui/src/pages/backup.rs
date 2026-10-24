@@ -24,8 +24,8 @@ pub struct Backup {
     servers: Vec<BackupServer>,
     cur: Option<usize>,
     table: TableState,
-    schedules: Vec<BackupSchedule>,
-    sched: TableState,
+    /// The schedules of the server on screen, being edited.
+    rows: Vec<SchedRow>,
     generation: u64,
     now: BackupNow,
 }
@@ -57,7 +57,25 @@ impl Backup {
                 } else {
                     Some(0)
                 });
-                p.show(cx);
+                // another server on screen: its schedules; the same one keeps the schedules being edited
+                if p.current().map(|c| c.id) != id || p.rows.is_empty() {
+                    p.show(cx);
+                }
+                // a backup or restoration still running: look again shortly (as the web's 4 s)
+                let running = p.servers.iter().any(|s| {
+                    s.restore.as_ref().is_some_and(|r| r.status == "running")
+                        || s.backups.iter().any(|b| b.status == "running")
+                });
+                if running {
+                    let g = p.generation;
+                    cx.spawn(tokio::time::sleep(std::time::Duration::from_secs(4)), move |app, ()| {
+                        app.with_shell(|s, cx| {
+                            if s.backup.generation == g {
+                                s.backup.reload(cx);
+                            }
+                        });
+                    });
+                }
             });
         });
     }
@@ -68,8 +86,7 @@ impl Backup {
 
     fn show(&mut self, cx: &Cx) {
         self.table.clear();
-        self.schedules.clear();
-        self.sched.clear();
+        self.rows.clear();
         let Some(c) = self.current() else { return };
         if c.id == 0 || !c.error.is_empty() || c.kinds.is_empty() {
             return; // schedules: agents only
@@ -80,8 +97,9 @@ impl Backup {
             async move { api.get::<Vec<BackupSchedule>>(&format!("/api/agents/{id}/backup-schedules")).await },
             move |app, list| {
                 app.with_shell(|s, _| {
-                    if s.backup.current().is_some_and(|c| c.id == id) {
-                        s.backup.schedules = list;
+                    if let Some(c) = s.backup.current().filter(|c| c.id == id) {
+                        let kinds = c.kinds.clone();
+                        s.backup.rows = list.iter().map(|x| SchedRow::from(x, &kinds)).collect();
                     }
                 });
             },
@@ -405,86 +423,232 @@ impl Backup {
         });
     }
 
+    /// The schedules of a file server edited in place, as the web's: name, kind, when (cron, with presets), chains
+    /// and days kept, a new full every N days (data folders), on, delete; the folders of a data schedule under its
+    /// row; + new adds a row and "Save schedules" sends them all.
     fn schedules_ui(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         let Some(cur) = self.current().cloned() else { return };
         let mut add = false;
         let right = |ui: &mut Ui| add = widgets::act(ui, &look, "+", t("new"), None, 12.0).clicked();
-        let mut act: Option<(bool, usize)> = None;
+        let mut save = false;
+        let kinds: Vec<String> = cur.kinds.iter().map(|k| backup_kind_name(k)).collect();
+        let roots = cur.roots.join(", ");
         widgets::panel(ui, &look, (&format!("📅  {}", t("Schedules")), ""), right, 0.0, |ui| {
-            let cols = [
-                Column::new(t("Name"), 140.0),
-                Column::new(t("Kind"), 220.0).fill(),
-                Column::new(t("When (cron)"), 120.0),
-                Column::new(t("Keep chains"), 100.0),
-                Column::new(t("Keep days"), 90.0),
-                Column::new(t("New full every (days)"), 160.0),
-                Column::new(t("On"), 60.0),
-                Column::new("", 40.0).right(),
+            let muted = look.c("fg-muted");
+            // the columns: name, kind, cron, chains, days, full every, on, delete
+            // the kind takes what the others leave
+            let mut widths = [136.0, 0.0, 150.0, 100.0, 90.0, 176.0, 40.0, 36.0];
+            widths[1] = (ui.available_width() - widths.iter().sum::<f32>() - 12.0).max(160.0);
+            let heads = [
+                t("Name"),
+                t("Kind"),
+                t("When (cron)"),
+                t("Keep chains"),
+                t("Keep days"),
+                t("New full every (days)"),
+                t("On"),
+                "",
             ];
-            let list = &self.schedules;
-            let mut hover = None;
-            let out =
-                table::Table { id: "schedules", cols: &cols, rows: list.len(), keys: false, row_h: 0.0, frame: false }
-                    .show(ui, &look, &mut self.sched, &mut hover, |r, c| {
-                        let x = &list[r];
-                        match c {
-                            0 => Cell::plain(&x.id).mono(),
-                            1 => Cell::plain(backup_kind_name(&x.kind)),
-                            2 => Cell::plain(&x.cron).mono(),
-                            3 => Cell::plain(x.retention.chains.to_string()),
-                            4 => Cell::plain(x.retention.days.to_string()),
-                            5 if x.kind == "fileserver-data" => Cell::plain(x.full_every_days.to_string()),
-                            5 => Cell::new("—", Tone::Muted),
-                            6 => {
-                                let (text, tone) =
-                                    if x.enabled { (t("yes"), Tone::Ok) } else { (t("no"), Tone::Muted) };
-                                Cell::new(text, tone).link("", tf!("Turn %s on or off", x.id), (true, r))
-                            }
-                            _ => Cell::plain("").and_link("", Tone::Normal, "🗑", t("Delete").into(), (false, r)),
-                        }
-                    });
-            cx.hover = hover.or(cx.hover.take());
-            act = out.clicked;
-            if list.is_empty() {
-                ui.add_space(12.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new(t("No schedules.")).size(12.0).color(look.c("fg-muted")))
-                });
-            }
-            let y = ui.cursor().top() + 8.0;
-            ui.add_space(8.0);
-            ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
-            egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                ui.label(
-                    RichText::new(t("Retention deletes whole chains only (a full backup and its incrementals), never the backup just made; 0 = no limit."))
-                        .size(11.0)
-                        .color(look.c("fg-muted")),
+            let (th_px, head_h) = (look.px("th-px", 8.0), 31.0);
+            let (hr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), head_h), egui::Sense::hover());
+            crate::depth::paint_box(
+                ui.painter(),
+                hr,
+                look.gradient("table-head"),
+                look.c("table-head"),
+                look.shadows("table-head"),
+            );
+            ui.painter().hline(hr.x_range(), hr.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
+            let mut x = hr.left();
+            let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+            for (i, h) in heads.iter().enumerate() {
+                let g = ui.painter().layout_no_wrap(h.to_string(), font.clone(), look.c("on-table-head"));
+                ui.painter().galley(
+                    egui::pos2(x + th_px, hr.center().y - g.size().y / 2.0),
+                    g,
+                    look.c("on-table-head"),
                 );
+                x += widths[i];
+            }
+            let mut drop = None;
+            for (r, row) in self.rows.iter_mut().enumerate() {
+                let data = cur.kinds.get(row.kind).is_some_and(|k| k == "fileserver-data");
+                egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 4)).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        let cell = |ui: &mut Ui, w: f32, add: &mut dyn FnMut(&mut Ui)| {
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(w, crate::style::control_h()),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.add_space(th_px);
+                                    ui.set_width(w - th_px);
+                                    add(ui);
+                                },
+                            );
+                        };
+                        let fw = |w: f32| w - 2.0 * th_px;
+                        cell(ui, widths[0], &mut |ui| {
+                            ui.add(
+                                crate::widgets::line(&mut row.id)
+                                    .font(egui::TextStyle::Monospace)
+                                    .desired_width(fw(widths[0])),
+                            )
+                            .on_hover_text(t("Name"));
+                        });
+                        cell(ui, widths[1], &mut |ui| {
+                            widgets::select(ui, ("sched-kind", r), &mut row.kind, &kinds, fw(widths[1]) - 8.0);
+                        });
+                        cell(ui, widths[2], &mut |ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            ui.add(
+                                crate::widgets::line(&mut row.cron)
+                                    .font(egui::TextStyle::Monospace)
+                                    .desired_width(fw(widths[2]) - 26.0),
+                            );
+                            egui::ComboBox::from_id_salt(("sched-preset", r)).width(0.0).selected_text("").show_ui(
+                                ui,
+                                |ui| {
+                                    for (c, label) in CRON_PRESETS {
+                                        if ui.selectable_label(row.cron == c, format!("{c}  ·  {}", t(label))).clicked()
+                                        {
+                                            row.cron = c.into();
+                                        }
+                                    }
+                                },
+                            );
+                        });
+                        for (i, v) in [(3, &mut row.chains), (4, &mut row.days)] {
+                            cell(ui, widths[i], &mut |ui| {
+                                ui.add(crate::widgets::line(v).desired_width(fw(widths[i])));
+                            });
+                        }
+                        cell(ui, widths[5], &mut |ui| {
+                            ui.add_enabled(data, crate::widgets::line(&mut row.every).desired_width(64.0));
+                        });
+                        cell(ui, widths[6], &mut |ui| {
+                            ui.checkbox(&mut row.enabled, "").on_hover_text(t("On"));
+                        });
+                        cell(ui, widths[7], &mut |ui| {
+                            if widgets::act(ui, &look, "🗑", "", None, 12.0).on_hover_text(t("Delete")).clicked() {
+                                drop = Some(r);
+                            }
+                        });
+                    });
+                    if data {
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(th_px);
+                            let hint = tf!("Folders (one per line, inside %s)", roots);
+                            let w = ui.available_width() - th_px - 2.0;
+                            ui.add(
+                                egui::TextEdit::multiline(&mut row.folders)
+                                    .hint_text(hint)
+                                    .font(egui::TextStyle::Monospace)
+                                    .desired_rows(2)
+                                    .desired_width(w),
+                            );
+                        });
+                    }
+                });
+                let y = ui.cursor().top();
+                ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+            }
+            if let Some(r) = drop {
+                self.rows.remove(r);
+            }
+            if self.rows.is_empty() {
+                ui.add_space(12.0);
+                ui.vertical_centered(|ui| ui.label(RichText::new(t("No schedules.")).size(12.0).color(muted)));
+                ui.add_space(12.0);
+            }
+            egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    save = widgets::button(ui, &look, "✔", t("Save schedules"), Kind::Primary).clicked();
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(t("Retention deletes whole chains only (a full backup and its incrementals), never the backup just made; 0 = no limit."))
+                                .size(11.0)
+                                .color(muted),
+                        )
+                        .wrap(),
+                    );
+                });
             });
         });
         if add {
-            cx.push(NewSchedule::new(&cur, &self.schedules));
+            let n = self.rows.len() + 1;
+            self.rows.push(SchedRow {
+                id: format!("backup-{n}"),
+                cron: CRON_PRESETS[0].0.into(),
+                chains: "4".into(),
+                days: "0".into(),
+                every: "7".into(),
+                enabled: true,
+                ..Default::default()
+            });
         }
-        match act {
-            Some((true, i)) => {
-                let mut list = self.schedules.clone();
-                list[i].enabled = !list[i].enabled;
-                save_schedules(cx, cur.id, list);
-            }
-            Some((false, i)) => {
-                let mut list = self.schedules.clone();
-                let x = list.remove(i);
-                let id = cur.id;
-                cx.confirm(
-                    t("Remove schedule"),
-                    tf!("Remove the schedule %s? Its backups stay.", x.id),
-                    t("Remove"),
-                    true,
-                    move |cx| save_schedules(cx, id, list),
-                );
-            }
-            None => {}
+        if save {
+            let num = |s: &str| s.trim().parse::<i64>().unwrap_or(0);
+            let list: Vec<BackupSchedule> = self
+                .rows
+                .iter()
+                .map(|r| {
+                    let kind = cur.kinds.get(r.kind).cloned().unwrap_or_default();
+                    let data = kind == "fileserver-data";
+                    let mut x = BackupSchedule {
+                        id: r.id.trim().into(),
+                        cron: r.cron.trim().into(),
+                        enabled: r.enabled,
+                        folders: if data { lines(&r.folders) } else { Vec::new() },
+                        full_every_days: if data { num(&r.every) } else { 0 },
+                        ..Default::default()
+                    };
+                    x.retention.chains = num(&r.chains);
+                    x.retention.days = num(&r.days);
+                    x.kind = kind;
+                    x
+                })
+                .collect();
+            let (id, name) = (cur.id, cur.name.clone());
+            let api = cx.panel.clone();
+            cx.run(
+                async move { api.act_with(Method::PUT, &format!("/api/agents/{id}/backup-schedules"), &list).await },
+                move |app, ()| {
+                    app.cx.set_status(tf!("Schedules saved on %s.", name));
+                    app.with_shell(|s, cx| s.backup.show(cx));
+                },
+            );
+        }
+    }
+}
+
+/// A schedule being edited (numbers as typed, folders one per line).
+#[derive(Default, Clone)]
+struct SchedRow {
+    id: String,
+    kind: usize,
+    cron: String,
+    chains: String,
+    days: String,
+    every: String,
+    folders: String,
+    enabled: bool,
+}
+
+impl SchedRow {
+    fn from(x: &BackupSchedule, kinds: &[String]) -> Self {
+        Self {
+            id: x.id.clone(),
+            kind: kinds.iter().position(|k| *k == x.kind).unwrap_or(0),
+            cron: x.cron.clone(),
+            chains: x.retention.chains.to_string(),
+            days: x.retention.days.to_string(),
+            every: x.full_every_days.to_string(),
+            folders: x.folders.join("\n"),
+            enabled: x.enabled,
         }
     }
 }
@@ -511,17 +675,6 @@ struct BackupNow {
 
 fn reload(app: &mut App) {
     app.with_shell(|s, cx| s.backup.reload(cx));
-}
-
-fn save_schedules(cx: &Cx, id: i64, list: Vec<BackupSchedule>) {
-    let api = cx.panel.clone();
-    cx.run(
-        async move { api.act_with(Method::PUT, &format!("/api/agents/{id}/backup-schedules"), &list).await },
-        |app, ()| {
-            app.cx.set_status(t("Schedules saved."));
-            app.with_shell(|s, cx| s.backup.show(cx));
-        },
-    );
 }
 
 fn lines(s: &str) -> Vec<String> {
@@ -688,98 +841,8 @@ impl Dialog for Restore {
     }
 }
 
-const CRON_PRESETS: [&str; 3] = ["0 2 * * *", "0 3 * * 0", "0 3 1 * *"];
-
-struct NewSchedule {
-    server: BackupServer,
-    existing: Vec<BackupSchedule>,
-    id: String,
-    kind: usize,
-    cron: String,
-    chains: String,
-    days: String,
-    every: String,
-    folders: String,
-}
-
-impl NewSchedule {
-    fn new(s: &BackupServer, existing: &[BackupSchedule]) -> Self {
-        Self {
-            server: s.clone(),
-            existing: existing.to_vec(),
-            id: format!("backup-{}", existing.len() + 1),
-            kind: 0,
-            cron: CRON_PRESETS[0].into(),
-            chains: "4".into(),
-            days: "0".into(),
-            every: "7".into(),
-            folders: String::new(),
-        }
-    }
-}
-
-impl Dialog for NewSchedule {
-    fn title(&self) -> String {
-        t("New schedule").into()
-    }
-
-    fn width(&self) -> f32 {
-        620.0
-    }
-
-    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
-        let look = cx.look.clone();
-        let names: Vec<String> = self.server.kinds.iter().map(|k| backup_kind_name(k)).collect();
-        widgets::form(ui, "new-schedule", |ui| {
-            widgets::labeled_field(ui, &look, t("Name"), &mut self.id, "", 260.0);
-            ui.end_row();
-            widgets::label(ui, &look, t("Kind"));
-            widgets::select(ui, "schedule-kind", &mut self.kind, &names, 320.0);
-            ui.end_row();
-            widgets::label(ui, &look, t("When (cron)"));
-            ui.horizontal(|ui| {
-                widgets::field(ui, &mut self.cron, "", 160.0);
-                egui::ComboBox::from_id_salt("cron-presets").selected_text("…").show_ui(ui, |ui| {
-                    for p in CRON_PRESETS {
-                        ui.selectable_value(&mut self.cron, p.to_string(), p);
-                    }
-                });
-            });
-            ui.end_row();
-            for (label, v) in [
-                (t("Keep chains"), &mut self.chains),
-                (t("Keep days"), &mut self.days),
-                (t("New full every (days)"), &mut self.every),
-            ] {
-                widgets::labeled_field(ui, &look, label, v, "", 100.0);
-                ui.end_row();
-            }
-            widgets::label(ui, &look, &tf!("Folders (one per line, inside %s)", self.server.roots.join(", ")));
-            ui.add(egui::TextEdit::multiline(&mut self.folders).desired_rows(2).desired_width(320.0));
-            ui.end_row();
-        });
-        let f = footer(ui, cx, Some(t("Save")), "", false, true);
-        if f.ok {
-            let num = |s: &str| s.trim().parse::<i64>().unwrap_or(0);
-            let kind = self.server.kinds.get(self.kind).cloned().unwrap_or_default();
-            let mut x = BackupSchedule {
-                id: self.id.trim().into(),
-                cron: self.cron.trim().into(),
-                enabled: true,
-                ..Default::default()
-            };
-            x.retention.chains = num(&self.chains);
-            x.retention.days = num(&self.days);
-            x.full_every_days = num(&self.every);
-            if kind == "fileserver-data" {
-                x.folders = lines(&self.folders);
-            }
-            x.kind = kind;
-            let mut list = self.existing.clone();
-            list.push(x);
-            save_schedules(cx, self.server.id, list);
-            return Flow::Close;
-        }
-        if f.cancel { Flow::Close } else { Flow::Keep }
-    }
-}
+const CRON_PRESETS: [(&str, &str); 3] = [
+    ("0 2 * * *", "Every day at 02:00"),
+    ("0 3 * * 0", "Sundays at 03:00"),
+    ("0 3 1 * *", "Day 1 of each month at 03:00"),
+];

@@ -500,6 +500,11 @@ fn shots() {
     e.wait("the settings", |_, m| !m.sent("GET", "/api/settings").is_empty());
     e.h.run_steps(4);
     save(&mut e, "24-settings");
+    page(&mut e, "Backup");
+    e.h.get_all_by_label("FS01").next().unwrap().click();
+    e.wait("the schedules", |_, m| !m.sent("GET", "/api/agents/1/backup-schedules").is_empty());
+    e.h.run_steps(4);
+    save(&mut e, "25-backup-agent");
 }
 
 #[test]

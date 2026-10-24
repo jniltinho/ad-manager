@@ -184,6 +184,8 @@ pub fn side_item<R>(
     let ink = if on { look.c("on-nav-on") } else { look.c("fg") };
     let w = ui.available_width();
     let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
+        // the item's texts are not selectable: a click on them picks the item
+        ui.style_mut().interaction.selectable_labels = false;
         Frame::new()
             .inner_margin(Margin::symmetric(12, 8))
             .show(ui, |ui| {

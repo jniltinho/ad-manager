@@ -498,6 +498,7 @@ impl SyncWizard {
         let fill = if on { look.c("row-hover") } else { look.c("surface") };
         let line = if on { look.c("fg-strong") } else { look.c("line") };
         let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
+            ui.style_mut().interaction.selectable_labels = false; // a click on the text picks it
             egui::Frame::new()
                 .fill(fill)
                 .stroke(egui::Stroke::new(1.0, line))

@@ -494,6 +494,7 @@ impl SambaView {
                                 let under = ui.painter().add(egui::Shape::Noop);
                                 let w = ui.available_width();
                                 let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
+                                    ui.style_mut().interaction.selectable_labels = false; // a click on the text picks it
                                     egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
                                         ui.set_width(w - 24.0);
                                         let ink = if on {
