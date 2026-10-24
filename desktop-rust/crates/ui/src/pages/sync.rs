@@ -285,15 +285,17 @@ impl Sync {
                     }
                     w
                 };
+                // what stays whole when the table still has to shrink (a scroll bar, a narrow window): mode, cron,
+                // quarantine and the actions, and the source down to its tags
                 let cols = [
                     Column::new(t("Name"), w[0]),
-                    Column::new(t("Source"), w[1]),
+                    Column::new(t("Source"), w[1]).min(src_floor),
                     Column::new(t("Destination"), w[2]),
-                    Column::new(t("Mode"), w[3]),
-                    Column::new(t("When (cron)"), w[4]),
+                    Column::new(t("Mode"), w[3]).min(w[3]),
+                    Column::new(t("When (cron)"), w[4]).min(w[4]),
                     Column::new(t("Last run"), w[5]),
-                    Column::new(t("Quarantine"), w[6]),
-                    Column::new("", 144.0).right().fixed().fill(), // the web's w-36
+                    Column::new(t("Quarantine"), w[6]).min(w[6]),
+                    Column::new("", 144.0).right().fixed().fill().min(144.0), // the web's w-36
                 ];
                 let (jobs, runs, qs) = (&self.data.jobs, &self.data.runs, &self.qs.quarantines);
                 let mut hover = None;

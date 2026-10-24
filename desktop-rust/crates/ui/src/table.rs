@@ -36,6 +36,8 @@ pub struct Column {
     pub fixed: bool,
     /// A badge drawn with the toggle's icon slot also when it is not a link (Users' status).
     pub slot: bool,
+    /// The narrowest [`fit`] makes it (the browser's min-content of a cell whose text stays whole).
+    pub min: f32,
 }
 
 impl Column {
@@ -52,12 +54,19 @@ impl Column {
             greedy: false,
             fixed: false,
             slot: false,
+            min: 0.0,
         }
     }
 
     /// Its badges keep the toggle's icon slot also when they are not links.
     pub fn icon_slot(mut self) -> Self {
         self.slot = true;
+        self
+    }
+
+    /// Never narrower than `w` when the table shrinks its columns to fit.
+    pub fn min(mut self, w: f32) -> Self {
+        self.min = w;
         self
     }
 
@@ -246,14 +255,15 @@ impl TableState {
 /// shrunk together (down to 60%) when they still do not fit, so the table never runs past the window.
 pub fn fit(cols: &[Column], avail: f32, compact: bool) -> Vec<f32> {
     let mut w: Vec<f32> = cols.iter().map(|c| if compact { c.compact.unwrap_or(c.width) } else { c.width }).collect();
-    let fixed: f32 = cols.iter().zip(&w).filter(|(c, _)| compact && c.compact.is_some()).map(|(_, w)| w).sum();
+    // a compact action column and a column at its floor (`min`) keep their width; the others share the shrink
+    let floor: Vec<f32> =
+        cols.iter().zip(&w).map(|(c, x)| if compact && c.compact.is_some() { *x } else { c.min.min(*x) }).collect();
+    let fixed: f32 = floor.iter().sum();
     let flex: f32 = w.iter().sum::<f32>() - fixed;
     if flex > 0.0 && fixed + flex > avail {
         let k = ((avail - fixed) / flex).clamp(0.6, 1.0);
-        for (c, x) in cols.iter().zip(w.iter_mut()) {
-            if !(compact && c.compact.is_some()) {
-                *x = (*x * k).floor();
-            }
+        for (x, f) in w.iter_mut().zip(&floor) {
+            *x = (f + (*x - f) * k).floor();
         }
     }
     w
@@ -826,6 +836,10 @@ mod tests {
         assert_eq!(fit(&cols, 600.0, false), [200.0, 200.0, 100.0]);
         assert_eq!(fit(&cols, 430.0, true), [200.0, 200.0, 30.0]);
         assert_eq!(fit(&cols, 230.0, true), [120.0, 120.0, 30.0], "shrunk to 60% at most");
+        // a column at its floor stays whole; the others take the whole shrink
+        let cols = [Column::new("a", 200.0), Column::new("mode", 60.0).min(60.0), Column::new("b", 200.0).min(100.0)];
+        assert_eq!(fit(&cols, 400.0, false), [160.0, 60.0, 180.0], "the room above the floors shrunk alike");
+        assert_eq!(fit(&cols, 300.0, false), [120.0, 60.0, 160.0], "60% of the room above each floor");
     }
 }
 
