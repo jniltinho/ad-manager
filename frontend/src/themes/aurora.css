@@ -410,20 +410,20 @@
   --shadow-btn-danger: var(--bevel-raised), 0 1px 2px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --shadow-field-focus: 0 0 0 2px rgba(150, 122, 255, 0.25);
   --shadow-invalid: 0 0 0 2px rgba(248, 113, 113, 0.25);
-  --shadow-card: var(--bevel-raised), 0 1px 2px rgba(255, 255, 255, 0.11), 0 4px 12px rgba(255, 255, 255, 0.11);
+  --shadow-card: var(--bevel-raised), 0 0 3px rgba(255, 255, 255, 0.06); /* a thin, soft glow */
   --shadow-field: var(--bevel-sunken), inset 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-table-head: var(--bevel-raised), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
-  --shadow-dialog: 0 8px 28px rgba(255, 255, 255, 0.15);
+  --shadow-dialog: 0 2px 8px rgba(255, 255, 255, 0.08);
   --shadow-pop: 0 6px 16px rgba(255, 255, 255, 0.15);
   --shadow-tip: 0 3px 10px rgba(255, 255, 255, 0.15);
   --shadow-app:
-    0 0 0 1px rgba(255, 255, 255, 0.15), 0 2px 12px rgba(255, 255, 255, 0.15); /* the 1 px line keeps the corners square under the glow */
+    0 0 0 1px rgba(255, 255, 255, 0.15), 0 1px 4px rgba(255, 255, 255, 0.08); /* the 1 px line keeps the corners square under the glow */
   --shadow-tabs: inset 0 -1px #272735;
   --shadow-tab-on: inset 1px 0 #272735, inset -1px 0 #272735, inset 0 3px #967aff;
   --shadow-subtab-on: inset 1px 0 #272735, inset -1px 0 #272735, inset 0 3px #967aff;
-  --shadow-card-hover: 0 4px 12px rgba(255, 255, 255, 0.15);
+  --shadow-card-hover: 0 1px 4px rgba(255, 255, 255, 0.1);
   --shadow-nav-on: inset 3px 0 0 #967aff;
-  --shadow-login-box: 0 6px 20px rgba(255, 255, 255, 0.15);
+  --shadow-login-box: 0 0 4px rgba(255, 255, 255, 0.08);
   --font-sans: 'Inter', Tahoma, Verdana, Arial, sans-serif;
   --font-size-base: 13px;
   --card-head-bar-w: 0px;

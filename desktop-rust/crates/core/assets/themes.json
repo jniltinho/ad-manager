@@ -1668,9 +1668,9 @@
      },
      {
       "dx": 0,
-      "dy": 2,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "brand-action": [
@@ -1733,23 +1733,17 @@
     "card": [
      {
       "dx": 0,
-      "dy": 1,
-      "blur": 2,
-      "color": "#ffffff1c"
-     },
-     {
-      "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff1c"
+      "dy": 0,
+      "blur": 3,
+      "color": "#ffffff0f"
      }
     ],
     "card-hover": [
      {
       "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff1a"
      }
     ],
     "cardtab": [
@@ -1795,9 +1789,9 @@
     "dialog": [
      {
       "dx": 0,
-      "dy": 8,
-      "blur": 28,
-      "color": "#ffffff26"
+      "dy": 2,
+      "blur": 8,
+      "color": "#ffffff14"
      }
     ],
     "field": [
@@ -1822,9 +1816,9 @@
     "login-box": [
      {
       "dx": 0,
-      "dy": 6,
-      "blur": 20,
-      "color": "#ffffff26"
+      "dy": 0,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "nav-on": [
@@ -2968,9 +2962,9 @@
      },
      {
       "dx": 0,
-      "dy": 2,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "brand-action": [
@@ -3033,23 +3027,17 @@
     "card": [
      {
       "dx": 0,
-      "dy": 1,
-      "blur": 2,
-      "color": "#ffffff1c"
-     },
-     {
-      "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff1c"
+      "dy": 0,
+      "blur": 3,
+      "color": "#ffffff0f"
      }
     ],
     "card-hover": [
      {
       "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff1a"
      }
     ],
     "cardtab": [
@@ -3095,9 +3083,9 @@
     "dialog": [
      {
       "dx": 0,
-      "dy": 8,
-      "blur": 28,
-      "color": "#ffffff26"
+      "dy": 2,
+      "blur": 8,
+      "color": "#ffffff14"
      }
     ],
     "field": [
@@ -3122,9 +3110,9 @@
     "login-box": [
      {
       "dx": 0,
-      "dy": 6,
-      "blur": 20,
-      "color": "#ffffff26"
+      "dy": 0,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "nav-on": [
@@ -5047,9 +5035,9 @@
      },
      {
       "dx": 0,
-      "dy": 2,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "brand-action": [
@@ -5112,23 +5100,17 @@
     "card": [
      {
       "dx": 0,
-      "dy": 1,
-      "blur": 2,
-      "color": "#ffffff1c"
-     },
-     {
-      "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff1c"
+      "dy": 0,
+      "blur": 3,
+      "color": "#ffffff0f"
      }
     ],
     "card-hover": [
      {
       "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff1a"
      }
     ],
     "cardtab": [
@@ -5174,9 +5156,9 @@
     "dialog": [
      {
       "dx": 0,
-      "dy": 8,
-      "blur": 28,
-      "color": "#ffffff26"
+      "dy": 2,
+      "blur": 8,
+      "color": "#ffffff14"
      }
     ],
     "field": [
@@ -5201,9 +5183,9 @@
     "login-box": [
      {
       "dx": 0,
-      "dy": 6,
-      "blur": 20,
-      "color": "#ffffff26"
+      "dy": 0,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "nav-on": [
@@ -6364,9 +6346,9 @@
      },
      {
       "dx": 0,
-      "dy": 2,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "brand-action": [
@@ -6429,23 +6411,17 @@
     "card": [
      {
       "dx": 0,
-      "dy": 1,
-      "blur": 2,
-      "color": "#ffffff1c"
-     },
-     {
-      "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff1c"
+      "dy": 0,
+      "blur": 3,
+      "color": "#ffffff0f"
      }
     ],
     "card-hover": [
      {
       "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff1a"
      }
     ],
     "cardtab": [
@@ -6480,9 +6456,9 @@
     "dialog": [
      {
       "dx": 0,
-      "dy": 8,
-      "blur": 28,
-      "color": "#ffffff26"
+      "dy": 2,
+      "blur": 8,
+      "color": "#ffffff14"
      }
     ],
     "field": [
@@ -6507,9 +6483,9 @@
     "login-box": [
      {
       "dx": 0,
-      "dy": 6,
-      "blur": 20,
-      "color": "#ffffff26"
+      "dy": 0,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "nav-on": [
@@ -7630,9 +7606,9 @@
      },
      {
       "dx": 0,
-      "dy": 2,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "brand-action": [
@@ -7695,17 +7671,17 @@
     "card": [
      {
       "dx": 0,
-      "dy": 1,
-      "blur": 2,
-      "color": "#ffffff1a"
+      "dy": 0,
+      "blur": 3,
+      "color": "#ffffff0f"
      }
     ],
     "card-hover": [
      {
       "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff1a"
      }
     ],
     "cardtab": [
@@ -7751,9 +7727,9 @@
     "dialog": [
      {
       "dx": 0,
-      "dy": 8,
-      "blur": 28,
-      "color": "#ffffff26"
+      "dy": 2,
+      "blur": 8,
+      "color": "#ffffff14"
      }
     ],
     "field": [
@@ -7778,9 +7754,9 @@
     "login-box": [
      {
       "dx": 0,
-      "dy": 6,
-      "blur": 20,
-      "color": "#ffffff26"
+      "dy": 0,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "nav-on": [
@@ -10708,9 +10684,9 @@
      },
      {
       "dx": 0,
-      "dy": 2,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "brand-action": [
@@ -10773,23 +10749,17 @@
     "card": [
      {
       "dx": 0,
-      "dy": 1,
-      "blur": 2,
-      "color": "#ffffff1c"
-     },
-     {
-      "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff1c"
+      "dy": 0,
+      "blur": 3,
+      "color": "#ffffff0f"
      }
     ],
     "card-hover": [
      {
       "dx": 0,
-      "dy": 4,
-      "blur": 12,
-      "color": "#ffffff26"
+      "dy": 1,
+      "blur": 4,
+      "color": "#ffffff1a"
      }
     ],
     "cardtab": [
@@ -10835,9 +10805,9 @@
     "dialog": [
      {
       "dx": 0,
-      "dy": 8,
-      "blur": 28,
-      "color": "#ffffff26"
+      "dy": 2,
+      "blur": 8,
+      "color": "#ffffff14"
      }
     ],
     "field": [
@@ -10862,9 +10832,9 @@
     "login-box": [
      {
       "dx": 0,
-      "dy": 6,
-      "blur": 20,
-      "color": "#ffffff26"
+      "dy": 0,
+      "blur": 4,
+      "color": "#ffffff14"
      }
     ],
     "nav-on": [
