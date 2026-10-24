@@ -535,8 +535,8 @@ impl ImportExport {
                                     }
                                 }
                             });
-                            // the web's space-y-3 (egui's 4 already after the row)
-                            ui.add_space(8.0);
+                            // the web's space-y-3 (egui's 4 already after the row); before Preview, full_button's 4 too
+                            ui.add_space(if f == IMPORTS[IMPORTS.len() - 1].0 { 4.0 } else { 8.0 });
                         }
                         let ready = !busy && !self.files.is_empty();
                         preview = full_button(ui, &look, ready, crate::icons::EYE, preview_label(busy, false));

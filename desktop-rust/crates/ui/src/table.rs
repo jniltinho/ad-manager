@@ -34,6 +34,8 @@ pub struct Column {
     pub greedy: bool,
     /// Its width also in an empty table (the web's w-* on its heading); otherwise an empty table sizes it by its heading.
     pub fixed: bool,
+    /// A badge drawn with the toggle's icon slot also when it is not a link (Users' status).
+    pub slot: bool,
 }
 
 impl Column {
@@ -49,7 +51,14 @@ impl Column {
             fill: false,
             greedy: false,
             fixed: false,
+            slot: false,
         }
+    }
+
+    /// Its badges keep the toggle's icon slot also when they are not links.
+    pub fn icon_slot(mut self) -> Self {
+        self.slot = true;
+        self
     }
 
     /// As wide also in an empty table (the web's w-* on its heading).
@@ -593,6 +602,9 @@ fn draw_cell<A>(
                 ui.add_space(6.0);
                 let _ = crate::widgets::tag(ui, look, text, *tone);
             }
+        }
+        None if c.badge && !cl.text.is_empty() && c.slot => {
+            let _ = crate::widgets::tag_slot(ui, look, &cl.text, cl.tone);
         }
         None if c.badge && !cl.text.is_empty() => {
             let _ = crate::widgets::tag_w(ui, look, &cl.text, cl.tone, c.badge_w);

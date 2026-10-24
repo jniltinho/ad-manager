@@ -282,20 +282,20 @@ impl Users {
 
 fn columns() -> Vec<Column> {
     vec![
-        // the web's columns at 1280 with real data (its th widths)
-        Column::new(t("Login"), 130.0),
-        Column::new(t("Name"), 120.0),
+        // the web's columns at 1280 with real data (its th and td widths at 2x)
+        Column::new(t("Login"), 130.7),
+        Column::new(t("Name"), 120.6),
         Column::new(t("E-mail"), 150.0).fill(),
-        Column::new(t("OU"), 108.0),
-        Column::new(t("Status"), 120.0).badge_w(104.0),
-        Column::new("", 73.0).badge(),
-        Column::new(t("Last logon"), 166.0),
+        Column::new(t("OU"), 107.9),
+        Column::new(t("Status"), 120.0).badge_w(104.0).icon_slot(),
+        Column::new("", 72.6).badge(),
+        Column::new(t("Last logon"), 165.1),
         // the web's link widths (icon and name), so they fit at the app's 1280 px
         // each link's width and the web's 12-point gap after it
-        Column::new(t("Actions"), 85.0).compact(COMPACT).span(4),
-        Column::new("", 56.0).compact(COMPACT).covered(),
-        Column::new("", 60.0).compact(COMPACT).covered(),
-        Column::new("", 64.0).compact(COMPACT).covered(),
+        Column::new(t("Actions"), 82.9).compact(COMPACT).span(4),
+        Column::new("", 54.1).compact(COMPACT).covered(),
+        Column::new("", 59.0).compact(COMPACT).covered(),
+        Column::new("", 69.0).compact(COMPACT).covered(),
     ]
 }
 

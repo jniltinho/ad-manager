@@ -323,10 +323,11 @@ impl Home {
                                         if let Some((label, go)) = &a.link {
                                             // as the web's links: unlock with its icon first, the others with a
                                             // chevron after
+                                            // the web's .act gap-0.5 between the text and its icon (a thin space)
                                             let text = if matches!(go, AlertGo::Unlock(_)) {
-                                                format!("{} {label}", crate::icons::LOCK_OPEN)
+                                                format!("{}\u{2009}{label}", crate::icons::LOCK_OPEN)
                                             } else {
-                                                format!("{label} {}", crate::icons::RIGHT)
+                                                format!("{label}\u{2009}{}", crate::icons::RIGHT)
                                             };
                                             if widgets::button(ui, &look, "", &text, Kind::Link).clicked() {
                                                 match go {

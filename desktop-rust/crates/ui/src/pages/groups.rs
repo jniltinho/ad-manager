@@ -158,13 +158,13 @@ impl Groups {
         let cols = [
             Column::new(t("Group"), (longest + 2.0 * look.px("td-px", 8.0)).clamp(200.0, 420.0)),
             // the web's widths at 1280 (its th widths)
-            Column::new("", 73.0).badge(),
-            Column::new(t("Group type"), 91.0),
-            Column::new(t("Scope"), 94.0),
-            Column::new(t("Members"), 78.0).right(),
+            Column::new("", 72.6).badge(),
+            Column::new(t("Group type"), 90.6),
+            Column::new(t("Scope"), 93.9),
+            Column::new(t("Members"), 77.5).right(),
             Column::new(t("Description"), 200.0).fill(),
-            Column::new(t("Actions"), 85.0).compact(34.0).span(2),
-            Column::new("", 67.0).compact(34.0).covered(),
+            Column::new(t("Actions"), 82.5).compact(34.0).span(2),
+            Column::new("", 69.0).compact(34.0).covered(),
         ];
         let (gs, vis) = (&self.groups, &self.visible);
         let mut hover = None;

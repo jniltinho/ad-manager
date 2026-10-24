@@ -801,6 +801,21 @@ pub fn tag_button(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::T
     resp
 }
 
+/// A status tag that is not a link, laid out as `tag_button` with its icon slot empty (the web keeps the slot,
+/// invisible, so every status tag has the same width and its text in the same place).
+pub fn tag_slot(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+    let (fill, ink) = tag_colors(look, tone);
+    let (icon, gap) = (9.0, 4.0);
+    let (galley, mut size) = tag_layout(ui, look, text, ink, 104.0);
+    size.x = size.x.max((galley.size().x + gap + icon + 2.0 * look.px("tag-px", 6.0)).ceil());
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, fill);
+    let left = rect.center().x - (galley.size().x + gap + icon) / 2.0;
+    ui.painter().galley(egui::pos2(left, rect.center().y - galley.size().y / 2.0), galley, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
+    resp
+}
+
 /// The web's page tabs (.subtab: Logs, Backup | Sync): the theme's line under the strip, the other tabs lower by the
 /// theme's inset in their recipe, the current one in the subtab-on recipe covering the line; returns a tab clicked.
 pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: usize) -> Option<usize> {

@@ -166,13 +166,13 @@ impl Audit {
         widgets::toolbar_gap(ui, &look);
         let (all, vis) = (&self.all, &self.visible);
         // the web's auto layout: the result as narrow as its "ok" tags, wider once an error shows
-        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 93.0 } else { 240.0 };
+        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 92.4 } else { 240.0 };
         let cols = [
             // the web's auto layout at 1280 (its th widths)
-            Column::new(t("Date"), 239.0),
-            Column::new(t("Operator"), 174.0),
-            Column::new(t("Source"), 131.0),
-            Column::new(t("Action"), 183.0),
+            Column::new(t("Date"), 236.0),
+            Column::new(t("Operator"), 172.4),
+            Column::new(t("Source"), 130.0),
+            Column::new(t("Action"), 181.1),
             Column::new(t("Target"), 240.0).fill(),
             Column::new(t("Result"), result_w),
         ];
