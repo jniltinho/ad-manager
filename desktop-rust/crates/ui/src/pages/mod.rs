@@ -62,9 +62,11 @@ impl OuPicker {
     pub fn ui(&mut self, ui: &mut Ui, id: &str, name: &str, width: f32) {
         let shown = self.sel.and_then(|i| self.labels.get(i).cloned()).unwrap_or_default();
         let r = crate::widgets::combo(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+            crate::widgets::options_top(ui);
             for (i, l) in self.labels.iter().enumerate() {
-                if ui.selectable_label(self.sel == Some(i), l).clicked() {
+                if crate::widgets::option(ui, self.sel == Some(i), l, i).clicked() {
                     self.sel = Some(i);
+                    ui.close();
                 }
             }
         });

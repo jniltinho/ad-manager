@@ -20,7 +20,7 @@ import (
 // Roles are the color roles the desktop uses (without the --color- prefix).
 var Roles = []string{
 	"fg", "fg-strong", "fg-muted", "fg-subtle", "link", "page", "surface", "surface-2", "row-alt", "row-hover", "line",
-	"field", "on-field", "field-line", "focus", "selection", "on-selection", "accent",
+	"field", "on-field", "field-line", "focus", "selection", "on-selection", "accent", "pop-line", "line-soft",
 	"ok", "err", "warn", "ok-fill", "err-fill", "warn-fill", "on-ok-fill", "on-err-fill", "on-warn-fill",
 	"neutral-fill", "on-neutral-fill", "strong-fill", "on-strong-fill",
 	"action-top", "action", "action-line", "on-action", "action-2-top", "action-2", "action-2-line", "on-action-2",

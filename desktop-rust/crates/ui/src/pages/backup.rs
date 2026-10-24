@@ -558,12 +558,12 @@ impl Backup {
                                 crate::widgets::combo(("sched-preset", r)).width(0.0).selected_text("").show_ui(
                                     ui,
                                     |ui| {
-                                        for (c, label) in CRON_PRESETS {
-                                            if ui
-                                                .selectable_label(row.cron == c, format!("{c}  ·  {}", t(label)))
-                                                .clicked()
-                                            {
-                                                row.cron = c.into();
+                                        crate::widgets::options_top(ui);
+                                        for (k, (c, label)) in CRON_PRESETS.iter().enumerate() {
+                                            let text = format!("{c}  ·  {}", t(label));
+                                            if crate::widgets::option(ui, row.cron == *c, &text, k).clicked() {
+                                                row.cron = (*c).into();
+                                                ui.close();
                                             }
                                         }
                                     },

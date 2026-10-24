@@ -1157,6 +1157,66 @@ pub fn combo(id_salt: impl egui::AsIdSalt) -> egui::ComboBox {
     })
 }
 
+/// The colors of the web's select list (`.select-pop`), set by the look.
+#[derive(Clone, Copy)]
+pub struct OptionColors {
+    pub ink: Color32,
+    pub stripe: Color32,
+    pub line: Color32,
+    pub on: Color32,
+    pub on_ink: Color32,
+    pub accent: Color32,
+}
+
+fn option_colors(ctx: &egui::Context) -> OptionColors {
+    ctx.data(|d| d.get_temp::<OptionColors>(egui::Id::new("adm-option-colors"))).unwrap_or(OptionColors {
+        ink: Color32::BLACK,
+        stripe: Color32::from_gray(240),
+        line: Color32::from_gray(220),
+        on: Color32::from_rgb(17, 48, 88),
+        on_ink: Color32::WHITE,
+        accent: Color32::from_rgb(17, 48, 88),
+    })
+}
+
+/// The top of a select's list, as the web's: the accent's 3-point border (call first in the popup).
+pub fn options_top(ui: &mut Ui) {
+    let c = option_colors(ui.ctx());
+    ui.spacing_mut().item_spacing.y = 0.0;
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
+    ui.painter().rect_filled(r, 0.0, c.accent);
+}
+
+/// One option of a select's list, as the web's: 5/8 padding, every other row striped, a line under each, the
+/// chosen one semibold, the one under the pointer (or keyboard) in the selection colors.
+pub fn option(ui: &mut Ui, chosen: bool, text: &str, index: usize) -> Response {
+    let c = option_colors(ui.ctx());
+    let font = if chosen {
+        egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()))
+    } else {
+        egui::FontId::proportional(12.0)
+    };
+    let g = ui.painter().layout_no_wrap(text.to_string(), font, Color32::PLACEHOLDER);
+    let w = ui.available_width().max(g.size().x + 16.0);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, g.size().y + 11.0), egui::Sense::click());
+    let lit = resp.hovered() || resp.has_focus();
+    let (fill, ink) = if lit {
+        (c.on, c.on_ink)
+    } else if index % 2 == 1 {
+        (c.stripe, c.ink)
+    } else {
+        (Color32::TRANSPARENT, c.ink)
+    };
+    ui.painter().rect_filled(rect, 0.0, fill);
+    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, c.line));
+    ui.painter().galley(egui::pos2(rect.left() + 8.0, rect.center().y - g.size().y / 2.0), g, ink);
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, chosen, text));
+    if chosen && ui.memory(|m| m.focused().is_none()) {
+        resp.scroll_to_me(None);
+    }
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 /// The memory key of the select arrow's color (set by the look).
 pub const SELECT_ARROW: &str = "adm-select-arrow";
 
@@ -1239,8 +1299,12 @@ pub fn select(
     let before = *sel;
     let shown = options.get(*sel).cloned().unwrap_or_default();
     let r = combo(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+        options_top(ui);
         for (i, o) in options.iter().enumerate() {
-            ui.selectable_value(sel, i, o);
+            if option(ui, *sel == i, o, i).clicked() {
+                *sel = i;
+                ui.close();
+            }
         }
     });
     // its name for screen readers (the web's aria-label), also when a label above names it visually
@@ -1268,8 +1332,12 @@ pub fn labeled_select(
             .width(width)
             .selected_text(shown)
             .show_ui(ui, |ui| {
+                options_top(ui);
                 for (i, o) in options.iter().enumerate() {
-                    ui.selectable_value(sel, i, o);
+                    if option(ui, *sel == i, o, i).clicked() {
+                        *sel = i;
+                        ui.close();
+                    }
                 }
             })
             .response

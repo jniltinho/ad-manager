@@ -87,7 +87,8 @@ impl Look {
         v.override_text_color = Some(fg);
         v.panel_fill = self.c("surface-2");
         v.window_fill = self.c("surface");
-        v.window_stroke = Stroke::new(1.0, self.c("line"));
+        // popups (a select's list) in the web's .select-pop border; the app's dialogs draw their own frame
+        v.window_stroke = Stroke::new(1.0, self.c("pop-line"));
         v.extreme_bg_color = self.c("field");
         v.text_edit_bg_color = Some(self.c("field"));
         // placeholders in the theme's --placeholder-color (the browser's field ink at 50% when it gives none)
@@ -144,6 +145,15 @@ impl Look {
         };
         ctx.data_mut(|d| d.insert_temp(Id::new("adm-check-colors"), check));
         ctx.data_mut(|d| d.insert_temp(Id::new(crate::widgets::SELECT_ARROW), self.c("select-arrow")));
+        let options = crate::widgets::OptionColors {
+            ink: self.c("on-field"),
+            stripe: self.c("row-hover"),
+            line: self.c("line-soft"),
+            on: self.c("selection"),
+            on_ink: self.c("on-selection"),
+            accent: self.c("accent"),
+        };
+        ctx.data_mut(|d| d.insert_temp(Id::new("adm-option-colors"), options));
         let (defs, _family) = crate::fonts::definitions(&self.p.fonts.sans, &self.p.fonts.mono);
         ctx.set_fonts(defs);
         let control = self.px("control-h", 28.0);
@@ -167,6 +177,8 @@ impl Look {
             s.spacing.interact_size.y = control;
             // solid scroll bars: floating ones fade in and out over several frames after each scroll
             s.spacing.scroll = egui::style::ScrollStyle::solid();
+            // a select's list: its rows reach the border, as the web's (padding 0)
+            s.spacing.menu_margin = egui::Margin::ZERO;
             // the browser clips a scrolled box with a hard edge: no fade over its last 20 points
             s.spacing.scroll.fade.strength = 0.0;
             // no fades: every frame is a full redraw, an animation costs one per frame
