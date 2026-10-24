@@ -221,8 +221,11 @@ impl Settings {
             return;
         };
         let muted = look.c("fg-muted");
+        // the web's .help: 4 px under its control, its own line height
         let note = |ui: &mut Ui, s: &str| {
-            ui.add(egui::Label::new(RichText::new(s).size(11.0).color(muted)).wrap());
+            ui.add_space(2.0);
+            let text = RichText::new(s).size(11.0).line_height(Some(widgets::LEADING * 11.0)).color(muted);
+            ui.add(egui::Label::new(text).wrap());
         };
         let mut save = false;
         let mut discard = false;
@@ -249,7 +252,7 @@ impl Settings {
                                 ui.vertical(|ui| {
                                     ui.set_width(cw);
                                     let names: Vec<String> = LANGS.iter().map(|l| l.1.to_string()).collect();
-                                    widgets::labeled_select(ui, &look, t("Default language"), "s-lang", &mut f.lang, &names, cw - 8.0);
+                                    widgets::labeled_select(ui, &look, t("Default language"), "s-lang", &mut f.lang, &names, cw);
                                     note(ui, t("Also selectable on the login page."));
                                 });
                                 ui.vertical(|ui| {
@@ -258,8 +261,9 @@ impl Settings {
                                         .iter()
                                         .map(|id| adm_core::theme::palette(id).map_or_else(|| id.clone(), |(_, p)| t(&p.label).to_string()))
                                         .collect();
-                                    widgets::labeled_select(ui, &look, t("Theme"), "s-theme", &mut f.theme, &names, cw - 8.0);
+                                    widgets::labeled_select(ui, &look, t("Theme"), "s-theme", &mut f.theme, &names, cw);
                                     note(ui, t("Look of the panel and the login page for every operator."));
+                                    ui.add_space(8.0);
                                     crate::widgets::check(ui, &mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(12.0));
                                 });
                             });
@@ -293,7 +297,7 @@ impl Settings {
                                         let lower = o.dn.to_lowercase();
                                         lower.find(",dc=").map_or_else(|| o.dn.clone(), |i| o.dn[..i].to_string())
                                     }));
-                                    widgets::labeled_select(ui, &look, t("Default OU for new users"), "s-ou", &mut f.ou, &names, cw - 8.0);
+                                    widgets::labeled_select(ui, &look, t("Default OU for new users"), "s-ou", &mut f.ou, &names, cw);
                                 });
                             });
                         });

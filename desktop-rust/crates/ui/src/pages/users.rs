@@ -152,7 +152,7 @@ impl Users {
         {
             // as the web's Users: the toolbar, then the table, no card around them
             self.toolbar(ui, cx, days);
-            ui.add_space(look.px("toolbar-mb", 12.0));
+            widgets::toolbar_gap(ui, &look);
             let now = Utc::now();
             let me = cx.me.clone();
             let cols = columns();
@@ -283,10 +283,10 @@ fn columns() -> Vec<Column> {
         Column::new("", 84.0).badge(),
         Column::new(t("Last logon"), 160.0),
         // the web's link widths (icon and name), so they fit at the app's 1280 px
-        Column::new(t("Actions"), 92.0).compact(COMPACT).span(4),
-        Column::new("", 62.0).compact(COMPACT).covered(),
+        Column::new(t("Actions"), 84.0).compact(COMPACT).span(4),
+        Column::new("", 56.0).compact(COMPACT).covered(),
+        Column::new("", 58.0).compact(COMPACT).covered(),
         Column::new("", 64.0).compact(COMPACT).covered(),
-        Column::new("", 70.0).compact(COMPACT).covered(),
     ]
 }
 

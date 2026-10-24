@@ -122,6 +122,10 @@ impl Look {
         w.noninteractive.bg_stroke = Stroke::new(1.0, self.c("line"));
         w.noninteractive.fg_stroke = Stroke::new(1.0, fg);
         w.hovered.bg_stroke = Stroke::new(1.0, self.c("focus"));
+        // the strong fill paints the scroll bar's handle (selects use the weak one): visible on the field, as the
+        // browser's bar
+        w.inactive.bg_fill = self.c("field-line");
+        w.hovered.bg_fill = self.c("fg-muted");
         ctx.set_visuals(v);
         let check = crate::widgets::CheckColors {
             field: self.c("field"),

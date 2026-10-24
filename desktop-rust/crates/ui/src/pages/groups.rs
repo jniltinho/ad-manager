@@ -141,7 +141,7 @@ impl Groups {
                 }
             });
         });
-        ui.add_space(look.px("toolbar-mb", 12.0));
+        widgets::toolbar_gap(ui, &look);
         let cols = [
             Column::new(t("Group"), 230.0),
             Column::new("", 80.0).badge(),

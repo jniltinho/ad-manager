@@ -154,7 +154,7 @@ impl Audit {
                 }
             });
         });
-        ui.add_space(look.px("toolbar-mb", 12.0));
+        widgets::toolbar_gap(ui, &look);
         let (all, vis) = (&self.all, &self.visible);
         // the web's auto layout: the result as narrow as its "ok" tags, wider once an error shows
         let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 64.0 } else { 240.0 };
@@ -292,7 +292,7 @@ impl Http {
                 }
             });
         });
-        ui.add_space(look.px("toolbar-mb", 12.0));
+        widgets::toolbar_gap(ui, &look);
         let cols = [
             Column::new(t("Date"), 150.0),
             Column::new(t("Source"), 112.0),
@@ -577,7 +577,7 @@ impl SambaView {
                         self.load_entries(cx, i);
                     }
                 });
-                ui.add_space(look.px("toolbar-mb", 12.0));
+                widgets::toolbar_gap(ui, &look);
                 let room = ui.available_height() - 24.0;
                 ui.allocate_ui(egui::vec2(ui.available_width(), room), |ui| {
                     samba_entries(ui, &look, &self.entries, &shown, i);

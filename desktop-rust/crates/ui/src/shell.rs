@@ -333,6 +333,8 @@ impl Shell {
     fn user_block(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         ui.spacing_mut().item_spacing.y = 2.0;
+        // the links as high as their text (a button's 28-point minimum pushed them down)
+        ui.spacing_mut().interact_size.y = 0.0;
         ui.add_space(2.0);
         ui.label(crate::style::semibold(&cx.me.user, 12.0).color(look.c("on-header")));
         // right to left: the last link first

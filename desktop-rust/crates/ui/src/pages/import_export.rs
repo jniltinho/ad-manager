@@ -464,7 +464,7 @@ impl ImportExport {
                     Mode::Ad => 1,
                     Mode::Folders => 2,
                 };
-                if let Some(i) = widgets::cardtabs_at(ui, &look, "import-tabs", &tabs, sel, 0.0, 0.0) {
+                if let Some(i) = widgets::cardtabs_at(ui, &look, "import-tabs", &tabs, sel, 0.0, 0.0, false) {
                     self.switch([Mode::Csv, Mode::Ad, Mode::Folders][i]);
                 }
                 egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {

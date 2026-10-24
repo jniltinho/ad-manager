@@ -255,11 +255,23 @@ pub fn side_item<R>(
 /// left. Returns the tab clicked.
 pub fn cardtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize) -> Option<usize> {
     let (bx, by) = crate::modal::BODY;
-    cardtabs_at(ui, look, id, tabs, sel, bx, by)
+    cardtabs_at(ui, look, id, tabs, sel, bx, by, true)
 }
 
 /// The cardtabs band reaching `bx` past the sides and `by` above (a dialog's body padding; 0 at a card's top).
-pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize, bx: f32, by: f32) -> Option<usize> {
+/// `fit`: tabs as wide as their labels (a dialog's `.fit`); else they share the band's width, labels centered (the
+/// web's `.cardtab { flex: 1 }`).
+#[allow(clippy::too_many_arguments)]
+pub fn cardtabs_at(
+    ui: &mut Ui,
+    look: &Look,
+    id: &str,
+    tabs: &[&str],
+    sel: usize,
+    bx: f32,
+    by: f32,
+    fit: bool,
+) -> Option<usize> {
     let h = 34.0 + look.px("cardtabs-pad", 0.0);
     let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
     let band =
@@ -280,12 +292,23 @@ pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize
     let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
     let mut x = band.left() + look.px("cardtabs-pad", 0.0);
     let mut out = None;
+    // not fit: the band's width shared in proportion to the labels (each one whole, the band filled)
+    let natural: Vec<f32> = tabs
+        .iter()
+        .map(|l| {
+            let text = if upper { l.to_uppercase() } else { l.to_string() };
+            ui.painter().layout_no_wrap(text, font.clone(), Color32::PLACEHOLDER).size().x + 24.0
+        })
+        .collect();
+    let room =
+        band.width() - 2.0 * look.px("cardtabs-pad", 0.0) - look.px("cardtabs-gap", 0.0) * (tabs.len() as f32 - 1.0);
+    let scale = room / natural.iter().sum::<f32>().max(1.0);
     for (i, label) in tabs.iter().enumerate() {
         let on = i == sel;
         let text = if upper { label.to_uppercase() } else { label.to_string() };
         let ink = if on { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
         let g = ui.painter().layout_no_wrap(text, font.clone(), ink);
-        let w = g.size().x + 24.0 + if on { bar } else { 0.0 };
+        let w = if fit { g.size().x + 24.0 + if on { bar } else { 0.0 } } else { (natural[i] * scale).floor() };
         // the band's padding on top (the web's --cardtabs-pad), the inactive tabs lower by their inset, the current
         // one over the band's line by its overlap
         let pad = look.px("cardtabs-pad", 0.0);
@@ -311,7 +334,11 @@ pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize
                 look.c("cardtab-bar"),
             );
         }
-        let left = tab.left() + 12.0 + if on { bar } else { 0.0 };
+        let left = if fit {
+            tab.left() + 12.0 + if on { bar } else { 0.0 }
+        } else {
+            tab.center().x - g.size().x / 2.0 + if on { bar / 2.0 } else { 0.0 }
+        };
         painter.galley(egui::pos2(left, tab.center().y - g.size().y / 2.0), g, ink);
         let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
             n.set_role(egui::accesskit::Role::Tab);
@@ -746,7 +773,7 @@ pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: u
     let y = r.rect.bottom() + line_w / 2.0;
     ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(line_w, look.c("subtab-line")));
     // the web's 12 px under the line, egui's item spacing included
-    ui.add_space((line_w + 12.0 - 2.0 * ui.spacing().item_spacing.y).max(line_w));
+    ui.add_space((line_w + 12.0 - ui.spacing().item_spacing.y).max(line_w));
     out
 }
 
@@ -982,8 +1009,13 @@ pub fn label(ui: &mut Ui, look: &Look, s: &str) -> Response {
 pub fn readonly_look(ui: &mut Ui) {
     let w = &mut ui.visuals_mut().widgets;
     w.noninteractive.bg_stroke = w.inactive.bg_stroke;
-    w.noninteractive.bg_fill = w.inactive.bg_fill;
+    w.noninteractive.bg_fill = w.inactive.weak_bg_fill; // the field's white (the strong fill is the scroll handle's)
     w.noninteractive.weak_bg_fill = w.inactive.weak_bg_fill;
+}
+
+/// The web's margin under a page's toolbar (`--toolbar-mb`), egui's item spacing counted in.
+pub fn toolbar_gap(ui: &mut Ui, look: &Look) {
+    ui.add_space((look.px("toolbar-mb", 12.0) - ui.spacing().item_spacing.y).max(0.0));
 }
 
 /// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).

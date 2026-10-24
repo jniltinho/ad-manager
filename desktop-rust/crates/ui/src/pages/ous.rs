@@ -96,7 +96,7 @@ impl Ous {
                 }
             });
         });
-        ui.add_space(look.px("toolbar-mb", 12.0));
+        widgets::toolbar_gap(ui, &look);
         let cols = [
             Column::new(t("Name"), 280.0),
             Column::new(t("Description"), 240.0),

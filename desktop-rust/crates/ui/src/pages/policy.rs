@@ -90,13 +90,13 @@ impl Dialog for PolicyDialog {
         let check = crate::style::semibold(t("Require complexity (uppercase, lowercase, digit/symbol)"), 12.0);
         crate::widgets::check(ui, &mut self.complexity, check);
         ui.add_space(4.0);
-        // the web's rows: a 150-point label column (.lbl), a 100-point field and its unit
+        // the web's rows: grid-cols-[180px_100px_1fr] with gap-3 (a 180-point label, a 100-point field, the unit)
         for (i, (label, unit, _, _)) in FIELDS.iter().enumerate() {
             ui.add_space(if i == 0 { 2.0 } else { 6.0 });
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 let (cell, _) =
-                    ui.allocate_exact_size(egui::vec2(150.0, crate::style::control_h()), egui::Sense::hover());
+                    ui.allocate_exact_size(egui::vec2(180.0 + 12.0, crate::style::control_h()), egui::Sense::hover());
                 let layout = egui::Layout::left_to_right(egui::Align::Center);
                 let l = widgets::lbl(
                     &mut ui.new_child(egui::UiBuilder::new().max_rect(cell).layout(layout)),
@@ -104,7 +104,7 @@ impl Dialog for PolicyDialog {
                     t(label),
                 );
                 ui.add(crate::widgets::line(&mut self.values[i]).desired_width(100.0)).labelled_by(l.id);
-                ui.add_space(8.0);
+                ui.add_space(12.0);
                 ui.label(RichText::new(t(unit)).size(12.0).color(look.c("fg-muted")));
             });
         }

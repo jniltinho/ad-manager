@@ -127,7 +127,7 @@ impl Computers {
                 }
             });
         });
-        ui.add_space(look.px("toolbar-mb", 12.0));
+        widgets::toolbar_gap(ui, &look);
         let cols = [
             Column::new(t("Name"), 170.0),
             Column::new(t("System"), 250.0).fill(),

@@ -268,15 +268,21 @@ impl Home {
                     widgets::mini_table(ui, &look, [t("Name"), t("System"), t("Last logon")], &rows, None);
                     egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
                         let server = s.map_or(String::new(), |s| s.server.clone());
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing.x = 3.0;
-                            let small = |s: &str| RichText::new(s).size(11.0).color(muted);
-                            ui.label(small(t("Connected to")));
-                            ui.label(small(&server).monospace());
-                            ui.label(small(&format!(". {}", t("Replication/SYSVOL are not checked here — use"))));
-                            ui.label(small("samba-tool drs showrepl").monospace());
-                            ui.label(small("."));
-                        });
+                        // one text, the web's <code> runs inside it: no gap before the full stops
+                        let mut job = egui::text::LayoutJob::default();
+                        let text = egui::TextFormat::simple(egui::FontId::proportional(11.0), muted);
+                        let code = egui::TextFormat::simple(egui::FontId::monospace(10.5), muted);
+                        for (part, f) in [
+                            (format!("{} ", t("Connected to")), &text),
+                            (server, &code),
+                            (format!(". {} ", t("Replication/SYSVOL are not checked here — use")), &text),
+                            ("samba-tool drs showrepl".to_string(), &code),
+                            (".".to_string(), &text),
+                        ] {
+                            job.append(&part, 0.0, f.clone());
+                        }
+                        job.wrap.max_width = ui.available_width();
+                        ui.label(job);
                     });
                 });
             });
