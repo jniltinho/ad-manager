@@ -104,3 +104,24 @@ func TestServerPartQuarantine(t *testing.T) {
 		}
 	}
 }
+
+// Files given back reapply the Windows inheritance at the folder they return to, also for a server job's share.
+func TestRestoreReinherits(t *testing.T) {
+	folder := SyncJob{Reinherit: true, Dest: "/srv/shares/Fin"}
+	server := SyncJob{Reinherit: true, Kind: "server"}
+	for name, c := range map[string]struct {
+		j    SyncJob
+		q    Quarantine
+		want bool
+	}{
+		"folder job, its destination": {folder, Quarantine{Dest: "/srv/shares/Fin"}, true},
+		"folder job, an old one":      {folder, Quarantine{Dest: "/srv/shares/Old"}, false},
+		"server job's share":          {server, Quarantine{Dest: "/srv/shares/Fin", Part: "-s1"}, true},
+		"server job without a part":   {server, Quarantine{Dest: "/srv/shares/Fin"}, false},
+		"inheritance off":             {SyncJob{Kind: "server"}, Quarantine{Dest: "/srv/shares/Fin", Part: "-s1"}, false},
+	} {
+		if got := restoreReinherits(c.j, c.q); got != c.want {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+}

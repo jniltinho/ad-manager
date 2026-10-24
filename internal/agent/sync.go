@@ -1252,7 +1252,7 @@ func (a *Agent) quarantineRoutes(api *echo.Group, bad func(*echo.Context, int, e
 			return bad(c, http.StatusConflict, err)
 		}
 		if res.Restored+res.Swapped > 0 {
-			if j, jerr := a.syncJob(q.Job); jerr == nil && j.Reinherit && j.Dest == q.Dest {
+			if j, jerr := a.syncJob(q.Job); jerr == nil && restoreReinherits(j, q) {
 				if _, err := a.mgr.Reinherit(context.WithoutCancel(c.Request().Context()), q.Dest); err != nil {
 					res.Errors, res.Failed = append(res.Errors, "Windows inheritance not applied: "+err.Error()), res.Failed+1
 				}
@@ -1463,4 +1463,16 @@ func addResult(sum, x *syncer.Result, share string) {
 			sum.Quarantined = append(sum.Quarantined, share+"/"+n)
 		}
 	}
+}
+
+// restoreReinherits tells whether files given back from quarantine q get job j's Windows inheritance again: a
+// folder job's current destination, or the share folder a server job's part recorded (checked by giveBack).
+func restoreReinherits(j SyncJob, q Quarantine) bool {
+	if !j.Reinherit {
+		return false
+	}
+	if j.Kind == "server" {
+		return q.Part != "" && q.Dest != ""
+	}
+	return j.Dest == q.Dest
 }
