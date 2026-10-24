@@ -858,13 +858,19 @@ pub fn mini_table_aligned<const N: usize>(
     // rows touch each other, as the web's
     let spacing = std::mem::replace(&mut ui.spacing_mut().item_spacing.y, 0.0);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
-    crate::depth::paint_box(
-        ui.painter(),
-        rect,
-        look.gradient("table-head"),
-        look.c("table-head"),
-        look.shadows("table-head"),
-    );
+    // the recipe per column, as the web's th (a bevel theme separates them)
+    let mut cx0 = rect.left();
+    for cw in &col_w {
+        let cell = egui::Rect::from_min_max(egui::pos2(cx0, rect.top()), egui::pos2(cx0 + cw, rect.bottom()));
+        crate::depth::paint_box(
+            ui.painter(),
+            cell,
+            look.gradient("table-head"),
+            look.c("table-head"),
+            look.shadows("table-head"),
+        );
+        cx0 += cw;
+    }
     ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, look.c("line")));
     let mut x = rect.left();
     for (i, h) in heads.iter().enumerate() {
