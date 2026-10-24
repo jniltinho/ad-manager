@@ -693,7 +693,12 @@ func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun, part s
 	if part != "" {
 		_, _ = fmt.Fprintf(logf, "==== %s -> %s\n", j.Source.Share, j.Dest)
 	}
-	cmd.Stderr = &limitWriter{w: logf, n: 3 << 20} // under what the panel reads back (4 MiB)
+	// under what the panel reads back (4 MiB), for the whole run: a server job's shares share the budget
+	budget := int64(3 << 20)
+	if fi, err := logf.Stat(); err == nil {
+		budget = max(0, budget-fi.Size())
+	}
+	cmd.Stderr = &limitWriter{w: logf, n: budget}
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, notes, err
@@ -1167,6 +1172,10 @@ func (a *Agent) syncRoutes(api *echo.Group) {
 		if err != nil {
 			return bad(c, http.StatusNotFound, errors.New("run not found"))
 		}
+		// a log past what the panel reads back (4 MiB; an older server job's shares could pass it): its end
+		if limit := 3 << 20; len(b) > limit {
+			b = append([]byte(fmt.Sprintf("… (the first %d bytes left out)\n", len(b)-limit)), b[len(b)-limit:]...)
+		}
 		return c.Blob(http.StatusOK, "text/plain; charset=utf-8", b)
 	})
 	a.quarantineRoutes(api, bad)
@@ -1413,6 +1422,9 @@ func (a *Agent) syncServer(rctx context.Context, j SyncJob, r *SyncRun) (*syncer
 		case err != nil:
 			failed = append(failed, t.Share)
 			r.Notes = append(r.Notes, fmt.Sprintf("%s -> %s: %s", t.Share, t.Dest, syncer.WithHint(err)))
+		case res != nil && r.Preview: // nothing written yet: what a run would copy
+			n, b := res.Plan.New+res.Plan.Changed, res.Plan.NewBytes+res.Plan.ChangedBytes
+			r.Notes = append(r.Notes, fmt.Sprintf("%s -> %s: %d files to copy (%s)", t.Share, t.Dest, n, humanBytes(b)))
 		case res != nil:
 			r.Notes = append(r.Notes, fmt.Sprintf("%s -> %s: %d files copied (%s)", t.Share, t.Dest, res.Transfers, humanBytes(res.Bytes)))
 		}

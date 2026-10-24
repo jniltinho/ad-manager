@@ -301,7 +301,7 @@ impl Settings {
                                     ui.add(crate::widgets::line(&mut f.session).desired_width(cw))
                                 });
                             });
-                            ui.add_space(12.0); // the web's gap-y-3
+                            ui.add_space(12.0 - ui.spacing().item_spacing.y); // the web's gap-y-3, egui's spacing included
                             ui.horizontal_top(|ui| {
                                 ui.spacing_mut().item_spacing.x = 32.0; // the web's gap-x-8
                                 crate::widgets::check(ui, &mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(11.0));

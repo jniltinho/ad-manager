@@ -334,17 +334,19 @@ impl ImportExport {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 20.0;
                 ui.vertical(|ui| {
-                    ui.set_width(360.0);
-                    egui::ScrollArea::vertical().id_salt("import-left").max_height(h).auto_shrink([false, true]).show(
-                        ui,
-                        |ui| {
-                            // the web's column keeps its scroll bar's 10.4 points: its cards are 349.6 wide
-                            ui.set_max_width(349.6);
+                    // the web's 360-point column with its scroll bar inside: the cards 349.6 wide, the plan at 20
+                    // points from the column (egui draws its bar beside the content: the content is the 350)
+                    ui.set_width(350.0);
+                    egui::ScrollArea::vertical()
+                        .id_salt("import-left")
+                        .max_height(h)
+                        .auto_shrink([false, true])
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                        .show(ui, |ui| {
                             self.export_card(ui, cx);
                             ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
                             preview = self.import_card(ui, cx);
-                        },
-                    );
+                        });
                 });
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
