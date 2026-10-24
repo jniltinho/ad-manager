@@ -543,8 +543,10 @@ impl Settings {
                         ui.label(RichText::new(tf!("Kept for %s.", self.import.user)).font(font).color(look.c("ok")));
                     }
                     // user, password and the buttons on one line (the web's): the buttons at their own width at the
-                    // right, the two fields sharing what is left
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
+                    // right, the two fields sharing what is left; the row's own height (a layout given the rest of
+                    // the page puts the buttons at its bottom)
+                    let row = egui::vec2(ui.available_width(), widgets::LEADING * 11.0 + 4.0 + crate::style::control_h());
+                    ui.allocate_ui_with_layout(row, egui::Layout::right_to_left(egui::Align::Max), |ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         if self.import.set {
                             remove = widgets::button(ui, &look, crate::icons::TRASH, t("Remove"), Kind::Secondary).clicked();

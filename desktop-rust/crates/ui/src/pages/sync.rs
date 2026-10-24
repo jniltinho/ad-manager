@@ -92,7 +92,7 @@ impl Sync {
                 p.runs.clear();
                 if busy && p.polling != Some(key) {
                     p.polling = Some(key);
-                    cx.spawn(tokio::time::sleep(Duration::from_secs(3)), move |app, ()| {
+                    cx.spawn(async move { tokio::time::sleep(Duration::from_secs(3)).await }, move |app, ()| {
                         app.with_shell(|s, cx| {
                             if s.sync.polling == Some(key) {
                                 s.sync.polling = None;
@@ -323,7 +323,7 @@ impl Sync {
         let api = cx.panel.clone();
         cx.run(async move { api.act(Method::POST, &path).await }, move |app, ()| {
             app.cx.set_status(if preview { t("Preview queued.") } else { t("Sync queued.") });
-            app.cx.spawn(tokio::time::sleep(Duration::from_millis(1500)), |app, ()| reload(app));
+            app.cx.spawn(async move { tokio::time::sleep(Duration::from_millis(1500)).await }, |app, ()| reload(app));
             app.with_shell(|s, cx| s.sync.load_quarantines(cx));
         });
     }

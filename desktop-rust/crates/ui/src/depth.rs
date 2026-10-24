@@ -5,7 +5,7 @@
 
 use adm_core::theme::{Gradient, Layer, Rgba};
 use egui::epaint::{Mesh, Shape, Vertex, WHITE_UV};
-use egui::{Color32, Painter, Pos2, Rect, Vec2};
+use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Vec2};
 
 use crate::style::c32;
 
@@ -128,76 +128,19 @@ pub fn gradient_mesh(rect: Rect, g: &Gradient) -> Mesh {
     mesh
 }
 
-/// An outer box-shadow layer as the browser draws it: the box moved by the offset and grown by the spread, blurred with
-/// a gaussian of σ = blur / 2 (a sharp edge without blur): a solid middle, 1-point strips along each side, and the
-/// corners as the product of their two sides' fall-offs.
+/// An outer box-shadow layer as an egui shadow shape.
 fn outer(rect: Rect, l: &Layer) -> Shape {
-    let c = c32(l.color);
-    let box_ = rect.translate(Vec2::new(l.dx, l.dy)).expand(l.spread);
-    if l.blur <= 0.0 {
-        return Shape::rect_filled(box_, 0.0, c);
-    }
-    let sigma = l.blur / 2.0;
-    let reach = (2.0 * sigma).ceil(); // the fall-off from 2σ inside the edge to 2σ outside
-    let n = (2.0 * reach) as i32;
-    let profile: Vec<f32> = (0..n).map(|i| normal_cdf(-((i as f32 + 0.5) - reach) / sigma)).collect();
-    let mut out = Vec::new();
-    let inner = box_.shrink(reach);
-    if inner.is_positive() {
-        out.push(Shape::rect_filled(inner, 0.0, c));
-    }
-    let (x0, x1, y0, y1) = (inner.left(), inner.right(), inner.top(), inner.bottom());
-    for (i, a) in profile.iter().enumerate() {
-        if *a < 0.004 {
-            continue;
-        }
-        let col = c.gamma_multiply(*a);
-        let d = i as f32; // from 2σ inside the edge outwards
-        // the four sides (their strips between the corners)
-        out.push(Shape::rect_filled(
-            Rect::from_min_max(Pos2::new(x0, box_.top() + reach - d - 1.0), Pos2::new(x1, box_.top() + reach - d)),
-            0.0,
-            col,
-        ));
-        out.push(Shape::rect_filled(
-            Rect::from_min_max(
-                Pos2::new(x0, box_.bottom() - reach + d),
-                Pos2::new(x1, box_.bottom() - reach + d + 1.0),
-            ),
-            0.0,
-            col,
-        ));
-        out.push(Shape::rect_filled(
-            Rect::from_min_max(Pos2::new(box_.left() + reach - d - 1.0, y0), Pos2::new(box_.left() + reach - d, y1)),
-            0.0,
-            col,
-        ));
-        out.push(Shape::rect_filled(
-            Rect::from_min_max(Pos2::new(box_.right() - reach + d, y0), Pos2::new(box_.right() - reach + d + 1.0, y1)),
-            0.0,
-            col,
-        ));
-    }
-    // the corners: each point the product of its distances' fall-offs
-    for (i, ai) in profile.iter().enumerate() {
-        for (k, ak) in profile.iter().enumerate() {
-            let a = ai * ak;
-            if a < 0.004 {
-                continue;
-            }
-            let col = c.gamma_multiply(a);
-            let (di, dk) = (i as f32, k as f32);
-            for (x, y) in [
-                (box_.left() + reach - di - 1.0, box_.top() + reach - dk - 1.0),
-                (box_.right() - reach + di, box_.top() + reach - dk - 1.0),
-                (box_.left() + reach - di - 1.0, box_.bottom() - reach + dk),
-                (box_.right() - reach + di, box_.bottom() - reach + dk),
-            ] {
-                out.push(Shape::rect_filled(Rect::from_min_size(Pos2::new(x, y), Vec2::splat(1.0)), 0.0, col));
-            }
-        }
-    }
-    Shape::Vec(out)
+    let clamp8 = |v: f32| v.round().clamp(-128.0, 127.0) as i8;
+    let clampu = |v: f32| v.round().clamp(0.0, 255.0) as u8;
+    let s = egui::Shadow {
+        offset: [clamp8(l.dx), clamp8(l.dy)],
+        // egui feathers over its blur width centered on the edge; the browser's blur radius reaches its whole
+        // length outside: twice the value draws the same falloff
+        blur: clampu(2.0 * l.blur),
+        spread: clampu(l.spread),
+        color: c32(l.color),
+    };
+    s.as_shape(rect, CornerRadius::ZERO).into()
 }
 
 /// An inset layer as bands inside `rect`: the edge its offset points from (dx > 0 left, < 0 right; dy > 0 top, < 0

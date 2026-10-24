@@ -427,22 +427,22 @@ impl ImportExport {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
                             let names: Vec<String> = self.servers.iter().map(|a| a.name.clone()).collect();
-                            widgets::select(
-                                ui,
-                                "export-server",
-                                t("File server"),
-                                &mut self.server,
-                                &names,
-                                ui.available_width() - 105.0, // the select takes the flex share, the button its 101
-                            );
-                            let r = widgets::button_end(
-                                ui,
-                                &look,
-                                &format!("{}  {}", crate::icons::FOLDER_OPEN, t("Folders")),
-                                crate::icons::DOWNLOAD,
-                                Kind::Secondary,
-                                101.0, // the web's natural width of the button
-                            );
+                            // as the web's flex row: the button at its natural width at the right (a fixed width it
+                            // outgrew widened the card), the select the rest
+                            let mut r = None;
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                r = Some(widgets::button_end(
+                                    ui,
+                                    &look,
+                                    &format!("{}  {}", crate::icons::FOLDER_OPEN, t("Folders")),
+                                    crate::icons::DOWNLOAD,
+                                    Kind::Secondary,
+                                    0.0,
+                                ));
+                                let w = ui.available_width();
+                                widgets::select(ui, "export-server", t("File server"), &mut self.server, &names, w);
+                            });
+                            let Some(r) = r else { return };
                             if r.on_hover_text(t("Folders and permissions (no files)")).clicked()
                                 && let Some(a) = self.servers.get(self.server)
                             {

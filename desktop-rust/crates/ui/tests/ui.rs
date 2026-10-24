@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use adm_core::config::{Config, Loaded};
-use adm_core::testkit::{MockPanel, Req, demo};
+use adm_core::testkit::{MockPanel, Req, Route, demo};
 use adm_platform::TestPlatform;
 use adm_ui::app::Screen;
 use adm_ui::{App, GpuStart, Start};
@@ -39,9 +39,21 @@ fn env_at(
     version: &'static str,
     gpu: impl FnOnce(&std::path::Path) -> Option<GpuStart>,
 ) -> Env {
+    env_route(demo(users), w, ppp, host, port, version, gpu)
+}
+
+fn env_route(
+    route: Arc<Route>,
+    w: f32,
+    ppp: f32,
+    host: &str,
+    port: u16,
+    version: &'static str,
+    gpu: impl FnOnce(&std::path::Path) -> Option<GpuStart>,
+) -> Env {
     adm_core::i18n::set_lang("en");
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
-    let mock = rt.block_on(MockPanel::start_at(host, port, demo(users))).unwrap();
+    let mock = rt.block_on(MockPanel::start_at(host, port, route)).unwrap();
     let mut config = Config::default();
     config.panel.url = mock.url.clone();
     config.panel.fingerprint = mock.pin.clone();
@@ -634,6 +646,28 @@ fn an_expired_session_heard_by_any_call_goes_back_to_sign_in() {
     let api = e.app().cx.panel.clone();
     e.h.state_mut().cx.spawn(async move { api.act(reqwest::Method::GET, "/api/expired-probe").await }, |_, _| {});
     e.wait("the sign-in screen", |a, _| matches!(&a.screen, Screen::Login(_)));
+}
+
+/// A running run is followed: its poll timer is made on the runtime, not on the UI thread (no Tokio reactor there).
+#[test]
+fn a_running_sync_is_followed() {
+    let base = demo(5);
+    let route: Arc<Route> = Arc::new(move |r: &Req| {
+        if r.method == "GET" && r.path == "/api/agents/1/syncs" {
+            let run = serde_json::json!({"id":"r2","job":"public","started":"2026-10-22T09:00:00Z","status":"running"});
+            return (
+                200,
+                serde_json::json!({"jobs":[],"runs":[run],"roots":["/srv/shares"],"file_server":true}).to_string(),
+            );
+        }
+        base(r)
+    });
+    let mut e = env_route(route, 1280.0, 1.0, "localhost", 0, "test", |_| None);
+    e.sign_in();
+    e.h.get_by_label("Backup").click();
+    e.h.run_steps(3);
+    e.h.get_by_label("Sync").click();
+    e.wait("a second read by the poll", |_, m| m.sent("GET", "/api/agents/1/syncs").len() >= 2);
 }
 
 #[test]

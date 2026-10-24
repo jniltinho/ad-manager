@@ -68,13 +68,16 @@ impl Backup {
                 });
                 if running {
                     let g = p.generation;
-                    cx.spawn(tokio::time::sleep(std::time::Duration::from_secs(4)), move |app, ()| {
-                        app.with_shell(|s, cx| {
-                            if s.backup.generation == g {
-                                s.backup.reload(cx);
-                            }
-                        });
-                    });
+                    cx.spawn(
+                        async move { tokio::time::sleep(std::time::Duration::from_secs(4)).await },
+                        move |app, ()| {
+                            app.with_shell(|s, cx| {
+                                if s.backup.generation == g {
+                                    s.backup.reload(cx);
+                                }
+                            });
+                        },
+                    );
                 }
             });
         });
@@ -909,7 +912,7 @@ impl Dialog for Restore {
                     return;
                 }
                 app.cx.set_status(tf!("Restoration queued on %s: follow it under Last restoration.", name));
-                app.cx.spawn(tokio::time::sleep(Duration::from_secs(2)), |app, ()| reload(app));
+                app.cx.spawn(async move { tokio::time::sleep(Duration::from_secs(2)).await }, |app, ()| reload(app));
             });
             return Flow::Close;
         }
