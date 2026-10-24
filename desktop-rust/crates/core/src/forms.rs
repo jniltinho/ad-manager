@@ -294,13 +294,6 @@ pub fn new_sync_job(kerberos: bool) -> SyncJob {
     j
 }
 
-/// The source of a job as the jobs table shows it.
-pub fn sync_source_text(j: &SyncJob) -> String {
-    let auth = if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" };
-    let path = format!("/{}", j.source.path).replace('/', "\\");
-    format!(r"\\{}\{}{} · {auth}", j.source.host, j.source.share, path)
-}
-
 /// The UNC the wizard is looking at.
 pub fn sync_unc(j: &SyncJob) -> String {
     unc(&j.source.host, &j.source.share, &j.source.path)

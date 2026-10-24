@@ -512,6 +512,11 @@ pub struct SyncPlan {
 pub struct SyncProgress {
     pub transfers: i64,
     pub bytes: i64,
+    /// What a running run does now: preparing, copying, acl or finalizing.
+    pub phase: String,
+    /// The files to copy (copying), and the items whose permissions were applied (acl).
+    pub total: i64,
+    pub acl_items: i64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
