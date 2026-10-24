@@ -338,6 +338,8 @@ impl ImportExport {
                     egui::ScrollArea::vertical().id_salt("import-left").max_height(h).auto_shrink([false, true]).show(
                         ui,
                         |ui| {
+                            // the web's column keeps its scroll bar's 10.4 points: its cards are 349.6 wide
+                            ui.set_max_width(349.6);
                             self.export_card(ui, cx);
                             ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
                             preview = self.import_card(ui, cx);
@@ -427,7 +429,7 @@ impl ImportExport {
                                 t("File server"),
                                 &mut self.server,
                                 &names,
-                                ui.available_width() - 114.0, // the select takes the flex share, the button its 106
+                                ui.available_width() - 105.0, // the select takes the flex share, the button its 101
                             );
                             let r = widgets::button_end(
                                 ui,
@@ -435,7 +437,7 @@ impl ImportExport {
                                 &format!("{}  {}", crate::icons::FOLDER_OPEN, t("Folders")),
                                 crate::icons::DOWNLOAD,
                                 Kind::Secondary,
-                                106.0,
+                                101.0, // the web's natural width of the button
                             );
                             if r.on_hover_text(t("Folders and permissions (no files)")).clicked()
                                 && let Some(a) = self.servers.get(self.server)

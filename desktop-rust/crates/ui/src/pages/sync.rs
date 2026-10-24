@@ -361,11 +361,12 @@ impl Sync {
                     Column::new(t("Finished"), w[1]),
                     Column::new(t("Job"), w[2].min(224.0)),
                     Column::new(t("Kind"), w[3]),
-                    Column::new(t("Status"), 120.0).greedy(),
+                    Column::new(t("Status"), 120.0).greedy().fill(),
                     Column::new(t("Files"), w[5]).right(),
                     Column::new(t("Size"), w[6]).right(),
                     Column::new(t("Deleted"), w[7]).right(),
-                    Column::new("", 96.0).right(),
+                    // the web's w-24 gives way to Status' w-full: the column is as wide as its two icons (50)
+                    Column::new("", 50.0).right(),
                 ];
                 let runs = &self.data.runs;
                 let mut hover = None;

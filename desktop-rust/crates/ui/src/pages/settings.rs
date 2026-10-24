@@ -265,20 +265,21 @@ impl Settings {
             // the bar at the page's edge, the content inside its 20-point padding
             ui.set_max_width(ui.available_width() - 20.0);
             ui.horizontal_top(|ui| {
-                ui.spacing_mut().item_spacing.x = 20.0;
+                ui.spacing_mut().item_spacing.x = 16.0; // the web's gap-4
                 let right_w = 520.0_f32.min((ui.available_width() * 0.45).floor());
-                let left_w = ui.available_width() - right_w - 20.0;
+                let left_w = ui.available_width() - right_w - 16.0;
                 ui.vertical(|ui| {
                     ui.set_width(left_w);
                     if !loaded.stored {
                         widgets::callout(ui, &look, widgets::Note::Warn, t("No local database (db.path): settings cannot be saved."));
-                        ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
+                        ui.add_space(16.0 - ui.spacing().item_spacing.y); // the web's space-y-4
                     }
                     let f = &mut self.form;
                     // General
                     widgets::panel(ui, &look, (t("General"), ""), |_| {}, 0.0, |ui| {
                         egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                            let cw = ((ui.available_width() - 16.0) / 2.0).floor();
+                            // as the web's: language, theme and session timeout on one line, the two switches under them
+                            let cw = ((ui.available_width() - 32.0) / 3.0).floor();
                             ui.horizontal_top(|ui| {
                                 ui.spacing_mut().item_spacing.x = 16.0;
                                 ui.vertical(|ui| {
@@ -295,21 +296,25 @@ impl Settings {
                                         .collect();
                                     widgets::labeled_select(ui, &look, t("Theme"), "s-theme", &mut f.theme, &names, cw);
                                     note(ui, t("Look of the panel and the login page for every operator."));
-                                    ui.add_space(5.5); // the web's mt-2, less the half-leading egui leaves below
-                                    crate::widgets::check(ui, &mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(11.0));
+                                });
+                                widgets::above(ui, &look, t("Session timeout (minutes idle)"), cw, |ui, _| {
+                                    ui.add(crate::widgets::line(&mut f.session).desired_width(cw))
                                 });
                             });
-                            ui.add_space(16.5); // the web's gap-4 between the grid's rows
-                            widgets::above(ui, &look, t("Session timeout (minutes idle)"), cw, |ui, _| {
-                                ui.add(crate::widgets::line(&mut f.session).desired_width(cw))
+                            ui.add_space(12.0); // the web's gap-y-3
+                            ui.horizontal_top(|ui| {
+                                ui.spacing_mut().item_spacing.x = 32.0; // the web's gap-x-8
+                                crate::widgets::check(ui, &mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(11.0));
+                                ui.vertical(|ui| {
+                                    let label = crate::style::semibold(t("API documentation (Swagger) at /swagger"), 11.0).color(look.c("fg-strong"));
+                                    crate::widgets::check(ui, &mut f.swagger, label);
+                                    ui.add_space(2.0 - 4.5); // the web's mt-0.5 (the note adds its 4.5)
+                                    note(ui, t("Only for signed-in administrators, like the queue monitor. Keep it off in production."));
+                                });
                             });
-                            ui.add_space(14.0);
-                            let label = crate::style::semibold(t("API documentation (Swagger) at /swagger"), 11.0).color(look.c("fg-strong"));
-                            crate::widgets::check(ui, &mut f.swagger, label);
-                            note(ui, t("Only for signed-in administrators, like the queue monitor. Keep it off in production."));
                         });
                     });
-                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
+                    ui.add_space(16.0 - ui.spacing().item_spacing.y); // the web's space-y-4 between cards, egui's spacing included
                     // Users
                     widgets::panel(ui, &look, (t("Users"), ""), |_| {}, 0.0, |ui| {
                         egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
@@ -334,7 +339,7 @@ impl Settings {
                             });
                         });
                     });
-                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
+                    ui.add_space(16.0 - ui.spacing().item_spacing.y); // the web's space-y-4 between cards, egui's spacing included
                     // Company
                     widgets::panel(ui, &look, (t("Company"), ""), |_| {}, 0.0, |ui| {
                         egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
@@ -389,7 +394,7 @@ impl Settings {
                             ui.add(egui::Label::new(RichText::new(lines).size(11.0).line_height(Some(1.375 * 11.0)).color(muted)).wrap());
                         });
                     });
-                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
+                    ui.add_space(16.0 - ui.spacing().item_spacing.y); // the web's space-y-4 between cards, egui's spacing included
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         let label = if self.busy { t("Saving…") } else { t("Save settings") };
@@ -397,15 +402,16 @@ impl Settings {
                         save = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::CHECK, label, Kind::Primary)).inner.clicked();
                         discard = widgets::button(ui, &look, crate::icons::ROTATE, t("Discard changes"), Kind::Secondary).clicked();
                     });
+                    // the token under the form (the web's left column): two columns of about the same height
+                    ui.add_space(16.0 - ui.spacing().item_spacing.y);
+                    token = self.token_card(ui, cx);
                     ui.add_space(20.0);
                 });
                 ui.vertical(|ui| {
                     ui.set_width(right_w);
                     self.readonly_card(ui, cx, &loaded);
-                    ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's 20 between cards, egui's spacing included
+                    ui.add_space(16.0 - ui.spacing().item_spacing.y); // the web's space-y-4 between cards, egui's spacing included
                     self.import_card(ui, cx);
-                    ui.add_space(20.0 - ui.spacing().item_spacing.y);
-                    token = self.token_card(ui, cx);
                 });
             });
         });
@@ -498,14 +504,13 @@ impl Settings {
                 egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     let muted = look.c("fg-muted");
-                    widgets::para(
-                        ui,
+                    // one note, as the web's
+                    let note = format!(
+                        "{} {}",
                         t("Edit /opt/ad-manager/config.toml and restart the ad-manager service to change these."),
-                        11.0,
-                        muted,
+                        tf!("Signed in as %s.", cx.me.user)
                     );
-                    ui.add_space(8.0); // the web's paragraph gap
-                    ui.label(RichText::new(tf!("Signed in as %s.", cx.me.user)).size(11.0).color(muted));
+                    widgets::para(ui, &note, 11.0, muted);
                 });
             },
         );
@@ -535,27 +540,28 @@ impl Settings {
                         let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
                         ui.label(RichText::new(tf!("Kept for %s.", self.import.user)).font(font).color(look.c("ok")));
                     }
-                    let cw = ((ui.available_width() - 8.0) / 2.0).floor();
-                    ui.horizontal_top(|ui| {
-                        ui.spacing_mut().item_spacing.x = 8.0;
-                        widgets::above(ui, &look, t("User"), cw, |ui, _| {
-                            ui.add(widgets::line(&mut self.import_user).desired_width(cw))
-                        });
-                        let pw = &mut self.import_pw;
-                        widgets::above(ui, &look, t("Password"), cw, |ui, _| {
-                            widgets::secret_field(ui, import_pw_field(), pw, "", cw)
-                        });
-                    });
+                    // user, password and the buttons on one line (the web's)
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
-                        let can = !self.import_busy && !self.import_user.trim().is_empty() && !self.import_pw.is_empty();
-                        save = ui
-                            .add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::KEY, t("Save"), Kind::Secondary))
-                            .inner
-                            .clicked();
-                        if self.import.set {
-                            remove = widgets::button(ui, &look, crate::icons::TRASH, t("Remove"), Kind::Secondary).clicked();
-                        }
+                        let bw = if self.import.set { 180.0 } else { 80.0 };
+                        let cw = ((ui.available_width() - bw - 16.0) / 2.0).floor();
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Max), |ui| {
+                            widgets::above(ui, &look, t("User"), cw, |ui, _| {
+                                ui.add(widgets::line(&mut self.import_user).desired_width(cw))
+                            });
+                            let pw = &mut self.import_pw;
+                            widgets::above(ui, &look, t("Password"), cw, |ui, _| {
+                                widgets::secret_field(ui, import_pw_field(), pw, "", cw)
+                            });
+                            let can = !self.import_busy && !self.import_user.trim().is_empty() && !self.import_pw.is_empty();
+                            save = ui
+                                .add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::KEY, t("Save"), Kind::Secondary))
+                                .inner
+                                .clicked();
+                            if self.import.set {
+                                remove = widgets::button(ui, &look, crate::icons::TRASH, t("Remove"), Kind::Secondary).clicked();
+                            }
+                        });
                     });
                 });
             },
@@ -625,9 +631,18 @@ impl Settings {
                 ui.set_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 8.0;
                 let muted = look.c("fg-muted");
-                widgets::para(ui, t("Register the token in Shares → + new, and run the command on the file server: it keeps only the hash."), 12.0, muted);
-                ui.add_space(12.0 - ui.spacing().item_spacing.y); // the web's space-y-3
-                asked = widgets::button(ui, &look, crate::icons::KEY, t("Generate token"), Kind::Secondary).clicked();
+                // the note and the button on one line (the web's), the button at the right
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 12.0;
+                    let bw = 140.0;
+                    ui.vertical(|ui| {
+                        ui.set_width(ui.available_width() - bw - 12.0);
+                        widgets::para(ui, t("Register the token in Shares → + new, and run the command on the file server: it keeps only the hash."), 12.0, muted);
+                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        asked = widgets::button(ui, &look, crate::icons::KEY, t("Generate token"), Kind::Secondary).clicked();
+                    });
+                });
                 if let Some(tk) = &self.token {
                     let w = ui.available_width();
                     for (k, (label, value, done)) in [

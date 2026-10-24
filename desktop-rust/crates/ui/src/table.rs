@@ -659,7 +659,17 @@ fn draw_cell<A>(
                 }
                 ui.add_space(4.0);
             }
-            if cl.wrap {
+            // a wrapping text that fits is drawn as any other (centered in its row, as the web's align-middle)
+            let fits = cl.wrap && {
+                let g = egui::WidgetText::from(rich(cl.text.clone(), ink)).into_galley(
+                    ui,
+                    Some(egui::TextWrapMode::Extend),
+                    f32::INFINITY,
+                    egui::TextStyle::Body,
+                );
+                g.size().x <= ui.available_width()
+            };
+            if cl.wrap && !fits {
                 let w = ui.available_width();
                 ui.vertical(|ui| {
                     ui.set_max_width(w);
@@ -683,8 +693,11 @@ fn draw_cell<A>(
                 let _ = r.on_hover_text(&cl.text);
             }
             if let Some((text, tone)) = &cl.tag {
-                // after a text the web's tag is an inline element: one space of the cell's font from it
-                ui.add_space(ui.ctx().fonts_mut(|f| f.glyph_width(&egui::FontId::proportional(size), ' ')));
+                // after a text the web's tag is an inline element: one space of the cell's font from it (a tag alone
+                // starts at the cell's padding)
+                if !cl.text.is_empty() {
+                    ui.add_space(ui.ctx().fonts_mut(|f| f.glyph_width(&egui::FontId::proportional(size), ' ')));
+                }
                 let _ = crate::widgets::tag(ui, look, text, *tone);
             }
         }
