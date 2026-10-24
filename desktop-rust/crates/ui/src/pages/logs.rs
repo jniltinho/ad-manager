@@ -502,9 +502,11 @@ impl SambaView {
                                 let w = ui.available_width();
                                 let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
                                     ui.style_mut().interaction.selectable_labels = false; // a click on the text picks it
-                                    egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
+                                    // py-1.5 around the web's 18-point line (egui's mono line is 13): 8 and 9 here
+                                    let pad = egui::Margin { left: 12, right: 12, top: 8, bottom: 9 };
+                                    egui::Frame::new().inner_margin(pad).show(ui, |ui| {
                                         ui.set_width(w - 24.0);
-                                        // the web's py-1.5 row around its line, not a control's height
+                                        // the web's row around its line, not a control's height
                                         ui.spacing_mut().interact_size.y = 0.0;
                                         let ink = if on {
                                             look.c("on-selection")

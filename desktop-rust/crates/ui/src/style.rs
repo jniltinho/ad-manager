@@ -160,6 +160,8 @@ impl Look {
             s.spacing.interact_size.y = control;
             // solid scroll bars: floating ones fade in and out over several frames after each scroll
             s.spacing.scroll = egui::style::ScrollStyle::solid();
+            // the browser clips a scrolled box with a hard edge: no fade over its last 20 points
+            s.spacing.scroll.fade.strength = 0.0;
             // no fades: every frame is a full redraw, an animation costs one per frame
             s.animation_time = 0.0;
         });
