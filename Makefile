@@ -77,8 +77,10 @@ samba-down:
 #   make desktop-test     unit and UI acceptance tests only
 #   make desktop-shots    its docs screenshots (docs/screenshots/desktop-rs-*.png)
 #   make desktop-themes   themes.json again from the web's theme CSS
+# its own version (desktop-rust/Cargo.toml), not the server's VERSION a command line may pass down
+DESKTOP_VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' desktop-rust/Cargo.toml | head -n 1)
 desktop:
-	$(MAKE) -C desktop-rust dist DIST=$(CURDIR)/$(DIST)/desktop-rust
+	$(MAKE) -C desktop-rust dist DIST=$(CURDIR)/$(DIST)/desktop-rust VERSION=$(DESKTOP_VERSION)
 	cp desktop-rust/target/docker/release/ad-manager-desktop-rs $(DIST)/desktop-rust/
 	rm -rf $(DIST)/desktop-rust/stage-*
 

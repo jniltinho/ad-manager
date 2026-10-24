@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 
 ## [Unreleased]
 
+—
+
+## [0.2.0] - 2026-10-24
+
 ### Added
 
 - The web panel's look and functions (OpenSpec `desktop-rust-web-parity`).

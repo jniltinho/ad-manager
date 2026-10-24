@@ -5,7 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.23.0] — 2026-10-24
+
+**Sync of every share of a server, share sizes measured in the background, thin theme shadows, and the Rust desktop
+as the desktop app (the Fyne one archived).**
+
 ### Added
+- Sync: a job of kind **every share of the server** copies each non-administrative share of a source server into the
+  share of the same name on this server, one at a time, with a note per share (copy only; system, unpublished and
+  nested shares skipped with the reason). A running run shows its share (n of total) and the files compared.
 - The desktop app in Rust (egui), `desktop-rust/`, matching the web panel's pages, themes and rules: the same panel
   API, `desktop.toml`, protections, pt-BR catalog and themes; its own CI and release (tags `desktop-rust-v*`), a
   benchmark against the Fyne app (`desktop-rust/docs/benchmark.md`), and `make desktop`, `make desktop-check`,
@@ -17,6 +27,8 @@ All notable changes to this project are documented here. The format follows
   Rust app.
 
 ### Changed
+- Desktop app (Fyne, before its archiving): saving Configure keeps the `[graphics]` section of desktop.toml, where the
+  Rust desktop stores its rendering backend.
 - Themes: every theme's shadows are thin and soft (cards, login box, dialogs, window), light and dark; Matrix, Winamp
   and High contrast keep theirs, Classic gray its bevel.
 - Sync: stopping a running run asks first (web and desktop); a job of every share shows the server's share folders
@@ -35,10 +47,6 @@ All notable changes to this project are documented here. The format follows
   sent to the agent with each GPO task. The setup's **Prepare the import of GPOs and passwords** no longer writes
   `/opt/ad-manager/import.pass` (and removes an old one). A *From another AD* profile keeps its password encrypted,
   bound to that profile's server and user. The former `gpo_restore_*`/`password_migration_*` keys keep working.
-
-### Changed
-- Desktop app: saving Configure keeps the `[graphics]` section of desktop.toml, where the Rust desktop stores its
-  rendering backend.
 
 ## [0.22.0] — 2026-10-23
 
