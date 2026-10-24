@@ -139,6 +139,8 @@ pub struct Cell<A> {
     pub more: Vec<(String, Tone, Link<A>)>,
     /// A tooltip of a plain cell (the web's title).
     pub tip: String,
+    /// The text wraps in the cell (the web's cells without whitespace-nowrap), its lines 1.5 apart.
+    pub wrap: bool,
 }
 
 impl<A> Cell<A> {
@@ -154,7 +156,13 @@ impl<A> Cell<A> {
             tag: None,
             more: Vec::new(),
             tip: String::new(),
+            wrap: false,
         }
+    }
+
+    pub fn wrap(mut self) -> Self {
+        self.wrap = true;
+        self
     }
 
     pub fn tip(mut self, tip: impl Into<String>) -> Self {
@@ -650,6 +658,18 @@ fn draw_cell<A>(
                     ui.painter().hline(r.left() + 2.0..=r.right(), r.center().y, s);
                 }
                 ui.add_space(4.0);
+            }
+            if cl.wrap {
+                let w = ui.available_width();
+                ui.vertical(|ui| {
+                    ui.set_max_width(w);
+                    ui.add(
+                        egui::Label::new(rich(cl.text.clone(), ink).line_height(Some(size * 1.5)))
+                            .wrap()
+                            .selectable(false),
+                    );
+                });
+                return;
             }
             let shown = elide(ui, &cl.text, &|s| rich(s, ink), ui.available_width());
             let r = ui.add(egui::Label::new(rich(shown.clone(), ink)).selectable(false));

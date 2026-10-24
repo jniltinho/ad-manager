@@ -338,19 +338,35 @@ impl Sync {
             |_| {},
             h,
             |ui| {
-                let cols = [
-                    Column::new(t("Date"), 160.0),
-                    Column::new(t("Finished"), 130.0),
-                    Column::new(t("Job"), 120.0),
-                    Column::new(t("Kind"), 70.0),
-                    Column::new(t("Status"), 120.0).greedy(),
-                    Column::new(t("Files"), 56.0).right(),
-                    Column::new(t("Size"), 80.0).right(),
-                    Column::new(t("Deleted"), 64.0).right(),
-                    Column::new("", 64.0).right(),
-                ];
                 let me = &*self;
                 let names: Vec<String> = me.data.runs.iter().map(|r| me.job_name(&r.job)).collect();
+                // the web's layout: Status is w-full, so every other column is as wide as its content (heading or
+                // widest cell, plus the 8-point paddings), the job at most max-w-56, the actions w-24
+                let heads =
+                    [t("Date"), t("Finished"), t("Job"), t("Kind"), t("Status"), t("Files"), t("Size"), t("Deleted")];
+                let reg = egui::FontId::proportional(12.0);
+                let bold = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+                let tw = |s: &str, f: &egui::FontId| {
+                    ui.painter().layout_no_wrap(s.to_string(), f.clone(), egui::Color32::PLACEHOLDER).size().x
+                };
+                let mut w: [f32; 8] = std::array::from_fn(|i| tw(heads[i], &bold));
+                for (x, name) in me.data.runs.iter().zip(&names) {
+                    for c in [0, 1, 2, 3, 5, 6, 7] {
+                        w[c] = w[c].max(tw(&run_text(x, name, c), &reg));
+                    }
+                }
+                let w = w.map(|x| x + 16.0);
+                let cols = [
+                    Column::new(t("Date"), w[0]),
+                    Column::new(t("Finished"), w[1]),
+                    Column::new(t("Job"), w[2].min(224.0)),
+                    Column::new(t("Kind"), w[3]),
+                    Column::new(t("Status"), 120.0).greedy(),
+                    Column::new(t("Files"), w[5]).right(),
+                    Column::new(t("Size"), w[6]).right(),
+                    Column::new(t("Deleted"), w[7]).right(),
+                    Column::new("", 96.0).right(),
+                ];
                 let runs = &self.data.runs;
                 let mut hover = None;
                 let out = table::Table {
@@ -365,14 +381,9 @@ impl Sync {
                 }
                 .show(ui, &look, &mut self.runs, &mut hover, |r, c| {
                     let x = &runs[r];
-                    let plan = x.result.as_ref().map(|res| &res.plan);
                     match c {
-                        0 => Cell::plain(date(x.started)),
-                        1 => Cell::plain(sync_finished(x)),
-                        2 => Cell::plain(&names[r]),
-                        3 if x.preview => Cell::new(t("preview"), Tone::Muted),
-                        3 if x.origin == "schedule" => Cell::new(t("scheduled"), Tone::Muted),
-                        3 => Cell::new(t("run"), Tone::Muted),
+                        0..=2 | 5..=7 => Cell::plain(run_text(x, &names[r], c)),
+                        3 => Cell::new(run_text(x, &names[r], c), Tone::Muted),
                         4 => {
                             let (s, tone) = run_status(&x.status);
                             let phase = phase_text(x);
@@ -384,23 +395,6 @@ impl Sync {
                                 Cell::new(s, tone)
                             }
                         }
-                        5 => match (&x.result, plan) {
-                            (_, Some(p)) if x.preview => Cell::plain((p.new + p.changed).to_string()),
-                            (Some(res), _) => Cell::plain(res.transfers.to_string()),
-                            (None, _) if x.status == "running" => Cell::plain(x.progress.transfers.to_string()),
-                            _ => Cell::plain("—"),
-                        },
-                        6 => match (&x.result, plan) {
-                            (_, Some(p)) if x.preview => Cell::plain(run_size(p.new_bytes + p.changed_bytes)),
-                            (Some(res), _) => Cell::plain(run_size(res.bytes)),
-                            (None, _) if x.status == "running" => Cell::plain(run_size(x.progress.bytes)),
-                            _ => Cell::plain("—"),
-                        },
-                        7 => match (&x.result, plan) {
-                            (_, Some(p)) if x.preview => Cell::plain(p.delete.to_string()),
-                            (Some(res), _) => Cell::plain(res.deleted.to_string()),
-                            _ => Cell::plain("—"),
-                        },
                         _ => {
                             let mut cell = Cell::plain("");
                             if x.result.is_some() {
@@ -677,4 +671,35 @@ impl crate::modal::Dialog for LogDialog {
 /// A run's size as the web's runs table: "0" for nothing, else the size.
 fn run_size(n: i64) -> String {
     if n <= 0 { "0".into() } else { size_text(n) }
+}
+
+/// The text of a run's column c (not the status nor the actions), as the web's runs table shows it.
+fn run_text(x: &SyncRun, name: &str, c: usize) -> String {
+    let plan = x.result.as_ref().map(|res| &res.plan);
+    match c {
+        0 => date(x.started),
+        1 => sync_finished(x),
+        2 => name.to_string(),
+        3 if x.preview => t("preview").into(),
+        3 if x.origin == "schedule" => t("scheduled").into(),
+        3 => t("run").into(),
+        5 => match (&x.result, plan) {
+            (_, Some(p)) if x.preview => (p.new + p.changed).to_string(),
+            (Some(res), _) => res.transfers.to_string(),
+            (None, _) if x.status == "running" => x.progress.transfers.to_string(),
+            _ => "—".into(),
+        },
+        6 => match (&x.result, plan) {
+            (_, Some(p)) if x.preview => run_size(p.new_bytes + p.changed_bytes),
+            (Some(res), _) => run_size(res.bytes),
+            (None, _) if x.status == "running" => run_size(x.progress.bytes),
+            _ => "—".into(),
+        },
+        7 => match (&x.result, plan) {
+            (_, Some(p)) if x.preview => p.delete.to_string(),
+            (Some(res), _) => res.deleted.to_string(),
+            _ => "—".into(),
+        },
+        _ => String::new(),
+    }
 }

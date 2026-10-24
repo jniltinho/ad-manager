@@ -150,18 +150,44 @@ fn inset(rect: Rect, l: &Layer, out: &mut Vec<Shape>) {
     let mut band = |r: Rect, col: Color32| out.push(Shape::rect_filled(r.intersect(rect), 0.0, col));
     let (dx, dy, sp, blur) = (l.dx, l.dy, l.spread.max(0.0), l.blur.max(0.0));
     let w = |off: f32| off.abs() + sp;
-    let mut edge = |r: Rect, inward: Vec2| {
-        if blur > 0.0 {
-            // a blurred inset fades over its blur width: strips of falling alpha
-            let n = (blur.ceil() as usize).clamp(1, 12);
-            let step = blur / n as f32;
-            for i in 0..n {
-                band(r.translate(inward * step * i as f32), c.gamma_multiply(1.0 - i as f32 / n as f32));
+    if blur > 0.0 {
+        // as the browser blurs it: the hole is the box moved by the offset and shrunk by the spread, its edge blurred
+        // with a gaussian of σ = blur / 2, so each side fades in from its own distance (also a side the offset moves
+        // away from, faintly, and a side it does not move at all, from half the color)
+        let sigma = blur / 2.0;
+        for (d, side) in [(dy + sp, 0), (-dy + sp, 1), (dx + sp, 2), (-dx + sp, 3)] {
+            let reach = (d.max(0.0) + 2.0 * sigma).ceil() as i32;
+            for i in 0..reach.clamp(0, 24) {
+                let a = normal_cdf((d - (i as f32 + 0.5)) / sigma);
+                if a < 0.01 {
+                    continue;
+                }
+                let col = c.gamma_multiply(a);
+                let i = i as f32;
+                let r = match side {
+                    0 => Rect::from_min_max(
+                        Pos2::new(rect.min.x, rect.min.y + i),
+                        Pos2::new(rect.max.x, rect.min.y + i + 1.0),
+                    ),
+                    1 => Rect::from_min_max(
+                        Pos2::new(rect.min.x, rect.max.y - i - 1.0),
+                        Pos2::new(rect.max.x, rect.max.y - i),
+                    ),
+                    2 => Rect::from_min_max(
+                        Pos2::new(rect.min.x + i, rect.min.y),
+                        Pos2::new(rect.min.x + i + 1.0, rect.max.y),
+                    ),
+                    _ => Rect::from_min_max(
+                        Pos2::new(rect.max.x - i - 1.0, rect.min.y),
+                        Pos2::new(rect.max.x - i, rect.max.y),
+                    ),
+                };
+                band(r, col);
             }
-        } else {
-            band(r, c);
         }
-    };
+        return;
+    }
+    let mut edge = |r: Rect, _inward: Vec2| band(r, c);
     let (wl, wr) = (if dx > 0.0 { w(dx) } else { sp }, if dx < 0.0 { w(dx) } else { sp });
     let (wt, wb) = (if dy > 0.0 { w(dy) } else { sp }, if dy < 0.0 { w(dy) } else { sp });
     if wl > 0.0 {
@@ -182,6 +208,18 @@ fn inset(rect: Rect, l: &Layer, out: &mut Vec<Shape>) {
             -Vec2::Y,
         );
     }
+}
+
+/// The standard normal distribution's CDF (Abramowitz–Stegun 7.1.26 for erf, error under 1.5e-7).
+fn normal_cdf(z: f32) -> f32 {
+    let x = (z / std::f32::consts::SQRT_2).abs();
+    let t = 1.0 / (1.0 + 0.327_591_1 * x);
+    let y = 1.0
+        - (((((1.061_405_4 * t - 1.453_152_1) * t) + 1.421_413_7) * t - 0.284_496_74) * t + 0.254_829_6)
+            * t
+            * (-x * x).exp();
+    let erf = if z < 0.0 { -y } else { y };
+    0.5 * (1.0 + erf)
 }
 
 /// The shapes of a repeated background over `rect`, its tiles of 22 px from the rect's top left as the web's
@@ -318,5 +356,39 @@ mod tests {
         let m = gradient_mesh(rect, &g("to bottom", "srgb", [0, 0, 0, 255], [255, 255, 255, 255]));
         let top = m.vertices.iter().min_by(|a, b| a.pos.y.total_cmp(&b.pos.y)).unwrap();
         assert_eq!((top.pos.y, top.color), (0.0, Color32::BLACK));
+    }
+}
+
+#[cfg(test)]
+mod inset_tests {
+    use super::*;
+
+    #[test]
+    fn normal_cdf_matches() {
+        assert!((normal_cdf(0.0) - 0.5).abs() < 1e-4);
+        assert!((normal_cdf(1.0) - 0.8413).abs() < 1e-3);
+        assert!((normal_cdf(-2.0) - 0.0228).abs() < 1e-3);
+    }
+
+    /// The web's field shadow (inset 0 1px 2px): a top fade, and the sides fade in too (from half the color).
+    #[test]
+    fn blurred_inset_fades_on_every_side() {
+        let l = Layer {
+            inset: true,
+            dx: 0.0,
+            dy: 1.0,
+            blur: 2.0,
+            spread: 0.0,
+            color: adm_core::theme::Rgba([0, 0, 0, 255]),
+        };
+        let mut out = Vec::new();
+        inset(Rect::from_min_size(Pos2::ZERO, Vec2::new(100.0, 30.0)), &l, &mut out);
+        let strips: Vec<Rect> =
+            out.iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r.rect) } else { None }).collect();
+        assert!(strips.iter().any(|r| r.min.x == 0.0 && r.width() == 1.0), "a left fade");
+        assert!(
+            strips.iter().filter(|r| r.min.y < 3.0 && r.width() == 100.0).count() >= 2,
+            "a top fade over more than one point"
+        );
     }
 }

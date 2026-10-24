@@ -422,9 +422,10 @@ const stateNames = {
 
     <section v-else class="card flex min-h-0 min-w-0 flex-col">
       <div class="card-h flex items-center gap-3">
-        <span>{{ current ? t('Shares on {server}', { server: current.name }) : t('Shares') }}</span>
-        <span v-if="current" class="font-normal normal-case text-fg-muted">{{ current.url }}</span>
-        <div v-if="current" class="ml-auto flex items-center gap-2 normal-case">
+        <span class="shrink-0 whitespace-nowrap">{{ current ? t('Shares on {server}', { server: current.name }) : t('Shares') }}</span>
+        <!-- one line: the server's address gives way (ends in "…", whole in the tooltip) to the total and the buttons -->
+        <span v-if="current" class="min-w-0 truncate font-normal normal-case text-fg-muted" :title="current.url">{{ current.url }}</span>
+        <div v-if="current" class="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap normal-case">
           <span v-if="shares.length" class="flex items-center gap-1 text-[12px] text-fg-muted" :title="sizeHead.title">
             {{ t('total {size}', { size: sizeHead.size }) }}
             <template v-if="sizeHead.scanned"> · {{ t('scanned {time}', { time: sizeHead.scanned }) }}</template>

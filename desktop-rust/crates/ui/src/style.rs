@@ -178,6 +178,9 @@ impl Look {
             s.spacing.interact_size.y = control;
             // solid scroll bars: floating ones fade in and out over several frames after each scroll
             s.spacing.scroll = egui::style::ScrollStyle::solid();
+            // the browser's bar takes 10 points beside a list (egui's solid default took 8): the columns get the
+            // same width as the web's
+            s.spacing.scroll.bar_width = 8.0;
             // a select's list: its rows reach the border, as the web's (padding 0)
             s.spacing.menu_margin = egui::Margin::ZERO;
             // the browser clips a scrolled box with a hard edge: no fade over its last 20 points

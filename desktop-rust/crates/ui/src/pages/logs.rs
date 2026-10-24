@@ -93,8 +93,9 @@ struct Audit {
     action: usize,
     failures: bool,
     table: TableState,
-    /// The columns' widths for the rows shown and the room (recomputed when either changes).
-    widths: Option<(u64, [f32; 6])>,
+    /// The columns' widths for the rows shown and the room, and each row's height (the target and an error wrap, as
+    /// the web's), recomputed when either changes.
+    widths: Option<(u64, [f32; 6], Vec<f32>)>,
 }
 
 /// The web's auto table layout of the audit (no fixed widths): each column's max-content (its heading or widest cell
@@ -220,13 +221,30 @@ impl Audit {
             (vis, all.len(), avail.to_bits()).hash(&mut h);
             h.finish()
         };
-        let widths = match self.widths {
-            Some((k, w)) if k == key => w,
-            _ => {
-                let w = auto_widths(ui, all, vis, avail);
-                self.widths = Some((key, w));
-                w
-            }
+        if self.widths.as_ref().is_none_or(|(k, _, _)| *k != key) {
+            let w = auto_widths(ui, all, vis, avail);
+            // a row grows by a 1.5 line per line its target or its error wraps to (the web's 18 points at 12)
+            let font = egui::FontId::proportional(12.0);
+            let lines = |s: &str, width: f32| {
+                let job = egui::text::LayoutJob::simple(s.to_string(), font.clone(), egui::Color32::PLACEHOLDER, width);
+                ui.painter().layout_job(job).rows.len().max(1)
+            };
+            let heights = vis
+                .iter()
+                .map(|&i| {
+                    let e = &all[i];
+                    let mut n = lines(&e.target, w[4] - 16.0);
+                    if e.result != "ok" {
+                        n = n.max(lines(&e.result, w[5] - 16.0));
+                    }
+                    row_h + (n as f32 - 1.0) * 18.0
+                })
+                .collect();
+            self.widths = Some((key, w, heights));
+        }
+        let (widths, heights) = match &self.widths {
+            Some((_, w, h)) => (*w, h.clone()),
+            None => ([0.0; 6], Vec::new()),
         };
         let cols = [
             Column::new(t("Date"), widths[0]),
@@ -245,7 +263,7 @@ impl Audit {
             row_h: table::row_text(ui.ctx()),
             frame: true,
             view_minus: 306.0,
-            heights: None,
+            heights: Some(&heights),
         }
         .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
             let e = &all[vis[r]];
@@ -254,9 +272,9 @@ impl Audit {
                 1 => Cell::new(&e.actor, Tone::Strong).bold(),
                 2 => Cell::plain(&e.ip),
                 3 => Cell::plain(&e.action).mono(),
-                4 => Cell::plain(&e.target),
+                4 => Cell::plain(&e.target).wrap(),
                 _ if e.result == "ok" => Cell::plain("").with_tag("ok", Tone::Ok),
-                _ => Cell::new(&e.result, Tone::Err),
+                _ => Cell::new(&e.result, Tone::Err).wrap(),
             }
         });
         if vis.is_empty() {
@@ -856,8 +874,10 @@ fn samba_row(
                 let time = if e.time.is_empty() { "—" } else { &e.time };
                 ui.label(RichText::new(time).monospace().size(11.0));
             });
+            // each cell's own left padding, as the web's td (the date's is the row's first space)
+            ui.add_space(th_px);
             ui.vertical(|ui| {
-                ui.set_width(level_w);
+                ui.set_width(level_w - th_px);
                 ui.add_space(td_py);
                 let (fill, ink) = match e.level {
                     0 => (look.c("err-fill"), look.c("on-err-fill")),
@@ -868,6 +888,7 @@ fn samba_row(
                 let text = if e.level < 0 { "—".to_string() } else { e.level.to_string() };
                 widgets::tag_filled(ui, look, &text, fill, ink);
             });
+            ui.add_space(th_px);
             ui.vertical(|ui| {
                 ui.set_width(msg_w);
                 ui.add_space(td_py);
@@ -875,7 +896,9 @@ fn samba_row(
                 ui.add(egui::Label::new(msg).wrap());
                 if !e.source.is_empty() {
                     ui.add_space(2.0);
-                    ui.add(egui::Label::new(RichText::new(&e.source).size(10.0).color(look.c("fg-muted"))).truncate());
+                    // the web's 10-point line of 1.5
+                    let src = RichText::new(&e.source).size(10.0).line_height(Some(widgets::LEADING * 10.0));
+                    ui.add(egui::Label::new(src.color(look.c("fg-muted"))).truncate());
                 }
                 ui.add_space(td_py);
             });
