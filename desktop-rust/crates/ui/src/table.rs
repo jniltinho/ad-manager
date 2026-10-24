@@ -241,6 +241,8 @@ pub struct Table<'a> {
     pub row_h: f32,
     /// The 1 px frame of the web's table wrapper (none inside a card, as the web's `border-0`).
     pub frame: bool,
+    /// The web wrapper's `max-h-[calc(var(--view-h)-N)]`: at most the window's height less this (0: no cap).
+    pub view_minus: f32,
 }
 
 impl Table<'_> {
@@ -295,7 +297,12 @@ fn show<A>(
     let row_h = if t.row_h > 0.0 { t.row_h } else { (text * 1.5 + 2.0 * td_py + 2.0).round() };
     let head_h = (text * 1.5 + 2.0 * th_py + 1.0).round();
     // the scroll bar's room only when the rows do not fit
-    let fits = head_h + rows as f32 * row_h <= ui.available_height();
+    let room = if t.view_minus > 0.0 {
+        ui.available_height().min(ui.ctx().content_rect().height() - t.view_minus)
+    } else {
+        ui.available_height()
+    };
+    let fits = head_h + rows as f32 * row_h <= room;
     let avail = ui.available_width() - if fits { 0.0 } else { 14.0 };
     let full: f32 = cols.iter().map(|c| c.width).sum();
     let compact = avail < full;
@@ -361,6 +368,7 @@ fn show<A>(
             .sense(Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .min_scrolled_height(80.0)
+            .max_scroll_height((room - head_h).max(80.0))
             // a wheel step moves at once: an animation would redraw the whole window for every frame of it
             .animate_scrolling(false)
             // as the web's wrapper: as tall as its rows, at most the room left
@@ -654,19 +662,14 @@ mod ui_tests {
                 }
                 let cols = [Column::new("Name", 200.0), Column::new("", 100.0)];
                 let mut hover = None;
-                let out = Table { id: "t", cols: &cols, rows: 3, keys: true, row_h: 0.0, frame: true }.show(
-                    ui,
-                    &look,
-                    &mut st.0,
-                    &mut hover,
-                    |r, c| {
+                let out = Table { id: "t", cols: &cols, rows: 3, keys: true, row_h: 0.0, frame: true, view_minus: 0.0 }
+                    .show(ui, &look, &mut st.0, &mut hover, |r, c| {
                         if c == 0 {
                             Cell::plain(format!("row {r}"))
                         } else {
                             Cell::plain("go").link("", String::new(), r)
                         }
-                    },
-                );
+                    });
                 if let Some(r) = out.clicked {
                     st.1 = Some(r);
                 }

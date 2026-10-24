@@ -150,60 +150,65 @@ impl Computers {
         let now = Utc::now();
         let (all, vis) = (&self.all, &self.visible);
         let mut hover = None;
-        let out =
-            table::Table { id: "computers", cols: &cols, rows: vis.len(), keys, row_h: table::ROW_LINKS, frame: true }
-                .show(ui, &look, &mut self.table, &mut hover, |r, c| {
-                    let i = vis[r];
-                    let x = &all[i];
-                    let ink = if x.enabled { Tone::Normal } else { Tone::Muted };
-                    let server = x.is_dc || x.os.to_lowercase().contains("server");
-                    match c {
-                        // a deactivated computer's whole row in the subtle ink, as the web's
-                        0 => Cell::new(&x.name, ink).bold(),
-                        1 if legacy_os(&x.os) => Cell::new(&x.os, Tone::Err),
-                        1 => Cell::new(&x.os, ink),
-                        2 => Cell::new(&x.os_version, ink),
-                        3 if x.is_dc => Cell::new("DC", Tone::Strong),
-                        3 if !x.enabled => Cell::new(t("deactivated"), Tone::Muted),
-                        3 => Cell::plain(""),
-                        // never logged on counts as inactive, as the web's (its dash in the warning ink)
-                        4 if computer_inactive(x, days, now) => {
-                            Cell::new(adm_core::i18n::date(x.last_logon), Tone::Warn)
-                        }
-                        4 => Cell::new(adm_core::i18n::date(x.last_logon), ink),
-                        5 => {
-                            let mut cell = Cell::plain("");
-                            if x.enabled && server {
-                                cell = cell.and_link(
-                                    t("sessions"),
-                                    Tone::Normal,
-                                    crate::icons::USERS,
-                                    tf!("SMB sessions on %s", x.name),
-                                    (Act::Sessions, i),
-                                );
-                            }
-                            if !x.is_dc {
-                                let (icon, label, hint) = if x.enabled {
-                                    (crate::icons::POWER, t("disable"), tf!("Disable %s", x.name))
-                                } else {
-                                    (crate::icons::POWER, t("enable"), tf!("Enable %s", x.name))
-                                };
-                                cell = cell
-                                    // the web's actions: enable/disable and delete (no move here, as the web)
-                                    .and_link(label, Tone::Normal, icon, hint, (Act::Toggle, i))
-                                    .and_link(
-                                        t("delete"),
-                                        Tone::Normal,
-                                        crate::icons::TRASH,
-                                        tf!("Delete %s", x.name),
-                                        (Act::Delete, i),
-                                    );
-                            }
-                            cell
-                        }
-                        _ => Cell::plain(""),
+        let out = table::Table {
+            id: "computers",
+            cols: &cols,
+            rows: vis.len(),
+            keys,
+            row_h: table::ROW_LINKS,
+            frame: true,
+            view_minus: 260.0,
+        }
+        .show(ui, &look, &mut self.table, &mut hover, |r, c| {
+            let i = vis[r];
+            let x = &all[i];
+            let ink = if x.enabled { Tone::Normal } else { Tone::Muted };
+            let server = x.is_dc || x.os.to_lowercase().contains("server");
+            match c {
+                // a deactivated computer's whole row in the subtle ink, as the web's
+                0 => Cell::new(&x.name, ink).bold(),
+                1 if legacy_os(&x.os) => Cell::new(&x.os, Tone::Err),
+                1 => Cell::new(&x.os, ink),
+                2 => Cell::new(&x.os_version, ink),
+                3 if x.is_dc => Cell::new("DC", Tone::Strong),
+                3 if !x.enabled => Cell::new(t("deactivated"), Tone::Muted),
+                3 => Cell::plain(""),
+                // never logged on counts as inactive, as the web's (its dash in the warning ink)
+                4 if computer_inactive(x, days, now) => Cell::new(adm_core::i18n::date(x.last_logon), Tone::Warn),
+                4 => Cell::new(adm_core::i18n::date(x.last_logon), ink),
+                5 => {
+                    let mut cell = Cell::plain("");
+                    if x.enabled && server {
+                        cell = cell.and_link(
+                            t("sessions"),
+                            Tone::Normal,
+                            crate::icons::USERS,
+                            tf!("SMB sessions on %s", x.name),
+                            (Act::Sessions, i),
+                        );
                     }
-                });
+                    if !x.is_dc {
+                        let (icon, label, hint) = if x.enabled {
+                            (crate::icons::POWER, t("disable"), tf!("Disable %s", x.name))
+                        } else {
+                            (crate::icons::POWER, t("enable"), tf!("Enable %s", x.name))
+                        };
+                        cell = cell
+                            // the web's actions: enable/disable and delete (no move here, as the web)
+                            .and_link(label, Tone::Normal, icon, hint, (Act::Toggle, i))
+                            .and_link(
+                                t("delete"),
+                                Tone::Normal,
+                                crate::icons::TRASH,
+                                tf!("Delete %s", x.name),
+                                (Act::Delete, i),
+                            );
+                    }
+                    cell
+                }
+                _ => Cell::plain(""),
+            }
+        });
         cx.hover = hover.or(cx.hover.take());
         if let Some((a, i)) = out.clicked
             && let Some(x) = self.all.get(i).cloned()

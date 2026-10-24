@@ -311,10 +311,12 @@ impl Home {
                             }
                             egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
                                 ui.set_width(ui.available_width());
-                                // the web's li: px-3 py-2 around a 12 px line, gap-2 between its parts
+                                // the web's li: px-3 py-2 around a 12 px line, gap-2 between its parts; the row as tall
+                                // as the web's (its inline-flex link: 18.9)
                                 ui.spacing_mut().interact_size.y = 0.0;
                                 ui.spacing_mut().item_spacing.x = 8.0;
                                 ui.horizontal(|ui| {
+                                    ui.set_min_height(18.9);
                                     widgets::tag(ui, &look, &a.tag, a.tone);
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         if let Some((label, go)) = &a.link {

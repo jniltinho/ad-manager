@@ -76,7 +76,7 @@ function statusTag(s) {
       </button>
     </div>
   </div>
-  <div class="max-h-[calc(var(--view-h)-260px)] overflow-auto border border-line">
+  <div class="max-h-[calc(var(--view-h)-306px)] overflow-auto border border-line">
     <!-- fixed columns, one line per request: long paths end in "…" and show in the tooltip -->
     <table class="grid-t border-0 table-fixed">
       <colgroup>

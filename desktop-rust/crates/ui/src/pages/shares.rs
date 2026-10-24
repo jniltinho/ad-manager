@@ -368,7 +368,7 @@ impl Shares {
         let left = h - (ui.cursor().top() - top);
         let queue = |ui: &mut Ui| {
             if cx.me.asynqmon
-                && widgets::act(ui, &look, "", &format!("{} {}", t("queue"), crate::icons::EXTERNAL), None, 12.0)
+                && widgets::act(ui, &look, "", &format!("{} \u{2197}", t("queue")), None, 12.0) // the web's "queue ↗" text
                     .clicked()
             {
                 let base = cx.cfg.panel.url.trim_end_matches('/').to_string();
@@ -479,6 +479,7 @@ impl Shares {
                 keys,
                 row_h: table::ROW_LINKS,
                 frame: false,
+                view_minus: 0.0,
             }
             .show(ui, &look, &mut self.table, &mut hover, |r, c| {
                 let s = &shares[r];

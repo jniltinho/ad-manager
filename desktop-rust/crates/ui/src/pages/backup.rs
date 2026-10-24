@@ -297,58 +297,60 @@ impl Backup {
                 ];
                 let rows = &cur.backups;
                 let mut hover = None;
-                let out = table::Table { id: "backups", cols: &cols, rows: rows.len(), keys, row_h: 0.0, frame: false }
-                    .show(ui, &look, &mut self.table, &mut hover, |r, c| {
-                        let b = &rows[r];
-                        match c {
-                            0 => Cell::plain(date(b.started)),
-                            1 if b.kind == "fileserver-data" => Cell::plain(backup_kind_name(&b.kind))
-                                .with_tag(if b.full { t("full") } else { t("incremental") }, Tone::Normal),
-                            1 => Cell::plain(backup_kind_name(&b.kind)),
-                            2 if b.by.is_empty() => Cell::new(backup_origin(&b.origin), Tone::Muted),
-                            2 => Cell::new(format!("{} · {}", backup_origin(&b.origin), b.by), Tone::Muted),
-                            3 if b.status != "ok" => Cell::plain("—"),
-                            3 => Cell::plain(size_text(b.size)),
-                            4 => match b.status.as_str() {
-                                "ok" => Cell::new(t("ok"), Tone::Ok),
-                                "error" => Cell::new(t("error"), Tone::Err),
-                                _ => Cell::new(t("running"), Tone::Warn),
-                            },
-                            _ => {
-                                let mut cell = Cell::plain("").and_link(
-                                    "",
-                                    Tone::Normal,
-                                    crate::icons::SCROLL,
-                                    t("Log").into(),
-                                    (Act::Log, r),
-                                );
-                                if b.status == "ok" {
-                                    cell = cell
-                                        .and_link(
-                                            "",
-                                            Tone::Normal,
-                                            crate::icons::DOWNLOAD,
-                                            t("Download").into(),
-                                            (Act::Download, r),
-                                        )
-                                        .and_link(
-                                            "",
-                                            Tone::Normal,
-                                            crate::icons::ROTATE,
-                                            t("Restore").into(),
-                                            (Act::Restore, r),
-                                        );
-                                }
-                                cell.and_link(
-                                    "",
-                                    Tone::Normal,
-                                    crate::icons::TRASH,
-                                    t("Delete").into(),
-                                    (Act::Delete, r),
-                                )
+                let out = table::Table {
+                    id: "backups",
+                    cols: &cols,
+                    rows: rows.len(),
+                    keys,
+                    row_h: 0.0,
+                    frame: false,
+                    view_minus: 0.0,
+                }
+                .show(ui, &look, &mut self.table, &mut hover, |r, c| {
+                    let b = &rows[r];
+                    match c {
+                        0 => Cell::plain(date(b.started)),
+                        1 if b.kind == "fileserver-data" => Cell::plain(backup_kind_name(&b.kind))
+                            .with_tag(if b.full { t("full") } else { t("incremental") }, Tone::Normal),
+                        1 => Cell::plain(backup_kind_name(&b.kind)),
+                        2 if b.by.is_empty() => Cell::new(backup_origin(&b.origin), Tone::Muted),
+                        2 => Cell::new(format!("{} · {}", backup_origin(&b.origin), b.by), Tone::Muted),
+                        3 if b.status != "ok" => Cell::plain("—"),
+                        3 => Cell::plain(size_text(b.size)),
+                        4 => match b.status.as_str() {
+                            "ok" => Cell::new(t("ok"), Tone::Ok),
+                            "error" => Cell::new(t("error"), Tone::Err),
+                            _ => Cell::new(t("running"), Tone::Warn),
+                        },
+                        _ => {
+                            let mut cell = Cell::plain("").and_link(
+                                "",
+                                Tone::Normal,
+                                crate::icons::SCROLL,
+                                t("Log").into(),
+                                (Act::Log, r),
+                            );
+                            if b.status == "ok" {
+                                cell = cell
+                                    .and_link(
+                                        "",
+                                        Tone::Normal,
+                                        crate::icons::DOWNLOAD,
+                                        t("Download").into(),
+                                        (Act::Download, r),
+                                    )
+                                    .and_link(
+                                        "",
+                                        Tone::Normal,
+                                        crate::icons::ROTATE,
+                                        t("Restore").into(),
+                                        (Act::Restore, r),
+                                    );
                             }
+                            cell.and_link("", Tone::Normal, crate::icons::TRASH, t("Delete").into(), (Act::Delete, r))
                         }
-                    });
+                    }
+                });
                 cx.hover = hover.or(cx.hover.take());
                 if out.clicked.is_some() {
                     act = out.clicked;

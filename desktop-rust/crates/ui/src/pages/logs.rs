@@ -177,19 +177,27 @@ impl Audit {
             Column::new(t("Result"), result_w),
         ];
         let mut hover = None;
-        let out = table::Table { id: "audit", cols: &cols, rows: vis.len(), keys, row_h: table::ROW_TEXT, frame: true }
-            .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
-                let e = &all[vis[r]];
-                match c {
-                    0 => Cell::plain(when(&e.time)),
-                    1 => Cell::new(&e.actor, Tone::Strong).bold(),
-                    2 => Cell::plain(&e.ip),
-                    3 => Cell::plain(&e.action).mono(),
-                    4 => Cell::plain(&e.target),
-                    _ if e.result == "ok" => Cell::plain("").with_tag("ok", Tone::Ok),
-                    _ => Cell::new(&e.result, Tone::Err),
-                }
-            });
+        let out = table::Table {
+            id: "audit",
+            cols: &cols,
+            rows: vis.len(),
+            keys,
+            row_h: table::ROW_TEXT,
+            frame: true,
+            view_minus: 306.0,
+        }
+        .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
+            let e = &all[vis[r]];
+            match c {
+                0 => Cell::plain(when(&e.time)),
+                1 => Cell::new(&e.actor, Tone::Strong).bold(),
+                2 => Cell::plain(&e.ip),
+                3 => Cell::plain(&e.action).mono(),
+                4 => Cell::plain(&e.target),
+                _ if e.result == "ok" => Cell::plain("").with_tag("ok", Tone::Ok),
+                _ => Cell::new(&e.result, Tone::Err),
+            }
+        });
         if vis.is_empty() {
             ui.add_space(16.0);
             ui.vertical_centered(|ui| ui.label(RichText::new(t("No events.")).size(12.0).color(look.c("fg-muted"))));
@@ -309,29 +317,37 @@ impl Http {
         ];
         let (all, vis) = (&self.all, &self.visible);
         let mut hover = None;
-        table::Table { id: "http-log", cols: &cols, rows: vis.len(), keys, row_h: table::ROW_TEXT, frame: true }
-            .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
-                let x = &all[vis[r]];
-                match c {
-                    0 => Cell::plain(when(&x.time)),
-                    1 => Cell::plain(&x.ip),
-                    2 if x.user.is_empty() => Cell::new("—", Tone::Strong).bold(),
-                    2 => Cell::new(&x.user, Tone::Strong).bold(),
-                    3 => Cell::plain(&x.method).mono(),
-                    4 => Cell::plain(&x.path).mono(),
-                    5 => {
-                        let tone = match x.status {
-                            s if s >= 500 => Tone::Err,
-                            s if s >= 400 => Tone::Warn,
-                            s if s >= 300 => Tone::Normal,
-                            _ => Tone::Ok,
-                        };
-                        Cell::new(x.status.to_string(), tone)
-                    }
-                    6 => Cell::plain(format!("{}", (x.ms * 10.0).round() / 10.0)),
-                    _ => Cell::new(&x.error, Tone::Err),
+        table::Table {
+            id: "http-log",
+            cols: &cols,
+            rows: vis.len(),
+            keys,
+            row_h: table::ROW_TEXT,
+            frame: true,
+            view_minus: 306.0,
+        }
+        .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
+            let x = &all[vis[r]];
+            match c {
+                0 => Cell::plain(when(&x.time)),
+                1 => Cell::plain(&x.ip),
+                2 if x.user.is_empty() => Cell::new("—", Tone::Strong).bold(),
+                2 => Cell::new(&x.user, Tone::Strong).bold(),
+                3 => Cell::plain(&x.method).mono(),
+                4 => Cell::plain(&x.path).mono(),
+                5 => {
+                    let tone = match x.status {
+                        s if s >= 500 => Tone::Err,
+                        s if s >= 400 => Tone::Warn,
+                        s if s >= 300 => Tone::Normal,
+                        _ => Tone::Ok,
+                    };
+                    Cell::new(x.status.to_string(), tone)
                 }
-            });
+                6 => Cell::plain(format!("{}", (x.ms * 10.0).round() / 10.0)),
+                _ => Cell::new(&x.error, Tone::Err),
+            }
+        });
         if vis.is_empty() {
             ui.add_space(16.0);
             ui.vertical_centered(|ui| ui.label(RichText::new(t("No requests.")).size(12.0).color(look.c("fg-muted"))));
@@ -597,7 +613,8 @@ impl SambaView {
                 ui.allocate_ui(egui::vec2(ui.available_width(), room), |ui| {
                     samba_entries(ui, &look, &self.entries, &shown, i, &mut self.rows, empty);
                 });
-                ui.add_space(8.0);
+                // the web's mt-2 and the half-leading above its 11-point line, egui's spacing included
+                ui.add_space(9.5 - ui.spacing().item_spacing.y);
                 ui.label(
                     RichText::new(t(
                         "Times as written by Samba, in the server time zone. Read-only, never changed here.",

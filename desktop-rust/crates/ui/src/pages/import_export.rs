@@ -413,7 +413,7 @@ impl ImportExport {
                         // the web's border-t pt-2 over the server row, its gap-1 between the select and the button
                         let y = ui.cursor().top();
                         ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
-                        ui.add_space(8.0 - ui.spacing().item_spacing.y + 1.0);
+                        ui.add_space(9.0); // pt-2 under the 1 px line (egui puts its spacing after an item, not before)
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
                             let names: Vec<String> = self.servers.iter().map(|a| a.name.clone()).collect();
@@ -534,8 +534,8 @@ impl ImportExport {
                                     }
                                 }
                             });
-                            // the web's space-y-3, plus the 2.5 its file input is taller than a button
-                            ui.add_space(10.5);
+                            // the web's space-y-3 (egui's 4 already after the row)
+                            ui.add_space(8.0);
                         }
                         let ready = !busy && !self.files.is_empty();
                         preview = full_button(ui, &look, ready, crate::icons::EYE, preview_label(busy, false));

@@ -222,79 +222,62 @@ impl Sync {
                 let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();
                 let (jobs, runs, qs) = (&self.data.jobs, &self.data.runs, &self.qs.quarantines);
                 let mut hover = None;
-                let out =
-                    table::Table { id: "sync-jobs", cols: &cols, rows: jobs.len(), keys, row_h: 0.0, frame: false }
-                        .show(ui, &look, &mut self.jobs, &mut hover, |r, c| {
-                            let j = &jobs[r];
-                            match c {
-                                0 => Cell::plain(&names[r]).bold(),
-                                1 => {
-                                    let auth = if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" };
-                                    Cell::plain(sync_unc(j)).mono().with_tag(auth, Tone::Normal)
+                let out = table::Table {
+                    id: "sync-jobs",
+                    cols: &cols,
+                    rows: jobs.len(),
+                    keys,
+                    row_h: 0.0,
+                    frame: false,
+                    view_minus: 0.0,
+                }
+                .show(ui, &look, &mut self.jobs, &mut hover, |r, c| {
+                    let j = &jobs[r];
+                    match c {
+                        0 => Cell::plain(&names[r]).bold(),
+                        1 => {
+                            let auth = if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" };
+                            Cell::plain(sync_unc(j)).mono().with_tag(auth, Tone::Normal)
+                        }
+                        2 => Cell::plain(&j.dest).mono(),
+                        3 if j.mode == "mirror" && j.approved != j.rev => {
+                            Cell::new(format!("{} · {}", t("mirror"), t("preview needed")), Tone::Warn)
+                        }
+                        3 if j.mode == "mirror" => Cell::plain(t("mirror")),
+                        3 => Cell::plain(t("copy")),
+                        4 if j.enabled && !j.cron.is_empty() => Cell::plain(&j.cron).mono(),
+                        4 => Cell::plain("—"),
+                        5 => match runs.iter().find(|x| x.job == j.id) {
+                            None => Cell::plain("—"),
+                            Some(x) => {
+                                let (st, tone) = run_status(&x.status);
+                                let phase = phase_text(x);
+                                if x.status == "running" && !phase.is_empty() {
+                                    Cell::new(format!("{st} · {phase}"), tone)
+                                } else {
+                                    Cell::new(format!("{st} · {}", date(x.started)), tone)
                                 }
-                                2 => Cell::plain(&j.dest).mono(),
-                                3 if j.mode == "mirror" && j.approved != j.rev => {
-                                    Cell::new(format!("{} · {}", t("mirror"), t("preview needed")), Tone::Warn)
-                                }
-                                3 if j.mode == "mirror" => Cell::plain(t("mirror")),
-                                3 => Cell::plain(t("copy")),
-                                4 if j.enabled && !j.cron.is_empty() => Cell::plain(&j.cron).mono(),
-                                4 => Cell::plain("—"),
-                                5 => match runs.iter().find(|x| x.job == j.id) {
-                                    None => Cell::plain("—"),
-                                    Some(x) => {
-                                        let (st, tone) = run_status(&x.status);
-                                        let phase = phase_text(x);
-                                        if x.status == "running" && !phase.is_empty() {
-                                            Cell::new(format!("{st} · {phase}"), tone)
-                                        } else {
-                                            Cell::new(format!("{st} · {}", date(x.started)), tone)
-                                        }
-                                    }
-                                },
-                                6 => {
-                                    let size: i64 = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum();
-                                    if qs.iter().any(|q| q.job == j.id) {
-                                        Cell::plain(size_text(size)).link(
-                                            crate::icons::ARCHIVE,
-                                            tf!("Quarantine of %s", names[r]),
-                                            (JobAct::Quarantine, r),
-                                        )
-                                    } else {
-                                        Cell::plain("—")
-                                    }
-                                }
-                                _ => Cell::plain("")
-                                    .and_link(
-                                        "",
-                                        Tone::Normal,
-                                        crate::icons::EYE,
-                                        t("Preview").into(),
-                                        (JobAct::Preview, r),
-                                    )
-                                    .and_link(
-                                        "",
-                                        Tone::Normal,
-                                        crate::icons::PLAY,
-                                        t("Run now").into(),
-                                        (JobAct::Run, r),
-                                    )
-                                    .and_link(
-                                        "",
-                                        Tone::Normal,
-                                        crate::icons::PENCIL,
-                                        t("Edit").into(),
-                                        (JobAct::Edit, r),
-                                    )
-                                    .and_link(
-                                        "",
-                                        Tone::Normal,
-                                        crate::icons::TRASH,
-                                        t("Delete").into(),
-                                        (JobAct::Delete, r),
-                                    ),
                             }
-                        });
+                        },
+                        6 => {
+                            let size: i64 = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum();
+                            if qs.iter().any(|q| q.job == j.id) {
+                                Cell::plain(size_text(size)).link(
+                                    crate::icons::ARCHIVE,
+                                    tf!("Quarantine of %s", names[r]),
+                                    (JobAct::Quarantine, r),
+                                )
+                            } else {
+                                Cell::plain("—")
+                            }
+                        }
+                        _ => Cell::plain("")
+                            .and_link("", Tone::Normal, crate::icons::EYE, t("Preview").into(), (JobAct::Preview, r))
+                            .and_link("", Tone::Normal, crate::icons::PLAY, t("Run now").into(), (JobAct::Run, r))
+                            .and_link("", Tone::Normal, crate::icons::PENCIL, t("Edit").into(), (JobAct::Edit, r))
+                            .and_link("", Tone::Normal, crate::icons::TRASH, t("Delete").into(), (JobAct::Delete, r)),
+                    }
+                });
                 cx.hover = hover.or(cx.hover.take());
                 act = out.clicked;
                 if jobs.is_empty() && self.cur.is_some() {
@@ -370,6 +353,7 @@ impl Sync {
                     keys: false,
                     row_h: 0.0,
                     frame: false,
+                    view_minus: 0.0,
                 }
                 .show(ui, &look, &mut self.runs, &mut hover, |r, c| {
                     let x = &runs[r];

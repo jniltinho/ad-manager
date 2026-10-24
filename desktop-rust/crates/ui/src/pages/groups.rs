@@ -168,35 +168,38 @@ impl Groups {
         ];
         let (gs, vis) = (&self.groups, &self.visible);
         let mut hover = None;
-        let out =
-            table::Table { id: "groups", cols: &cols, rows: vis.len(), keys, row_h: table::ROW_LINKS, frame: true }
-                .show(ui, &look, &mut self.table, &mut hover, |r, c| {
-                    let i = vis[r];
-                    let g = &gs[i];
-                    match c {
-                        0 => Cell::plain(&g.name).bold().link(
-                            "",
-                            tf!("Members of %s", g.name),
-                            (GroupAction::Members, i),
-                        ),
-                        1 if g.protected => Cell::new(t("system"), Tone::Strong),
-                        2 => Cell::plain(kind_name(&g.kind)),
-                        3 => Cell::plain(scope_name(&g.scope)),
-                        4 => Cell::plain(g.member_count.to_string()),
-                        5 => Cell::new(&g.description, Tone::Muted),
-                        6 => Cell::plain(t("members")).link(
-                            crate::icons::USERS_ROUND,
-                            tf!("Members of %s", g.name),
-                            (GroupAction::Members, i),
-                        ),
-                        7 if !g.protected => Cell::new(t("delete"), Tone::Normal).link(
-                            crate::icons::TRASH,
-                            tf!("Delete %s", g.name),
-                            (GroupAction::Delete, i),
-                        ),
-                        _ => Cell::plain(""),
-                    }
-                });
+        let out = table::Table {
+            id: "groups",
+            cols: &cols,
+            rows: vis.len(),
+            keys,
+            row_h: table::ROW_LINKS,
+            frame: true,
+            view_minus: 260.0,
+        }
+        .show(ui, &look, &mut self.table, &mut hover, |r, c| {
+            let i = vis[r];
+            let g = &gs[i];
+            match c {
+                0 => Cell::plain(&g.name).bold().link("", tf!("Members of %s", g.name), (GroupAction::Members, i)),
+                1 if g.protected => Cell::new(t("system"), Tone::Strong),
+                2 => Cell::plain(kind_name(&g.kind)),
+                3 => Cell::plain(scope_name(&g.scope)),
+                4 => Cell::plain(g.member_count.to_string()),
+                5 => Cell::new(&g.description, Tone::Muted),
+                6 => Cell::plain(t("members")).link(
+                    crate::icons::USERS_ROUND,
+                    tf!("Members of %s", g.name),
+                    (GroupAction::Members, i),
+                ),
+                7 if !g.protected => Cell::new(t("delete"), Tone::Normal).link(
+                    crate::icons::TRASH,
+                    tf!("Delete %s", g.name),
+                    (GroupAction::Delete, i),
+                ),
+                _ => Cell::plain(""),
+            }
+        });
         cx.hover = hover.or(cx.hover.take());
         let act = out.clicked.or_else(|| out.activated.and_then(|r| vis.get(r)).map(|&i| (GroupAction::Members, i)));
         if let Some((a, i)) = act

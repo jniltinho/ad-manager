@@ -919,7 +919,8 @@ pub fn stat_tile(
     decor: Color32,
     icon: &str,
 ) -> Response {
-    let h = 12.0 + 16.5 + 4.0 + 36.0 + 12.0 + look.p.card_stripe;
+    // the web's card: 1 px border, p-3, the 16.5 label line, mt-1, the 36 number line (its stripe is absolute: no room)
+    let h = 1.0 + 12.0 + 16.5 + 4.0 + 36.0 + 12.0 + 1.0;
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::click());
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
     let p = ui.painter();
@@ -937,19 +938,21 @@ pub fn stat_tile(
         egui::FontId::proportional(36.0),
         ink.gamma_multiply(0.15),
     );
-    let top = rect.top() + look.p.card_stripe + 12.0;
+    let top = rect.top() + 1.0 + 12.0;
     let lg = p.layout_no_wrap(
         label.to_uppercase(),
         egui::FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
         look.c("fg-muted"),
     );
-    p.galley(egui::pos2(rect.left() + 12.0, top), lg, look.c("fg-muted"));
+    // centered in its line, as a browser does
+    let ly = top + (16.5 - lg.size().y) / 2.0;
+    p.galley(egui::pos2(rect.left() + 12.0, ly), lg, look.c("fg-muted"));
     let vg = p.layout_no_wrap(
         value.to_string(),
         egui::FontId::new(30.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
         ink,
     );
-    p.galley(egui::pos2(rect.left() + 12.0, top + 16.5 + 4.0), vg, ink);
+    p.galley(egui::pos2(rect.left() + 12.0, top + 16.5 + 4.0 + (36.0 - vg.size().y) / 2.0), vg, ink);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{label}: {value}")));
     resp
 }

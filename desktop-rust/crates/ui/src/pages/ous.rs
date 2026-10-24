@@ -112,23 +112,31 @@ impl Ous {
         ];
         let (ous, tr) = (&self.ous, &self.tree);
         let mut hover = None;
-        let out = table::Table { id: "ous", cols: &cols, rows: tr.len(), keys, row_h: table::ROW_LINKS, frame: true }
-            .show(ui, &look, &mut self.table, &mut hover, |r, c| {
-                let (i, level) = tr[r];
-                let o = &ous[i];
-                match c {
-                    0 => {
-                        let cell = Cell::plain(&o.name).bold().tree(level);
-                        if is_ou(&o.dn) { cell } else { cell.with_tag(t("container"), Tone::Normal) }
-                    }
-                    1 => Cell::plain(&o.description),
-                    2 => Cell::new(&o.dn, Tone::Muted).mono(),
-                    _ if ou_deletable(o) => {
-                        Cell::new(t("delete"), Tone::Normal).link(crate::icons::TRASH, tf!("Delete %s", o.name), i)
-                    }
-                    _ => Cell::plain(""),
+        let out = table::Table {
+            id: "ous",
+            cols: &cols,
+            rows: tr.len(),
+            keys,
+            row_h: table::ROW_LINKS,
+            frame: true,
+            view_minus: 0.0,
+        }
+        .show(ui, &look, &mut self.table, &mut hover, |r, c| {
+            let (i, level) = tr[r];
+            let o = &ous[i];
+            match c {
+                0 => {
+                    let cell = Cell::plain(&o.name).bold().tree(level);
+                    if is_ou(&o.dn) { cell } else { cell.with_tag(t("container"), Tone::Normal) }
                 }
-            });
+                1 => Cell::plain(&o.description),
+                2 => Cell::new(&o.dn, Tone::Muted).mono(),
+                _ if ou_deletable(o) => {
+                    Cell::new(t("delete"), Tone::Normal).link(crate::icons::TRASH, tf!("Delete %s", o.name), i)
+                }
+                _ => Cell::plain(""),
+            }
+        });
         cx.hover = hover.or(cx.hover.take());
         if let Some(i) = out.clicked
             && let Some(o) = self.ous.get(i).cloned().filter(ou_deletable)
