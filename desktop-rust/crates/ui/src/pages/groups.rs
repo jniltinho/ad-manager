@@ -176,6 +176,7 @@ impl Groups {
             row_h: table::ROW_LINKS,
             frame: true,
             view_minus: 260.0,
+            heights: None,
         }
         .show(ui, &look, &mut self.table, &mut hover, |r, c| {
             let i = vis[r];

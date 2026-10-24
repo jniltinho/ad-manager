@@ -233,11 +233,13 @@ impl Settings {
         let mut token = false;
         let (mut upload, mut remove) = (false, false);
         // as the web's page, which scrolls with its bottom padding: the view reaches the footer, the 20 points at the end
-        let full = ui.max_rect().with_max_y(ui.max_rect().bottom() + 20.0);
+        let full = ui.max_rect().with_max_y(ui.max_rect().bottom() + 20.0).with_max_x(ui.max_rect().right() + 20.0);
         let mut page =
             ui.new_child(egui::UiBuilder::new().max_rect(full).layout(egui::Layout::top_down(egui::Align::Min)));
         let ui = &mut page;
         egui::ScrollArea::vertical().id_salt("settings").auto_shrink([false, false]).show(ui, |ui| {
+            // the bar at the page's edge, the content inside its 20-point padding
+            ui.set_max_width(ui.available_width() - 20.0);
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 20.0;
                 let right_w = 520.0_f32.min((ui.available_width() * 0.45).floor());
@@ -499,6 +501,7 @@ impl Settings {
                 ui.spacing_mut().item_spacing.y = 8.0;
                 let muted = look.c("fg-muted");
                 widgets::para(ui, t("Register the token in Shares → + new, and run the command on the file server: it keeps only the hash."), 12.0, muted);
+                ui.add_space(12.0 - ui.spacing().item_spacing.y); // the web's space-y-3
                 asked = widgets::button(ui, &look, crate::icons::KEY, t("Generate token"), Kind::Secondary).clicked();
                 if let Some(tk) = &self.token {
                     let w = ui.available_width();

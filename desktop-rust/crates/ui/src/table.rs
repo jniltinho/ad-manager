@@ -243,6 +243,8 @@ pub struct Table<'a> {
     pub frame: bool,
     /// The web wrapper's `max-h-[calc(var(--view-h)-N)]`: at most the window's height less this (0: no cap).
     pub view_minus: f32,
+    /// Each row's own height, when they differ (a row with links is taller in the web): `rows` of them.
+    pub heights: Option<&'a [f32]>,
 }
 
 impl Table<'_> {
@@ -302,7 +304,8 @@ fn show<A>(
     } else {
         ui.available_height()
     };
-    let fits = head_h + rows as f32 * row_h <= room;
+    let body_h = t.heights.map_or(rows as f32 * row_h, |h| h.iter().sum());
+    let fits = head_h + body_h <= room;
     let avail = ui.available_width() - if fits { 0.0 } else { 14.0 };
     let full: f32 = cols.iter().map(|c| c.width).sum();
     let compact = avail < full;
@@ -415,7 +418,8 @@ fn show<A>(
                             .with_clip_rect(clip.intersect(ui.clip_rect().with_min_x(left)))
                             .galley(at, g, on_head);
                     } else if c.span == 1 {
-                        pad(ui, c.right, th_px, th_px, |ui| {
+                        // a heading is not cut by the padding after it (the web's th does not truncate)
+                        pad(ui, c.right, th_px, th_px / 2.0, |ui| {
                             ui.label(crate::style::semibold(&c.title, text).color(on_head));
                         });
                     }
@@ -423,7 +427,7 @@ fn show<A>(
             }
         })
         .body(|body| {
-            body.rows(row_h, rows, |mut row| {
+            let add_row = |mut row: egui_extras::TableRow<'_, '_>| {
                 let r = row.index();
                 let selected = state.sel == Some(r);
                 row.set_selected(selected);
@@ -452,7 +456,11 @@ fn show<A>(
                 if resp.double_clicked() {
                     out.activated = Some(r);
                 }
-            });
+            };
+            match t.heights {
+                Some(h) => body.heterogeneous_rows(h.iter().copied(), add_row),
+                None => body.rows(row_h, rows, add_row),
+            }
         });
     });
     // the header band over the scroll bar's column too (the web's sticky head spans the wrapper)
@@ -489,7 +497,11 @@ pub fn empty_row(ui: &mut Ui, look: &crate::style::Look, text: &str) {
 /// The web's row heights at 1280 (Chrome's layout of a 12-point line, its padding and the collapsed border): a row with
 /// action links (inline-flex buttons) and one of text and badges only.
 pub const ROW_LINKS: f32 = 28.76;
-pub const ROW_TEXT: f32 = 26.94;
+
+/// A text-only row: Chrome rounds its line boxes per device pixel, so it is 26.94 at 1x and 27.76 at 2x.
+pub fn row_text(ctx: &egui::Context) -> f32 {
+    if ctx.pixels_per_point() >= 1.5 { 27.76 } else { 26.94 }
+}
 
 /// Draws `add` with the cell's side padding, from the left or (numbers) from the right.
 fn pad(ui: &mut Ui, right: bool, px: f32, tail: f32, add: impl FnOnce(&mut Ui)) {
@@ -609,7 +621,8 @@ fn draw_cell<A>(
             let t = rich(cl.text.clone(), ink);
             ui.add(egui::Label::new(t).truncate().selectable(false));
             if let Some((text, tone)) = &cl.tag {
-                ui.add_space(6.0);
+                // after a text the web's tag is an inline element: one space of the cell's font from it
+                ui.add_space(ui.ctx().fonts_mut(|f| f.glyph_width(&egui::FontId::proportional(size), ' ')));
                 let _ = crate::widgets::tag(ui, look, text, *tone);
             }
         }
@@ -662,14 +675,19 @@ mod ui_tests {
                 }
                 let cols = [Column::new("Name", 200.0), Column::new("", 100.0)];
                 let mut hover = None;
-                let out = Table { id: "t", cols: &cols, rows: 3, keys: true, row_h: 0.0, frame: true, view_minus: 0.0 }
-                    .show(ui, &look, &mut st.0, &mut hover, |r, c| {
-                        if c == 0 {
-                            Cell::plain(format!("row {r}"))
-                        } else {
-                            Cell::plain("go").link("", String::new(), r)
-                        }
-                    });
+                let out = Table {
+                    id: "t",
+                    cols: &cols,
+                    rows: 3,
+                    keys: true,
+                    row_h: 0.0,
+                    frame: true,
+                    view_minus: 0.0,
+                    heights: None,
+                }
+                .show(ui, &look, &mut st.0, &mut hover, |r, c| {
+                    if c == 0 { Cell::plain(format!("row {r}")) } else { Cell::plain("go").link("", String::new(), r) }
+                });
                 if let Some(r) = out.clicked {
                     st.1 = Some(r);
                 }

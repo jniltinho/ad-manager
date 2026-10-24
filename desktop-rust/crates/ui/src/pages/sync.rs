@@ -230,6 +230,7 @@ impl Sync {
                     row_h: 0.0,
                     frame: false,
                     view_minus: 0.0,
+                    heights: None,
                 }
                 .show(ui, &look, &mut self.jobs, &mut hover, |r, c| {
                     let j = &jobs[r];
@@ -354,6 +355,7 @@ impl Sync {
                     row_h: 0.0,
                     frame: false,
                     view_minus: 0.0,
+                    heights: None,
                 }
                 .show(ui, &look, &mut self.runs, &mut hover, |r, c| {
                     let x = &runs[r];

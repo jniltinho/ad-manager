@@ -182,9 +182,10 @@ impl Audit {
             cols: &cols,
             rows: vis.len(),
             keys,
-            row_h: table::ROW_TEXT,
+            row_h: table::row_text(ui.ctx()),
             frame: true,
             view_minus: 306.0,
+            heights: None,
         }
         .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
             let e = &all[vis[r]];
@@ -322,9 +323,10 @@ impl Http {
             cols: &cols,
             rows: vis.len(),
             keys,
-            row_h: table::ROW_TEXT,
+            row_h: table::row_text(ui.ctx()),
             frame: true,
             view_minus: 306.0,
+            heights: None,
         }
         .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
             let x = &all[vis[r]];

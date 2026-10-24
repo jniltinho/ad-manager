@@ -111,6 +111,10 @@ impl Ous {
             Column::new(t("Actions"), 106.0).right(),
         ];
         let (ous, tr) = (&self.ous, &self.tree);
+        // as the web's rows: one with the delete link (an inline-flex button) is taller than one of text only
+        let text_h = table::row_text(ui.ctx());
+        let heights: Vec<f32> =
+            tr.iter().map(|&(i, _)| if ou_deletable(&ous[i]) { table::ROW_LINKS } else { text_h }).collect();
         let mut hover = None;
         let out = table::Table {
             id: "ous",
@@ -120,6 +124,7 @@ impl Ous {
             row_h: table::ROW_LINKS,
             frame: true,
             view_minus: 0.0,
+            heights: Some(&heights),
         }
         .show(ui, &look, &mut self.table, &mut hover, |r, c| {
             let (i, level) = tr[r];

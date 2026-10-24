@@ -171,6 +171,7 @@ impl Users {
                 row_h: table::ROW_LINKS,
                 frame: true,
                 view_minus: 260.0, // the web's max-h-[calc(var(--view-h)-260px)]
+                heights: None,
             }
             .show(ui, &look, &mut self.table, &mut hover, |r, c| cell(&all[visible[r]], visible[r], c, &me, days, now));
             cx.hover = hover.or(cx.hover.take());

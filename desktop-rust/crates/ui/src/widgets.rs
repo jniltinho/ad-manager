@@ -182,16 +182,17 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
     }
     .color(look.c("on-card-head"));
     let under = ui.painter().add(egui::Shape::Noop);
+    let row_id = ui.id().with(("card-head-row", key.as_str()));
+    let prev = ui.ctx().data(|d| d.get_temp::<f32>(row_id)).unwrap_or(0.0);
+    // py-1.5 around the web's 18-point line (egui's line is 15: 7 and 8 here); around buttons, the plain py-1.5
+    let (top, bottom) = if prev >= 24.0 { (6, 6) } else { (7, 8) };
     let r = Frame::new()
-        // py-1.5 around the web's 18-point line (egui's line is 15: 7 and 8 here)
-        .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top: 7, bottom: 8 })
+        .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top, bottom })
         .show(ui, |ui| {
             ui.set_width((w - 24.0 - bar).max(0.0));
             // the head's line, not a control's 28 points (a row starts at this height: set before it opens); the
             // row as tall as last frame's, so the title centers on the buttons at its right
             ui.spacing_mut().interact_size.y = 0.0;
-            let row_id = ui.id().with(("card-head-row", key.as_str()));
-            let prev = ui.ctx().data(|d| d.get_temp::<f32>(row_id)).unwrap_or(0.0);
             let row = ui.horizontal(|ui| {
                 ui.set_min_height(prev);
                 ui.label(rich);
@@ -380,7 +381,8 @@ pub fn cardtabs_at(
         // the band's padding on top (the web's --cardtabs-pad), the inactive tabs lower by their inset, the current
         // one over the band's line by its overlap
         let top = band.top() + pad + if on { 0.0 } else { look.px("cardtab-inset-top", 0.0) };
-        let bottom = band.bottom() + if on { look.px("cardtab-on-overlap", 0.0) } else { 0.0 };
+        // an inactive tab stops over the band's line (the web's line runs under it); the current one covers it
+        let bottom = if on { band.bottom() + look.px("cardtab-on-overlap", 0.0) } else { band.bottom() - 1.0 };
         let tab = egui::Rect::from_min_max(egui::pos2(x, top), egui::pos2(x + w, bottom));
         let resp = band_ui
             .interact(tab.intersect(clip), ui.id().with((id, i)), egui::Sense::click())

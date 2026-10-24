@@ -305,6 +305,7 @@ impl Backup {
                     row_h: 0.0,
                     frame: false,
                     view_minus: 0.0,
+                    heights: None,
                 }
                 .show(ui, &look, &mut self.table, &mut hover, |r, c| {
                     let b = &rows[r];
