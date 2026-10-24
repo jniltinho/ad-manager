@@ -56,3 +56,10 @@ Add the `[agent]` section to `/etc/ad-manager/config.toml` (as in `scripts/samba
 1. **Import/export → From another AD**, source = old file server, target = the DC's agent, mapping the Windows path
    to the root (`C:\srv\shares=/srv/shares`): creates folders, shares and ACLs.
 2. **Sync**: one job per folder copies the data from the old server to the DC (`docs/sync.md`).
+
+## Disk for the shares
+
+Keep `/srv/shares` on its own data disk formatted **XFS**: on an ext4 root without `ea_inode`, a file's extended
+attributes (Samba's NT ACL and the POSIX ACLs) must fit one 4 KB block, and deep migrated trees then fail with "disk
+full" when a permission is added. [fileserver-vm.md](fileserver-vm.md) builds such a VM (40 GB system disk, 200 GB XFS
+data disk) and moves it to XCP-ng.

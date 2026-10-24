@@ -1,0 +1,50 @@
+# File-serving Samba DC VM (docs/fileserver-vm.md): Ubuntu 26.04 on a 40 GB system disk (the local box of
+# build-box.sh, no LVM) and a separate data disk, XFS at /srv/shares. Settings by environment (defaults: a lab of the
+# fictitious domain.local):
+#   FS_NAME=dc01 FS_IP=192.168.56.20 FS_DATA_GB=200 FS_MEMORY=8192 FS_CPUS=2 FS_BOX=local/ubuntu-26.04-40g
+# Samba and ad-manager (run: never — they need the domain and the .deb):
+#   FS_REALM=domain.local FS_DOMAIN=DOMAIN FS_DEB=/path/ad-manager_X_amd64.deb FS_ADMIN_PW_FILE=/path/0600-file \
+#     vagrant provision --provision-with samba
+NAME    = ENV.fetch("FS_NAME", "dc01")
+IP      = ENV.fetch("FS_IP", "192.168.56.20")
+DATA_GB = Integer(ENV.fetch("FS_DATA_GB", "200"))
+BOX     = ENV.fetch("FS_BOX", "local/ubuntu-26.04-40g")
+REPO    = File.expand_path("../..", __dir__)
+DATA    = File.join(__dir__, ".vagrant", "#{NAME}-data.vdi")
+
+Vagrant.configure("2") do |config|
+  config.vm.box = BOX
+  # no shared folder: the box has no VirtualBox guest additions (the VM goes to XCP-ng); files go by `file`
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  config.vm.define NAME do |v|
+    v.vm.hostname = NAME
+    v.vm.network "private_network", ip: IP
+    v.vm.provider "virtualbox" do |vb|
+      vb.name = NAME
+      vb.memory = Integer(ENV.fetch("FS_MEMORY", "8192"))
+      vb.cpus = Integer(ENV.fetch("FS_CPUS", "2"))
+      unless File.exist?(DATA)
+        vb.customize ["createmedium", "disk", "--filename", DATA, "--format", "VDI", "--size", DATA_GB * 1024]
+      end
+      # the box's SATA controller: the system disk on port 0, the data disk on port 1
+      vb.customize ["storageattach", :id, "--storagectl", "SATA", "--port", 1, "--device", 0, "--type", "hdd",
+                    "--medium", DATA]
+    end
+    v.vm.provision "data-disk", type: "shell", path: "provision/data-disk.sh", env: { "DATA_GB" => DATA_GB.to_s }
+    v.vm.provision "xe-tools", type: "shell", path: "provision/xe-tools.sh"
+    if ENV["FS_DEB"] && ENV["FS_ADMIN_PW_FILE"]
+      v.vm.provision "setup-files", type: "file", run: "never", source: File.join(REPO, "scripts/samba-setup.py"),
+                                    destination: "/tmp/fileserver/samba-setup.py"
+      v.vm.provision "deb-file", type: "file", run: "never", source: ENV["FS_DEB"],
+                                 destination: "/tmp/fileserver/#{File.basename(ENV["FS_DEB"])}"
+      v.vm.provision "pw-file", type: "file", run: "never", source: ENV["FS_ADMIN_PW_FILE"],
+                                destination: "/tmp/fileserver/admin.pw"
+    end
+    v.vm.provision "samba", type: "shell", run: "never", path: "provision/samba.sh", env: {
+      "FS_REALM" => ENV.fetch("FS_REALM", "domain.local"), "FS_DOMAIN" => ENV.fetch("FS_DOMAIN", "DOMAIN"),
+      "FS_IP" => IP, "FS_DEB" => File.basename(ENV.fetch("FS_DEB", "missing.deb")),
+      "FS_FORWARDER" => ENV.fetch("FS_FORWARDER", "1.1.1.1"), "FS_IMPORT_READY" => ENV.fetch("FS_IMPORT_READY", "")
+    }
+  end
+end
