@@ -17,5 +17,5 @@
 ## 3. Validation
 
 - [x] 3.1 Tests (store, server, agent); `make check && make test`
-- [ ] 3.2 On the lab VM: credential in Settings, `import.pass` removed, import with GPOs and passwords, profile reuse
+- [x] 3.2 On the lab VM: credential in Settings, `import.pass` removed, import with GPOs and passwords, profile reuse
 - [x] 3.3 Codex review
