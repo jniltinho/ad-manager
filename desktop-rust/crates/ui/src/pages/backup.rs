@@ -154,6 +154,7 @@ impl Backup {
                 ui.label(
                     RichText::new(t("Each agent makes and keeps its server's backups in its backup folder (default /var/backups/ad-manager); the schedules run on the agent, with the panel off too. A DC backup holds the domain's secrets."))
                         .size(11.0)
+                        .line_height(Some(widgets::LEADING * 11.0))
                         .color(look.c("fg-muted")),
                 );
             });
@@ -335,7 +336,7 @@ impl Backup {
                                         .and_link(
                                             "",
                                             Tone::Normal,
-                                            crate::icons::HISTORY,
+                                            crate::icons::ROTATE,
                                             t("Restore").into(),
                                             (Act::Restore, r),
                                         );

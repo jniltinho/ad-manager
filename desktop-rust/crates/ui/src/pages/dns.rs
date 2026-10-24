@@ -219,7 +219,16 @@ impl Dialog for Dns {
                     go = Some((zone.clone(), p));
                 }
             };
-            widgets::mini_table(ui, &look, [t("Name"), t("Record type"), "TTL", t("Data"), ""], &rows, Some(&mut cell));
+            // the web's dialog table: framed on every side
+            egui::Frame::new().stroke(egui::Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
+                widgets::mini_table(
+                    ui,
+                    &look,
+                    [t("Name"), t("Record type"), "TTL", t("Data"), ""],
+                    &rows,
+                    Some(&mut cell),
+                );
+            });
             if r.records.is_empty() && r.nodes.is_empty() {
                 ui.label(RichText::new(t("No records.")).size(12.0).color(muted));
             }
@@ -380,14 +389,16 @@ impl Dialog for Sessions {
                         ]
                     })
                     .collect();
-                widgets::mini_table_aligned(
-                    ui,
-                    &look,
-                    [t("User"), t("Client"), t("Open files"), t("Connected for"), t("Idle for")],
-                    [false, false, true, true, true],
-                    &rows,
-                    None,
-                );
+                egui::Frame::new().stroke(egui::Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
+                    widgets::mini_table_aligned(
+                        ui,
+                        &look,
+                        [t("User"), t("Client"), t("Open files"), t("Connected for"), t("Idle for")],
+                        [false, false, true, true, true],
+                        &rows,
+                        None,
+                    );
+                });
                 if l.is_empty() {
                     ui.label(RichText::new(t("Nobody connected.")).size(12.0).color(muted));
                 }

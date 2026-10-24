@@ -150,7 +150,8 @@ impl Computers {
                 let ink = if x.enabled { Tone::Normal } else { Tone::Muted };
                 let server = x.is_dc || x.os.to_lowercase().contains("server");
                 match c {
-                    0 => Cell::plain(&x.name).bold(),
+                    // a deactivated computer's whole row in the subtle ink, as the web's
+                    0 => Cell::new(&x.name, ink).bold(),
                     1 if legacy_os(&x.os) => Cell::new(&x.os, Tone::Err),
                     1 => Cell::new(&x.os, ink),
                     2 => Cell::new(&x.os_version, ink),

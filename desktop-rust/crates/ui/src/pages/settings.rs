@@ -460,10 +460,12 @@ impl Settings {
                                 "Edit /opt/ad-manager/config.toml and restart the ad-manager service to change these.",
                             ))
                             .size(11.0)
+                            .line_height(Some(widgets::LEADING * 11.0))
                             .color(muted),
                         )
                         .wrap(),
                     );
+                    ui.add_space(8.0); // the web's paragraph gap
                     ui.label(RichText::new(tf!("Signed in as %s.", cx.me.user)).size(11.0).color(muted));
                 });
             },

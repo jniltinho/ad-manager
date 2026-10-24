@@ -92,12 +92,8 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
         b.fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0, line)).min_size(egui::vec2(w, crate::style::control_h())),
     );
     let (bg, shadow) = parts(kind, r.hovered());
-    let mut shapes = crate::depth::box_shapes(r.rect, look.gradient(bg), fill, look.shadows(shadow));
-    if !ui.is_enabled() {
-        for s in &mut shapes {
-            crate::depth::fade(s, 0.5);
-        }
-    }
+    // a disabled ui's painter already draws at half opacity (the web's disabled:opacity-50)
+    let shapes = crate::depth::box_shapes(r.rect, look.gradient(bg), fill, look.shadows(shadow));
     ui.painter().set(under, egui::Shape::Vec(shapes));
     r
 }
@@ -268,7 +264,14 @@ pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize
     let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
     let band =
         egui::Rect::from_min_max(egui::pos2(r.left() - bx, r.top() - by), egui::pos2(r.right() + bx, r.bottom()));
-    let painter = ui.painter().with_clip_rect(ui.clip_rect().union(band));
+    // the layer's painter: a ui's painter only clips narrower (it intersects), and the band reaches over the dialog
+    // body's padding, outside the scroll area
+    let clip = ui
+        .clip_rect()
+        .expand2(egui::vec2(bx, 0.0))
+        .with_min_y(ui.clip_rect().top() - by)
+        .intersect(band.union(ui.clip_rect()));
+    let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(clip);
     painter.rect_filled(band, 0.0, look.c("cardtabs"));
     // the band's line under the tabs: the current tab covers it (the web's overlap)
     painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
@@ -545,7 +548,11 @@ pub fn radio_value<T: PartialEq>(ui: &mut Ui, value: &mut T, alt: T, text: impl 
 
 fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>, radio: bool) -> Response {
     let c = check_colors(ui.ctx());
-    let text: egui::WidgetText = text.into();
+    // a plain label at the web's 12 px (a styled one keeps its own size)
+    let text = match text.into() {
+        egui::WidgetText::Text(s) => egui::WidgetText::from(RichText::new(s).size(12.0)),
+        other => other,
+    };
     let label = text.text().to_string();
     let wrap_w = ui.available_width() - 22.0;
     let galley = text.into_galley(ui, Some(egui::TextWrapMode::Wrap), wrap_w, egui::TextStyle::Body);
@@ -870,9 +877,11 @@ pub fn mini_table_aligned<const N: usize>(
         );
         egui::WidgetText::from(t).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, font).size().x
     };
+    // a row whose only text is its first cell spans the table (the web's colspan: the DNS names below)
+    let spans = |r: &[RichText; N]| N > 1 && !r[0].text().is_empty() && r[1..].iter().all(|c| c.text().is_empty());
     let natural: Vec<f32> = (0..N)
         .map(|i| {
-            let cells = rows.iter().map(|r| measure(r[i].clone().size(12.0), false));
+            let cells = rows.iter().filter(|r| !spans(r)).map(|r| measure(r[i].clone().size(12.0), false));
             let widest = cells.fold(measure(RichText::new(heads[i]), true), f32::max);
             // the last column of links (`last`) has no text to measure: room for an icon link
             let widest = if i + 1 == N && last.is_some() { widest.max(24.0) } else { widest };
@@ -918,9 +927,15 @@ pub fn mini_table_aligned<const N: usize>(
             ui.painter().hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, look.c("line")));
         }
         let mut x = rect.left();
+        let span = spans(row);
         for (i, cell) in row.iter().enumerate() {
+            let cw = if span && i == 0 { w - col_w[N - 1] } else { col_w[i] };
             let cell_rect =
-                egui::Rect::from_min_size(egui::pos2(x + th_px, rect.top()), egui::vec2(col_w[i] - 2.0 * th_px, row_h));
+                egui::Rect::from_min_size(egui::pos2(x + th_px, rect.top()), egui::vec2(cw - 2.0 * th_px, row_h));
+            if span && i > 0 && i + 1 < N {
+                x += col_w[i];
+                continue;
+            }
             match (&mut last, i + 1 == N) {
                 (Some(f), true) => {
                     let layout = egui::Layout::right_to_left(egui::Align::Center);
@@ -961,6 +976,18 @@ pub fn label(ui: &mut Ui, look: &Look, s: &str) -> Response {
     ui.add_space(8.0);
     lbl(ui, look, s)
 }
+
+/// Makes the read-only text fields drawn next in `ui` look as editable ones (the web's readonly input keeps its
+/// border and ink; egui would draw a non-interactive widget's faint frame).
+pub fn readonly_look(ui: &mut Ui) {
+    let w = &mut ui.visuals_mut().widgets;
+    w.noninteractive.bg_stroke = w.inactive.bg_stroke;
+    w.noninteractive.bg_fill = w.inactive.bg_fill;
+    w.noninteractive.weak_bg_fill = w.inactive.weak_bg_fill;
+}
+
+/// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).
+pub const LEADING: f32 = 1.5;
 
 /// A single-line text edit as the web's .inp: a 28 px border box with 8 px side padding, the text vertically centered.
 pub fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {

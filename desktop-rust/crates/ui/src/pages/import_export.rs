@@ -425,8 +425,10 @@ impl ImportExport {
                     }
                     let muted = look.c("fg-muted");
                     let mut job = egui::text::LayoutJob::default();
-                    let text = egui::TextFormat::simple(egui::FontId::proportional(12.0), muted);
-                    let code = egui::TextFormat::simple(egui::FontId::monospace(11.0), muted);
+                    let mut text = egui::TextFormat::simple(egui::FontId::proportional(12.0), muted);
+                    text.line_height = Some(widgets::LEADING * 12.0);
+                    let mut code = egui::TextFormat::simple(egui::FontId::monospace(11.0), muted);
+                    code.line_height = text.line_height;
                     for (s, f) in [
                         (format!("{} ", t("No passwords or files. From the CLI:")), &text),
                         (format!("ad-manager export -d {}", t("folder")), &code),

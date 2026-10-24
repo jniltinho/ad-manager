@@ -699,7 +699,15 @@ impl SyncWizard {
                         ui.spacing_mut().item_spacing.y = 4.0;
                         let title = crate::style::semibold(format!("{icon}  {title}"), 12.0).color(look.c("fg-strong"));
                         ui.label(title);
-                        ui.add(egui::Label::new(RichText::new(text).size(11.0).color(look.c("fg-muted"))).wrap());
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(text)
+                                    .size(11.0)
+                                    .line_height(Some(widgets::LEADING * 11.0))
+                                    .color(look.c("fg-muted")),
+                            )
+                            .wrap(),
+                        );
                     });
                 });
         });
@@ -718,7 +726,7 @@ impl SyncWizard {
         widgets::above(ui, &look, t("Source server"), w, |ui, _| {
             ui.add(
                 crate::widgets::line(&mut self.host)
-                    .hint_text("old-fs.example.local")
+                    .hint_text(RichText::new("old-fs.example.local").monospace())
                     .font(egui::TextStyle::Monospace)
                     .desired_width(w),
             )

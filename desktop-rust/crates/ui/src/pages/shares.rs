@@ -745,7 +745,8 @@ impl Dialog for ShareDialog {
             ui.spacing_mut().item_spacing.x = 16.0;
             widgets::above(ui, &look, t("Share name"), cw, |ui, _| {
                 let old = f.name.clone();
-                // read only when editing, in the normal ink as the web's readonly input
+                // read only when editing, drawn as the web's readonly input (an editable one's border and ink)
+                widgets::readonly_look(ui);
                 let r =
                     ui.add(crate::widgets::line(&mut f.name).char_limit(80).interactive(!editing).desired_width(cw));
                 if r.changed() {
@@ -761,6 +762,7 @@ impl Dialog for ShareDialog {
         // the folder: an edit's path read only; a new share's root (of the agent) and the folder under it
         if editing {
             widgets::above(ui, &look, t("Folder"), w, |ui, _| {
+                widgets::readonly_look(ui);
                 ui.add(
                     crate::widgets::line(&mut f.folder)
                         .font(egui::TextStyle::Monospace)

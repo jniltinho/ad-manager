@@ -153,6 +153,7 @@ impl Sync {
                 ui.label(
                     RichText::new(t("The server's agent brings folders from an SMB share (Windows or Samba) with the rclone engine built into ad-manager: signed SMB, with the server's machine account (Kerberos) or a user and password kept encrypted. Files take the destination folder's Windows permissions."))
                         .size(11.0)
+                        .line_height(Some(widgets::LEADING * 11.0))
                         .color(look.c("fg-muted")),
                 );
             });

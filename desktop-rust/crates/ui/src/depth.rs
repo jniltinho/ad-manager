@@ -242,23 +242,6 @@ pub fn box_shapes(rect: Rect, gradient: Option<&Gradient>, fill: Color32, shadow
     out
 }
 
-/// Multiplies a shape's colors by `k` (a disabled control at the web's 50% opacity).
-pub fn fade(s: &mut Shape, k: f32) {
-    match s {
-        Shape::Rect(r) => {
-            r.fill = r.fill.gamma_multiply(k);
-            r.stroke.color = r.stroke.color.gamma_multiply(k);
-        }
-        Shape::Mesh(m) => {
-            for v in &mut std::sync::Arc::make_mut(m).vertices {
-                v.color = v.color.gamma_multiply(k);
-            }
-        }
-        Shape::Vec(v) => v.iter_mut().for_each(|s| fade(s, k)),
-        _ => {}
-    }
-}
-
 /// Paints a part's box now (see [`box_shapes`]).
 pub fn paint_box(painter: &Painter, rect: Rect, gradient: Option<&Gradient>, fill: Color32, shadows: &[Layer]) {
     painter.extend(box_shapes(rect, gradient, fill, shadows));

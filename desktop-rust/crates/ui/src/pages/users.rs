@@ -996,7 +996,8 @@ impl Dialog for PasswordDialog {
             });
             ui.add_space(8.0);
             let note = tf!("Valid until %s. Send it to the user through a trusted channel.", date(expires));
-            ui.add(egui::Label::new(RichText::new(note).size(12.0).color(look.c("fg-muted"))).wrap());
+            let note = RichText::new(note).size(12.0).line_height(Some(widgets::LEADING * 12.0));
+            ui.add(egui::Label::new(note.color(look.c("fg-muted"))).wrap());
         } else if self.tab == 0 {
             ui.spacing_mut().item_spacing.y = 4.0;
             let l = widgets::lbl(ui, &look, t("New password"));
