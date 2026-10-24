@@ -787,52 +787,60 @@ pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: u
     let inset = look.px("subtab-inset-top", 0.0);
     let line_w = look.px("subtabs-line-w", 2.0);
     let overlap = look.px("subtab-on-overlap", 0.0);
-    let r = ui
-        .push_id(id, |ui| {
-            // flex-wrap as the web's .subtabs: many file servers go on to a second row instead of past the window
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing.x = look.px("subtabs-gap", 0.0);
-                ui.spacing_mut().item_spacing.y = 0.0;
-                ui.add_space(look.px("subtabs-pad", 0.0));
-                for (i, (icon, label)) in tabs.iter().enumerate() {
-                    let on = i == sel;
-                    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
-                    let g = ui.painter().layout_no_wrap(label.to_string(), font, Color32::PLACEHOLDER);
-                    let ig = ui.painter().layout_no_wrap(
-                        icon.to_string(),
-                        egui::FontId::proportional(13.0),
-                        Color32::PLACEHOLDER,
-                    );
-                    let w = 16.0 + ig.size().x + 6.0 + g.size().x + 16.0;
-                    let h = 6.0 + g.size().y.max(ig.size().y) + 6.0;
-                    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h + inset), egui::Sense::click());
-                    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
-                    let top = if on { 0.0 } else { inset };
-                    let bottom = if on { overlap } else { 0.0 };
-                    let b = egui::Rect::from_min_max(
-                        egui::pos2(rect.left(), rect.top() + top),
-                        egui::pos2(rect.right(), rect.bottom() + bottom),
-                    );
-                    let (fill, ink, shadow) = if on {
-                        (look.c("subtab-on"), look.c("on-subtab-on"), "subtab-on")
-                    } else if resp.hovered() {
-                        (look.c("subtab-hover"), look.c("on-subtab"), "subtab")
-                    } else {
-                        (look.c("subtab"), look.c("on-subtab"), "subtab")
-                    };
-                    look.paint(ui.painter(), b, "", shadow, fill);
-                    let y = rect.top() + top + (h - top.min(0.0)) / 2.0;
-                    ui.painter().galley(egui::pos2(b.left() + 16.0, y - ig.size().y / 2.0), ig, ink);
-                    ui.painter().galley(egui::pos2(b.left() + 16.0 + 6.0 + 13.0, y - g.size().y / 2.0), g, ink);
-                    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, on, *label));
-                    if resp.clicked() && !on {
-                        out = Some(i);
+    // at most three rows of tabs (many file servers): the strip scrolls, the page's controls stay on screen
+    let strip = egui::ScrollArea::vertical()
+        .id_salt((id, "strip"))
+        .max_height(3.0 * (12.0 * 1.25 + 12.0 + inset) + 2.0)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            ui.push_id(id, |ui| {
+                // flex-wrap as the web's .subtabs: many file servers go on to a second row instead of past the window
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = look.px("subtabs-gap", 0.0);
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    ui.add_space(look.px("subtabs-pad", 0.0));
+                    for (i, (icon, label)) in tabs.iter().enumerate() {
+                        let on = i == sel;
+                        let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+                        let g = ui.painter().layout_no_wrap(label.to_string(), font, Color32::PLACEHOLDER);
+                        let ig = ui.painter().layout_no_wrap(
+                            icon.to_string(),
+                            egui::FontId::proportional(13.0),
+                            Color32::PLACEHOLDER,
+                        );
+                        let w = 16.0 + ig.size().x + 6.0 + g.size().x + 16.0;
+                        let h = 6.0 + g.size().y.max(ig.size().y) + 6.0;
+                        let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h + inset), egui::Sense::click());
+                        let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                        let top = if on { 0.0 } else { inset };
+                        let bottom = if on { overlap } else { 0.0 };
+                        let b = egui::Rect::from_min_max(
+                            egui::pos2(rect.left(), rect.top() + top),
+                            egui::pos2(rect.right(), rect.bottom() + bottom),
+                        );
+                        let (fill, ink, shadow) = if on {
+                            (look.c("subtab-on"), look.c("on-subtab-on"), "subtab-on")
+                        } else if resp.hovered() {
+                            (look.c("subtab-hover"), look.c("on-subtab"), "subtab")
+                        } else {
+                            (look.c("subtab"), look.c("on-subtab"), "subtab")
+                        };
+                        look.paint(ui.painter(), b, "", shadow, fill);
+                        let y = rect.top() + top + (h - top.min(0.0)) / 2.0;
+                        ui.painter().galley(egui::pos2(b.left() + 16.0, y - ig.size().y / 2.0), ig, ink);
+                        ui.painter().galley(egui::pos2(b.left() + 16.0 + 6.0 + 13.0, y - g.size().y / 2.0), g, ink);
+                        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, on, *label));
+                        if resp.clicked() && !on {
+                            out = Some(i);
+                        }
                     }
-                }
+                })
             })
-        })
-        .inner
-        .response;
+            .inner
+            .response
+        });
+    let mut r = strip.inner;
+    r.rect = r.rect.intersect(strip.inner_rect).with_max_y(strip.inner_rect.bottom());
     // the line under the strip; the current tab covers it by its overlap
     let y = r.rect.bottom() + line_w / 2.0;
     ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(line_w, look.c("subtab-line")));

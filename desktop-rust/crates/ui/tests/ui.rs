@@ -860,4 +860,22 @@ fn many_samba_tabs_wrap_and_stay_reachable() {
     let node = e.h.get_by_label("Samba — file-server-with-a-long-name-5");
     let r = node.rect();
     assert!(r.right() <= 800.0 && r.bottom() <= 800.0, "the last tab on screen: {r:?}");
+    // two dozen servers: the strip scrolls in three rows, the page's controls stay on screen
+    for n in 6..24 {
+        let label = format!("Samba — file-server-with-a-long-name-{n}");
+        let api = e.app().cx.panel.clone();
+        if let Screen::Shell(s) = &mut e.h.state_mut().screen {
+            s.logs.add_samba_tab_for_test(label, api);
+        }
+    }
+    e.h.run_steps(4);
+    let refresh = e.h.get_by_label("Refresh").rect();
+    assert!(refresh.bottom() <= 800.0, "the Audit controls on screen: {refresh:?}");
+    e.h.get_by_label("Samba — file-server-with-a-long-name-23").click_accesskit();
+    e.h.run_steps(3);
+    let opened = match &e.app().screen {
+        Screen::Shell(s) => s.logs.samba_loaded().last().copied().unwrap_or(false),
+        _ => false,
+    };
+    assert!(opened, "the last server's Samba tab opened (its files asked for)");
 }
