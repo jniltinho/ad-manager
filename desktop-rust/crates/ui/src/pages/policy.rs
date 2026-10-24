@@ -87,24 +87,36 @@ impl Dialog for PolicyDialog {
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        ui.checkbox(&mut self.complexity, t("Require complexity (uppercase, lowercase, digit/symbol)"));
-        widgets::form(ui, "policy", |ui| {
-            for (i, (label, unit, _, _)) in FIELDS.iter().enumerate() {
-                widgets::label(ui, &look, t(label));
-                ui.horizontal(|ui| {
-                    ui.add(crate::widgets::line(&mut self.values[i]).desired_width(100.0));
-                    ui.label(RichText::new(t(unit)).color(look.c("fg-muted")));
-                });
-                ui.end_row();
-            }
-        });
+        let check = crate::style::semibold(t("Require complexity (uppercase, lowercase, digit/symbol)"), 12.0);
+        ui.checkbox(&mut self.complexity, check);
+        ui.add_space(4.0);
+        // the web's rows: a 150-point label column (.lbl), a 100-point field and its unit
+        for (i, (label, unit, _, _)) in FIELDS.iter().enumerate() {
+            ui.add_space(if i == 0 { 2.0 } else { 6.0 });
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let (cell, _) =
+                    ui.allocate_exact_size(egui::vec2(150.0, crate::style::control_h()), egui::Sense::hover());
+                let layout = egui::Layout::left_to_right(egui::Align::Center);
+                let l = widgets::lbl(
+                    &mut ui.new_child(egui::UiBuilder::new().max_rect(cell).layout(layout)),
+                    &look,
+                    t(label),
+                );
+                ui.add(crate::widgets::line(&mut self.values[i]).desired_width(100.0)).labelled_by(l.id);
+                ui.add_space(8.0);
+                ui.label(RichText::new(t(unit)).size(12.0).color(look.c("fg-muted")));
+            });
+        }
         if self.weak() {
-            ui.add(
-                egui::Label::new(
-                    RichText::new(t("Recommended: complexity on, at least 8 characters and lockout after 10 attempts — after the cutover to Samba."))
-                        .color(look.c("warn")),
-                )
-                .wrap(),
+            ui.add_space(12.0);
+            widgets::callout(
+                ui,
+                &look,
+                widgets::Note::Warn,
+                t(
+                    "Recommended: complexity on, at least 8 characters and lockout after 10 attempts — after the cutover to Samba.",
+                ),
             );
         }
         let f = footer(ui, cx, Some(t("Save policy")), "", false, true);
