@@ -105,6 +105,29 @@ fn every_page_against_a_real_panel() {
         no_error(&h, tab);
         save(&mut h, name);
     }
+    // every theme chosen in Configure › Appearance: applied at once, saved in desktop.toml, and Home in it
+    // the file the theme is saved into (Configure keeps the choice in it at once)
+    let cfg = h.state().cx.cfg_path.clone();
+    let user_toml = cfg.with_file_name("user.toml");
+    adm_core::config::save(&TestPlatform { user_config: user_toml }, &cfg, &h.state().cx.cfg).unwrap();
+    for id in adm_core::theme::order() {
+        let label = adm_core::i18n::t(&adm_core::theme::palette(id).unwrap().1.label).to_string();
+        h.get_all_by_label("Configure").next().unwrap().click();
+        settle(&mut h, 600);
+        h.get_by_label("Theme").click();
+        h.run_steps(3); // the popup's first frame only measures it
+        h.get_all_by_label(&label).last().unwrap().click_accesskit();
+        h.run_steps(3);
+        assert_eq!(&h.state().cx.look.id, id, "{label}: applied at once");
+        let saved = adm_core::config::decode(&std::fs::read_to_string(&cfg).unwrap()).unwrap();
+        assert_eq!(&saved.appearance.theme, id, "{label}: saved in desktop.toml");
+        h.get_all_by_label("Cancel").last().unwrap().click();
+        settle(&mut h, 600);
+        h.get_all_by_label("Home").next().unwrap().click();
+        settle(&mut h, 2500);
+        no_error(&h, &label);
+        save(&mut h, &format!("theme-{id}"));
+    }
     // a Samba tab shows a failure inline (no dialog): its list must have loaded without one
     match &h.state().screen {
         Screen::Shell(s) => {
