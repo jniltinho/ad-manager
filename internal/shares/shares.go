@@ -69,6 +69,12 @@ type Manager struct {
 	Reserved []string
 }
 
+// IsSystemShare tells whether name is an administrative share (a drive's C$, ADMIN$, IPC$, print$) or a domain
+// controller's sysvol/netlogon: never data to bring from another server.
+func IsSystemShare(name string) bool {
+	return adminShare.MatchString(name) || strings.EqualFold(name, "sysvol") || strings.EqualFold(name, "netlogon")
+}
+
 // reserved tells whether name is a share the agent must leave alone on a DC.
 func (m *Manager) reserved(name string) bool {
 	if !m.DC {

@@ -46,6 +46,7 @@ const j = ref(
     : {
         id: '',
         name: '',
+        kind: '', // '' a folder, 'server' every share of the source server
         source: { host: '', share: '', path: '', auth: props.kerberos ? 'kerberos' : 'ntlm', user: '', domain: '' },
         password: '',
         password_file: '',
@@ -72,6 +73,7 @@ const busy = ref(false)
 const error = ref('')
 const body = ref(null)
 function go(n) {
+  if (n === 2 && j.value.kind === 'server' && !targets.value) loadTargets()
   step.value = n
   reached.value = Math.max(reached.value, n)
   error.value = ''
@@ -137,9 +139,30 @@ const folders = ref(null)
 function toShares() {
   j.value.source.share = ''
   j.value.source.path = ''
+  j.value.kind = ''
   folders.value = null
 }
+// every share of the server: each into the folder of the share of the same name here (the agent's mapping)
+const targets = ref(null) // [{ share, dest, skip }]
+async function loadTargets() {
+  busy.value = true
+  error.value = ''
+  try {
+    targets.value = (await post(`${base}/syncs/browse`, { ...creds({ share: '', path: '' }), targets: true })).targets || []
+  } catch (e) {
+    error.value = e.message
+  }
+  busy.value = false
+}
+async function pickServer() {
+  Object.assign(j.value, { kind: 'server', dest: '', mode: 'copy' })
+  Object.assign(j.value.source, { share: '', path: '' })
+  targets.value = null
+  go(2)
+}
+const copied = computed(() => (targets.value || []).filter((x) => !x.skip).length)
 async function pickShare(s) {
+  j.value.kind = ''
   j.value.source.share = s
   await open('')
 }
@@ -290,7 +313,11 @@ const slug = (s) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 32)
 function toHow() {
-  if (!j.value.name) j.value.name = (j.value.source.path || j.value.source.share).split('/').pop() + ' · ' + j.value.source.host
+  if (!j.value.name)
+    j.value.name =
+      j.value.kind === 'server'
+        ? t('All shares') + ' · ' + j.value.source.host
+        : (j.value.source.path || j.value.source.share).split('/').pop() + ' · ' + j.value.source.host
   if (!editing && !idTouched.value) j.value.id = slug(j.value.name) || 'sync-' + Date.now().toString(36)
   go(3)
 }
@@ -568,6 +595,9 @@ function onEnter() {
           </template>
           <Loader2 v-if="busy" :size="13" class="motion-safe:animate-spin text-fg-muted" />
         </div>
+        <button v-if="!j.source.share && shares?.length" type="button" class="btn-ghost" :disabled="busy" @click="pickServer">
+          <Server :size="14" /> {{ t('Every share of the server') }}
+        </button>
         <ul class="max-h-64 divide-y divide-line overflow-auto border border-line">
           <template v-if="!j.source.share">
             <li v-for="s in shares || []" :key="s">
@@ -605,6 +635,40 @@ function onEnter() {
           <button type="button" class="btn" :disabled="!j.source.share || busy" @click="toDestination">
             <FolderOpen :size="14" /> {{ t('Copy {path}', { path: unc }) }} <ChevronRight :size="14" />
           </button>
+        </div>
+      </div>
+
+      <!-- 3. where to: every share of the server, each into the folder of the share of the same name here -->
+      <div v-else-if="step === 2 && j.kind === 'server'" class="space-y-3">
+        <p class="text-fg-muted">
+          {{
+            t(
+              'Each share goes into the folder of the share of the same name on this server (copy: nothing is deleted); the others are skipped.',
+            )
+          }}
+        </p>
+        <ul class="max-h-72 divide-y divide-line overflow-auto border border-line">
+          <li v-for="x in targets || []" :key="x.share" class="flex items-center gap-2 px-3 py-1.5" :class="x.skip && 'text-fg-muted'">
+            <HardDrive :size="14" class="shrink-0 text-fg-muted" />
+            <span class="font-semibold">{{ x.share }}</span>
+            <span class="text-fg-muted">→</span>
+            <span v-if="!x.skip" class="truncate font-mono text-[11px]" :title="x.dest">{{ x.dest }}</span>
+            <span v-else class="truncate text-[11px]" :title="serverText(x.skip)">{{
+              t('skipped: {why}', { why: serverText(x.skip) })
+            }}</span>
+          </li>
+          <li v-if="targets && !targets.length" class="px-3 py-2 text-fg-muted">{{ t('No shares this account can see.') }}</li>
+          <li v-if="!targets && busy" class="px-3 py-2 text-fg-muted">
+            <Loader2 :size="13" class="inline motion-safe:animate-spin" /> {{ t('Listing the shares…') }}
+          </li>
+        </ul>
+        <p v-if="targets" class="text-[11px] text-fg-muted">
+          {{ t('{n} of {total} shares are copied.', { n: copied, total: targets.length }) }}
+        </p>
+        <p v-if="error" class="text-err" role="alert">{{ serverText(error) }}</p>
+        <div class="flex justify-between gap-2 border-t border-line pt-3">
+          <button type="button" class="btn-ghost" @click="go(1)"><ChevronLeft :size="14" /> {{ t('Back') }}</button>
+          <button type="button" class="btn" :disabled="!copied || busy" @click="toHow">{{ t('Next') }} <ChevronRight :size="14" /></button>
         </div>
       </div>
 
@@ -700,7 +764,7 @@ function onEnter() {
             v-for="[m, title, help] in [
               ['copy', 'Copy (recommended)', 'Adds and updates; never deletes in the destination.'],
               ['mirror', 'Mirror', 'Also deletes in the destination what the source no longer has.'],
-            ]"
+            ].filter(([m]) => m === 'copy' || j.kind !== 'server')"
             :key="m"
             type="button"
             role="radio"
@@ -766,6 +830,7 @@ function onEnter() {
               <th class="w-32">{{ t('Source') }}</th>
               <td>
                 <span class="font-mono">{{ unc }}</span>
+                <template v-if="j.kind === 'server'"> · {{ t('every share') }}</template>
                 <span class="text-fg-muted">
                   · {{ j.source.auth === 'ntlm' ? j.source.user + (j.source.domain ? '@' + j.source.domain : '') : t('machine account') }}
                   <template v-if="sourceSize">
@@ -776,7 +841,8 @@ function onEnter() {
             </tr>
             <tr>
               <th>{{ t('Destination') }}</th>
-              <td>
+              <td v-if="j.kind === 'server'">{{ t("the folders of this server's shares of the same name") }}</td>
+              <td v-else>
                 <span class="font-mono">{{ j.dest }}</span>
                 <span v-if="destCheck?.free_bytes != null" class="text-fg-muted">
                   · {{ t('{free} free', { free: bytes(destCheck.free_bytes) }) }}</span

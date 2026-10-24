@@ -27,6 +27,7 @@ import (
 	"ad-manager/internal/backup"
 	"ad-manager/internal/sambabridge"
 	"ad-manager/internal/secretbox"
+	"ad-manager/internal/shares"
 	"ad-manager/internal/syncer"
 
 	"github.com/hibiken/asynq"
@@ -48,8 +49,9 @@ const LegacySyncDir = "_sincronizacao"
 type SyncJob struct {
 	ID           string        `json:"id"`
 	Name         string        `json:"name"`
-	Gen          string        `json:"gen"` // set when the job is created: a job deleted and made again is another one
-	Rev          int           `json:"rev"` // grows on every save: a queued run of an older revision is dropped
+	Kind         string        `json:"kind,omitempty"` // "" (a folder) or "server": every share of the source server
+	Gen          string        `json:"gen"`            // set when the job is created: a job deleted and made again is another one
+	Rev          int           `json:"rev"`            // grows on every save: a queued run of an older revision is dropped
 	Source       syncer.Source `json:"source"`
 	PasswordFile string        `json:"password_file,omitempty"` // ntlm: a 0600 file of root with the password
 	Dest         string        `json:"dest"`
@@ -194,18 +196,35 @@ func (a *Agent) validateSync(j *SyncJob) error {
 	if len(j.Name) > 80 {
 		return errors.New("name too long")
 	}
-	if err := syncer.CheckSource(j.Source); err != nil {
-		return err
-	}
 	if j.Mode == "" {
 		j.Mode = syncer.ModeCopy
 	}
-	if j.Mode != syncer.ModeCopy && j.Mode != syncer.ModeMirror {
-		return fmt.Errorf("unknown mode %q", j.Mode)
-	}
-	j.Dest = filepath.Clean(j.Dest)
-	if err := a.validateDest(j.Dest); err != nil {
-		return err
+	switch j.Kind {
+	case "", "folder":
+		j.Kind = ""
+		if err := syncer.CheckSource(j.Source); err != nil {
+			return err
+		}
+		if j.Mode != syncer.ModeCopy && j.Mode != syncer.ModeMirror {
+			return fmt.Errorf("unknown mode %q", j.Mode)
+		}
+		j.Dest = filepath.Clean(j.Dest)
+		if err := a.validateDest(j.Dest); err != nil {
+			return err
+		}
+	case "server": // every share of the source, each into the folder of the share of the same name here
+		if j.Source.Share != "" || j.Source.Path != "" {
+			return errors.New("a server job names the server alone (no share, no path)")
+		}
+		if err := syncer.CheckBrowse(j.Source); err != nil {
+			return err
+		}
+		if j.Mode != syncer.ModeCopy {
+			return errors.New("a server job copies only (it never deletes)")
+		}
+		j.Dest = ""
+	default:
+		return fmt.Errorf("unknown kind %q", j.Kind)
 	}
 	if j.Source.Auth == "ntlm" {
 		if j.PasswordFile != "" { // else the password typed in the wizard, kept sealed here
@@ -366,32 +385,11 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 	if err == nil && !tk.Preview && j.Mode == syncer.ModeMirror && tk.Origin != "schedule" && j.Approved != j.Rev {
 		err = errors.New("preview this mirror (its current revision) before running it")
 	}
-	if err == nil {
-		err = a.lockTree(j.Dest, r.ID)
-		if err == nil {
-			defer a.unlockTree(j.Dest)
-		}
-	}
 	if err != nil {
 		r.Status, r.Error, r.Finished = "error", err.Error(), time.Now().UTC()
 		a.writeRun(r)
 		slog.Info("task", "type", TypeSync, "job", tk.Job, "run", r.ID, "err", err)
 		return fmt.Errorf("%w: %w", err, asynq.SkipRetry)
-	}
-	// Windows inheritance is pending from before it starts until it is applied: a run that fails, is cancelled or
-	// dies after rclone wrote files, or whose ACL pass fails, leaves the mark, and the next run redoes the whole tree
-	aclPending := false
-	if !tk.Preview && j.Reinherit {
-		_, perr := os.Stat(a.aclPendingFile(j.ID, j.Dest))
-		// a mark that cannot be looked up counts as pending: rewriting it below must not forget an earlier one
-		aclPending = !errors.Is(perr, os.ErrNotExist) || a.legacyACLPending(j.ID, r.ID)
-		if err := a.markACLPending(j.ID, j.Dest); err != nil {
-			r.Status, r.Finished = "error", time.Now().UTC()
-			r.Error = "could not mark the Windows inheritance pending: " + err.Error()
-			a.writeRun(r)
-			slog.Info("task", "type", TypeSync, "job", tk.Job, "run", r.ID, "err", r.Error)
-			return fmt.Errorf("%s: %w", r.Error, asynq.SkipRetry)
-		}
 	}
 	r.Progress = map[string]any{"phase": "preparing"} // the panel shows the phase while the worker starts up
 	a.writeRun(r)
@@ -407,9 +405,60 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 		a.sync.mu.Unlock()
 		cancel()
 	}()
-	res, notes, err := a.runSyncWorker(rctx, j, &r)
-	r.Notes = append(r.Notes, notes...)
+	var res *syncer.Result
+	if j.Kind == "server" {
+		res, err = a.syncServer(rctx, j, &r)
+	} else {
+		res, err = a.syncTree(rctx, j, &r, "")
+	}
 	r.Result = res
+	if !tk.Preview && j.Kind != "server" { // a server job closed each share's quarantine as it went
+		r.Progress = map[string]any{"phase": "finalizing"} // retention cleanup of the job's old quarantines
+		a.writeRun(r)
+		a.closeQuarantine(j, &r)
+	}
+	r.Progress = nil // a finished run shows its summary, not a phase
+	r.Finished = time.Now().UTC()
+	switch {
+	case err != nil && rctx.Err() != nil:
+		r.Status, r.Error = "cancelled", "cancelled"
+	case err != nil:
+		r.Status, r.Error = "error", syncer.WithHint(err).Error()
+	default:
+		r.Status = "ok"
+	}
+	if r.Status == "ok" && tk.Preview && j.Mode == syncer.ModeMirror {
+		a.approve(j.ID, j.Gen, j.Rev)
+	}
+	a.writeRun(r)
+	slog.Info("task", "type", TypeSync, "job", j.ID, "run", r.ID, "preview", tk.Preview, "status", r.Status, "err", r.Error)
+	return nil // the run file records the outcome; a sync is never retried by the queue
+}
+
+// syncTree brings j's source into j.Dest for run r (part, for a server job's share, suffixes its worker unit, run
+// folder and quarantine): the destination locked, Windows inheritance marked pending, the worker, the inheritance.
+func (a *Agent) syncTree(rctx context.Context, j SyncJob, r *SyncRun, part string) (*syncer.Result, error) {
+	if err := a.lockTree(j.Dest, r.ID); err != nil {
+		return nil, err
+	}
+	defer a.unlockTree(j.Dest)
+	// Windows inheritance is pending from before it starts until it is applied: a run that fails, is cancelled or
+	// dies after rclone wrote files, or whose ACL pass fails, leaves the mark, and the next run redoes the whole tree
+	aclPending := false
+	if !r.Preview && j.Reinherit {
+		_, perr := os.Stat(a.aclPendingFile(j.ID, j.Dest))
+		// a mark that cannot be looked up counts as pending: rewriting it below must not forget an earlier one
+		aclPending = !errors.Is(perr, os.ErrNotExist) || a.legacyACLPending(j.ID, r.ID)
+		if err := a.markACLPending(j.ID, j.Dest); err != nil {
+			return nil, errors.New("could not mark the Windows inheritance pending: " + err.Error())
+		}
+	}
+	res, notes, err := a.runSyncWorker(rctx, j, r, part)
+	for _, n := range notes { // once per run, not once per share of a server job
+		if !slices.Contains(r.Notes, n) {
+			r.Notes = append(r.Notes, n)
+		}
+	}
 	// the transferred paths are only for the reinherit decision below; take them out of the result so they are never
 	// kept in the run record (200 runs of thousands of paths would blow past the /syncs size limit)
 	var changed []string
@@ -424,12 +473,15 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 	// not a failed run; a cancellation marks the run cancelled.
 	aclDone := false
 	doACL, full := aclPlan(aclPending, res, changed, changedCapped)
-	if err == nil && !tk.Preview && j.Reinherit && doACL {
+	if err == nil && !r.Preview && j.Reinherit && doACL {
 		if aclPending {
 			r.Notes = append(r.Notes, "an earlier run left the Windows inheritance pending: reapplying it to the whole folder")
 		}
 		r.Progress = map[string]any{"phase": "acl", "acl_items": len(changed), "acl_full": full}
-		a.writeRun(r)
+		if part != "" {
+			r.Progress["share"] = j.Source.Share
+		}
+		a.writeRun(*r)
 		var acl *sambabridge.ACL
 		var aerr error
 		if full {
@@ -451,30 +503,10 @@ func (a *Agent) handleSync(ctx context.Context, t *asynq.Task) error {
 			r.Notes = append(r.Notes, fmt.Sprintf("Windows inheritance of %s applied to %d items", j.Dest, acl.Propagated))
 		}
 	}
-	if !tk.Preview && j.Reinherit && err == nil && (aclDone || (res != nil && !doACL)) {
+	if !r.Preview && j.Reinherit && err == nil && (aclDone || (res != nil && !doACL)) {
 		_ = os.Remove(a.aclPendingFile(j.ID, j.Dest)) // applied, or nothing came in and nothing was pending
 	}
-	if !tk.Preview {
-		r.Progress = map[string]any{"phase": "finalizing"} // retention cleanup of the job's old quarantines
-		a.writeRun(r)
-		a.closeQuarantine(j, &r)
-	}
-	r.Progress = nil // a finished run shows its summary, not a phase
-	r.Finished = time.Now().UTC()
-	switch {
-	case err != nil && rctx.Err() != nil:
-		r.Status, r.Error = "cancelled", "cancelled"
-	case err != nil:
-		r.Status, r.Error = "error", syncer.WithHint(err).Error()
-	default:
-		r.Status = "ok"
-	}
-	if r.Status == "ok" && tk.Preview && j.Mode == syncer.ModeMirror {
-		a.approve(j.ID, j.Gen, j.Rev)
-	}
-	a.writeRun(r)
-	slog.Info("task", "type", TypeSync, "job", j.ID, "run", r.ID, "preview", tk.Preview, "status", r.Status, "err", r.Error)
-	return nil // the run file records the outcome; a sync is never retried by the queue
+	return res, err
 }
 
 // aclPlan says whether a finished copy needs Windows inheritance work and whether over the whole tree: only what rclone
@@ -552,11 +584,12 @@ type workerMsg struct {
 // runSyncWorker prepares the credentials and the quarantine, then runs `ad-manager agent sync-worker` with the
 // spec on its standard input: as a transient systemd unit that can write only the destination and the
 // quarantine when the agent runs under systemd, as a plain child otherwise.
-func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun) (*syncer.Result, []string, error) {
+func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun, part string) (*syncer.Result, []string, error) {
 	var notes []string
 	sp := syncer.Spec{Source: j.Source, Dest: j.Dest, Mode: j.Mode, Exclude: j.Exclude, MaxDelete: j.MaxDelete,
 		MaxDelPct: j.MaxDeletePct, BwLimit: j.BwLimit, Transfers: j.Transfers, Verify: j.Verify, Preview: r.Preview}
-	runDir := filepath.Join("/run/ad-manager-sync", r.ID)
+	id := r.ID + part // a server job's share: its own run folder, unit and quarantine
+	runDir := filepath.Join("/run/ad-manager-sync", id)
 	env := []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "HOME=" + runDir, "LANG=C.UTF-8"}
 	if err := os.MkdirAll(runDir, 0o700); err != nil {
 		return nil, notes, err
@@ -586,7 +619,7 @@ func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun) (*sync
 	rw := []string{destPin}
 	sp.DestID = fileID(destF)
 	if !r.Preview {
-		qName := j.ID + "-" + r.ID
+		qName := j.ID + "-" + id
 		a.sync.qmu.Lock() // not while the job's quarantine is being emptied
 		qPin, qf, err := backup.MakeOwnDir(root, SyncDir, qName)
 		if err == nil { // the manifest at once: a quarantine nobody records would never leave
@@ -615,7 +648,7 @@ func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun) (*sync
 		return nil, notes, err
 	}
 	var cmd *exec.Cmd
-	unit := "ad-manager-sync-" + r.ID
+	unit := "ad-manager-sync-" + id
 	switch {
 	case confined:
 		args := []string{"--wait", "--collect", "--quiet", "--pipe", "--unit=" + unit,
@@ -648,11 +681,18 @@ func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun) (*sync
 	}
 	cmd.Env = env
 	cmd.Stdin = strings.NewReader(string(in))
-	logf, err := os.OpenFile(strings.TrimSuffix(a.runFile(r.ID), ".json")+".log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	if part != "" { // the shares of a server job, one after the other in the run's log
+		flags = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	}
+	logf, err := os.OpenFile(strings.TrimSuffix(a.runFile(r.ID), ".json")+".log", flags, 0o600)
 	if err != nil {
 		return nil, notes, err
 	}
 	defer logf.Close()
+	if part != "" {
+		_, _ = fmt.Fprintf(logf, "==== %s -> %s\n", j.Source.Share, j.Dest)
+	}
 	cmd.Stderr = &limitWriter{w: logf, n: 3 << 20} // under what the panel reads back (4 MiB)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -679,6 +719,9 @@ func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun) (*sync
 			continue
 		}
 		if m.Progress != nil && time.Since(last) > 3*time.Second {
+			if part != "" {
+				m.Progress["share"] = j.Source.Share
+			}
 			r.Progress, last = m.Progress, time.Now()
 			a.writeRun(*r)
 		}
@@ -769,11 +812,12 @@ func (a *Agent) syncPassword(j SyncJob) (string, error) {
 
 // browseResult is what a listing worker answers.
 type browseResult struct {
-	Steps []syncer.Step `json:"steps,omitempty"` // a connection check
-	Dirs  []string      `json:"dirs,omitempty"`
-	Files int64         `json:"files"`
-	Bytes int64         `json:"bytes"`
-	Error string        `json:"error,omitempty"`
+	Steps   []syncer.Step `json:"steps,omitempty"` // a connection check
+	Dirs    []string      `json:"dirs,omitempty"`
+	Targets []syncTarget  `json:"targets,omitempty"` // a server job: where each share of the source goes
+	Files   int64         `json:"files"`
+	Bytes   int64         `json:"bytes"`
+	Error   string        `json:"error,omitempty"`
 }
 
 // browse lists, through a worker child (it writes nothing), the shares of a server or the folders of a share path;
@@ -997,8 +1041,9 @@ func (a *Agent) syncRoutes(api *echo.Group) {
 			Password     string        `json:"password"`
 			PasswordFile string        `json:"password_file"`
 			Job          string        `json:"job"`
-			Size         bool          `json:"size"`  // count the files and bytes under the path instead
-			Check        bool          `json:"check"` // test the way to the source, step by step
+			Size         bool          `json:"size"`    // count the files and bytes under the path instead
+			Check        bool          `json:"check"`   // test the way to the source, step by step
+			Targets      bool          `json:"targets"` // a server job: the source's shares and where each goes
 		}
 		if err := c.Bind(&in); err != nil {
 			return bad(c, http.StatusBadRequest, errors.New("invalid JSON"))
@@ -1020,6 +1065,17 @@ func (a *Agent) syncRoutes(api *echo.Group) {
 		}
 		ctx, cancel := context.WithTimeout(c.Request().Context(), limit)
 		defer cancel()
+		if in.Targets {
+			t, err := a.serverTargets(ctx, in.Source, pw)
+			if err != nil {
+				return bad(c, http.StatusBadRequest, syncer.WithHint(err))
+			}
+			dirs := make([]string, 0, len(t))
+			for _, x := range t {
+				dirs = append(dirs, x.Share)
+			}
+			return c.JSON(http.StatusOK, browseResult{Dirs: dirs, Targets: t})
+		}
 		res, err := a.browse(ctx, in.Source, pw, in.Size, in.Check)
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return bad(c, http.StatusGatewayTimeout, errors.New("the folder is too large to count in 5 minutes"))
@@ -1233,4 +1289,178 @@ func (a *Agent) quarantineRoutes(api *echo.Group, bad func(*echo.Context, int, e
 		slog.Info("sync.quarantine.empty", "job", j.ID, "removed", n, "size", freed)
 		return c.JSON(http.StatusOK, map[string]any{"removed": n, "freed": freed})
 	})
+}
+
+// syncTarget is where a server job brings one share of the source: the folder of the share of the same name
+// published here, or why it is skipped.
+type syncTarget struct {
+	Share string `json:"share"`
+	Dest  string `json:"dest,omitempty"`
+	Skip  string `json:"skip,omitempty"`
+}
+
+// serverTargets lists the source server's shares (its administrative ones, sysvol and netlogon left out) and maps
+// each to the folder of the share of the same name published here; a share not published here, reserved here,
+// whose folder cannot be synced into, or inside (or the same as) another share's folder is skipped with the reason.
+func (a *Agent) serverTargets(ctx context.Context, src syncer.Source, pw string) ([]syncTarget, error) {
+	src.Share, src.Path = "", ""
+	res, err := a.browse(ctx, src, pw, false, false)
+	if err != nil {
+		return nil, err
+	}
+	local, err := a.mgr.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("the shares of this server: %w", err)
+	}
+	paths := map[string]string{}
+	for _, s := range local {
+		paths[strings.ToLower(s.Name)] = s.Path
+	}
+	return mapTargets(res.Dirs, paths, a.mgr.Reserved, a.validateDest), nil
+}
+
+// mapTargets is serverTargets' mapping: source share names, this server's share paths by lowercase name, the shares
+// reserved here, and the destination check.
+func mapTargets(names []string, paths map[string]string, reserved []string, valid func(string) error) []syncTarget {
+	names = slices.Clone(names)
+	slices.SortFunc(names, func(x, y string) int { return strings.Compare(strings.ToLower(x), strings.ToLower(y)) })
+	var out []syncTarget
+	for _, n := range names {
+		if shares.IsSystemShare(n) {
+			continue
+		}
+		t := syncTarget{Share: n}
+		p := paths[strings.ToLower(n)]
+		switch {
+		case slices.ContainsFunc(reserved, func(r string) bool { return strings.EqualFold(r, n) }):
+			t.Skip = "reserved on this server"
+		case p == "":
+			t.Skip = "not published on this server"
+		default:
+			t.Dest = filepath.Clean(p)
+			if err := valid(t.Dest); err != nil {
+				t.Skip = err.Error()
+			}
+		}
+		out = append(out, t)
+	}
+	// a share inside another one's folder (the source's nesting) comes with it; the same folder twice, once
+	kept := make([]bool, len(out))
+	for i := range out {
+		kept[i] = out[i].Skip == ""
+	}
+	for i := range out {
+		if !kept[i] {
+			continue
+		}
+		for k := range out {
+			if k == i || !kept[k] {
+				continue
+			}
+			if out[k].Dest == out[i].Dest && k < i {
+				out[i].Skip = "same folder as " + out[k].Share
+				break
+			}
+			if strings.HasPrefix(out[i].Dest, out[k].Dest+"/") {
+				out[i].Skip = "inside " + out[k].Share + ": copied with it"
+				break
+			}
+		}
+	}
+	return out
+}
+
+// syncServer brings every share of a server job's source, one at a time, each as a folder run of its own worker
+// into the folder of the share of the same name here; the run records the sum and a note per share.
+func (a *Agent) syncServer(rctx context.Context, j SyncJob, r *SyncRun) (*syncer.Result, error) {
+	pw, err := a.syncPassword(j)
+	if err != nil {
+		return nil, err
+	}
+	lctx, cancel := context.WithTimeout(rctx, 2*time.Minute)
+	targets, err := a.serverTargets(lctx, j.Source, pw)
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	var todo []syncTarget
+	for _, t := range targets {
+		if t.Skip != "" {
+			r.Notes = append(r.Notes, fmt.Sprintf("%s: skipped (%s)", t.Share, t.Skip))
+		} else {
+			todo = append(todo, t)
+		}
+	}
+	if len(todo) == 0 {
+		return nil, errors.New("no share of the source is published on this server (import the shares first)")
+	}
+	sum := &syncer.Result{Plan: syncer.Plan{Sample: map[string][]string{}}, Checked: true, ContentVerified: j.Verify}
+	var failed []string
+	for i, t := range todo {
+		if rctx.Err() != nil {
+			return sum, rctx.Err()
+		}
+		jj := j
+		jj.Kind, jj.Source.Share, jj.Dest = "", t.Share, t.Dest
+		r.Progress = map[string]any{"phase": "preparing", "share": t.Share, "share_index": i + 1, "share_count": len(todo)}
+		a.writeRun(*r)
+		part := fmt.Sprintf("-s%d", i+1)
+		res, err := a.syncTree(rctx, jj, r, part)
+		addResult(sum, res, t.Share)
+		switch {
+		case err != nil && rctx.Err() != nil:
+			return sum, err
+		case err != nil:
+			failed = append(failed, t.Share)
+			r.Notes = append(r.Notes, fmt.Sprintf("%s -> %s: %s", t.Share, t.Dest, syncer.WithHint(err)))
+		case res != nil:
+			r.Notes = append(r.Notes, fmt.Sprintf("%s -> %s: %d files copied (%s)", t.Share, t.Dest, res.Transfers, humanBytes(res.Bytes)))
+		}
+		if !r.Preview { // the share's quarantine, kept only when something went into it
+			if q, qerr := a.quarantine(j.ID + "-" + r.ID + part); qerr == nil {
+				if n, _ := dirUsage(q.Path); n == 0 {
+					a.sync.qmu.Lock()
+					_ = a.dropQuarantine(q)
+					a.sync.qmu.Unlock()
+				}
+			}
+		}
+	}
+	r.Quarantine = ""
+	if !r.Preview {
+		if n, freed := a.pruneQuarantine(j, r.ID); n > 0 {
+			r.Notes = append(r.Notes, fmt.Sprintf("quarantine retention: %d old quarantines removed (%s)", n, humanBytes(freed)))
+		}
+	}
+	if len(failed) > 0 {
+		return sum, fmt.Errorf("%d of %d shares failed: %s", len(failed), len(todo), strings.Join(failed, ", "))
+	}
+	return sum, nil
+}
+
+// addResult adds one share's result to a server run's sum (its sample names under the share's name).
+func addResult(sum, x *syncer.Result, share string) {
+	if x == nil {
+		sum.Checked = false
+		return
+	}
+	p, q := &sum.Plan, x.Plan
+	p.New, p.Changed, p.Delete, p.Same, p.Errors = p.New+q.New, p.Changed+q.Changed, p.Delete+q.Delete, p.Same+q.Same, p.Errors+q.Errors
+	p.NewBytes, p.ChangedBytes, p.DeleteBytes = p.NewBytes+q.NewBytes, p.ChangedBytes+q.ChangedBytes, p.DeleteBytes+q.DeleteBytes
+	for g, names := range q.Sample {
+		for _, n := range names {
+			if len(p.Sample[g]) < 50 {
+				p.Sample[g] = append(p.Sample[g], share+"/"+n)
+			}
+		}
+	}
+	sum.Transfers, sum.Bytes, sum.Deleted, sum.Errors = sum.Transfers+x.Transfers, sum.Bytes+x.Bytes, sum.Deleted+x.Deleted, sum.Errors+x.Errors
+	sum.Checked = sum.Checked && x.Checked
+	sum.ContentVerified = sum.ContentVerified && x.ContentVerified
+	sum.Seconds += x.Seconds
+	for _, n := range x.Quarantined {
+		if len(sum.Quarantined) < 200 {
+			sum.Quarantined = append(sum.Quarantined, share+"/"+n)
+		}
+	}
 }

@@ -221,4 +221,14 @@ export default {
   'Log {id}': 'Log {id}',
   Copy: 'Copiar',
   Copied: 'Copiado',
+  'Every share of the server': 'Todos os compartilhamentos do servidor',
+  'Each share goes into the folder of the share of the same name on this server (copy: nothing is deleted); the others are skipped.':
+    'Cada compartilhamento vai para a pasta do compartilhamento de mesmo nome neste servidor (cópia: nada é apagado); os outros são ignorados.',
+  'skipped: {why}': 'ignorado: {why}',
+  'Listing the shares…': 'Listando os compartilhamentos…',
+  '{n} of {total} shares are copied.': '{n} de {total} compartilhamentos são copiados.',
+  'All shares': 'Todos os compartilhamentos',
+  'every share': 'todos os compartilhamentos',
+  "the folders of this server's shares of the same name": 'as pastas dos compartilhamentos de mesmo nome deste servidor',
+  'the shares of the same name': 'os compartilhamentos de mesmo nome',
 }

@@ -238,9 +238,13 @@ const details = ref(null)
                   <td class="max-w-56 truncate font-semibold whitespace-nowrap" :title="j.name || j.id">{{ j.name || j.id }}</td>
                   <td class="max-w-80 truncate font-mono text-[11px] whitespace-nowrap" :title="unc(j.source)">
                     {{ unc(j.source) }}
+                    <span v-if="j.kind === 'server'" class="tag bg-surface-2 text-fg-muted">{{ t('every share') }}</span>
                     <span class="tag bg-surface-2 text-fg-muted">{{ j.source.auth === 'ntlm' ? 'NTLM' : 'Kerberos' }}</span>
                   </td>
-                  <td class="max-w-64 truncate font-mono text-[11px] whitespace-nowrap" :title="j.dest">{{ j.dest }}</td>
+                  <td v-if="j.kind === 'server'" class="max-w-64 truncate text-[11px] whitespace-nowrap text-fg-muted">
+                    {{ t('the shares of the same name') }}
+                  </td>
+                  <td v-else class="max-w-64 truncate font-mono text-[11px] whitespace-nowrap" :title="j.dest">{{ j.dest }}</td>
                   <td>
                     {{ j.mode === 'mirror' ? t('mirror') : t('copy') }}
                     <span v-if="j.mode === 'mirror' && j.approved_rev !== j.rev" class="text-warn">· {{ t('preview needed') }}</span>

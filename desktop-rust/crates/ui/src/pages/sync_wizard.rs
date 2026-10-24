@@ -42,6 +42,7 @@ pub fn open(cx: &mut Cx, agent: i64, data: SyncList, job: Option<SyncJob>) {
         src_size: None,
         size_label: String::new(),
         item_sizes: Default::default(),
+        targets: None,
         dirs: Vec::new(),
         cur_dir: String::new(),
         dest: j.dest.clone(),
@@ -97,7 +98,8 @@ pub struct SyncWizard {
     item_sizes: std::collections::HashMap<String, String>,
     src_size: Option<(i64, i64)>,
     size_label: String,
-    // 3. where to
+    // 3. where to (a server job: where each share goes, as the agent maps it)
+    targets: Option<Vec<Target>>,
     dirs: Vec<String>,
     cur_dir: String,
     dest: String,
@@ -117,6 +119,15 @@ pub struct SyncWizard {
     saving: bool,
     /// The furthest step reached: the done ones can be opened again (not from the preview).
     reached: usize,
+}
+
+/// Where a server job brings one share of the source (`targets` of the browse answer).
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct Target {
+    share: String,
+    dest: String,
+    skip: String,
 }
 
 /// The wizard `id`, if still open (a reply never reaches another wizard opened later).
@@ -171,6 +182,11 @@ impl SyncWizard {
                 let (share, path) = (self.job.source.share.clone(), self.job.source.path.clone());
                 self.open_dir(cx, share, path);
             }
+            2 if self.job.kind == "server" => {
+                if self.targets.is_none() {
+                    self.load_targets(cx);
+                }
+            }
             2 => {
                 let root = self.data.roots.first().cloned().unwrap_or_else(|| "/srv/shares".into());
                 let start = match self.dest.rsplit_once('/') {
@@ -184,6 +200,9 @@ impl SyncWizard {
             3 => {
                 if self.job.keep_days == 0 {
                     self.job.keep_days = 30; // 0 and missing mean the agent's default
+                }
+                if self.job.name.is_empty() && self.job.kind == "server" {
+                    self.job.name = format!("{} · {}", t("All shares"), self.job.source.host);
                 }
                 if self.job.name.is_empty() {
                     let last = format!("/{}/{}", self.job.source.share, self.job.source.path);
@@ -248,8 +267,27 @@ impl SyncWizard {
         });
     }
 
+    /// The source's shares and the folder each goes to (a server job), as the agent maps them.
+    fn load_targets(&mut self, cx: &Cx) {
+        let me = cx.current_dialog();
+        let body = self.creds("", "", json!({ "targets": true }));
+        let api = self.api.clone();
+        let url = format!("{}/syncs/browse", self.base);
+        #[derive(serde::Deserialize, Default)]
+        struct Out {
+            #[serde(default)]
+            targets: Vec<Target>,
+        }
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, out| {
+            if let Some(w) = wizard(app, me) {
+                w.targets = Some(out.targets);
+            }
+        });
+    }
+
     fn open_dir(&mut self, cx: &Cx, share: String, path: String) {
         let me = cx.current_dialog();
+        self.job.kind.clear(); // a folder, unless "Every share of the server" is picked
         if share.is_empty() {
             self.job.source.share.clear();
             self.job.source.path.clear();
@@ -455,7 +493,7 @@ impl SyncWizard {
         if self.saving {
             return;
         }
-        if !self.cron_ok || (self.is_new && !self.dest_ok) {
+        if !self.cron_ok || (self.is_new && self.job.kind != "server" && !self.dest_ok) {
             cx.show_info(t("Sync"), t("Not a valid schedule (min hour day month weekday)."));
             return;
         }
@@ -838,6 +876,11 @@ impl SyncWizard {
             }
             ui.label(RichText::new(sync_unc(&self.job)).strong());
         });
+        let mut whole = false;
+        if self.job.source.share.is_empty() && !self.items.is_empty() {
+            whole = widgets::button(ui, &look, crate::icons::SERVER, t("Every share of the server"), Kind::Secondary)
+                .clicked();
+        }
         egui::ScrollArea::vertical().id_salt("sync-items").max_height(300.0).show(ui, |ui| {
             for it in &self.items {
                 ui.horizontal(|ui| {
@@ -864,6 +907,15 @@ impl SyncWizard {
                 });
             }
         });
+        if whole {
+            self.job.kind = "server".into();
+            self.job.mode = "copy".into();
+            self.job.dest.clear();
+            self.dest.clear();
+            self.targets = None;
+            self.show(cx, 2);
+            return;
+        }
         if let Some(it) = count {
             self.count_item(cx, it);
         }
@@ -901,6 +953,70 @@ impl SyncWizard {
                 }
                 self.show(cx, 2);
             }
+        }
+    }
+
+    /// Step 3 of a server job: where each share of the source goes (the folder of the share of the same name here),
+    /// or why it is skipped.
+    fn step3_server(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        let muted = look.c("fg-muted");
+        ui.add(
+            egui::Label::new(
+                RichText::new(t("Each share goes into the folder of the share of the same name on this server (copy: nothing is deleted); the others are skipped."))
+                    .size(11.0)
+                    .color(muted),
+            )
+            .wrap(),
+        );
+        let copied = self.targets.as_ref().map_or(0, |t| t.iter().filter(|x| x.skip.is_empty()).count());
+        egui::ScrollArea::vertical().id_salt("sync-targets").max_height(300.0).show(ui, |ui| match &self.targets {
+            None => {
+                ui.label(RichText::new(t("Listing the shares…")).size(11.0).color(muted));
+            }
+            Some(list) if list.is_empty() => {
+                ui.label(RichText::new(t("No shares this account can see.")).size(11.0).color(muted));
+            }
+            Some(list) => {
+                for x in list {
+                    ui.horizontal(|ui| {
+                        let ink = if x.skip.is_empty() { look.c("fg") } else { muted };
+                        ui.label(RichText::new(format!("{}  {}", crate::icons::FOLDER, x.share)).strong().color(ink));
+                        ui.label(RichText::new(crate::icons::RIGHT).color(muted));
+                        if x.skip.is_empty() {
+                            ui.label(RichText::new(&x.dest).monospace().size(11.0));
+                        } else {
+                            let why = tf!("skipped: %s", adm_core::i18n::server_text(&x.skip));
+                            ui.add(egui::Label::new(RichText::new(why).size(11.0).color(muted)).truncate());
+                        }
+                    });
+                }
+            }
+        });
+        if let Some(list) = &self.targets {
+            ui.label(RichText::new(tf!("%d of %d shares are copied.", copied, list.len())).size(11.0).color(muted));
+        }
+        let (mut back, mut next) = (false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| {
+                back = widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                    .clicked()
+            },
+            |ui| {
+                let label = format!("{} {}", t("Next"), crate::icons::RIGHT);
+                next = ui
+                    .add_enabled_ui(copied > 0, |ui| widgets::button(ui, &look, "", &label, Kind::Primary))
+                    .inner
+                    .clicked();
+            },
+        );
+        if back {
+            self.show(cx, 1);
+        }
+        if next {
+            self.show(cx, 3);
         }
     }
 
@@ -990,7 +1106,11 @@ impl SyncWizard {
     fn step4(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         crate::widgets::radio_value(ui, &mut self.form.mirror, false, t("Copy (recommended)"));
-        crate::widgets::radio_value(ui, &mut self.form.mirror, true, t("Mirror"));
+        if self.job.kind == "server" {
+            self.form.mirror = false; // a server job copies only
+        } else {
+            crate::widgets::radio_value(ui, &mut self.form.mirror, true, t("Mirror"));
+        }
         let root = self
             .data
             .roots
@@ -1081,11 +1201,16 @@ impl SyncWizard {
             t("machine account").into()
         };
         let mut src = format!("{} · {who}", sync_unc(&self.job));
+        if self.job.kind == "server" {
+            src = format!("{} · {} · {who}", sync_unc(&self.job), t("every share"));
+        }
         if let Some((f, b)) = self.src_size {
             src = format!("{src} · {}", tf!("%d files · %s", f, size_text(b)));
         }
         let mut dst = self.job.dest.clone();
-        if let Some(free) = self.dest_free {
+        if self.job.kind == "server" {
+            dst = t("the folders of this server's shares of the same name").into();
+        } else if let Some(free) = self.dest_free {
             dst = format!("{dst} · {}", tf!("%s free", size_text(free as i64)));
         }
         widgets::form(ui, "sync-summary", |ui| {
@@ -1216,6 +1341,7 @@ impl Dialog for SyncWizard {
         match self.step {
             0 => self.step1(ui, cx),
             1 => self.step2(ui, cx),
+            2 if self.job.kind == "server" => self.step3_server(ui, cx),
             2 => self.step3(ui, cx),
             3 => self.step4(ui, cx),
             _ => {

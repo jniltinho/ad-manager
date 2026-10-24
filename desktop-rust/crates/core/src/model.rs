@@ -462,6 +462,9 @@ pub struct SyncSource {
 pub struct SyncJob {
     pub id: String,
     pub name: String,
+    /// "" (a folder) or "server": every share of the source server, each into the share of the same name here.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub kind: String,
     pub rev: i64,
     pub source: SyncSource,
     #[serde(skip_serializing_if = "String::is_empty")]

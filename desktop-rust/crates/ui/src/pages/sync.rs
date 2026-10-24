@@ -238,8 +238,14 @@ impl Sync {
                         0 => Cell::plain(&names[r]).bold(),
                         1 => {
                             let auth = if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" };
-                            Cell::plain(sync_unc(j)).mono().with_tag(auth, Tone::Normal)
+                            let unc = if j.kind == "server" {
+                                format!("{} · {}", sync_unc(j), t("every share"))
+                            } else {
+                                sync_unc(j)
+                            };
+                            Cell::plain(unc).mono().with_tag(auth, Tone::Normal)
                         }
+                        2 if j.kind == "server" => Cell::new(t("the shares of the same name"), Tone::Muted),
                         2 => Cell::plain(&j.dest).mono(),
                         3 if j.mode == "mirror" && j.approved != j.rev => {
                             Cell::new(format!("{} · {}", t("mirror"), t("preview needed")), Tone::Warn)
