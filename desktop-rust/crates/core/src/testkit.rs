@@ -254,6 +254,10 @@ pub fn demo(users: usize) -> Arc<Route> {
             "/api/policy" => ok(
                 json!({"complexity":true,"min_length":7,"history":24,"min_age_days":1,"max_age_days":42,"lockout_threshold":10,"lockout_minutes":30,"lockout_window_minutes":30}),
             ),
+            "/api/http-log" => ok(json!([
+                {"time":"2026-10-22T10:01:00Z","ip":"10.0.0.15","user":"administrator","method":"POST","path":"/api/users/bruno.silva/password","status":200,"ms":41.2,"error":""},
+                {"time":"2026-10-22T10:00:58Z","ip":"10.0.0.15","user":"administrator","method":"GET","path":"/api/users","status":200,"ms":12.7,"error":""},
+                {"time":"2026-10-22T09:12:00Z","ip":"10.0.0.21","user":"","method":"POST","path":"/api/login","status":403,"ms":220.4,"error":"user is not a domain administrator"}])),
             "/api/audit" => ok(json!([
                 {"time":"2026-10-22T10:01:00Z","actor":"administrator","ip":"10.0.0.15","action":"user.password","target":"bruno.silva","result":"ok"},
                 {"time":"2026-10-22T09:40:00Z","actor":"administrator","ip":"10.0.0.15","action":"group.member.add","target":"Finance","result":"ok"},
@@ -286,6 +290,10 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],
                 "open_files":[{"path":"/srv/shares/finance/budget-2026.xlsx","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","access":"RW","opened_at":"2026-10-22T09:12:00Z"}]})),
             "/api/agents/1/sizes" => ok(json!({"sizes":{"finance":12884901888_i64,"public":734003200,"it$":52428800}})),
+            p if p.starts_with("/api/samba/logs/") || p.starts_with("/api/agents/1/samba/logs/") => ok(json!([
+                {"time":"2026/10/22 09:12:04","level":0,"source":"../../source3/smbd/server.c:1745(main)","message":"smbd version 4.23.2 started.\nCopyright Andrew Tridgell and the Samba Team 1992-2025"},
+                {"time":"2026/10/22 08:40:11","level":2,"source":"../../source3/auth/auth.c:327(auth_check_ntlm_password)","message":"check_ntlm_password: Authentication for user [bruno.silva] -> [bruno.silva] FAILED with error NT_STATUS_WRONG_PASSWORD"},
+                {"time":"2026/10/22 08:05:59","level":3,"source":"../../source3/smbd/service.c:1109(make_connection_snum)","message":"192.168.10.51 (ipv4:192.168.10.51:50122) connect to service finance initially as user DOMAIN\\bruno.silva"}])),
             p if p.starts_with("/api/agents/1/tasks/") => ok(json!({"id":"t1","state":"completed"})),
             p if p.starts_with("/api/users/") => {
                 let sam = p.trim_start_matches("/api/users/");

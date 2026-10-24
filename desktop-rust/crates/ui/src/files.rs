@@ -53,3 +53,37 @@ pub fn export(cx: &Cx, file: &str, name: &str) {
         app.cx.set_status(adm_core::tf!("Exported to %s", p.display()));
     });
 }
+
+/// Asks where to save `name` and writes `rows` (the header first) there as the web's CSV export: `;` between
+/// fields, every field quoted, a BOM for Excel and CRLF line ends.
+pub fn save_csv(cx: &Cx, name: &str, rows: Vec<Vec<String>>) {
+    let (name, text) = (name.to_string(), csv_text(&rows));
+    cx.run(
+        async move {
+            let Some(h) = rfd::AsyncFileDialog::new().set_file_name(&name).save_file().await else { return Ok(None) };
+            let p = h.path().to_path_buf();
+            tokio::fs::write(&p, text).await.map_err(|e| adm_core::api::ApiError::Other(e.to_string()))?;
+            Ok(Some(p))
+        },
+        |app, r| {
+            if let Some(p) = r {
+                app.cx.set_status(adm_core::tf!("Exported to %s", p.display()));
+            }
+        },
+    );
+}
+
+fn csv_text(rows: &[Vec<String>]) -> String {
+    let line =
+        |r: &Vec<String>| r.iter().map(|v| format!("\"{}\"", v.replace('"', "\"\""))).collect::<Vec<_>>().join(";");
+    format!("\u{feff}{}", rows.iter().map(line).collect::<Vec<_>>().join("\r\n"))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn csv_as_the_web() {
+        let rows = vec![vec!["Date".into(), "Target".into()], vec!["1".into(), "a \"b\"; c".into()]];
+        assert_eq!(super::csv_text(&rows), "\u{feff}\"Date\";\"Target\"\r\n\"1\";\"a \"\"b\"\"; c\"");
+    }
+}

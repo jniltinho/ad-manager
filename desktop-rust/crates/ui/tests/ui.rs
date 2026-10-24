@@ -468,4 +468,12 @@ fn shots() {
     e.click("👥  Sessions");
     e.wait("the sessions", |_, m| !m.sent("GET", "/api/agents/1/sessions").is_empty());
     save(&mut e, "18-share-sessions");
+    e.key(egui::Key::Escape);
+    page(&mut e, "Logs");
+    e.click("Samba — this server");
+    e.wait("the entries", |_, m| m.sent("GET", "/api/samba/logs/").len() > 0);
+    save(&mut e, "19-logs-samba");
+    e.click("HTTP — panel");
+    e.wait("the requests", |_, m| !m.sent("GET", "/api/http-log").is_empty());
+    save(&mut e, "20-logs-http");
 }
