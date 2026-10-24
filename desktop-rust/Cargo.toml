@@ -68,6 +68,8 @@ rcgen = "0.14"
 egui_kittest = { version = "=0.36.2", features = ["wgpu", "snapshot", "eframe"] }
 secrecy = "=0.10.3"
 resvg = { version = "=0.45.1", default-features = false }
+# the font parser egui already uses (epaint 0.36.2), to resolve the theme's installed fonts by name table and weight
+skrifa = { version = "=0.44.0", default-features = false, features = ["std", "autohint_shaping"] }
 zeroize = "=1.9.1"
 
 [profile.release]

@@ -184,7 +184,7 @@ impl Shares {
             ];
             let mut hover = None;
             let (shares, sizes, measuring) = (&self.shares, &self.sizes, self.measuring);
-            table::Table { id: "shares", cols: &cols, rows: shares.len(), keys }.show::<()>(
+            table::Table { id: "shares", cols: &cols, rows: shares.len(), keys, row_h: 0.0 }.show::<()>(
                 ui,
                 &look,
                 &mut self.table,
@@ -316,12 +316,12 @@ impl Dialog for ShareDialog {
         let f = &mut self.form;
         widgets::form(ui, "share-form", |ui| {
             widgets::label(ui, &look, t("Share name"));
-            if ui.add_enabled(!f.editing, egui::TextEdit::singleline(&mut f.name).desired_width(420.0)).changed() {
+            if ui.add_enabled(!f.editing, crate::widgets::line(&mut f.name).desired_width(420.0)).changed() {
                 f.name_changed();
             }
             ui.end_row();
             widgets::label(ui, &look, t("Folder"));
-            ui.add_enabled(!f.editing, egui::TextEdit::singleline(&mut f.folder).desired_width(420.0));
+            ui.add_enabled(!f.editing, crate::widgets::line(&mut f.folder).desired_width(420.0));
             ui.end_row();
             for (label, v, hint) in [
                 (t("Comment"), &mut f.comment, ""),

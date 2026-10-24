@@ -68,5 +68,5 @@ impl OuPicker {
 
 /// The search field of a list page (with its icon as hint).
 pub fn search(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> egui::Response {
-    ui.add(egui::TextEdit::singleline(text).hint_text(format!("🔍 {hint}")).desired_width(width))
+    ui.add(crate::widgets::line(text).hint_text(format!("🔍 {hint}")).desired_width(width))
 }

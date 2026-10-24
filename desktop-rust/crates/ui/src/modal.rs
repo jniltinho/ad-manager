@@ -1,6 +1,7 @@
-//! Dialogs styled like the web panel's: the theme's title bar, a stripe under it (red for destructive ones), the body
-//! and a footer with the buttons, over a dimmed window, the top at 10% of the height. A dialog is a type implementing
-//! [`Dialog`] (its own state, drawn every frame); the app keeps a stack of them.
+//! Dialogs as the web panel's Modal: the theme's frame and title bar (its gradient, the title semibold and left-aligned,
+//! the bar under it — red for destructive ones), the body, and a footer band with the primary action first, over a
+//! dimmed window, the top at 10% of the height. Widths are the web's: 460, or 760 for a wide dialog, at most 94% of the
+//! window. A dialog is a type implementing [`Dialog`] (its own state, drawn every frame); the app keeps a stack.
 
 use std::any::Any;
 
@@ -34,43 +35,103 @@ pub trait Dialog: Any {
     fn closed(&self, _ctx: &egui::Context) {}
 }
 
-/// Draws a dialog in its frame (title bar, stripe, body).
+/// The web's dialog width for a requested one: 460, or 760 when wide (over 520), at most 94% of the window.
+pub fn web_width(requested: f32, window: f32) -> f32 {
+    let w: f32 = if requested > 520.0 { 760.0 } else { 460.0 };
+    w.min((window * 0.94).floor())
+}
+
+/// The body's padding, as the web's .pnl-body (px 16, py 12).
+const BODY: (f32, f32) = (16.0, 12.0);
+
+/// Draws a dialog in its frame (title bar, bar, body).
 pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
     let look = cx.look.clone();
-    let w = d.width();
-    let border = if look.p.depthless { (2.0, look.c("dialog-line")) } else { (1.0, look.c("dialog-head")) };
+    let w = web_width(d.width(), ui.ctx().content_rect().width());
     let mut flow = Flow::Keep;
-    Frame::new().fill(look.c("surface")).stroke(egui::Stroke::new(border.0, border.1)).show(ui, |ui| {
+    let line_w = look.px("dialog-line-w", 2.0);
+    let r = Frame::new().fill(look.c("surface")).show(ui, |ui| {
         ui.set_width(w);
         ui.spacing_mut().item_spacing.y = 0.0;
-        // title bar with the close button
-        Frame::new().fill(look.c("dialog-head")).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.set_width(w - 24.0);
-                let x = 22.0;
-                ui.add_space(x);
-                ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
-                    ui.set_width(w - 24.0 - 2.0 * x);
-                    ui.label(RichText::new(d.title()).strong().size(14.0).color(look.c("on-dialog-head")));
+        // title bar: the theme's gradient, the title left-aligned, the close button right
+        let (pad_y, pad_x) = head_pad(look.p.text("dialog-head-pad"));
+        let under = ui.painter().add(egui::Shape::Noop);
+        let head = Frame::new()
+            .inner_margin(Margin {
+                left: (pad_x + line_w) as i8,
+                right: (pad_x + line_w) as i8,
+                top: (pad_y + line_w) as i8,
+                bottom: pad_y as i8,
+            })
+            .show(ui, |ui| {
+                ui.set_width(w - 2.0 * (pad_x + line_w));
+                ui.horizontal(|ui| {
+                    let size = look.px("dialog-head-size", 13.0);
+                    ui.label(crate::style::semibold(d.title(), size).color(look.c("on-dialog-head")));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let close =
+                            ui.add(egui::Button::new(RichText::new("✖").color(look.c("on-dialog-head"))).frame(false));
+                        if close.on_hover_text(t("Close")).clicked() {
+                            flow = Flow::Close;
+                        }
+                    });
                 });
-                let close = ui.add(egui::Button::new(RichText::new("✖").color(look.c("on-dialog-head"))).frame(false));
-                if close.on_hover_text(t("Close")).clicked() {
+            })
+            .response;
+        ui.painter().set(
+            under,
+            egui::Shape::Vec(crate::depth::box_shapes(
+                head.rect,
+                look.gradient("dialog-head"),
+                look.c("dialog-head"),
+                &[],
+            )),
+        );
+        let bar = look.px("dialog-head-bar-w", 3.0);
+        if bar > 0.0 {
+            // the full width of the dialog, inside its frame: no notch at either end
+            let color = if d.danger() { look.c("err-fill") } else { look.c("dialog-head-bar") };
+            let (r, _) = ui.allocate_exact_size(egui::vec2(w, bar), egui::Sense::hover());
+            ui.painter().rect_filled(r, 0.0, color);
+        }
+        Frame::new()
+            .inner_margin(Margin {
+                left: (BODY.0 + line_w) as i8,
+                right: (BODY.0 + line_w) as i8,
+                top: BODY.1 as i8,
+                bottom: (BODY.1 + line_w) as i8,
+            })
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 6.0;
+                ui.set_width(w - 2.0 * (BODY.0 + line_w));
+                if d.ui(ui, cx) == Flow::Close {
                     flow = Flow::Close;
                 }
             });
-        });
-        let stripe = if d.danger() { look.c("err-fill") } else { look.c("dialog-head-bar") };
-        let (r, _) = ui.allocate_exact_size(egui::vec2(w, 3.0), egui::Sense::hover());
-        ui.painter().rect_filled(r, 0.0, stripe);
-        Frame::new().inner_margin(Margin::symmetric(16, 14)).show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 6.0;
-            ui.set_width(w - 32.0);
-            if d.ui(ui, cx) == Flow::Close {
-                flow = Flow::Close;
-            }
-        });
     });
+    // the frame on top of everything inside, at the theme's width
+    ui.painter().rect_stroke(
+        r.response.rect,
+        0.0,
+        egui::Stroke::new(line_w, look.c("dialog-line")),
+        egui::StrokeKind::Inside,
+    );
     flow
+}
+
+/// The title bar's padding from the theme's `dialog-head-pad` ("0.5rem 0.75rem": 8 and 12).
+fn head_pad(v: &str) -> (f32, f32) {
+    let px = |s: &str| {
+        let s = s.trim();
+        if let Some(r) = s.strip_suffix("rem") {
+            r.parse::<f32>().ok().map(|x| x * 16.0)
+        } else {
+            s.trim_end_matches("px").parse().ok()
+        }
+    };
+    let mut it = v.split_whitespace().filter_map(px);
+    let y = it.next().unwrap_or(8.0);
+    (y, it.next().unwrap_or(y.max(12.0)))
 }
 
 /// What the footer's buttons did.
@@ -80,23 +141,35 @@ pub struct Footer {
     pub cancel: bool,
 }
 
-/// The footer: Cancel and `ok` (when given), or a single `close` button; a line above it. `enabled` greys the OK.
+/// The footer as the web's: a band across the dialog (the theme's dialog-foot recipe, a line on top) with the buttons
+/// at the right, the primary one (`ok`, or the single `close`) first, then Cancel. `enabled` greys the OK.
 pub fn footer(ui: &mut Ui, cx: &Cx, ok: Option<&str>, close: &str, danger: bool, enabled: bool) -> Footer {
     let mut f = Footer::default();
-    ui.add_space(10.0);
-    ui.separator();
-    ui.horizontal(|ui| {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match ok {
-            Some(label) => {
-                let kind = if danger { Kind::Danger } else { Kind::Primary };
-                f.ok = ui.add_enabled_ui(enabled, |ui| widgets::button(ui, &cx.look, "✔", label, kind)).inner.clicked();
-                f.cancel = widgets::button(ui, &cx.look, "✖", t("Cancel"), Kind::Secondary).clicked();
-            }
-            None => {
-                f.ok = widgets::button(ui, &cx.look, "✔", close, Kind::Primary).clicked();
-            }
-        });
-    });
+    let look = &cx.look;
+    ui.add_space(BODY.1);
+    let under = ui.painter().add(egui::Shape::Noop);
+    let r = ui
+        .horizontal(|ui| {
+            ui.set_min_height(crate::style::control_h() + 16.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match ok {
+                Some(label) => {
+                    // right to left: Cancel at the right end, the primary action before it
+                    f.cancel = widgets::button(ui, look, "", t("Cancel"), Kind::Secondary).clicked();
+                    let kind = if danger { Kind::Danger } else { Kind::Primary };
+                    f.ok = ui.add_enabled_ui(enabled, |ui| widgets::button(ui, look, "✔", label, kind)).inner.clicked();
+                }
+                None => {
+                    f.ok = widgets::button(ui, look, "✔", close, Kind::Primary).clicked();
+                }
+            });
+        })
+        .response;
+    // the band reaches the dialog's sides and bottom: past the body's padding
+    let band = r.rect.expand2(egui::vec2(BODY.0, 0.0)).with_max_y(r.rect.max.y + BODY.1);
+    let mut shapes = crate::depth::box_shapes(band, look.gradient("dialog-foot"), look.c("surface-2"), &[]);
+    shapes.push(egui::Shape::hline(band.x_range(), band.top() + 0.5, egui::Stroke::new(1.0, look.c("line"))));
+    let clip = ui.clip_rect().expand2(egui::vec2(BODY.0, BODY.1));
+    ui.painter().with_clip_rect(clip).set(under, egui::Shape::Vec(shapes));
     f
 }
 
@@ -246,8 +319,7 @@ impl Dialog for ConfirmTyped {
                 .strong()
                 .color(cx.look.c("fg-strong")),
         );
-        let r =
-            ui.add(egui::TextEdit::singleline(&mut self.typed).hint_text(&self.expected).desired_width(f32::INFINITY));
+        let r = ui.add(crate::widgets::line(&mut self.typed).hint_text(&self.expected).desired_width(f32::INFINITY));
         if std::mem::take(&mut self.focus) {
             r.request_focus();
         }

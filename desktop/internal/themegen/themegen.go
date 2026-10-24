@@ -32,6 +32,10 @@ var Roles = []string{
 	"tabs-top", "tabs", "tab", "on-tab", "tab-hover", "on-tab-hover", "tab-on-top", "tab-on", "on-tab-on", "tab-on-icon",
 	"dialog-head-bar", "decor-ok", "decor-err", "decor-warn", "decor-muted", "decor-strong",
 	"login-page", "login-box", "login-box-line", "login-box-bar", "on-login-box", "on-login-box-muted", "login-title", "backdrop",
+	// the Rust desktop's web parity: soft status tags, the third surface, link and field hovers, header links, footer,
+	// and the right-hand top tabs (API, Queues)
+	"ok-soft", "on-ok-soft", "surface-3", "link-hover", "field-focus", "header-link", "header-link-hover",
+	"on-header-subtle", "footer-bar", "footer-top", "on-tab-aux", "tab-aux-hover", "on-tab-aux-hover",
 }
 
 // Theme is one registered theme with its resolved colors and its login box shadow.

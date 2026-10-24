@@ -1,6 +1,6 @@
-//! The panel theme on egui: a [`Look`] (theme id, palette, flat) turned into egui visuals, the colors pages use for
-//! their text tones and the focus ring. Every theme is drawn flat (solid fills and 1 px frames): the flat look the
-//! panel offers for every theme.
+//! The panel theme on egui: a [`Look`] (theme id, palette, the panel's flat look) turned into egui visuals, fonts and
+//! sizes, the colors pages use for their text tones and the focus ring. Sizes come from the web's named tokens and the
+//! depth (gradients, shadows) from the theme's recipe, cleared by the flat look as the web's flat override does.
 
 use adm_core::logic::Tone;
 use adm_core::theme::{self, Palette, Rgba};
@@ -11,13 +11,48 @@ use egui::{Color32, Context, CornerRadius, Id, LayerId, Order, Stroke, StrokeKin
 pub struct Look {
     pub id: &'static str,
     pub p: &'static Palette,
+    /// The panel's flat look (Settings): no decorative gradients and shadows; state marks and popups keep theirs.
+    pub flat: bool,
+}
+
+/// The control height in force (the theme's `control-h`, in points), for the house widgets that have no look at hand.
+static CONTROL_H: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x41e0_0000); // 28.0
+
+/// The height of inputs, selects and buttons (28 by default).
+pub fn control_h() -> f32 {
+    f32::from_bits(CONTROL_H.load(std::sync::atomic::Ordering::Relaxed))
 }
 
 impl Look {
-    /// Theme `id` (unknown: Default).
+    /// Theme `id` (unknown: Default), in the full look.
     pub fn new(id: &str) -> Option<Self> {
+        Self::with_flat(id, false)
+    }
+
+    /// Theme `id` in the full or the flat look.
+    pub fn with_flat(id: &str, flat: bool) -> Option<Self> {
         let (id, p) = theme::palette(id)?;
-        Some(Self { id, p })
+        Some(Self { id, p, flat: flat || p.depthless })
+    }
+
+    /// A size token in points (the web's px at zoom 1).
+    pub fn px(&self, token: &str, default: f32) -> f32 {
+        self.p.px(token, default)
+    }
+
+    /// A part's background gradient in this look.
+    pub fn gradient(&self, part: &str) -> Option<&'static theme::Gradient> {
+        self.p.gradient(part, self.flat)
+    }
+
+    /// A part's shadow layers in this look.
+    pub fn shadows(&self, part: &str) -> &'static [theme::Layer] {
+        self.p.shadows(part, self.flat)
+    }
+
+    /// Paints a part's box (its shadows, its gradient or `fill`, its inset layers) under what is drawn next.
+    pub fn paint(&self, painter: &egui::Painter, rect: egui::Rect, part: &str, shadow: &str, fill: Color32) {
+        crate::depth::paint_box(painter, rect, self.gradient(part), fill, self.shadows(shadow));
     }
 
     pub fn c(&self, role: &str) -> Color32 {
@@ -57,8 +92,9 @@ impl Look {
         v.selection.stroke = Stroke::new(1.0, self.c("on-selection"));
         v.window_corner_radius = CornerRadius::ZERO;
         v.menu_corner_radius = CornerRadius::ZERO;
-        v.window_shadow = egui::Shadow::NONE;
-        v.popup_shadow = egui::Shadow::NONE;
+        // dialogs and popups keep their shadow in the flat look too (the web's flat override leaves them)
+        v.window_shadow = egui_shadow(self.p.shadows("dialog", false));
+        v.popup_shadow = egui_shadow(self.p.shadows("popup", false));
         let line = Stroke::new(1.0, self.c("field-line"));
         let w = &mut v.widgets;
         for (state, fill) in [
@@ -79,16 +115,47 @@ impl Look {
         w.noninteractive.fg_stroke = Stroke::new(1.0, fg);
         w.hovered.bg_stroke = Stroke::new(1.0, self.c("focus"));
         ctx.set_visuals(v);
+        let (defs, _family) = crate::fonts::definitions(&self.p.fonts.sans, &self.p.fonts.mono);
+        ctx.set_fonts(defs);
+        let control = self.px("control-h", 28.0);
+        CONTROL_H.store(control.to_bits(), std::sync::atomic::Ordering::Relaxed);
+        let base = self.px("font-size-base", 13.0);
+        let text = self.px("control-text", 12.0);
         ctx.all_styles_mut(|s| {
-            s.spacing.item_spacing = egui::vec2(8.0, 6.0);
-            s.spacing.button_padding = egui::vec2(10.0, 4.0);
-            s.spacing.interact_size.y = 26.0;
+            use egui::{FontFamily, FontId, TextStyle};
+            s.text_styles = [
+                (TextStyle::Small, FontId::new(base - 2.0, FontFamily::Proportional)),
+                (TextStyle::Body, FontId::new(base, FontFamily::Proportional)),
+                (TextStyle::Button, FontId::new(text, FontFamily::Proportional)),
+                (TextStyle::Heading, FontId::new(base + 2.0, FontFamily::Name(crate::fonts::SEMIBOLD.into()))),
+                (TextStyle::Monospace, FontId::new(base - 1.0, FontFamily::Monospace)),
+            ]
+            .into();
+            s.spacing.item_spacing = egui::vec2(self.px("toolbar-gap", 8.0), 6.0);
+            // a 28 px border box: the label's line plus the padding, as the web's h-7 with px-3
+            s.spacing.button_padding = egui::vec2(self.px("button-px", 12.0), ((control - text * 1.25) / 2.0).max(2.0));
+            s.spacing.interact_size.y = control;
             // solid scroll bars: floating ones fade in and out over several frames after each scroll
             s.spacing.scroll = egui::style::ScrollStyle::solid();
             // no fades: every frame is a full redraw, an animation costs one per frame
             s.animation_time = 0.0;
         });
     }
+}
+
+/// The first outer layer of a recipe as egui's window or popup shadow.
+fn egui_shadow(layers: &[theme::Layer]) -> egui::Shadow {
+    layers.iter().find(|l| !l.inset).map_or(egui::Shadow::NONE, |l| egui::Shadow {
+        offset: [l.dx.round().clamp(-128.0, 127.0) as i8, l.dy.round().clamp(-128.0, 127.0) as i8],
+        blur: l.blur.round().clamp(0.0, 255.0) as u8,
+        spread: l.spread.round().clamp(0.0, 255.0) as u8,
+        color: c32(l.color),
+    })
+}
+
+/// Semibold text (the web's font-weight 600): the theme's semibold face at `size`.
+pub fn semibold(text: impl Into<String>, size: f32) -> egui::RichText {
+    egui::RichText::new(text).family(egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())).size(size)
 }
 
 pub fn c32(c: Rgba) -> Color32 {

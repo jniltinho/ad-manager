@@ -150,7 +150,7 @@ impl Groups {
         ];
         let gs = &self.groups;
         let mut hover = None;
-        let out = table::Table { id: "groups", cols: &cols, rows: gs.len(), keys }.show::<()>(
+        let out = table::Table { id: "groups", cols: &cols, rows: gs.len(), keys, row_h: 29.0 }.show::<()>(
             ui,
             &look,
             &mut self.table,
@@ -183,7 +183,7 @@ impl Groups {
         let group = self.open.as_ref().map(|o| o.0.clone());
         ui.horizontal(|ui| {
             let r = ui.add(
-                egui::TextEdit::singleline(&mut self.new_member)
+                crate::widgets::line(&mut self.new_member)
                     .hint_text(t("New member's login (computers end with $)"))
                     .desired_width(ui.available_width() - 200.0),
             );
@@ -239,6 +239,7 @@ impl Groups {
             cols: &[Column::new(t("Member (login)"), 320.0)],
             rows: members.len(),
             keys: false,
+            row_h: 29.0,
         }
         .show::<()>(ui, &look, &mut self.members, &mut hover, |r, _| Cell::plain(&members[r]));
     }

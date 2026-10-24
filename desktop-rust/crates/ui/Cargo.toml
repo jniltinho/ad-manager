@@ -16,6 +16,7 @@ egui.workspace = true
 egui_extras.workspace = true
 image.workspace = true
 resvg.workspace = true
+skrifa.workspace = true
 tokio.workspace = true
 chrono.workspace = true
 regex.workspace = true

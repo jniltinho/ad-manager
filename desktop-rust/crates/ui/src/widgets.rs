@@ -28,7 +28,20 @@ fn colors(look: &Look, kind: Kind) -> (Color32, Color32, Color32) {
     }
 }
 
-/// A button with an optional icon glyph before its label.
+/// The recipe parts of a button kind: background and shadow (the web's .btn, .btn-ghost, .btn-danger, brand).
+fn parts(kind: Kind, hovered: bool) -> (&'static str, &'static str) {
+    match kind {
+        Kind::Primary if hovered => ("action-hover", "btn"),
+        Kind::Primary => ("action", "btn"),
+        Kind::Secondary => ("action-2", "btn-2"),
+        Kind::Danger => ("danger", "btn-danger"),
+        Kind::Brand => ("brand-action", "brand-action"),
+        Kind::Link => ("", ""),
+    }
+}
+
+/// A button with an optional icon glyph before its label, as the web's buttons: a 28 px border box with the theme's
+/// gradient and shadow (none in the flat look), semibold except the secondary (ghost) one.
 pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> Response {
     let (fill, ink, line) = colors(look, kind);
     let text = match (icon.is_empty(), label.is_empty()) {
@@ -36,12 +49,33 @@ pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> 
         (false, true) => icon.to_string(),
         (false, false) => format!("{icon}  {label}"),
     };
-    let mut b = egui::Button::new(RichText::new(text).color(ink)).fill(fill).stroke(Stroke::new(1.0, line));
-    if kind == Kind::Link {
-        b = b.frame(false);
+    let size = look.px("control-text", 12.0);
+    let rich = match kind {
+        Kind::Primary | Kind::Danger | Kind::Brand => crate::style::semibold(text, size),
+        Kind::Secondary | Kind::Link => RichText::new(text).size(size),
     }
-    let r = ui.add(b);
-    if kind == Kind::Link { r.on_hover_cursor(egui::CursorIcon::PointingHand) } else { r }
+    .color(ink);
+    if kind == Kind::Link {
+        let r = ui.add(egui::Button::new(rich).frame(false));
+        return r.on_hover_cursor(egui::CursorIcon::PointingHand);
+    }
+    // the box is painted under the label: a placeholder taken before the button, filled once its rect is known
+    let under = ui.painter().add(egui::Shape::Noop);
+    let r = ui.add(
+        egui::Button::new(rich)
+            .fill(Color32::TRANSPARENT)
+            .stroke(Stroke::new(1.0, line))
+            .min_size(egui::vec2(0.0, crate::style::control_h())),
+    );
+    let (bg, shadow) = parts(kind, r.hovered());
+    let mut shapes = crate::depth::box_shapes(r.rect, look.gradient(bg), fill, look.shadows(shadow));
+    if !ui.is_enabled() {
+        for s in &mut shapes {
+            crate::depth::fade(s, 0.5);
+        }
+    }
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+    r
 }
 
 /// An icon-only button with its name as tooltip.
@@ -49,26 +83,17 @@ pub fn icon_button(ui: &mut Ui, look: &Look, icon: &str, name: &str) -> Response
     button(ui, look, icon, "", Kind::Secondary).on_hover_text(name)
 }
 
-/// A card: the theme's head with a bar left of the title, the content on the surface, a 1 px frame.
+/// A card as the web's .card: a 1 px frame, the theme's head (28 px, its gradient, the bar left of the title at the
+/// theme's width, the title in the theme's size, weight and case, a line under it) and the content on the surface.
 pub fn card<R>(ui: &mut Ui, look: &Look, title: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let (head, on_head, bar) = (look.c("card-head"), look.c("on-card-head"), look.c("card-head-bar"));
     Frame::new()
         .fill(look.c("surface"))
         .stroke(Stroke::new(1.0, look.c("line")))
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            let w = ui.available_width();
-            Frame::new().fill(head).inner_margin(Margin { left: 0, right: 10, top: 6, bottom: 6 }).show(ui, |ui| {
-                ui.set_width(w - 10.0);
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(egui::vec2(4.0, 18.0), egui::Sense::hover());
-                    ui.painter().rect_filled(r, 0.0, bar);
-                    ui.add_space(6.0);
-                    ui.label(RichText::new(title).strong().size(14.0).color(on_head));
-                });
-            });
+            card_head(ui, look, title, |_| {});
             Frame::new()
-                .inner_margin(Margin::same(10))
+                .inner_margin(Margin::same(12))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 6.0;
                     add(ui)
@@ -78,19 +103,78 @@ pub fn card<R>(ui: &mut Ui, look: &Look, title: &str, add: impl FnOnce(&mut Ui) 
         .inner
 }
 
-/// A tag (badge), like the web .tag: the state's fill with its own ink (ok, err, warn, neutral; strong otherwise). Drawn,
-/// not framed: a hover-only widget, so a click on it reaches what is under it (the table row).
-pub fn tag(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+/// The web's .card-h: the head of a card or a panel, with `right` drawn at its right end (a link, a count).
+pub fn card_head(ui: &mut Ui, look: &Look, title: &str, right: impl FnOnce(&mut Ui)) {
+    let w = ui.available_width();
+    let bar = look.px("card-head-bar-w", 4.0);
+    let size = look.px("card-head-size", 12.0);
+    let title =
+        if look.p.text("card-head-transform") == "uppercase" { title.to_uppercase() } else { title.to_string() };
+    let rich = if look.px("card-head-weight", 600.0) >= 600.0 {
+        crate::style::semibold(title, size)
+    } else {
+        RichText::new(title).size(size)
+    }
+    .color(look.c("on-card-head"));
+    let under = ui.painter().add(egui::Shape::Noop);
+    let r = Frame::new()
+        .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top: 6, bottom: 6 })
+        .show(ui, |ui| {
+            ui.set_width(w - 24.0 - bar);
+            ui.horizontal(|ui| {
+                ui.label(rich);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+            });
+        })
+        .response;
+    let mut shapes = crate::depth::box_shapes(r.rect, look.gradient("card-head"), look.c("card-head"), &[]);
+    if bar > 0.0 {
+        shapes.push(egui::Shape::rect_filled(
+            egui::Rect::from_min_size(r.rect.min, egui::vec2(bar, r.rect.height())),
+            0.0,
+            look.c("card-head-bar"),
+        ));
+    }
+    shapes.push(egui::Shape::hline(r.rect.x_range(), r.rect.bottom() - 0.5, Stroke::new(1.0, look.c("line"))));
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+}
+
+/// The fill and ink of a tag tone, as the web's tag classes: soft green for ok (`bg-ok-soft`), solid for errors,
+/// warnings, neutral and strong, the second surface with muted ink for a plain tag.
+fn tag_colors(look: &Look, tone: adm_core::logic::Tone) -> (Color32, Color32) {
     use adm_core::logic::Tone;
-    let (fill, ink) = match tone {
-        Tone::Ok => (look.c("ok-fill"), look.c("on-ok-fill")),
+    match tone {
+        Tone::Ok => (look.c("ok-soft"), look.c("on-ok-soft")),
         Tone::Err => (look.c("err-fill"), look.c("on-err-fill")),
         Tone::Warn => (look.c("warn-fill"), look.c("on-warn-fill")),
         Tone::Muted => (look.c("neutral-fill"), look.c("on-neutral-fill")),
-        _ => (look.c("strong-fill"), look.c("on-strong-fill")),
-    };
-    let galley = ui.painter().layout_no_wrap(text.to_string(), egui::FontId::proportional(11.0), ink);
-    let size = egui::vec2((galley.size().x + 12.0).max(64.0), 18.0);
+        Tone::Strong => (look.c("strong-fill"), look.c("on-strong-fill")),
+        Tone::Normal => (look.c("surface-2"), look.c("fg-muted")),
+    }
+}
+
+/// The galley and box size of a tag: the web's .tag (semibold uppercase at the tag size, 6/1 padding), at least
+/// `min_w` wide (the Users status is 104).
+fn tag_layout(ui: &Ui, look: &Look, text: &str, ink: Color32, min_w: f32) -> (std::sync::Arc<egui::Galley>, Vec2) {
+    let size = look.px("tag-size", 10.0);
+    let font = egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let galley = ui.painter().layout_no_wrap(text.to_uppercase(), font, ink);
+    let (px, py) = (look.px("tag-px", 6.0), look.px("tag-py", 1.0));
+    let w = (galley.size().x + 2.0 * px).max(min_w).ceil();
+    let h = (galley.size().y + 2.0 * py).ceil().max(17.0);
+    (galley, egui::vec2(w, h))
+}
+
+/// A tag (badge) as the web's .tag, as wide as its text. Drawn, not framed: a hover-only widget, so a click on it
+/// reaches what is under it (the table row).
+pub fn tag(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+    tag_w(ui, look, text, tone, 0.0)
+}
+
+/// A tag at least `min_w` wide, its text centered.
+pub fn tag_w(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone, min_w: f32) -> Response {
+    let (fill, ink) = tag_colors(look, tone);
+    let (galley, size) = tag_layout(ui, look, text, ink, min_w);
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
     ui.painter().rect_filled(rect, 0.0, fill);
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, ink);
@@ -98,22 +182,52 @@ pub fn tag(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) ->
     resp
 }
 
-/// A tag that is a link (an editable account's status): a button drawn as the tag.
+/// A tag that is a link (an editable account's status, 104 wide as the web's): a button drawn as the tag.
 pub fn tag_button(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
-    use adm_core::logic::Tone;
-    let (fill, ink) = match tone {
-        Tone::Ok => (look.c("ok-fill"), look.c("on-ok-fill")),
-        Tone::Err => (look.c("err-fill"), look.c("on-err-fill")),
-        Tone::Warn => (look.c("warn-fill"), look.c("on-warn-fill")),
-        Tone::Muted => (look.c("neutral-fill"), look.c("on-neutral-fill")),
-        _ => (look.c("strong-fill"), look.c("on-strong-fill")),
+    let (fill, ink) = tag_colors(look, tone);
+    let (galley, size) = tag_layout(ui, look, text, ink, 104.0);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    ui.painter().rect_filled(rect, 0.0, fill);
+    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, text));
+    resp
+}
+
+/// The kind of a callout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Note {
+    Info,
+    Warn,
+}
+
+/// A callout as the web's notes: a tinted box with a bar on the left (accent for information, warning for a
+/// recommendation), the text at a 1.5 line height.
+pub fn callout(ui: &mut Ui, look: &Look, kind: Note, text: &str) -> Response {
+    let (bg, bar) = match kind {
+        Note::Info => (look.c("surface-2"), look.c("accent")),
+        Note::Warn => (look.c("warn-fill").gamma_multiply(0.12), look.c("warn")),
     };
-    ui.add(
-        egui::Button::new(RichText::new(text).size(11.0).color(ink))
-            .fill(fill)
-            .stroke(Stroke::NONE)
-            .min_size(egui::vec2(64.0, 18.0)),
-    )
+    let r = Frame::new()
+        .fill(bg)
+        .inner_margin(Margin { left: 12, right: 10, top: 8, bottom: 8 })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let size = look.px("control-text", 12.0);
+            let mut job = egui::text::LayoutJob::single_section(
+                text.to_string(),
+                egui::TextFormat {
+                    font_id: egui::FontId::proportional(size),
+                    color: look.c("fg"),
+                    line_height: Some(size * 1.6),
+                    ..Default::default()
+                },
+            );
+            job.wrap.max_width = ui.available_width();
+            ui.label(job);
+        })
+        .response;
+    ui.painter().rect_filled(egui::Rect::from_min_size(r.rect.min, egui::vec2(3.0, r.rect.height())), 0.0, bar);
+    r
 }
 
 /// A Home tile: the label, a big number in its color, a stripe in the decor color on top (the theme's width).
@@ -145,9 +259,22 @@ pub fn label(ui: &mut Ui, look: &Look, s: &str) -> Response {
     ui.label(RichText::new(s).strong().color(look.c("fg-strong")))
 }
 
+/// A single-line text edit as the web's .inp: a 28 px border box with 8 px side padding, the text vertically centered.
+pub fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
+    egui::TextEdit::singleline(text)
+        .margin(Margin::symmetric(8, 0))
+        .min_size(egui::vec2(0.0, crate::style::control_h()))
+        .vertical_align(egui::Align::Center)
+}
+
 /// A single-line text field of `width` (INFINITY: the rest of the row).
 pub fn field(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> Response {
-    ui.add(egui::TextEdit::singleline(text).hint_text(hint).desired_width(width))
+    ui.add(line(text).hint_text(hint).desired_width(width))
+}
+
+/// A label above its field, as the web's .lbl: small semibold uppercase in the muted ink.
+pub fn lbl(ui: &mut Ui, look: &Look, s: &str) -> Response {
+    ui.label(crate::style::semibold(s.to_uppercase(), 11.0).color(look.c("fg-muted")))
 }
 
 /// A select of `options` by index.
@@ -208,7 +335,7 @@ pub fn secret_id(name: &str) -> egui::Id {
 
 /// A password field of its own id (hidden text).
 pub fn secret_field(ui: &mut Ui, id: egui::Id, text: &mut String, hint: &str, width: f32) -> Response {
-    ui.add(egui::TextEdit::singleline(text).id(id).password(true).hint_text(hint).desired_width(width))
+    ui.add(line(text).id(id).password(true).hint_text(hint).desired_width(width))
 }
 
 /// Forgets a text field's egui state: its text history (undo) is gone with it.
@@ -230,7 +357,7 @@ pub fn wrapped(ui: &mut Ui, s: &str) -> Response {
 /// A text that can be selected and copied (a fingerprint to compare).
 pub fn selectable(ui: &mut Ui, s: &str) -> Response {
     let mut v = s.to_string();
-    ui.add(egui::TextEdit::singleline(&mut v).desired_width(f32::INFINITY).interactive(true))
+    ui.add(line(&mut v).desired_width(f32::INFINITY).interactive(true))
 }
 
 #[cfg(test)]

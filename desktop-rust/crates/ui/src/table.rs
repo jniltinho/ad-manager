@@ -1,6 +1,7 @@
-//! The list table of every page, styled like the web grid: the theme's header, zebra rows, the whole selected row
-//! highlighted, the last column stretched. Only the rows on screen are laid out (thousands of users scroll at the
-//! cost of a screenful).
+//! The list table of every page, as the web's .grid-t: one continuous header band (the theme's table-head recipe,
+//! semibold labels), rows with a full-width divider, stripes from the second row, the hover tint, numbers aligned
+//! right where the web aligns them, the last column stretched. Only the rows on screen are laid out (thousands of
+//! users scroll at the cost of a screenful).
 //!
 //! Cells may be links: the page returns, per cell, a [`Link`] with its own action value `A` (typically the row's
 //! action and index). The table reports the clicked link's value in the same frame, so the page resolves it against
@@ -20,11 +21,26 @@ pub struct Column {
     /// An action column: its width while the table is narrower than all its columns (then the links show only their
     /// icon).
     pub compact: Option<f32>,
+    /// Aligned to the right (numbers, sizes).
+    pub right: bool,
+    /// Its badge is at least this wide (the Users status: 104).
+    pub badge_w: f32,
 }
 
 impl Column {
     pub fn new(title: &str, width: f32) -> Self {
-        Self { title: title.into(), width, badge: false, compact: None }
+        Self { title: title.into(), width, badge: false, compact: None, right: false, badge_w: 0.0 }
+    }
+
+    pub fn right(mut self) -> Self {
+        self.right = true;
+        self
+    }
+
+    pub fn badge_w(mut self, w: f32) -> Self {
+        self.badge = true;
+        self.badge_w = w;
+        self
     }
 
     pub fn badge(mut self) -> Self {
@@ -50,11 +66,25 @@ pub struct Cell<A> {
     pub text: String,
     pub tone: Tone,
     pub link: Option<Link<A>>,
+    /// Semibold (a name, as the web's).
+    pub bold: bool,
+    /// Monospace (a DN, a path, an action id).
+    pub mono: bool,
 }
 
 impl<A> Cell<A> {
     pub fn new(text: impl Into<String>, tone: Tone) -> Self {
-        Self { text: text.into(), tone, link: None }
+        Self { text: text.into(), tone, link: None, bold: false, mono: false }
+    }
+
+    pub fn bold(mut self) -> Self {
+        self.bold = true;
+        self
+    }
+
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
     }
 
     pub fn plain(text: impl Into<String>) -> Self {
@@ -109,15 +139,14 @@ pub struct TableOut<A> {
     pub compact: bool,
 }
 
-const ROW_H: f32 = 26.0;
-
 /// A table to draw: its id, columns and number of rows; `keys` lets it take Up/Down/Enter (no dialog open, no field
-/// focused).
+/// focused); `row_h` is the web table's own row pitch (0: the text line plus the cell padding and the divider).
 pub struct Table<'a> {
     pub id: &'a str,
     pub cols: &'a [Column],
     pub rows: usize,
     pub keys: bool,
+    pub row_h: f32,
 }
 
 impl Table<'_> {
@@ -165,22 +194,29 @@ fn show<A>(
             out.enter = state.sel;
         }
     }
-    let gap = 4.0;
-    let avail = ui.available_width() - gap * cols.len() as f32 - 14.0; // the scroll bar's room
+    let text = look.px("control-text", 12.0);
+    let (th_px, th_py, td_px, td_py) =
+        (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-px", 8.0), look.px("td-py", 4.0));
+    let row_h = if t.row_h > 0.0 { t.row_h } else { (text * 1.5 + 2.0 * td_py + 1.0).round() };
+    let head_h = (text * 1.5 + 2.0 * th_py + 1.0).round();
+    let avail = ui.available_width() - 14.0; // the scroll bar's room
     let full: f32 = cols.iter().map(|c| c.width).sum();
     let compact = avail < full;
     out.compact = compact;
     let widths = fit(cols, avail, compact);
-    let (sel_bg, on_sel, head, on_head, line) =
-        (look.c("selection"), look.c("on-selection"), look.c("table-head"), look.c("on-table-head"), look.c("line"));
+    let (hover_bg, on_head, line, alt) =
+        (look.c("row-hover"), look.c("on-table-head"), look.c("line"), look.c("row-alt"));
+    let head_grad = look.gradient("table-head");
+    let head_fill = look.c("table-head");
+    let head_shadow = look.shadows("table-head");
     ui.push_id(id, |ui| {
         let v = ui.visuals_mut();
-        v.selection.bg_fill = sel_bg;
-        v.faint_bg_color = look.c("row-alt");
-        v.widgets.hovered.weak_bg_fill = look.c("row-hover");
-        ui.spacing_mut().item_spacing.x = gap;
+        // the web marks the row under the pointer (and here the keyboard's row) with the hover tint, not a selection
+        v.selection.bg_fill = hover_bg;
+        v.widgets.hovered.weak_bg_fill = hover_bg;
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let mut tb = TableBuilder::new(ui)
-            .striped(true)
+            .striped(false)
             .resizable(false)
             .sense(Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -195,16 +231,20 @@ fn show<A>(
         for (i, w) in widths.iter().enumerate() {
             tb = tb.column(if i + 1 == n { XColumn::remainder().at_least(*w) } else { XColumn::exact(*w).clip(true) });
         }
-        tb.header(26.0, |mut h| {
+        tb.header(head_h, |mut h| {
             for c in cols {
                 h.col(|ui| {
-                    ui.painter().rect_filled(ui.max_rect().expand2(egui::vec2(4.0, 0.0)), 0.0, head);
-                    ui.label(RichText::new(&c.title).strong().size(12.0).color(on_head));
+                    let rect = ui.max_rect();
+                    crate::depth::paint_box(ui.painter(), rect, head_grad, head_fill, head_shadow);
+                    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, egui::Stroke::new(1.0, line));
+                    pad(ui, c.right, th_px, |ui| {
+                        ui.label(crate::style::semibold(&c.title, text).color(on_head));
+                    });
                 });
             }
         })
         .body(|body| {
-            body.rows(ROW_H, rows, |mut row| {
+            body.rows(row_h, rows, |mut row| {
                 let r = row.index();
                 let selected = state.sel == Some(r);
                 row.set_selected(selected);
@@ -212,57 +252,11 @@ fn show<A>(
                     let cl = cell(r, ci);
                     row.col(|ui| {
                         let rect = ui.max_rect();
-                        ui.painter().hline(
-                            rect.x_range().expand(4.0),
-                            rect.bottom() + 1.5,
-                            egui::Stroke::new(1.0, line.gamma_multiply(0.5)),
-                        );
-                        let mut ink = if selected { on_sel } else { look.tone(cl.tone) };
-                        match cl.link {
-                            Some(l) => {
-                                if cl.tone == Tone::Normal && !l.tag && !selected {
-                                    ink = look.c("link");
-                                }
-                                let icon_only = compact && c.compact.is_some() && !l.tag;
-                                let text = match (l.icon.is_empty(), icon_only || cl.text.is_empty()) {
-                                    (true, _) => cl.text.clone(),
-                                    (false, true) => l.icon.to_string(),
-                                    (false, false) => format!("{} {}", l.icon, cl.text),
-                                };
-                                let resp = if c.badge && !cl.text.is_empty() && (l.icon.is_empty() || l.tag) {
-                                    if l.tag && !l.icon.is_empty() {
-                                        let ir = ui.add(
-                                            egui::Button::new(RichText::new(l.icon).color(look.c("link"))).frame(false),
-                                        );
-                                        let _ = crate::widgets::tag(ui, look, &cl.text, cl.tone);
-                                        ir
-                                    } else {
-                                        crate::widgets::tag_button(ui, look, &cl.text, cl.tone)
-                                    }
-                                } else {
-                                    ui.add(egui::Button::new(RichText::new(text).color(ink)).frame(false).truncate())
-                                };
-                                let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
-                                // the accessible name says what it does, also when only the icon is drawn
-                                if !l.hint.is_empty() {
-                                    let _ = ui.ctx().accesskit_node_builder(resp.id, |n| n.set_label(l.hint.clone()));
-                                }
-                                if resp.hovered() {
-                                    *hover = Some(l.hint.clone());
-                                }
-                                if resp.clicked() {
-                                    out.clicked = Some(l.action);
-                                }
-                            }
-                            None if c.badge && !cl.text.is_empty() => {
-                                let _ = crate::widgets::tag(ui, look, &cl.text, cl.tone);
-                            }
-                            None => {
-                                ui.add(
-                                    egui::Label::new(RichText::new(&cl.text).color(ink)).truncate().selectable(false),
-                                );
-                            }
+                        if r % 2 == 1 && !selected {
+                            ui.painter().rect_filled(rect, 0.0, alt);
                         }
+                        ui.painter().hline(rect.x_range(), rect.top() + 0.5, egui::Stroke::new(1.0, line));
+                        pad(ui, c.right, td_px, |ui| draw_cell(ui, look, c, cl, compact, hover, &mut out));
                     });
                 }
                 let resp = row.response();
@@ -277,6 +271,81 @@ fn show<A>(
         });
     });
     out
+}
+
+/// Draws `add` with the cell's side padding, from the left or (numbers) from the right.
+fn pad(ui: &mut Ui, right: bool, px: f32, add: impl FnOnce(&mut Ui)) {
+    let layout = if right {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    };
+    ui.with_layout(layout, |ui| {
+        ui.add_space(px);
+        ui.set_clip_rect(ui.max_rect().shrink2(egui::vec2(px / 2.0, 0.0)).intersect(ui.clip_rect()));
+        add(ui);
+    });
+}
+
+/// One body cell: a link (text or icon, or a badge that is a link), a badge, or text — semibold, monospace or in its
+/// tone's ink.
+fn draw_cell<A>(
+    ui: &mut Ui,
+    look: &Look,
+    c: &Column,
+    cl: Cell<A>,
+    compact: bool,
+    hover: &mut Option<String>,
+    out: &mut TableOut<A>,
+) {
+    let size = look.px("control-text", 12.0);
+    let mut ink = look.tone(cl.tone);
+    let rich = |s: String, ink: egui::Color32| {
+        let r = if cl.bold { crate::style::semibold(s, size) } else { RichText::new(s).size(size) };
+        if cl.mono { r.family(egui::FontFamily::Monospace).size(size - 1.0) } else { r }.color(ink)
+    };
+    match cl.link {
+        Some(l) => {
+            if cl.tone == Tone::Normal && !l.tag {
+                ink = look.c("link");
+            }
+            let icon_only = compact && c.compact.is_some() && !l.tag;
+            let text = match (l.icon.is_empty(), icon_only || cl.text.is_empty()) {
+                (true, _) => cl.text.clone(),
+                (false, true) => l.icon.to_string(),
+                (false, false) => format!("{} {}", l.icon, cl.text),
+            };
+            let resp = if c.badge && !cl.text.is_empty() && (l.icon.is_empty() || l.tag) {
+                if l.tag && !l.icon.is_empty() {
+                    let ir = ui.add(egui::Button::new(RichText::new(l.icon).color(look.c("link"))).frame(false));
+                    let _ = crate::widgets::tag_w(ui, look, &cl.text, cl.tone, c.badge_w);
+                    ir
+                } else {
+                    crate::widgets::tag_button(ui, look, &cl.text, cl.tone)
+                }
+            } else {
+                ui.add(egui::Button::new(rich(text, ink)).frame(false).truncate())
+            };
+            let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+            // the accessible name says what it does, also when only the icon is drawn
+            if !l.hint.is_empty() {
+                let _ = ui.ctx().accesskit_node_builder(resp.id, |n| n.set_label(l.hint.clone()));
+            }
+            if resp.hovered() {
+                *hover = Some(l.hint.clone());
+            }
+            if resp.clicked() {
+                out.clicked = Some(l.action);
+            }
+        }
+        None if c.badge && !cl.text.is_empty() => {
+            let _ = crate::widgets::tag_w(ui, look, &cl.text, cl.tone, c.badge_w);
+        }
+        None => {
+            let t = rich(cl.text.clone(), ink);
+            ui.add(egui::Label::new(t).truncate().selectable(false));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -303,9 +372,14 @@ mod ui_tests {
         let look = crate::style::Look::new("classic-blue").unwrap();
         let mut h = Harness::builder().with_size(egui::vec2(600.0, 300.0)).build_ui_state(
             move |ui, st: &mut (TableState, Option<usize>)| {
+                // the theme's fonts (the semibold family of the header), as the app installs them at start
+                if !ui.ctx().fonts(|f| f.families().contains(&egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()))) {
+                    look.apply(ui.ctx()); // in force from the next frame
+                    return;
+                }
                 let cols = [Column::new("Name", 200.0), Column::new("", 100.0)];
                 let mut hover = None;
-                let out = Table { id: "t", cols: &cols, rows: 3, keys: true }.show(
+                let out = Table { id: "t", cols: &cols, rows: 3, keys: true, row_h: 0.0 }.show(
                     ui,
                     &look,
                     &mut st.0,

@@ -21,6 +21,7 @@ const MSG_LINES: usize = 4;
 pub struct PublicBrand {
     pub for_url: String,
     pub theme: String,
+    pub flat: bool,
     pub domain: String,
     pub netbios: String,
     pub logo: Option<Logo>,
@@ -51,7 +52,7 @@ impl Login {
         }
         cx.ensure_catalog();
         let theme = cx.brand.theme.clone();
-        cx.set_look(if theme.is_empty() { "default" } else { &theme });
+        cx.set_look(if theme.is_empty() { "default" } else { &theme }, cx.brand.flat);
         Self {
             user: cx.cfg.panel.user.clone(),
             pwd: Zeroizing::default(),
@@ -156,8 +157,7 @@ impl Login {
                             let ink = look.c("on-login-box");
                             egui::Grid::new("login-form").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                                 let l = ui.label(RichText::new(t("User")).size(13.0).color(ink));
-                                ui.add(egui::TextEdit::singleline(&mut self.user).desired_width(320.0))
-                                    .labelled_by(l.id);
+                                ui.add(crate::widgets::line(&mut self.user).desired_width(320.0)).labelled_by(l.id);
                                 ui.end_row();
                                 let l = ui.label(RichText::new(t("Password")).size(13.0).color(ink));
                                 let r =
@@ -262,6 +262,7 @@ fn fetch_brand(cx: &Cx, url: String) {
             }
             let b = &mut app.cx.brand;
             b.theme = h.brand.theme.clone();
+            b.flat = h.brand.flat;
             b.domain = h.domain.clone();
             b.netbios = h.netbios.clone();
             b.logo = logo.and_then(|(bytes, ct)| Logo::decode(bytes, &ct));
@@ -270,7 +271,7 @@ fn fetch_brand(cx: &Cx, url: String) {
                 i18n::set_lang(&h.brand.lang);
             }
             if matches!(app.screen, Screen::Login(_)) {
-                app.cx.set_look(&h.brand.theme);
+                app.cx.set_look(&h.brand.theme, h.brand.flat);
                 if h.setup && !was_setup {
                     app.cx.show_info(
                         t("Panel being set up"),

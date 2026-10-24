@@ -788,7 +788,7 @@ impl SyncWizard {
                 );
                 ui.end_row();
                 widgets::label(ui, &look, t("Id"));
-                ui.add_enabled(self.is_new, egui::TextEdit::singleline(&mut self.form.id).desired_width(240.0));
+                ui.add_enabled(self.is_new, crate::widgets::line(&mut self.form.id).desired_width(240.0));
                 ui.end_row();
             });
         });

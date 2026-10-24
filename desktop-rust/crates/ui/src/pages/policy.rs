@@ -92,7 +92,7 @@ impl Dialog for PolicyDialog {
             for (i, (label, unit, _, _)) in FIELDS.iter().enumerate() {
                 widgets::label(ui, &look, t(label));
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut self.values[i]).desired_width(100.0));
+                    ui.add(crate::widgets::line(&mut self.values[i]).desired_width(100.0));
                     ui.label(RichText::new(t(unit)).color(look.c("fg-muted")));
                 });
                 ui.end_row();

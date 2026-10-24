@@ -11,14 +11,14 @@
 
 ## 2. Look
 
-- [ ] 2.1 Fonts: the stack resolver over the OS font folders (regular + bold files), embedded Inter 4.001 (OFL,
+- [x] 2.1 Fonts: the stack resolver over the OS font folders (regular + bold files), embedded Inter 4.001 (OFL,
       license), egui monospace fallback, a `semibold` family; sizes from the theme.
-- [ ] 2.2 (A1–A3, A17) Controls at 28 px border boxes (style spacing, `TextEdit` margin, our `ComboBox` frame and arrow, button
+- [x] 2.2 (A1–A3, A17) Controls at 28 px border boxes (style spacing, `TextEdit` margin, our `ComboBox` frame and arrow, button
       face with the shadow outside); one height and baseline per toolbar line; login exempt.
-- [ ] 2.3 Depth painter: directional gradients with Oklab stops, ordered outer (`Shadow`) and inset layers; the CSS flat
+- [x] 2.3 Depth painter: directional gradients with Oklab stops, ordered outer (`Shadow`) and inset layers; the CSS flat
       override list (state marks, dialog and popup shadows kept); depthless themes; generator and `gen-themes.py`
       export the full recipe.
-- [ ] 2.4 (A4–A9, A13, A14, A18) Card head, table (per-table fixture), badge variants, callouts, row hover, dialog (head, body scroll, frame, 460/760 max 94%, primary first) from the tokens.
+- [x] 2.4 (A4–A9, A13, A14, A18) Card head, table (per-table fixture), badge variants, callouts, row hover, dialog (head, body scroll, frame, 460/760 max 94%, primary first) from the tokens.
 
 ## 3. Shell and viewport
 

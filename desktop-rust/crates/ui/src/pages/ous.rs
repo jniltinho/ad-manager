@@ -100,7 +100,7 @@ impl Ous {
             ];
             let ous = &self.ous;
             let mut hover = None;
-            table::Table { id: "ous", cols: &cols, rows: ous.len(), keys }.show::<()>(
+            table::Table { id: "ous", cols: &cols, rows: ous.len(), keys, row_h: 0.0 }.show::<()>(
                 ui,
                 &look,
                 &mut self.table,

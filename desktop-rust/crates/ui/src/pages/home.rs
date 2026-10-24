@@ -153,7 +153,7 @@ impl Home {
             widgets::card(&mut c[0], &look, t("Reset password / unlock"), |ui| {
                 ui.horizontal(|ui| {
                     let r = ui.add(
-                        egui::TextEdit::singleline(&mut self.login)
+                        crate::widgets::line(&mut self.login)
                             .hint_text(t("user login"))
                             .desired_width(ui.available_width() - 110.0),
                     );

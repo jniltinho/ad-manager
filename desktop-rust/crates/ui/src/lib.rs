@@ -2,7 +2,9 @@
 //! with the platform of the system it runs on and hands it to eframe.
 
 pub mod app;
+pub mod depth;
 pub mod files;
+pub mod fonts;
 pub mod login;
 pub mod logo;
 pub mod modal;

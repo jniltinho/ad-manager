@@ -153,8 +153,11 @@ struct Themes {
 fn all() -> &'static Themes {
     static T: OnceLock<Themes> = OnceLock::new();
     T.get_or_init(|| {
-        serde_json::from_str(include_str!("../assets/themes.json"))
-            .unwrap_or_else(|_| Themes { order: Vec::new(), flat: Vec::new(), themes: HashMap::new() })
+        serde_json::from_str(include_str!("../assets/themes.json")).unwrap_or_else(|_| Themes {
+            order: Vec::new(),
+            flat: Vec::new(),
+            themes: HashMap::new(),
+        })
     })
 }
 

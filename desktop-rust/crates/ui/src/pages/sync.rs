@@ -190,7 +190,7 @@ impl Sync {
         let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();
         let jobs = &self.data.jobs;
         let mut hover = None;
-        table::Table { id: "sync-jobs", cols: &cols, rows: jobs.len(), keys }.show::<()>(
+        table::Table { id: "sync-jobs", cols: &cols, rows: jobs.len(), keys, row_h: 27.0 }.show::<()>(
             ui,
             &look,
             &mut self.jobs,
@@ -273,7 +273,7 @@ impl Sync {
         let names: Vec<String> = me.data.runs.iter().map(|r| me.job_name(&r.job)).collect();
         let runs = &self.data.runs;
         let mut hover = None;
-        table::Table { id: "sync-runs", cols: &cols, rows: runs.len(), keys: false }.show::<()>(
+        table::Table { id: "sync-runs", cols: &cols, rows: runs.len(), keys: false, row_h: 27.0 }.show::<()>(
             ui,
             &look,
             &mut self.runs,

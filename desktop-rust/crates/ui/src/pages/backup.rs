@@ -230,7 +230,7 @@ impl Backup {
         let empty = Vec::new();
         let rows = self.cur.and_then(|i| self.servers.get(i)).map_or(&empty, |c| &c.backups);
         let mut hover = None;
-        table::Table { id: "backups", cols: &cols, rows: rows.len(), keys }.show::<()>(
+        table::Table { id: "backups", cols: &cols, rows: rows.len(), keys, row_h: 0.0 }.show::<()>(
             ui,
             &look,
             &mut self.table,
@@ -313,7 +313,7 @@ impl Backup {
         ];
         let list = &self.schedules;
         let mut hover = None;
-        table::Table { id: "schedules", cols: &cols, rows: list.len(), keys: false }.show::<()>(
+        table::Table { id: "schedules", cols: &cols, rows: list.len(), keys: false, row_h: 0.0 }.show::<()>(
             ui,
             &look,
             &mut self.sched,

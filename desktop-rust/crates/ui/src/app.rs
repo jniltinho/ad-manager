@@ -229,9 +229,9 @@ impl Cx {
         self.push(modal::ConfirmTyped::new(title, msg, expected, action));
     }
 
-    pub fn set_look(&mut self, id: &str) {
-        if let Some(l) = Look::new(id)
-            && l.id != self.look.id
+    pub fn set_look(&mut self, id: &str, flat: bool) {
+        if let Some(l) = Look::with_flat(id, flat)
+            && (l.id != self.look.id || l.flat != self.look.flat)
         {
             l.apply(&self.ctx);
             self.look = l;
@@ -534,7 +534,7 @@ impl App {
             i18n::set_lang(&self.cx.me.settings.lang);
         }
         let theme = self.cx.me.brand.theme.clone();
-        self.cx.set_look(&theme);
+        self.cx.set_look(&theme, self.cx.me.brand.flat);
         for (_, d) in self.cx.dialogs.drain(..) {
             d.closed(&self.cx.ctx);
         }

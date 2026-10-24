@@ -102,10 +102,14 @@ impl Users {
             let cols = columns();
             let mut hover = None;
             let (all, visible) = (&self.all, &self.visible);
-            let out = table::Table { id: "users", cols: &cols, rows: visible.len(), keys: keys && self.menu.is_none() }
-                .show(ui, &look, &mut self.table, &mut hover, |r, c| {
-                    cell(&all[visible[r]], visible[r], c, &me, days, now)
-                });
+            let out = table::Table {
+                id: "users",
+                cols: &cols,
+                rows: visible.len(),
+                keys: keys && self.menu.is_none(),
+                row_h: 29.0,
+            }
+            .show(ui, &look, &mut self.table, &mut hover, |r, c| cell(&all[visible[r]], visible[r], c, &me, days, now));
             cx.hover = hover.or(cx.hover.take());
             self.compact = out.compact;
             if let Some((a, i)) = out.clicked
@@ -375,7 +379,7 @@ fn new_password(cx: &Cx) -> Zeroizing<String> {
 fn password_field(ui: &mut Ui, cx: &mut Cx, id: egui::Id, pw: &mut Zeroizing<String>) {
     let look = cx.look.clone();
     ui.horizontal(|ui| {
-        ui.add(egui::TextEdit::singleline(&mut **pw).id(id).font(egui::TextStyle::Monospace).desired_width(260.0));
+        ui.add(crate::widgets::line(&mut **pw).id(id).font(egui::TextStyle::Monospace).desired_width(260.0));
         if widgets::icon_button(ui, &look, "⟳", t("Generate")).clicked() {
             *pw = new_password(cx);
         }
@@ -394,7 +398,7 @@ fn fields_form(ui: &mut Ui, cx: &Cx, f: &mut UserFields) {
             widgets::form(&mut cols[side], &format!("user-fields-{side}"), |ui| {
                 for i in range {
                     widgets::label(ui, &look, t(USER_FIELDS[i].1));
-                    ui.add(egui::TextEdit::singleline(&mut f.0[i]).desired_width(220.0));
+                    ui.add(crate::widgets::line(&mut f.0[i]).desired_width(220.0));
                     ui.end_row();
                 }
             });
@@ -971,7 +975,7 @@ impl Dialog for ShowLink {
         let look = cx.look.clone();
         ui.horizontal(|ui| {
             let mut v = self.url.clone();
-            ui.add(egui::TextEdit::singleline(&mut v).font(egui::TextStyle::Monospace).desired_width(470.0));
+            ui.add(crate::widgets::line(&mut v).font(egui::TextStyle::Monospace).desired_width(470.0));
             if widgets::button(ui, &look, "📋", t("copy"), Kind::Secondary).clicked() {
                 ui.ctx().copy_text(self.url.clone());
                 cx.set_status(t("Link copied."));
