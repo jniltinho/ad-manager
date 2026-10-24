@@ -382,7 +382,8 @@ const stateNames = {
             <col class="w-[20%]" />
             <col class="w-[14%]" />
             <col />
-            <col class="w-36" />
+            <!-- only "remove": the name is the edit link -->
+            <col class="w-24" />
           </colgroup>
           <thead>
             <tr>
