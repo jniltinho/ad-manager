@@ -481,8 +481,15 @@ impl SambaView {
                         egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 4)).show(ui, |ui| {
                             ui.set_width(ui.available_width());
                             ui.add(
-                                egui::Label::new(RichText::new(&self.dir).monospace().size(11.0).color(muted))
-                                    .truncate(),
+                                // the web's line of 1.5 (its 11-point text in a 16.5-point line)
+                                egui::Label::new(
+                                    RichText::new(&self.dir)
+                                        .monospace()
+                                        .size(11.0)
+                                        .line_height(Some(widgets::LEADING * 11.0))
+                                        .color(muted),
+                                )
+                                .truncate(),
                             );
                         });
                         let line = |ui: &mut Ui| {
@@ -555,7 +562,12 @@ impl SambaView {
                             }
                             if self.files.is_empty() && self.list_error.is_empty() {
                                 egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
-                                    ui.label(RichText::new(t("No log files.")).size(12.0).color(muted));
+                                    ui.label(
+                                        RichText::new(t("No log files."))
+                                            .size(12.0)
+                                            .line_height(Some(widgets::LEADING * 12.0))
+                                            .color(muted),
+                                    );
                                 });
                             }
                         });

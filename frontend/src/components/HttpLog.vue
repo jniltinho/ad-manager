@@ -80,7 +80,8 @@ function statusTag(s) {
     <!-- fixed columns, one line per request: long paths end in "…" and show in the tooltip -->
     <table class="grid-t border-0 table-fixed">
       <colgroup>
-        <col class="w-32" />
+        <!-- the date and time in Verdana need about 150 px: narrower, it runs into the source -->
+        <col class="w-38" />
         <col class="w-28" />
         <col class="w-32" />
         <col class="w-16" />

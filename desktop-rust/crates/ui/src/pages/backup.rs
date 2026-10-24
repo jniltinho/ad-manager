@@ -293,7 +293,7 @@ impl Backup {
                     Column::new(t("Origin"), 180.0),
                     Column::new(t("Size"), 90.0).right(),
                     Column::new(t("Status"), 110.0),
-                    Column::new("", 120.0).right(),
+                    Column::new("", 160.0).right(), // the web's w-40
                 ];
                 let rows = &cur.backups;
                 let mut hover = None;

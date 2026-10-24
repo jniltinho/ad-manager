@@ -223,7 +223,8 @@ impl Settings {
         let muted = look.c("fg-muted");
         // the web's .help: 4 px under its control, its own line height
         let note = |ui: &mut Ui, s: &str| {
-            ui.add_space(2.0);
+            // the web's mt-1 plus the half-leading a browser puts above the text (egui puts it all below)
+            ui.add_space(6.0);
             let text = RichText::new(s).size(11.0).line_height(Some(widgets::LEADING * 11.0)).color(muted);
             ui.add(egui::Label::new(text).wrap());
         };
@@ -263,15 +264,15 @@ impl Settings {
                                         .collect();
                                     widgets::labeled_select(ui, &look, t("Theme"), "s-theme", &mut f.theme, &names, cw);
                                     note(ui, t("Look of the panel and the login page for every operator."));
-                                    ui.add_space(8.0);
+                                    ui.add_space(5.5); // the web's mt-2, less the half-leading egui leaves below
                                     crate::widgets::check(ui, &mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(12.0));
                                 });
                             });
-                            ui.add_space(12.0);
+                            ui.add_space(16.5); // the web's gap-4 between the grid's rows
                             widgets::above(ui, &look, t("Session timeout (minutes idle)"), cw, |ui, _| {
                                 ui.add(crate::widgets::line(&mut f.session).desired_width(cw))
                             });
-                            ui.add_space(12.0);
+                            ui.add_space(14.0);
                             let label = crate::style::semibold(t("API documentation (Swagger) at /swagger"), 12.0).color(look.c("fg-strong"));
                             crate::widgets::check(ui, &mut f.swagger, label);
                             note(ui, t("Only for signed-in administrators, like the queue monitor. Keep it off in production."));

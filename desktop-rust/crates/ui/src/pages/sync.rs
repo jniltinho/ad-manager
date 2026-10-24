@@ -216,7 +216,7 @@ impl Sync {
                     Column::new(t("When (cron)"), 100.0),
                     Column::new(t("Last run"), 180.0),
                     Column::new(t("Quarantine"), 90.0),
-                    Column::new("", 104.0).right(),
+                    Column::new("", 144.0).right(), // the web's w-36
                 ];
                 let me = &*self;
                 let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();

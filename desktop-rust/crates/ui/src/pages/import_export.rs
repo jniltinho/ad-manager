@@ -324,22 +324,44 @@ impl ImportExport {
         let h = ui.available_height();
         let mut preview = false;
         let mut apply = false;
-        // the page scrolls as a whole, as the web's (not the left column alone)
-        egui::ScrollArea::vertical().id_salt("import-page").auto_shrink([false, false]).show(ui, |ui| {
+        // as the web's: from its lg breakpoint (1024) the left column scrolls alone beside the plan; narrower, the page
+        // scrolls as a whole
+        if ui.ctx().content_rect().width() >= 1024.0 {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 20.0;
                 ui.vertical(|ui| {
                     ui.set_width(360.0);
-                    self.export_card(ui, cx);
-                    ui.add_space(20.0);
-                    preview = self.import_card(ui, cx);
+                    egui::ScrollArea::vertical().id_salt("import-left").max_height(h).auto_shrink([false, true]).show(
+                        ui,
+                        |ui| {
+                            self.export_card(ui, cx);
+                            ui.add_space(20.0);
+                            preview = self.import_card(ui, cx);
+                        },
+                    );
                 });
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
                     apply = self.plan_card(ui, cx, h);
                 });
             });
-        });
+        } else {
+            egui::ScrollArea::vertical().id_salt("import-page").auto_shrink([false, false]).show(ui, |ui| {
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = 20.0;
+                    ui.vertical(|ui| {
+                        ui.set_width(360.0);
+                        self.export_card(ui, cx);
+                        ui.add_space(20.0);
+                        preview = self.import_card(ui, cx);
+                    });
+                    ui.vertical(|ui| {
+                        ui.set_width(ui.available_width());
+                        apply = self.plan_card(ui, cx, h);
+                    });
+                });
+            });
+        }
         if preview {
             self.plan = None;
             self.send(cx, false);

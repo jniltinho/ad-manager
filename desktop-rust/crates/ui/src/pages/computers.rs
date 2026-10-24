@@ -5,7 +5,7 @@
 use adm_core::api::esc;
 use adm_core::i18n::t;
 use adm_core::logic::{Tone, computer_inactive, legacy_os, os_label};
-use adm_core::model::{Computer, is_set};
+use adm_core::model::Computer;
 use adm_core::tf;
 use chrono::Utc;
 use egui::{RichText, Ui};
@@ -163,7 +163,7 @@ impl Computers {
                     3 if x.is_dc => Cell::new("DC", Tone::Strong),
                     3 if !x.enabled => Cell::new(t("deactivated"), Tone::Muted),
                     3 => Cell::plain(""),
-                    4 if !is_set(&x.last_logon) => Cell::new("—", Tone::Muted),
+                    // never logged on counts as inactive, as the web's (its dash in the warning ink)
                     4 if computer_inactive(x, days, now) => Cell::new(adm_core::i18n::date(x.last_logon), Tone::Warn),
                     4 => Cell::new(adm_core::i18n::date(x.last_logon), ink),
                     5 => {

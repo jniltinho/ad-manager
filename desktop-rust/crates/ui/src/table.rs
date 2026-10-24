@@ -299,6 +299,10 @@ fn show<A>(
         let mut head_w: Vec<f32> = cols
             .iter()
             .map(|c| {
+                // an untitled column (the links') keeps its width, as the web's w-* on its empty heading
+                if c.title.is_empty() && c.span == 1 {
+                    return c.width;
+                }
                 ui.painter().layout_no_wrap(c.title.clone(), font.clone(), egui::Color32::PLACEHOLDER).size().x
                     + 2.0 * th_px
             })
@@ -431,10 +435,11 @@ fn show<A>(
     });
     // the header band over the scroll bar's column too (the web's sticky head spans the wrapper)
     if !fits {
+        // the 14 points kept for the bar (`avail`): the fill column grows past its width, so the columns' sum is not
+        // where the heads end
         let rect = framed.response.rect;
-        let used: f32 = widths.iter().sum();
         let gutter = egui::Rect::from_min_max(
-            egui::pos2((rect.left() + used).min(rect.right()), rect.top()),
+            egui::pos2((rect.right() - 14.0).max(rect.left()), rect.top()),
             egui::pos2(rect.right(), rect.top() + head_h),
         );
         if gutter.width() > 0.0 {

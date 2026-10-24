@@ -847,7 +847,8 @@ pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: u
             .response
         });
     let mut r = strip.inner;
-    r.rect = r.rect.intersect(strip.inner_rect).with_max_y(strip.inner_rect.bottom());
+    // the rows' bottom, at most the strip's (its inner rect keeps the three-row height even when it shrinks)
+    r.rect = r.rect.intersect(strip.inner_rect);
     // the line under the strip; the current tab covers it by its overlap
     let y = r.rect.bottom() + line_w / 2.0;
     ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(line_w, look.c("subtab-line")));
