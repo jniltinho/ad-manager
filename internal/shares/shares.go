@@ -73,7 +73,9 @@ func (m *Manager) reserved(name string) bool {
 	if !m.DC {
 		return false
 	}
-	if strings.HasSuffix(name, "$") || strings.EqualFold(name, "sysvol") || strings.EqualFold(name, "netlogon") {
+	// the administrative shares (a drive's C$, ADMIN$, IPC$, print$), not a hidden data share such as
+	// "Notas Fiscais$" (a migrated Windows server's hidden shares are data)
+	if adminShare.MatchString(name) || strings.EqualFold(name, "sysvol") || strings.EqualFold(name, "netlogon") {
 		return true
 	}
 	for _, r := range m.Reserved {
@@ -162,6 +164,8 @@ var (
 	// "$" only at the end: hidden share (Windows convention, e.g. "Notas Fiscais$")
 	shareName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._-]{0,78}\$?$`)
 	reserved  = []string{"global", "homes", "printers", "print$", "ipc$", "admin$", "sysvol", "netlogon"}
+	// adminShare: Windows' administrative shares (a drive letter's, ADMIN$, IPC$, print$)
+	adminShare = regexp.MustCompile(`(?i)^([a-z]|admin|ipc|print)\$$`)
 )
 
 // ValidName rejects names outside the allowed pattern and names reserved by
