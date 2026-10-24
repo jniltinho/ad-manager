@@ -599,3 +599,30 @@ fn an_expired_session_heard_by_any_call_goes_back_to_sign_in() {
     e.h.state_mut().cx.spawn(async move { api.act(reqwest::Method::GET, "/api/expired-probe").await }, |_, _| {});
     e.wait("the sign-in screen", |a, _| matches!(&a.screen, Screen::Login(_)));
 }
+
+#[test]
+fn sync_preview_is_followed_in_the_wizard() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Backup").click();
+    e.h.run_steps(3);
+    e.h.get_by_label("Sync").click();
+    e.wait("the jobs", |_, m| !m.sent("GET", "/api/agents/1/syncs").is_empty());
+    e.h.run_steps(3);
+    e.h.get_all_by_label("Edit").nth(1).unwrap().click_accesskit(); // the second job (copy mode)
+    e.h.run_steps(4);
+    e.h.get_by_label_contains("Save and preview").click_accesskit();
+    e.wait("the preview", |_, m| !m.sent("POST", "/api/agents/1/syncs/public/preview").is_empty());
+    // followed every 2 s until it ends
+    for _ in 0..400 {
+        e.h.step();
+        if e.h.query_by_label_contains("Preview done").is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(e.h.query_by_label_contains("Preview done").is_some(), "step 5 shows the finished preview");
+    assert!(e.h.query_by_label_contains("40 (50.0 MiB)").is_some(), "with its plan");
+    e.h.get_by_label("▶  Run now").click_accesskit();
+    e.wait("the run", |_, m| !m.sent("POST", "/api/agents/1/syncs/public/run").is_empty());
+}

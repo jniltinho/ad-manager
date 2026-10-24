@@ -188,6 +188,7 @@ pub fn demo(users: usize) -> Arc<Route> {
                     json!({"token": "Tk-EXAMPLE-0001", "hash": "h", "command": "echo h | sudo tee /opt/ad-manager/agent.token"}),
                 ),
                 "/api/agents/1/tasks" => ok(json!({"id": "t1", "state": "pending"})),
+                "/api/agents/1/syncs/public/preview" => ok(json!({"id": "p1", "job": "public", "preview": true, "status": "running"})),
                 "/api/users/bruno.silva/password-link" => {
                     ok(json!({"token": "Zq3xY7", "expires": "2026-10-24T10:00:00Z"}))
                 }
@@ -287,9 +288,13 @@ pub fn demo(users: usize) -> Arc<Route> {
             ),
             "/api/agents/1/syncs" => ok(
                 json!({"jobs":[{"id":"finance","name":"finance · old-fs","rev":2,"approved_rev":2,"source":{"host":"old-fs.domain.local","share":"dados","path":"finance","auth":"kerberos"},
-                "dest":"/srv/shares/finance","mode":"mirror","cron":"0 1 * * *","enabled":true,"max_delete":100,"max_delete_pct":20,"reinherit":true}],
+                "dest":"/srv/shares/finance","mode":"mirror","cron":"0 1 * * *","enabled":true,"max_delete":100,"max_delete_pct":20,"reinherit":true},
+                {"id":"public","name":"public · old-fs","rev":1,"approved_rev":1,"source":{"host":"old-fs.domain.local","share":"dados","path":"public","auth":"kerberos"},
+                "dest":"/srv/shares/public","mode":"copy","cron":"","enabled":false,"keep_days":30}],
                 "runs":[{"id":"r1","job":"finance","preview":false,"started":"2026-10-22T01:00:00Z","finished":"2026-10-22T01:04:38Z","status":"ok",
-                "result":{"plan":{"New":12,"Changed":3,"Delete":1,"Same":5400},"transfers":15,"deleted":1}}],"roots":["/srv/shares"],"file_server":true,"kerberos":true,"machine":"FS01$"}),
+                "result":{"plan":{"New":12,"Changed":3,"Delete":1,"Same":5400},"transfers":15,"deleted":1}},
+                {"id":"p1","job":"public","preview":true,"started":"2026-10-22T09:00:00Z","finished":"2026-10-22T09:00:20Z","status":"ok",
+                "result":{"plan":{"New":40,"NewBytes":52428800,"Changed":2,"ChangedBytes":1048576,"Same":900,"sample":{"new":["public/report-2026.pdf","public/photos/team.jpg"]}}}}],"roots":["/srv/shares"],"file_server":true,"kerberos":true,"machine":"FS01$"}),
             ),
             "/api/agents/1/shares" => ok(json!([
                 {"name":"finance","path":"/srv/shares/finance","comment":"Finance","rw_groups":["DOMAIN\\Finance"],"ro_groups":["DOMAIN\\Auditors"],"browseable":true},

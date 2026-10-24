@@ -8,7 +8,7 @@ use adm_core::api::{Api, esc};
 use adm_core::forms::{SyncForm, SyncFormError, new_sync_job, sync_unc};
 use adm_core::i18n::{server_text, t};
 use adm_core::logic::{Tone, size_text, slug};
-use adm_core::model::{CheckStep, SyncJob, SyncList};
+use adm_core::model::{CheckStep, SyncJob, SyncList, SyncRun};
 use adm_core::tf;
 use chrono::{DateTime, Local, Utc};
 use egui::{RichText, Ui};
@@ -53,6 +53,8 @@ pub fn open(cx: &mut Cx, agent: i64, data: SyncList, job: Option<SyncJob>) {
         next_runs: (String::new(), Tone::Muted),
         cron_ok: true,
         done: false,
+        run: None,
+        reached: 0,
         data,
         job: j,
     };
@@ -105,6 +107,10 @@ pub struct SyncWizard {
     next_runs: (String, Tone),
     cron_ok: bool,
     done: bool,
+    // 5. the preview, followed here
+    run: Option<SyncRun>,
+    /// The furthest step reached: the done ones can be opened again (not from the preview).
+    reached: usize,
 }
 
 /// The wizard `id`, if still open (a reply never reaches another wizard opened later).
@@ -427,24 +433,123 @@ impl SyncWizard {
             async move {
                 api.act_with(Method::PUT, &path, &job).await?;
                 if preview {
-                    api.act(Method::POST, &format!("{path}/preview")).await?;
+                    return Ok(Some(
+                        api.send::<SyncRun, _>(Method::POST, &format!("{path}/preview"), None::<&()>).await?,
+                    ));
                 }
-                Ok(())
+                Ok(None)
             },
-            move |app, ()| {
-                app.cx.set_status(if preview { t("Sync job saved; preview queued.") } else { t("Sync job saved.") });
-                if let Some(w) = wizard(app, me) {
-                    w.done = true;
-                }
+            move |app, run| {
                 app.with_shell(|s, cx| s.sync.reload(cx));
+                let Some(r) = run else {
+                    app.cx.set_status(t("Sync job saved."));
+                    if let Some(w) = wizard(app, me) {
+                        w.done = true;
+                    }
+                    return;
+                };
+                // the preview is followed in the wizard (step 5); the wizard closed meanwhile: only a note
+                if let Some(w) = wizard(app, me) {
+                    w.run = Some(r);
+                    w.step = 4;
+                    poll(&app.cx, me);
+                } else {
+                    app.cx.set_status(t("Sync job saved; preview queued."));
+                }
             },
         );
     }
 
+    /// Step 5: the preview, followed here (nothing written yet), with Run now once it is done; true to close.
+    fn step5(&mut self, ui: &mut Ui, cx: &mut Cx) -> bool {
+        let look = cx.look.clone();
+        let Some(r) = self.run.clone() else { return true };
+        let running = r.status == "queued" || r.status == "running";
+        let (icon, text, ink) = if running {
+            ("⟳", t("Preview running: listing the source and the destination…"), look.c("fg-strong"))
+        } else if r.status == "ok" {
+            ("✔", t("Preview done: nothing was written yet."), look.c("ok"))
+        } else {
+            ("✖", t("The preview failed."), look.c("err"))
+        };
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(icon).color(ink));
+            ui.label(crate::style::semibold(text, 12.0).color(look.c("fg-strong")));
+        });
+        if running {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+        }
+        if !r.error.is_empty() {
+            ui.colored_label(look.c("err"), adm_core::i18n::server_text(&r.error));
+        }
+        if let Some(p) = r.result.as_ref().map(|x| &x.plan) {
+            ui.add_space(8.0);
+            let mut rows = vec![
+                [RichText::new(t("New")).strong(), RichText::new(format!("{} ({})", p.new, size_text(p.new_bytes)))],
+                [
+                    RichText::new(t("Changed")).strong(),
+                    RichText::new(format!("{} ({})", p.changed, size_text(p.changed_bytes))),
+                ],
+            ];
+            if self.form.mirror {
+                let del = RichText::new(format!("{} ({})", p.delete, size_text(p.delete_bytes)));
+                rows.push([
+                    RichText::new(t("To delete")).strong(),
+                    if p.delete > 0 { del.color(look.c("warn")) } else { del },
+                ]);
+            }
+            rows.push([RichText::new(t("Unchanged")).strong(), RichText::new(p.same.to_string())]);
+            widgets::mini_table(ui, &look, ["", ""], &rows, None);
+            for (k, label) in [("new", "New"), ("changed", "Changed"), ("delete", "To delete")] {
+                if let Some(list) = p.sample.get(k).filter(|l| !l.is_empty()) {
+                    egui::CollapsingHeader::new(format!("{} ({})", t(label), tf!("first %d", list.len())))
+                        .id_salt(("preview-sample", k))
+                        .show(ui, |ui| {
+                            egui::Frame::new().fill(look.c("surface-2")).inner_margin(egui::Margin::same(8)).show(
+                                ui,
+                                |ui| {
+                                    ui.set_width(ui.available_width());
+                                    egui::ScrollArea::vertical().max_height(128.0).show(ui, |ui| {
+                                        ui.label(RichText::new(list.join("\n")).monospace().size(11.0));
+                                    });
+                                },
+                            );
+                        });
+                }
+            }
+        }
+        let (mut close, mut run_now) = (false, false);
+        let ok = r.status == "ok";
+        Self::nav(
+            ui,
+            &look,
+            |_| {},
+            |ui| {
+                let label = t("Run now");
+                run_now =
+                    ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "▶", label, Kind::Primary)).inner.clicked();
+                close = widgets::button(ui, &look, "", t("Close (the job is saved)"), Kind::Secondary).clicked();
+            },
+        );
+        if run_now {
+            let api = self.api.clone();
+            let path = format!("{}/syncs/{}/run", self.base, esc(&self.form.id));
+            cx.run(async move { api.act(Method::POST, &path).await }, |app, ()| {
+                app.cx.set_status(t("Sync queued."));
+                app.with_shell(|s, cx| s.sync.reload(cx));
+            });
+            return true;
+        }
+        close
+    }
+
     /// The web's stepper: numbered boxes (the current one filled), a line under them, then "Step n of 4: name".
-    fn header(&self, ui: &mut Ui, cx: &Cx) {
-        let look = &cx.look;
-        let names = [t("Source and access"), t("What to copy"), t("Where to"), t("How and when")];
+    fn header(&mut self, ui: &mut Ui, cx: &Cx) {
+        let look = cx.look.clone();
+        let look = &look;
+        let names =
+            [t("Source and access"), t("What to copy"), t("Where to"), t("How and when"), t("Preview of the copy")];
+        let mut go = None;
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             for (i, s) in names.iter().enumerate() {
@@ -467,7 +572,16 @@ impl SyncWizard {
                 } else {
                     RichText::new(*s).size(12.0).color(look.c("fg-muted"))
                 };
-                ui.label(label);
+                // a done step opens again (not from the preview, nor the preview itself)
+                let open = !on && i < 4 && i <= self.reached && self.step < 4;
+                let r = ui.add(egui::Label::new(label).sense(if open {
+                    egui::Sense::click()
+                } else {
+                    egui::Sense::hover()
+                }));
+                if open && r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                    go = Some(i);
+                }
                 ui.add_space(8.0);
             }
         });
@@ -475,9 +589,12 @@ impl SyncWizard {
         let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
         ui.painter().rect_filled(r, 0.0, look.c("surface-2"));
         ui.add_space(12.0);
-        let head = tf!("Step %d of %d: %s", self.step + 1, names.len(), names[self.step.min(3)]);
+        let head = tf!("Step %d of %d: %s", self.step + 1, names.len(), names[self.step.min(4)]);
         ui.label(crate::style::semibold(head, 13.0).color(look.c("fg-strong")));
         ui.add_space(4.0);
+        if let Some(i) = go {
+            self.show(cx, i);
+        }
     }
 
     /// The row under a step: the line, then `left` (back, test) at the left and `right` (the step's action) at the right.
@@ -930,6 +1047,37 @@ impl SyncWizard {
     }
 }
 
+/// Follows the wizard's preview every 2 s until it ends (the list of runs, as the web's).
+fn poll(cx: &Cx, id: u64) {
+    let Some(w) = cx
+        .dialogs
+        .iter()
+        .find(|d| d.0 == id)
+        .and_then(|d| (d.1.as_ref() as &dyn std::any::Any).downcast_ref::<SyncWizard>())
+    else {
+        return;
+    };
+    let Some(run) = w.run.clone() else { return };
+    let (api, path) = (w.api.clone(), format!("{}/syncs", w.base));
+    cx.spawn(
+        async move {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            api.get::<SyncList>(&path).await
+        },
+        move |app, r| {
+            let Some(w) = wizard(app, id) else { return };
+            if let Ok(d) = r
+                && let Some(x) = d.runs.into_iter().find(|x| x.id == run.id)
+            {
+                w.run = Some(x);
+            }
+            if w.run.as_ref().is_some_and(|x| x.status == "queued" || x.status == "running") {
+                poll(&app.cx, id);
+            }
+        },
+    );
+}
+
 impl Dialog for SyncWizard {
     fn title(&self) -> String {
         if self.is_new { t("New sync job").into() } else { tf!("Edit %s", self.job.name) }
@@ -948,11 +1096,17 @@ impl Dialog for SyncWizard {
             return Flow::Close;
         }
         self.header(ui, cx);
+        self.reached = self.reached.max(self.step);
         match self.step {
             0 => self.step1(ui, cx),
             1 => self.step2(ui, cx),
             2 => self.step3(ui, cx),
-            _ => self.step4(ui, cx),
+            3 => self.step4(ui, cx),
+            _ => {
+                if self.step5(ui, cx) {
+                    return Flow::Close;
+                }
+            }
         }
         Flow::Keep
     }
