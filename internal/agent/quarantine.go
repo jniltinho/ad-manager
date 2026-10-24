@@ -25,6 +25,7 @@ type Quarantine struct {
 	Job     string    `json:"job"`
 	Gen     string    `json:"gen"`
 	Run     string    `json:"run"`
+	Part    string    `json:"part,omitempty"` // a server job's share: "-s<n>" after the run in the name
 	Dest    string    `json:"dest"`
 	Path    string    `json:"path"`
 	Created time.Time `json:"created"`
@@ -32,7 +33,10 @@ type Quarantine struct {
 	Size    int64     `json:"size"`  // listing only
 }
 
-var quarantineRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}-\d{8}T\d{6}Z-[0-9a-f]{8}$`)
+var (
+	quarantineRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}-\d{8}T\d{6}Z-[0-9a-f]{8}(-s\d{1,4})?$`)
+	partRe       = regexp.MustCompile(`^(-s\d{1,4})?$`)
+)
 
 // defaultKeepDays is the retention of a job that sets none.
 const defaultKeepDays = 30
@@ -54,7 +58,7 @@ func (a *Agent) writeQuarantine(q Quarantine) error {
 // quarantineOK tells whether a manifest names a quarantine folder of this agent: <share root>/_sync/<name> (or
 // <share root>/_sincronizacao/<name>, the folder's old name).
 func (a *Agent) quarantineOK(q Quarantine) bool {
-	if !quarantineRe.MatchString(q.Name) || q.Name != q.Job+"-"+q.Run {
+	if !quarantineRe.MatchString(q.Name) || !partRe.MatchString(q.Part) || q.Name != q.Job+"-"+q.Run+q.Part {
 		return false
 	}
 	for _, r := range a.cfg.ShareRoots {

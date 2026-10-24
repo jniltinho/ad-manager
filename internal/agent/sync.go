@@ -623,7 +623,7 @@ func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun, part s
 		a.sync.qmu.Lock() // not while the job's quarantine is being emptied
 		qPin, qf, err := backup.MakeOwnDir(root, SyncDir, qName)
 		if err == nil { // the manifest at once: a quarantine nobody records would never leave
-			if err = a.writeQuarantine(Quarantine{Name: qName, Job: j.ID, Gen: j.Gen, Run: r.ID, Dest: j.Dest,
+			if err = a.writeQuarantine(Quarantine{Name: qName, Job: j.ID, Gen: j.Gen, Run: r.ID, Part: part, Dest: j.Dest,
 				Path: filepath.Join(root, SyncDir, qName), Created: time.Now().UTC()}); err != nil {
 				qf.Close()
 			}

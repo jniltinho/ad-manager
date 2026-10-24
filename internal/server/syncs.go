@@ -41,8 +41,8 @@ func (s *Server) syncRoutes(p *echo.Group) {
 
 var (
 	syncParamRe = regexp.MustCompile(`^[A-Za-z0-9-]{1,40}$`)
-	// a quarantine: <job>-<run>
-	quarantineRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}-\d{8}T\d{6}Z-[0-9a-f]{8}$`)
+	// a quarantine: <job>-<run>, and -s<n> for a server job's share
+	quarantineRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}-\d{8}T\d{6}Z-[0-9a-f]{8}(-s\d{1,4})?$`)
 )
 
 // syncQuarantineFile handles GET /api/agents/:id/syncs/quarantines/:qid/file?path=: one file of a quarantine,

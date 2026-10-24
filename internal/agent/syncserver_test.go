@@ -2,10 +2,13 @@ package agent
 
 import (
 	"errors"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"ad-manager/internal/backup"
+	"ad-manager/internal/config"
 	"ad-manager/internal/syncer"
 )
 
@@ -76,5 +79,28 @@ func TestAddResult(t *testing.T) {
 	addResult(sum, nil, "Gone")
 	if sum.Checked {
 		t.Fatal("a share without a result left the run checked")
+	}
+}
+
+// A server job's share keeps its quarantine under its own name (<job>-<run>-s<n>): written, read back, listed.
+func TestServerPartQuarantine(t *testing.T) {
+	root, state := t.TempDir(), t.TempDir()
+	a := &Agent{cfg: config.Agent{ShareRoots: []string{root}}, backups: &backup.Store{Dir: state}}
+	q := Quarantine{Name: "fs-all-20261024T190917Z-ad05936b-s2", Job: "fs-all", Run: "20261024T190917Z-ad05936b", Part: "-s2",
+		Dest: root + "/Financeiro", Path: filepath.Join(root, SyncDir, "fs-all-20261024T190917Z-ad05936b-s2")}
+	if err := a.writeQuarantine(q); err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.quarantine(q.Name)
+	if err != nil || got.Part != "-s2" || got.Run != q.Run {
+		t.Fatalf("read back: %+v %v", got, err)
+	}
+	for name, bad := range map[string]Quarantine{
+		"part not in the name": {Name: q.Name, Job: q.Job, Run: q.Run, Path: q.Path},
+		"odd part":             {Name: "fs-all-20261024T190917Z-ad05936b-x2", Job: q.Job, Run: q.Run, Part: "-x2", Path: q.Path},
+	} {
+		if a.quarantineOK(bad) {
+			t.Errorf("%s: accepted", name)
+		}
 	}
 }
