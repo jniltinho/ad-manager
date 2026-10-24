@@ -292,7 +292,32 @@ pub fn cardtabs_at(
     by: f32,
     fit: bool,
 ) -> Option<usize> {
-    let h = 34.0 + look.px("cardtabs-pad", 0.0);
+    let upper = look.p.text("cardtab-transform") == "uppercase";
+    let bar = look.px("cardtab-bar-w", 4.0);
+    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let (pad, gap) = (look.px("cardtabs-pad", 0.0), look.px("cardtabs-gap", 0.0));
+    let n = tabs.len().max(1) as f32;
+    // not fit: the web's flex: 1 buttons, equal widths, a label too long for its share wrapping over two lines (all
+    // tabs then as tall, align-items: stretch); fit: as wide as their labels
+    let room = ui.available_width() + 2.0 * bx - 2.0 * pad - gap * (n - 1.0);
+    let equal = (room / n).floor();
+    let galleys: Vec<_> = tabs
+        .iter()
+        .enumerate()
+        .map(|(i, l)| {
+            let text = if upper { l.to_uppercase() } else { l.to_string() };
+            let ink = if i == sel { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
+            let wrap = if fit { f32::INFINITY } else { (equal - 24.0).max(10.0) };
+            let mut job = egui::text::LayoutJob::simple(text, font.clone(), ink, wrap);
+            if !fit {
+                job.halign = egui::Align::Center;
+            }
+            ui.painter().layout_job(job)
+        })
+        .collect();
+    let line = galleys.iter().map(|g| g.rows.first().map_or(15.0, |r| r.height())).fold(0.0, f32::max);
+    let tallest = galleys.iter().map(|g| g.size().y).fold(0.0, f32::max);
+    let h = 34.0 + pad + (tallest - line).max(0.0);
     let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
     let band =
         egui::Rect::from_min_max(egui::pos2(r.left() - bx, r.top() - by), egui::pos2(r.right() + bx, r.bottom()));
@@ -312,38 +337,14 @@ pub fn cardtabs_at(
     painter.rect_filled(band, 0.0, look.c("cardtabs"));
     // the band's line under the tabs: the current tab covers it (the web's overlap)
     painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
-    let upper = look.p.text("cardtab-transform") == "uppercase";
-    let bar = look.px("cardtab-bar-w", 4.0);
-    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
-    let mut x = band.left() + look.px("cardtabs-pad", 0.0);
+    let mut x = band.left() + pad;
     let mut out = None;
-    // not fit: the band's width shared in proportion to the labels (each one whole, the band filled)
-    let natural: Vec<f32> = tabs
-        .iter()
-        .map(|l| {
-            let text = if upper { l.to_uppercase() } else { l.to_string() };
-            ui.painter().layout_no_wrap(text, font.clone(), Color32::PLACEHOLDER).size().x + 24.0
-        })
-        .collect();
-    let room =
-        band.width() - 2.0 * look.px("cardtabs-pad", 0.0) - look.px("cardtabs-gap", 0.0) * (tabs.len() as f32 - 1.0);
-    // equal widths as the web's flex: 1, in proportion only when a label would not fit its share
-    let equal = room / tabs.len().max(1) as f32;
-    let fits = natural.iter().all(|w| *w <= equal);
-    let scale = room / natural.iter().sum::<f32>().max(1.0);
-    for (i, label) in tabs.iter().enumerate() {
+    for (i, (label, g)) in tabs.iter().zip(galleys).enumerate() {
         let on = i == sel;
-        let text = if upper { label.to_uppercase() } else { label.to_string() };
         let ink = if on { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
-        let g = ui.painter().layout_no_wrap(text, font.clone(), ink);
-        let w = if fit {
-            g.size().x + 24.0 + if on { bar } else { 0.0 }
-        } else {
-            if fits { equal.floor() } else { (natural[i] * scale).floor() }
-        };
+        let w = if fit { g.size().x + 24.0 + if on { bar } else { 0.0 } } else { equal };
         // the band's padding on top (the web's --cardtabs-pad), the inactive tabs lower by their inset, the current
         // one over the band's line by its overlap
-        let pad = look.px("cardtabs-pad", 0.0);
         let top = band.top() + pad + if on { 0.0 } else { look.px("cardtab-inset-top", 0.0) };
         let bottom = band.bottom() + if on { look.px("cardtab-on-overlap", 0.0) } else { 0.0 };
         let tab = egui::Rect::from_min_max(egui::pos2(x, top), egui::pos2(x + w, bottom));
@@ -366,10 +367,11 @@ pub fn cardtabs_at(
                 look.c("cardtab-bar"),
             );
         }
+        // a centered job is laid out around x = 0: its galley starts at the middle of the tab
         let left = if fit {
             tab.left() + 12.0 + if on { bar } else { 0.0 }
         } else {
-            tab.center().x - g.size().x / 2.0 + if on { bar / 2.0 } else { 0.0 }
+            tab.center().x + if on { bar / 2.0 } else { 0.0 }
         };
         painter.galley(egui::pos2(left, tab.center().y - g.size().y / 2.0), g, ink);
         let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
@@ -382,7 +384,7 @@ pub fn cardtabs_at(
         if resp.clicked() && !on {
             out = Some(i);
         }
-        x += w + look.px("cardtabs-gap", 0.0);
+        x += w + gap;
     }
     if by > 0.0 {
         ui.add_space(12.0); // a dialog's body goes on under the band
