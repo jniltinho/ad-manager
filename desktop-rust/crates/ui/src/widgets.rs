@@ -337,9 +337,19 @@ pub fn stat_tile(
     resp
 }
 
+/// Draws one row's cell (its index) in a custom way.
+pub type RowCell<'a> = dyn FnMut(&mut Ui, usize) + 'a;
+
 /// A small table inside a panel, as the web's .grid-t without its frame (Home's domain controllers): the theme's
 /// header band and the rows with their dividers and stripes.
-pub fn mini_table<const N: usize>(ui: &mut Ui, look: &Look, heads: [&str; N], rows: &[[RichText; N]]) {
+/// `last`, when given, draws the last column of each row (a remove link) instead of its text.
+pub fn mini_table<const N: usize>(
+    ui: &mut Ui,
+    look: &Look,
+    heads: [&str; N],
+    rows: &[[RichText; N]],
+    mut last: Option<&mut RowCell<'_>>,
+) {
     let w = ui.available_width();
     let (th_px, th_py, td_py) = (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-py", 4.0));
     let head_h = (12.0 * 1.5 + 2.0 * th_py + 1.0).round();
@@ -387,10 +397,18 @@ pub fn mini_table<const N: usize>(ui: &mut Ui, look: &Look, heads: [&str; N], ro
         for (i, cell) in row.iter().enumerate() {
             let cell_rect =
                 egui::Rect::from_min_size(egui::pos2(x + th_px, rect.top()), egui::vec2(col_w[i] - 2.0 * th_px, row_h));
-            let mut child = ui.new_child(
-                egui::UiBuilder::new().max_rect(cell_rect).layout(egui::Layout::left_to_right(egui::Align::Center)),
-            );
-            child.add(egui::Label::new(cell.clone().size(12.0)).truncate());
+            match (&mut last, i + 1 == N) {
+                (Some(f), true) => {
+                    let layout = egui::Layout::right_to_left(egui::Align::Center);
+                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell_rect).layout(layout));
+                    f(&mut child, r);
+                }
+                _ => {
+                    let layout = egui::Layout::left_to_right(egui::Align::Center);
+                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell_rect).layout(layout));
+                    child.add(egui::Label::new(cell.clone().size(12.0)).truncate());
+                }
+            }
             x += col_w[i];
         }
     }

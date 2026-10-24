@@ -255,7 +255,8 @@ fn show<A>(
             .min_scrolled_height(80.0)
             // a wheel step moves at once: an animation would redraw the whole window for every frame of it
             .animate_scrolling(false)
-            .auto_shrink([false, false]);
+            // as the web's wrapper: as tall as its rows, at most the room left
+            .auto_shrink([false, true]);
         if let Some(r) = state.scroll_to.take() {
             tb = tb.scroll_to_row(r, None);
         }

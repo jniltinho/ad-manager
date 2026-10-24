@@ -233,7 +233,7 @@ impl Home {
                             })
                             .collect()
                     });
-                    widgets::mini_table(ui, &look, [t("Name"), t("System"), t("Last logon")], &rows);
+                    widgets::mini_table(ui, &look, [t("Name"), t("System"), t("Last logon")], &rows, None);
                     egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
                         let server = s.map_or(String::new(), |s| s.server.clone());
                         ui.horizontal_wrapped(|ui| {

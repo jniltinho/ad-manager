@@ -1,10 +1,11 @@
-//! Groups: the list (system tag, type, members, description), new group, edit description, delete (typed; built-in
-//! groups never), and the members of the selected group (add by login, remove with a confirmation).
+//! Groups as the web's page: the toolbar (filter, type, count, Export CSV, New group), the full-width table (the
+//! group, its system tag, type, scope, members, description, and the members / delete links of each row) and the
+//! group's detail dialog (description, members added by login and removed).
 
 use adm_core::api::esc;
 use adm_core::i18n::t;
 use adm_core::logic::Tone;
-use adm_core::model::{Group, OrgUnit};
+use adm_core::model::{Group, OrgUnit, User};
 use adm_core::tf;
 use egui::{RichText, Ui};
 use reqwest::Method;
@@ -19,12 +20,35 @@ use crate::widgets::{self, Kind};
 #[derive(Default)]
 pub struct Groups {
     groups: Vec<Group>,
+    /// The logins and names of the users (the detail dialog's suggestions and names).
+    logins: Vec<(String, String)>,
+    search: String,
+    /// 0 all, 1 security, 2 distribution.
+    kind: usize,
+    visible: Vec<usize>,
     table: TableState,
-    /// The members of the group open on the right: its name and logins.
-    open: Option<(String, Vec<String>)>,
-    members: TableState,
-    new_member: String,
     generation: u64,
+}
+
+/// What a row's link does.
+#[derive(Clone, Copy)]
+enum GroupAction {
+    Members,
+    Delete,
+}
+
+fn kind_name(k: &str) -> &'static str {
+    if k == "security" { t("Security") } else { t("Distribution") }
+}
+
+fn scope_name(s: &str) -> &'static str {
+    match s {
+        "global" => t("Global"),
+        "domainlocal" => t("Domain local"),
+        "universal" => t("Universal"),
+        "builtin" => t("Built-in"),
+        _ => "",
+    }
 }
 
 impl Groups {
@@ -36,241 +60,272 @@ impl Groups {
         self.generation += 1;
         let g = self.generation;
         let api = cx.panel.clone();
-        cx.run(async move { api.get::<Vec<Group>>("/api/groups").await }, move |app, mut r| {
-            app.with_shell(|s, _| {
-                let p = &mut s.groups;
-                if p.generation != g {
-                    return;
-                }
-                r.sort_by_key(|x| x.name.to_lowercase());
-                p.groups = r;
-                p.table.clear();
-                p.open = None;
-                p.members.clear();
-            });
-        });
+        cx.run(
+            async move { Ok((api.get::<Vec<Group>>("/api/groups").await?, api.get::<Vec<User>>("/api/users").await?)) },
+            move |app, (mut r, users)| {
+                app.with_shell(|s, _| {
+                    let p = &mut s.groups;
+                    if p.generation != g {
+                        return;
+                    }
+                    r.sort_by_key(|x| x.name.to_lowercase());
+                    p.groups = r;
+                    p.logins = users.into_iter().map(|u| (u.sam, u.name)).collect();
+                    p.apply();
+                });
+            },
+        );
     }
 
-    fn current(&self) -> Option<&Group> {
-        self.table.sel.and_then(|i| self.groups.get(i))
+    /// The groups shown (tests).
+    pub fn count(&self) -> usize {
+        self.visible.len()
     }
 
-    /// Shows the members of the selected group and refreshes its row.
-    fn open_group(&mut self, cx: &Cx) {
-        let Some(g) = self.current().map(|g| g.name.clone()) else { return };
-        let api = cx.panel.clone();
-        let path = format!("/api/groups/{}", esc(&g));
-        cx.run(async move { api.get::<Group>(&path).await }, move |app, d| {
-            app.with_shell(|s, _| {
-                let p = &mut s.groups;
-                let mut members = d.members.clone().unwrap_or_default();
-                members.sort();
-                if let Some(row) = p.groups.iter_mut().find(|x| x.name == d.name) {
-                    row.member_count = members.len() as i64;
-                    row.description = d.description.clone();
-                }
-                if p.current().is_some_and(|x| x.name == d.name) {
-                    p.open = Some((d.name, members));
-                    p.members.clear();
-                }
-            });
-        });
+    /// Filters the list again (search in name and description, type).
+    fn apply(&mut self) {
+        let q = self.search.trim().to_lowercase();
+        let want = ["", "security", "distribution"][self.kind.min(2)];
+        self.visible = self
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| want.is_empty() || g.kind == want)
+            .filter(|(_, g)| {
+                q.is_empty() || g.name.to_lowercase().contains(&q) || g.description.to_lowercase().contains(&q)
+            })
+            .map(|(i, _)| i)
+            .collect();
+        self.table.clear();
     }
 
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
-        let w = ui.available_width();
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(w * 0.62 - 6.0);
-                widgets::card(ui, &look, t("Groups"), |ui| self.list(ui, cx, keys));
-            });
-            ui.vertical(|ui| {
-                ui.set_width(w * 0.38 - 6.0);
-                widgets::card(ui, &look, t("Members"), |ui| self.members_ui(ui, cx));
-            });
-        });
-    }
-
-    fn list(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
-        let look = cx.look.clone();
-        let cur = self.current().cloned();
         ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "➕", t("New group"), Kind::Primary).clicked() {
-                new_group(cx);
+            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+            if super::search(ui, &mut self.search, t("Filter by name or description…"), 256.0).changed() {
+                self.apply();
             }
-            if ui
-                .add_enabled_ui(cur.is_some(), |ui| {
-                    widgets::button(ui, &look, "✏", t("Edit description"), Kind::Secondary)
-                })
-                .inner
-                .clicked()
-                && let Some(g) = &cur
-            {
-                cx.push(Description { name: g.name.clone(), text: g.description.clone() });
+            let kinds = [t("All types").to_string(), t("Security").into(), t("Distribution").into()];
+            if widgets::select(ui, "groups-kind", &mut self.kind, &kinds, 160.0) {
+                self.apply();
             }
-            // built-in groups cannot be deleted (the server refuses too)
-            let deletable = cur.as_ref().is_some_and(|g| !g.protected);
-            if ui
-                .add_enabled_ui(deletable, |ui| widgets::button(ui, &look, "🗑", t("Delete"), Kind::Danger))
-                .inner
-                .clicked()
-                && let Some(g) = cur.clone().filter(|g| !g.protected)
-            {
-                let name = g.name.clone();
-                cx.confirm_typed(
-                    t("Delete group"),
-                    tf!("Delete the group %s? Its members lose the permissions it grants.", g.name),
-                    &name,
-                    move |cx| {
-                        let api = cx.panel.clone();
-                        let path = format!("/api/groups/{}", esc(&g.name));
-                        cx.run(async move { api.act(Method::DELETE, &path).await }, move |app, ()| {
-                            app.cx.set_status(tf!("Group %s deleted.", g.name));
-                            app.with_shell(|s, cx| s.groups.reload(cx));
-                        });
-                    },
-                );
-            }
-            if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
-                self.reload(cx);
-            }
+            ui.label(
+                RichText::new(tf!("%d of %d", self.visible.len(), self.groups.len()))
+                    .size(12.0)
+                    .color(look.c("fg-muted")),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
+                    self.reload(cx);
+                }
+                if widgets::button(ui, &look, "➕", t("New group"), Kind::Primary).clicked() {
+                    new_group(cx);
+                }
+                if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
+                    crate::files::export(cx, "groups", t("groups.csv"));
+                }
+            });
         });
-        let kind = |k: &str| match k {
-            "security" => t("Security"),
-            "distribution" => t("Distribution"),
-            _ => "",
-        };
+        ui.add_space(look.px("toolbar-mb", 12.0));
         let cols = [
-            Column::new(t("Group"), 200.0),
-            Column::new("", 75.0).badge(),
-            Column::new(t("Group type"), 100.0),
-            Column::new(t("Members"), 75.0),
-            Column::new(t("Description"), 160.0),
+            Column::new(t("Group"), 230.0),
+            Column::new("", 80.0).badge(),
+            Column::new(t("Group type"), 95.0),
+            Column::new(t("Scope"), 100.0),
+            Column::new(t("Members"), 80.0).right(),
+            Column::new(t("Description"), 200.0).fill(),
+            Column::new(t("Actions"), 95.0).compact(34.0).span(2),
+            Column::new("", 75.0).compact(34.0).covered(),
         ];
-        let gs = &self.groups;
+        let (gs, vis) = (&self.groups, &self.visible);
         let mut hover = None;
-        let out = table::Table { id: "groups", cols: &cols, rows: gs.len(), keys, row_h: 29.0 }.show::<()>(
+        let out = table::Table { id: "groups", cols: &cols, rows: vis.len(), keys, row_h: 29.0 }.show(
             ui,
             &look,
             &mut self.table,
             &mut hover,
             |r, c| {
-                let g = &gs[r];
+                let i = vis[r];
+                let g = &gs[i];
                 match c {
-                    0 => Cell::new(&g.name, Tone::Strong),
+                    0 => Cell::plain(&g.name).bold().link("", tf!("Members of %s", g.name), (GroupAction::Members, i)),
                     1 if g.protected => Cell::new(t("system"), Tone::Strong),
-                    1 => Cell::plain(""),
-                    2 => Cell::plain(kind(&g.kind)),
-                    3 => Cell::plain(g.member_count.to_string()),
-                    _ => Cell::new(&g.description, Tone::Muted),
+                    2 => Cell::plain(kind_name(&g.kind)),
+                    3 => Cell::plain(scope_name(&g.scope)),
+                    4 => Cell::plain(g.member_count.to_string()),
+                    5 => Cell::new(&g.description, Tone::Muted),
+                    6 => Cell::plain(t("members")).link("👥", tf!("Members of %s", g.name), (GroupAction::Members, i)),
+                    7 if !g.protected => {
+                        Cell::new(t("delete"), Tone::Err).link("🗑", tf!("Delete %s", g.name), (GroupAction::Delete, i))
+                    }
+                    _ => Cell::plain(""),
                 }
             },
         );
-        if out.selected.is_some() {
-            self.open = None;
-            self.open_group(cx);
-        }
-    }
-
-    fn members_ui(&mut self, ui: &mut Ui, cx: &mut Cx) {
-        let look = cx.look.clone();
-        let title = match &self.open {
-            Some((g, m)) => tf!("%s — %d member(s)", g, m.len()),
-            None => t("Choose a group").into(),
-        };
-        ui.label(RichText::new(title).strong().size(13.0).color(look.c("fg-strong")));
-        let group = self.open.as_ref().map(|o| o.0.clone());
-        ui.horizontal(|ui| {
-            let r = ui.add(
-                crate::widgets::line(&mut self.new_member)
-                    .hint_text(t("New member's login (computers end with $)"))
-                    .desired_width(ui.available_width() - 200.0),
-            );
-            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-            let add = ui
-                .add_enabled_ui(group.is_some(), |ui| widgets::button(ui, &look, "➕", t("Add"), Kind::Primary))
-                .inner
-                .clicked();
-            let member = self.members.sel.and_then(|i| self.open.as_ref().and_then(|o| o.1.get(i).cloned()));
-            let remove = ui
-                .add_enabled_ui(member.is_some(), |ui| widgets::button(ui, &look, "➖", t("Remove"), Kind::Danger))
-                .inner
-                .clicked();
-            if let Some(g) = group.clone() {
-                let m = self.new_member.trim().to_string();
-                if (add || enter) && !m.is_empty() {
-                    let api = cx.panel.clone();
-                    let path = format!("/api/groups/{}/members", esc(&g));
-                    cx.run(
-                        async move { api.act_with(Method::POST, &path, &json!({ "member": m })).await.map(|()| m) },
-                        |app, m| {
-                            app.cx.set_status(tf!("%s added.", m));
-                            app.with_shell(|s, cx| {
-                                s.groups.new_member.clear();
-                                s.groups.open_group(cx);
-                            });
-                        },
-                    );
-                }
-                if remove && let Some(m) = member {
-                    cx.confirm(
-                        t("Remove member"),
-                        tf!("Remove %s from the group %s?", m, g),
-                        t("Remove"),
-                        true,
-                        move |cx| {
-                            let api = cx.panel.clone();
-                            let path = format!("/api/groups/{}/members/{}", esc(&g), esc(&m));
-                            cx.run(async move { api.act(Method::DELETE, &path).await }, move |app, ()| {
-                                app.cx.set_status(tf!("%s removed.", m));
-                                app.with_shell(|s, cx| s.groups.open_group(cx));
-                            });
-                        },
-                    );
-                }
+        cx.hover = hover.or(cx.hover.take());
+        let act = out.clicked.or_else(|| out.activated.and_then(|r| vis.get(r)).map(|&i| (GroupAction::Members, i)));
+        if let Some((a, i)) = act
+            && let Some(g) = self.groups.get(i).cloned()
+        {
+            match a {
+                GroupAction::Members => open_detail(cx, g.name, self.logins.clone()),
+                GroupAction::Delete => delete_group(cx, g),
             }
-        });
-        let empty = Vec::new();
-        let members = self.open.as_ref().map_or(&empty, |o| &o.1);
-        let mut hover = None;
-        table::Table {
-            id: "members",
-            cols: &[Column::new(t("Member (login)"), 320.0)],
-            rows: members.len(),
-            keys: false,
-            row_h: 29.0,
         }
-        .show::<()>(ui, &look, &mut self.members, &mut hover, |r, _| Cell::plain(&members[r]));
     }
 }
 
-/// Edits a group's description.
-struct Description {
-    name: String,
-    text: String,
+/// Deletes a group after the typed confirmation (built-in groups never: the server refuses too).
+fn delete_group(cx: &mut Cx, g: Group) {
+    if g.protected {
+        return;
+    }
+    let name = g.name.clone();
+    cx.confirm_typed(
+        t("Delete group"),
+        tf!("Delete the group %s? Its members lose the permissions it grants.", g.name),
+        &name,
+        move |cx| {
+            let api = cx.panel.clone();
+            let path = format!("/api/groups/{}", esc(&g.name));
+            cx.run(async move { api.act(Method::DELETE, &path).await }, move |app, ()| {
+                app.cx.set_status(tf!("Group %s deleted.", g.name));
+                app.with_shell(|s, cx| s.groups.reload(cx));
+            });
+        },
+    );
 }
 
-impl Dialog for Description {
+/// Opens a group's detail dialog with its members.
+fn open_detail(cx: &mut Cx, name: String, logins: Vec<(String, String)>) {
+    let api = cx.panel.clone();
+    let path = format!("/api/groups/{}", esc(&name));
+    cx.run(async move { api.get::<Group>(&path).await }, move |app, g| {
+        let mut members = g.members.clone().unwrap_or_default();
+        members.sort();
+        app.cx.push(Detail {
+            name: g.name,
+            description: g.description,
+            members,
+            logins,
+            add: String::new(),
+            busy: false,
+        });
+    });
+}
+
+/// A group's detail, as the web's GroupDetailDialog: its description (saved by the dialog's button) and its members,
+/// added by login and removed at once.
+struct Detail {
+    name: String,
+    description: String,
+    members: Vec<String>,
+    logins: Vec<(String, String)>,
+    add: String,
+    busy: bool,
+}
+
+impl Detail {
+    /// Adds or removes a member at once, then reloads the dialog's list and the page.
+    fn member(&mut self, cx: &mut Cx, m: String, add: bool) {
+        let api = cx.panel.clone();
+        let (g, me) = (self.name.clone(), cx.current_dialog());
+        let path = if add {
+            format!("/api/groups/{}/members", esc(&g))
+        } else {
+            format!("/api/groups/{}/members/{}", esc(&g), esc(&m))
+        };
+        cx.run(
+            async move {
+                if add {
+                    api.act_with(Method::POST, &path, &json!({ "member": m })).await?;
+                } else {
+                    api.act(Method::DELETE, &path).await?;
+                }
+                let d: Group = api.get(&format!("/api/groups/{}", esc(&g))).await?;
+                Ok((m, d))
+            },
+            move |app, (m, d)| {
+                app.cx.set_status(if add { tf!("%s added.", m) } else { tf!("%s removed.", m) });
+                if let Some(x) = app.cx.dialog_mut::<Detail>(me) {
+                    let mut members = d.members.unwrap_or_default();
+                    members.sort();
+                    x.members = members;
+                    x.add.clear();
+                }
+                app.with_shell(|s, cx| s.groups.reload(cx));
+            },
+        );
+    }
+}
+
+impl Dialog for Detail {
     fn title(&self) -> String {
         tf!("Group %s", self.name)
     }
 
     fn width(&self) -> f32 {
-        560.0
+        760.0
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        widgets::form(ui, "group-desc", |ui| {
-            widgets::labeled_field(ui, &look, t("Description"), &mut self.text, "", 380.0);
-            ui.end_row();
+        let l = widgets::lbl(ui, &look, t("Description"));
+        widgets::field(ui, &mut self.description, "", f32::INFINITY).labelled_by(l.id);
+        ui.add_space(16.0);
+        let mut add = None;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let w = ui.available_width() - 80.0;
+            let r = ui.add(
+                widgets::line(&mut self.add).hint_text(t("New member's login (computers end with $)")).desired_width(w),
+            );
+            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(t("New member")));
+            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let ready = !self.add.trim().is_empty();
+            if (ui.add_enabled_ui(ready, |ui| widgets::button(ui, &look, "", t("Add"), Kind::Primary)).inner.clicked()
+                || enter)
+                && ready
+            {
+                add = Some(self.add.trim().to_string());
+            }
         });
-        let f = footer(ui, cx, Some(t("Save description")), "", false, true);
+        ui.add_space(8.0);
+        let names: Vec<[RichText; 3]> = self
+            .members
+            .iter()
+            .map(|m| {
+                let name = self.logins.iter().find(|(s, _)| s.eq_ignore_ascii_case(m)).map_or("", |(_, n)| n.as_str());
+                [RichText::new(m).monospace(), RichText::new(name), RichText::new("")]
+            })
+            .collect();
+        let mut remove = None;
+        let head = tf!("Member (%d)", self.members.len());
+        let members = self.members.clone();
+        let mut link = |ui: &mut Ui, r: usize| {
+            if widgets::button(ui, &look, "🗑", t("remove"), Kind::Link)
+                .on_hover_text(tf!("Remove %s", members[r]))
+                .clicked()
+            {
+                remove = Some(members[r].clone());
+            }
+        };
+        widgets::mini_table(ui, &look, [head.as_str(), t("Name"), t("Action")], &names, Some(&mut link));
+        if self.members.is_empty() {
+            ui.label(RichText::new(t("No direct members.")).size(12.0).color(look.c("fg-muted")));
+        }
+        if let Some(m) = add {
+            self.member(cx, m, true);
+        }
+        if let Some(m) = remove {
+            self.member(cx, m, false);
+        }
+        let f = footer(ui, cx, Some(t("Save description")), "", false, !self.busy);
         if f.ok {
             let api = cx.panel.clone();
             let path = format!("/api/groups/{}", esc(&self.name));
-            let (name, text) = (self.name.clone(), self.text.clone());
+            let (name, text) = (self.name.clone(), self.description.clone());
             cx.run(
                 async move { api.act_with(Method::PUT, &path, &json!({ "description": text })).await.map(|()| text) },
                 move |app, text| {
@@ -320,35 +375,50 @@ impl Dialog for NewGroup {
     }
 
     fn width(&self) -> f32 {
-        600.0
+        460.0
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        widgets::form(ui, "new-group", |ui| {
-            let r = widgets::labeled_field(ui, &look, t("Name"), &mut self.name, "", 360.0);
-            if std::mem::take(&mut self.focus) {
-                r.request_focus();
-            }
-            ui.end_row();
-            widgets::labeled_field(ui, &look, t("Description"), &mut self.desc, "", 360.0);
-            ui.end_row();
-            widgets::label(ui, &look, t("Group type"));
-            widgets::select(ui, "group-type", &mut self.kind, &[t("Security").into(), t("Distribution").into()], 200.0);
-            ui.end_row();
-            widgets::label(ui, &look, t("Scope"));
-            widgets::select(
-                ui,
-                "group-scope",
-                &mut self.scope,
-                &[t("Global").into(), t("Domain local").into(), t("Universal").into()],
-                200.0,
-            );
-            ui.end_row();
-            widgets::label(ui, &look, t("OU"));
-            self.ou.ui(ui, "group-ou", 360.0);
-            ui.end_row();
+        // as the web's NewGroupDialog: labels above the fields, type and scope side by side
+        let l = widgets::lbl(ui, &look, t("Name"));
+        let r = widgets::field(ui, &mut self.name, "", f32::INFINITY).labelled_by(l.id);
+        if std::mem::take(&mut self.focus) {
+            r.request_focus();
+        }
+        ui.add_space(12.0);
+        let l = widgets::lbl(ui, &look, t("Description"));
+        widgets::field(ui, &mut self.desc, "", f32::INFINITY).labelled_by(l.id);
+        ui.add_space(12.0);
+        let half = (ui.available_width() - 12.0) / 2.0;
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 12.0;
+            ui.vertical(|ui| {
+                ui.set_width(half);
+                widgets::lbl(ui, &look, t("Group type"));
+                widgets::select(
+                    ui,
+                    "group-type",
+                    &mut self.kind,
+                    &[t("Security").into(), t("Distribution").into()],
+                    half,
+                );
+            });
+            ui.vertical(|ui| {
+                ui.set_width(half);
+                widgets::lbl(ui, &look, t("Scope"));
+                widgets::select(
+                    ui,
+                    "group-scope",
+                    &mut self.scope,
+                    &[t("Global").into(), t("Domain local").into(), t("Universal").into()],
+                    half,
+                );
+            });
         });
+        ui.add_space(12.0);
+        widgets::lbl(ui, &look, t("OU"));
+        self.ou.ui(ui, "group-ou", ui.available_width());
         let f = footer(ui, cx, Some(t("Create")), "", false, true);
         if f.ok {
             let name = self.name.trim().to_string();

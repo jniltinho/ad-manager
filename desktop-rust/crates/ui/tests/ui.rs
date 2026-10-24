@@ -428,7 +428,7 @@ fn shots() {
     save(&mut e, "05-new-user");
     e.key(egui::Key::Escape);
     page(&mut e, "Groups");
-    e.h.get_by_label("Finance").click();
+    e.wait("the groups", |a, _| matches!(&a.screen, Screen::Shell(s) if s.groups.count() > 0));
     save(&mut e, "06-groups");
     page(&mut e, "Computers");
     save(&mut e, "07-computers");
