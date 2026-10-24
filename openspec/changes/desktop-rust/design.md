@@ -142,6 +142,52 @@ The Fyne shell builds (and loads) every page at sign-in; the Rust shell loads a 
 it can while an animation or the X11 wheel smoothing runs: the app paces frames at 60 per second at most (what a
 display with vsync already does) and the table scrolls without animation.
 
+### D12. Crash-safe graphics start (rustXterm's `gpu.rs`)
+A driver that crashes inside the device creation of the window kills the process before any Rust code can react, so
+the state that survives is a file. Module `apps/ad-manager-desktop-rs/src/gpu.rs`, carried over from rustXterm with
+its tests and the corrections below:
+- **Plan before the window**: `plan(preference, died, safe, forced, os)`. `--safe-gpu` → `cpu` for this launch (not
+  saved). `WGPU_BACKEND` set → a **forced** launch: wgpu's own choice, the marker written as `env`, nothing promoted,
+  saved or announced; a dead `env` marker is not a crash of any rung (the next start uses the preference). Otherwise a
+  marker that died → `next(tried, os)`, recorded as `crashed`; else the preference.
+- **Marker, ownership first** (fixes a race in rustXterm, whose `start` truncates before it locks): `gpu-starting` in
+  the folder of desktop.toml is opened with `create` and **without** `truncate`, then `try_lock`ed; only the holder
+  of the lock truncates and writes the backend name. A lock that cannot be taken belongs to another instance that is
+  starting: this launch neither treats it as a crash nor writes the marker (that instance's protection covers it).
+  `Marker::died` reads a marker only when it can take its lock. `clear` removes the path while still holding the
+  lock, then unlocks. The app clears it after `GPU_START_FRAMES` = 3 painted frames; an error creating it only loses
+  the protection (a status-line notice, never fatal). A regression test runs two processes (the test binary
+  re-invoked) to show a held marker is neither erased nor read as a crash.
+- **Ladders**: Windows `gl → dx12 → vulkan → cpu` (OpenGL first: DX12 presentation flickers on Intel graphics);
+  Linux `vulkan → gl → cpu`; macOS `auto (Metal) → gl`, `cpu` terminal — on macOS `gl` and `cpu` both mean
+  `eframe::Renderer::Glow`, the safest renderer once Metal is out (hardware-preferred OpenGL, not guaranteed CPU
+  rendering). eframe's `glow` feature only on macOS; Linux and Windows render through wgpu.
+- **Where the choice lives**: `graphics.toml` (0600) in the folder of desktop.toml, `gpu_backend = "dx12"` — not in
+  desktop.toml, so the first-run rule (nothing written to desktop.toml before a successful test and Save) holds, and
+  the Fyne app, which rewrites desktop.toml, never drops it. `Plan::to_save` = a hardware backend reached after a
+  crash (never `cpu`, never on a forced launch), written once 3 frames painted; a write failure is a status notice.
+- **Notice before sign-in**: the fallback notice ("The graphics driver stopped the last start (gl); now using dx12.
+  Change it in Configure.") is shown under the sign-in box (and in the status line once signed in).
+- **Configure › Graphics**: a select of `auto` plus the OS's ladder. Changing only it saves `graphics.toml` at once —
+  no panel test needed, nothing else written — and says "Applies at the next start."
+- **Adapter choice** (as rustXterm): for an explicit backend, `native_adapter_selector` keeps only adapters that
+  support the window surface and `pick_adapter` ranks them: normal → hardware OpenGL first, then discrete,
+  integrated, virtual, other, CPU; software → a CPU adapter first, the WARP entry that owns the output before the other
+  (GPU-less VMs list WARP twice; rendering on the other one leaves a black window — rustXterm's vendored `wgpu-hal`
+  keeps the output-owning one, `vendor/wgpu-hal` + `[patch.crates-io]`), else the first usable adapter so the window
+  still opens (NVIDIA's EGL hides llvmpipe), which may be hardware. Linux `auto` keeps wgpu's default selection.
+- **Window** (as rustXterm: eframe owns it): `with_inner_size(1280×800)` (it scales on QHD and 4K displays by the
+  system scale), minimum 800×600, `persist_window: true` (eframe `persistence`); restoration and its monitor clamp
+  are eframe's — the app never moves the window itself (it cannot know monitor origins). `run_native` failing ends
+  with "cannot open the window: …; the next start tries a safer graphics backend" (the marker stays); winit's panic
+  for a missing `libxkbcommon(-x11)` becomes "cannot open the window: libxkbcommon-x11.so.0 is not installed".
+- **WARP**: the CI readback test (64×64 frame on the CPU WARP adapter, `windows-latest`) shows WARP renders; it does
+  not present through the output-owning adapter, so a manual gate on a GPU-less Windows VM (no 3D acceleration)
+  starts the app with `--safe-gpu` and records a non-black screenshot in `desktop-rust/docs/gates/windows.md`.
+- **Benchmark**: the harness records the backend and adapter each app used (`--gpu-info` prints them at start), runs
+  the wgpu build with `WGPU_BACKEND=gl` plus `LIBGL_ALWAYS_SOFTWARE=1` (OpenGL on llvmpipe, as Fyne), and gives each run
+  its own `HOME`/`XDG_*` so eframe's persisted window never carries over; the glow numbers stay in the report, labelled.
+
 ## Parity matrix (Fyne → egui)
 
 | Feature | Fyne (`desktop/`) | Rust (`desktop-rust/src/`) | Notes |
@@ -213,4 +259,6 @@ The script is `bench/run.sh`; the report (`docs/benchmark.md`) records versions,
 - [UI behavior only testable through the UI] → `egui_kittest` acceptance tests (AccessKit queries, clicks, key
   presses; no renderer needed) against an in-process mock panel that records requests: row targeting, typed
   confirmation guards, Configure races, lazy Samba tabs.
-- [GPU-less machines] → eframe `glow` (OpenGL 2+/ES), the same requirement as Fyne; Mesa software rendering works.
+- [GPU drivers that crash at start, GPU-less VMs] → D12: a crash-safe start that walks a per-OS ladder down to
+  software rendering (WARP, llvmpipe/lavapipe), with the adapter choice of rustXterm.
+- [wgpu is heavier than glow] → measured: the benchmark is rerun after D12 and both results reported.

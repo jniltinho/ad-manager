@@ -266,6 +266,73 @@ catalog, and color the interface with the panel theme's roles (18 themes, flat l
 - **WHEN** the panel reports a theme id the app does not know
 - **THEN** the app uses Default
 
+### Requirement: Rust desktop crash-safe graphics start
+The app SHALL plan its graphics backend before the window exists: a `gpu-starting` marker that no running instance
+holds SHALL move the start to the next safer backend of the platform's ladder, otherwise the backend saved in
+`graphics.toml` applies; `--safe-gpu` and `WGPU_BACKEND` override the plan. The marker SHALL be removed after 3
+painted frames.
+
+#### Scenario: A start that died
+- **WHEN** the last start on OpenGL (Windows) left a marker that no process holds
+- **THEN** this start uses DX12, the sign-in screen says "The graphics driver stopped the last start (gl); now using
+  dx12. Change it in Configure.", and once 3 frames painted `graphics.toml` gets `gpu_backend = "dx12"` and the
+  marker is removed, desktop.toml untouched
+
+#### Scenario: Another instance starting
+- **WHEN** another process holds the marker's lock while this instance starts
+- **THEN** this start does not treat it as a crash, does not truncate or rewrite the marker, and uses the saved
+  backend
+
+#### Scenario: Forced by the environment
+- **WHEN** `WGPU_BACKEND` is set, also when a marker of a start that died is there
+- **THEN** wgpu's choice is used, nothing is saved or announced, and a start that dies under it moves no rung
+
+#### Scenario: Software is never saved silently
+- **WHEN** a crash moves the start down to the software rung
+- **THEN** the launch prefers a software adapter and `graphics.toml` is not changed
+
+#### Scenario: Safe start
+- **WHEN** the app is started with `--safe-gpu`
+- **THEN** it prefers software rendering (WARP, llvmpipe/lavapipe; the glow renderer on macOS) and saves nothing
+
+#### Scenario: Ladders
+- **WHEN** the unit tests run
+- **THEN** `next` walks Windows gl → dx12 → vulkan → cpu, Linux vulkan → gl → cpu and macOS auto → gl → cpu, `auto`
+  counts as the ladder's first rung, and a backend not on the ladder goes to cpu
+
+#### Scenario: Adapter choice
+- **WHEN** the unit tests rank adapters for an explicit backend
+- **THEN** only surface-compatible ones count; a hardware OpenGL one comes first, then discrete > integrated > virtual
+  > other > CPU; in software a CPU adapter comes first, the output-owning WARP entry before the other, and with no
+  software adapter the first usable one is picked so the window opens
+
+#### Scenario: Graphics changed in Configure
+- **WHEN** the operator, signed out and offline, changes only Graphics in Configure and saves
+- **THEN** `graphics.toml` is written without a panel test, the screen says "Applies at the next start." and
+  desktop.toml is unchanged
+
+#### Scenario: WARP renders
+- **WHEN** the Windows CI job runs the WARP smoke test
+- **THEN** the software DX12 adapter is found as a CPU device and renders a 64×64 frame read back with the expected
+  color
+
+### Requirement: Rust desktop window placement
+The window SHALL open at 1280×800 (minimum 800×600) and be restored where the operator left it by eframe, which also
+keeps it on a monitor; the app SHALL never move it itself, and a window that cannot be opened SHALL end with a clear
+error.
+
+#### Scenario: Restored
+- **WHEN** the app starts again after the operator moved and resized the window
+- **THEN** it opens where and as large as it was (eframe's persisted window)
+
+#### Scenario: Missing library
+- **WHEN** `libxkbcommon-x11` is missing on Linux
+- **THEN** the app exits with "cannot open the window: libxkbcommon-x11.so.0 is not installed" instead of a panic
+
+#### Scenario: Window not created
+- **WHEN** `run_native` fails
+- **THEN** the error says the next start tries a safer graphics backend, and the marker is kept for it
+
 ### Requirement: Rust desktop isolated CI
 The Rust desktop SHALL have its own CI, run only for pull requests and pushes to `main` that change `desktop-rust/`,
 its workflow files or the Fyne sources its asset checks read (`desktop/themes_gen.go`, `desktop/i18n_pt_*.go`),
@@ -278,6 +345,10 @@ without changing or calling `ci.yml`, which keeps running on its own triggers.
 #### Scenario: Rust desktop change
 - **WHEN** a pull request changes `desktop-rust/src/main.rs`
 - **THEN** the Rust desktop CI runs fmt, clippy with warnings as errors, the tests and a release build
+
+#### Scenario: WARP on Windows
+- **WHEN** the Rust desktop CI runs
+- **THEN** a `windows-latest` job builds the app natively and runs the WARP render smoke test
 
 #### Scenario: Palette change in the web
 - **WHEN** a pull request changes only `desktop/themes_gen.go`
