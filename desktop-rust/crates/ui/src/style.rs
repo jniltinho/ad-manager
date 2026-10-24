@@ -144,6 +144,7 @@ impl Look {
             ink: fg,
         };
         ctx.data_mut(|d| d.insert_temp(Id::new("adm-check-colors"), check));
+        ctx.data_mut(|d| d.insert_temp(Id::new("adm-field-inset"), crate::widgets::FieldInset(self.shadows("field"))));
         ctx.data_mut(|d| d.insert_temp(Id::new(crate::widgets::SELECT_ARROW), self.c("select-arrow")));
         let options = crate::widgets::OptionColors {
             ink: self.c("on-field"),

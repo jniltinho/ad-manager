@@ -603,7 +603,12 @@ fn draw_cell<A>(
                     crate::widgets::tag_button(ui, look, &cl.text, cl.tone)
                 }
             } else {
-                ui.add(egui::Button::new(rich(text, ink)).frame(false).truncate())
+                let shown = elide(ui, &text, &|s| rich(s, ink), ui.available_width());
+                let r = ui.add(egui::Button::new(rich(shown.clone(), ink)).frame(false));
+                if shown != text {
+                    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(text.clone()));
+                }
+                r
             };
             link_done(ui, resp, l, hover, out);
             if let Some((text, tone)) = &cl.tag {
@@ -638,10 +643,16 @@ fn draw_cell<A>(
                 }
                 ui.add_space(4.0);
             }
-            let t = rich(cl.text.clone(), ink);
-            let r = ui.add(egui::Label::new(t).truncate().selectable(false));
+            let shown = elide(ui, &cl.text, &|s| rich(s, ink), ui.available_width());
+            let r = ui.add(egui::Label::new(rich(shown.clone(), ink)).selectable(false));
+            if shown != cl.text {
+                // the whole text for screen readers and on hover (the web's title)
+                let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(cl.text.clone()));
+            }
             if !cl.tip.is_empty() {
                 let _ = r.on_hover_text(&cl.tip);
+            } else if shown != cl.text {
+                let _ = r.on_hover_text(&cl.text);
             }
             if let Some((text, tone)) = &cl.tag {
                 // after a text the web's tag is an inline element: one space of the cell's font from it
@@ -650,6 +661,26 @@ fn draw_cell<A>(
             }
         }
     }
+}
+
+/// `text` cut as the browser's text-overflow: ellipsis cuts it: the longest start whose right edge plus the "…" fits
+/// in `max_w`, its trailing spaces dropped (egui's own truncation keeps a glyph whose left edge fits: one more).
+fn elide(ui: &Ui, text: &str, make: &dyn Fn(String) -> RichText, max_w: f32) -> String {
+    let w = |s: &str| {
+        egui::WidgetText::from(make(s.to_string()))
+            .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body)
+            .size()
+            .x
+    };
+    if w(text) <= max_w + 0.01 {
+        return text.to_string();
+    }
+    let room = max_w - w("…");
+    let ends: Vec<usize> = text.char_indices().map(|(i, _)| i).skip(1).chain(std::iter::once(text.len())).collect();
+    // the widths grow with the prefix: the last end that fits
+    let n = ends.partition_point(|&e| w(&text[..e]) <= room + 0.01);
+    let cut = if n == 0 { "" } else { text[..ends[n - 1]].trim_end() };
+    format!("{cut}…")
 }
 
 /// A drawn link: the hand cursor, its accessible name (what it does, also when only the icon is drawn), the hint on
@@ -670,6 +701,24 @@ fn link_done<A>(ui: &Ui, resp: egui::Response, l: Link<A>, hover: &mut Option<St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn elides_as_the_browser() {
+        let mut h = egui_kittest::Harness::new_ui(|ui| {
+            let make = |s: String| RichText::new(s).size(12.0);
+            let w = |s: &str| {
+                egui::WidgetText::from(make(s.into()))
+                    .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body)
+                    .size()
+                    .x
+            };
+            assert_eq!(elide(ui, "abcdef", &make, w("abcdef")), "abcdef", "fits");
+            // "abcd…" is half a point too wide: the browser shows "abc…" (egui's own keeps the d, its left edge fits)
+            assert_eq!(elide(ui, "abcdefghijkl", &make, w("abcd") + w("…") - 0.5), "abc…");
+            assert_eq!(elide(ui, "ab defghijkl", &make, w("ab d") + w("…") - 0.5), "ab…", "the trailing space dropped");
+        });
+        h.run();
+    }
 
     #[test]
     fn widths_fit() {

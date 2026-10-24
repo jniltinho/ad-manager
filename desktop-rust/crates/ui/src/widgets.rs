@@ -123,7 +123,12 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
         g
     });
     let gradient = if ui.is_enabled() { look.gradient(bg) } else { mixed.as_ref() };
-    let shapes = crate::depth::box_shapes(r.rect, gradient, fill, look.shadows(shadow));
+    // the outer layers and the fill around the box; the inset ones inside its 1-px border (the web's inset bevel
+    // sits inside the border, which egui draws over the rect's edge)
+    let layers = look.shadows(shadow);
+    let (outer, inner): (Vec<_>, Vec<_>) = layers.iter().copied().partition(|l| !l.inset);
+    let mut shapes = crate::depth::box_shapes(r.rect, gradient, fill, &outer);
+    shapes.extend(crate::depth::box_shapes(r.rect.shrink(1.0), None, Color32::TRANSPARENT, &inner));
     ui.painter().set(under, egui::Shape::Vec(shapes));
     r
 }
@@ -1355,13 +1360,63 @@ pub fn hint(text: impl ToString) -> RichText {
 }
 
 /// A single-line text edit as the web's .inp: a 28 px border box with 8 px side padding, the text vertically centered.
-pub fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
-    egui::TextEdit::singleline(text)
-        // the web's --control-text (12 px), its placeholder too (egui's body text is the page's 11)
-        .font(egui::TextStyle::Button)
-        .margin(Margin::symmetric(8, 0))
-        .min_size(egui::vec2(0.0, crate::style::control_h()))
-        .vertical_align(egui::Align::Center)
+pub fn line(text: &mut dyn egui::TextBuffer) -> Line<'_> {
+    Line(
+        egui::TextEdit::singleline(text)
+            // the web's --control-text (12 px), its placeholder too (egui's body text is the page's 11)
+            .font(egui::TextStyle::Button)
+            .margin(Margin::symmetric(8, 0))
+            .min_size(egui::vec2(0.0, crate::style::control_h()))
+            .vertical_align(egui::Align::Center),
+    )
+}
+
+/// The theme's inset shadow of a field (the web's .inp box-shadow), set by `Look::apply`.
+#[derive(Clone, Copy, Default)]
+pub struct FieldInset(pub &'static [adm_core::theme::Layer]);
+
+/// A single-line field as the web's .inp: egui's text edit, then the theme's inner shadow inside its 1-px border.
+pub struct Line<'t>(egui::TextEdit<'t>);
+
+impl<'t> Line<'t> {
+    pub fn id(self, id: egui::Id) -> Self {
+        Self(self.0.id(id))
+    }
+    pub fn hint_text(self, hint: impl Into<egui::WidgetText>) -> Self {
+        Self(self.0.hint_text(hint))
+    }
+    pub fn desired_width(self, w: f32) -> Self {
+        Self(self.0.desired_width(w))
+    }
+    pub fn font(self, font: impl Into<egui::FontSelection>) -> Self {
+        Self(self.0.font(font))
+    }
+    pub fn char_limit(self, n: usize) -> Self {
+        Self(self.0.char_limit(n))
+    }
+    pub fn password(self, on: bool) -> Self {
+        Self(self.0.password(on))
+    }
+    pub fn interactive(self, on: bool) -> Self {
+        Self(self.0.interactive(on))
+    }
+}
+
+impl egui::Widget for Line<'_> {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let r = self.0.ui(ui);
+        field_inset(ui, r.rect);
+        r
+    }
+}
+
+/// Paints the theme's field inset shadow inside the 1-px border of a field's `rect` (a text field, a select, a text
+/// area), as the web's .inp; none in the flat look.
+pub fn field_inset(ui: &Ui, rect: egui::Rect) {
+    let inset = ui.ctx().data(|d| d.get_temp::<FieldInset>(egui::Id::new("adm-field-inset"))).unwrap_or_default();
+    if !inset.0.is_empty() {
+        ui.painter().extend(crate::depth::box_shapes(rect.shrink(1.0), None, Color32::TRANSPARENT, inset.0));
+    }
 }
 
 /// A single-line text field of `width` (INFINITY: the rest of the row).
@@ -1403,6 +1458,7 @@ pub fn select(
         }
     });
     // its name for screen readers (the web's aria-label), also when a label above names it visually
+    field_inset(ui, r.response.rect);
     let _ = ui.ctx().accesskit_node_builder(r.response.id, |n| n.set_label(name.to_string()));
     *sel != before
 }
@@ -1423,7 +1479,7 @@ pub fn labeled_select(
         ui.spacing_mut().item_spacing.y = 4.0;
         let l = lbl(ui, look, label);
         let shown = options.get(*sel).cloned().unwrap_or_default();
-        combo(id)
+        let r = combo(id)
             .width(width)
             .selected_text(shown)
             .show_ui(ui, |ui| {
@@ -1435,8 +1491,9 @@ pub fn labeled_select(
                     }
                 }
             })
-            .response
-            .labelled_by(l.id);
+            .response;
+        field_inset(ui, r.rect);
+        let _ = r.labelled_by(l.id);
     });
     *sel != before
 }

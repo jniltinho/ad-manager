@@ -230,12 +230,13 @@ impl Backup {
                                     &look,
                                     &tf!("Folders (one per line, inside %s)", cur.roots.join(", ")),
                                 );
-                                ui.add(
+                                let r = ui.add(
                                     egui::TextEdit::multiline(&mut self.now.folders)
                                         .font(egui::TextStyle::Monospace)
                                         .desired_rows(2)
                                         .desired_width(320.0),
                                 );
+                                crate::widgets::field_inset(ui, r.rect);
                                 crate::widgets::check(
                                     ui,
                                     &mut self.now.full,
@@ -588,13 +589,14 @@ impl Backup {
                                 ui.add_space(th_px);
                                 let hint = tf!("Folders (one per line, inside %s)", roots);
                                 let w = ui.available_width() - th_px - 2.0;
-                                ui.add(
+                                let r = ui.add(
                                     egui::TextEdit::multiline(&mut row.folders)
                                         .hint_text(crate::widgets::hint(hint).monospace())
                                         .font(egui::TextStyle::Monospace)
                                         .desired_rows(2)
                                         .desired_width(w),
                                 );
+                                crate::widgets::field_inset(ui, r.rect);
                             });
                         }
                     });

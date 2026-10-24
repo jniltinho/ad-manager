@@ -70,6 +70,7 @@ impl OuPicker {
                 }
             }
         });
+        crate::widgets::field_inset(ui, r.response.rect);
         let _ = ui.ctx().accesskit_node_builder(r.response.id, |n| n.set_label(name.to_string()));
     }
 }

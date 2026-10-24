@@ -1099,7 +1099,8 @@ impl SyncWizard {
         egui::CollapsingHeader::new(t("Advanced")).id_salt("sync-advanced").show(ui, |ui| {
             widgets::form(ui, "sync-adv", |ui| {
                 widgets::label(ui, &look, t("Leave out (one pattern per line)"));
-                ui.add(egui::TextEdit::multiline(&mut self.form.exclude).desired_rows(2).desired_width(300.0));
+                let r = ui.add(egui::TextEdit::multiline(&mut self.form.exclude).desired_rows(2).desired_width(300.0));
+                widgets::field_inset(ui, r.rect);
                 ui.end_row();
                 widgets::labeled_field(
                     ui,
