@@ -169,7 +169,7 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
         // py-1.5 around the web's 18-point line (egui's line is 15: 7 and 8 here)
         .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top: 7, bottom: 8 })
         .show(ui, |ui| {
-            ui.set_width(w - 24.0 - bar);
+            ui.set_width((w - 24.0 - bar).max(0.0));
             // the head's line, not a control's 28 points (a row starts at this height: set before it opens); the
             // row as tall as last frame's, so the title centers on the buttons at its right
             ui.spacing_mut().interact_size.y = 0.0;

@@ -566,6 +566,95 @@ const TABS: [Page; 10] = [
 
 /// A top tab as the web's: px 16 py 8, a 15 point icon and the 12 point semibold label; the current one in the
 /// theme's tab-on recipe (fill or gradient, its inset marks), the others lower by the theme's inset.
+/// The app's frame for a screen outside the shell (Configure): the page and its pattern, the app box, the header
+/// (logo, "Active Directory" and `subtitle`), the tab strip with `tab` current, and the footer (company, version).
+/// Returns the content's area (20 points of padding, as the shell's pages).
+pub fn app_frame(ui: &mut Ui, cx: &Cx, subtitle: &str, tab: (&str, &str)) -> egui::Rect {
+    let look = cx.look.clone();
+    look.page_pattern(ui.painter(), ui.max_rect());
+    let full = ui.max_rect();
+    let w = (full.width() - 32.0).clamp(0.0, 1840.0);
+    let rect = egui::Rect::from_min_max(
+        egui::pos2(full.center().x - w / 2.0, full.top() + 16.0),
+        egui::pos2(full.center().x + w / 2.0, full.bottom() - 16.0),
+    );
+    look.paint(ui.painter(), rect, "", "app", look.c("surface"));
+    let p = ui.painter().with_clip_rect(rect);
+    // header: the shell's, without search and operator (no session yet)
+    let head = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 64.0));
+    crate::depth::paint_box(&p, head, look.gradient("header"), look.c("header"), &[]);
+    let inner = head.shrink2(egui::vec2(20.0, 12.0));
+    let logo = match &cx.brand.logo {
+        Some(l) => l.image(),
+        None if adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("header").to_srgba_unmultiplied())) => {
+            crate::logo::product_white()
+        }
+        None => crate::logo::product_navy(),
+    };
+    let size = logo.load_and_calc_size(ui, egui::vec2(256.0, 40.0)).unwrap_or(egui::vec2(160.0, 40.0));
+    let size = size * (40.0 / size.y.max(1.0)).min(256.0 / size.x.max(1.0));
+    logo.paint_at(ui, egui::Rect::from_min_size(egui::pos2(inner.left(), inner.center().y - size.y / 2.0), size));
+    let x = inner.left() + size.x + 16.0;
+    let (on, muted) = (look.c("on-header"), look.c("on-header-muted"));
+    let title = p.layout_no_wrap(
+        "Active Directory".into(),
+        egui::FontId::new(15.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+        on,
+    );
+    let sub = p.layout_no_wrap(subtitle.into(), egui::FontId::proportional(11.0), muted);
+    let block_h = title.size().y + sub.size().y;
+    let top = inner.center().y - block_h / 2.0;
+    p.rect_filled(egui::Rect::from_min_size(egui::pos2(x, top), egui::vec2(2.0, block_h)), 0.0, look.c("header-bar"));
+    p.galley(egui::pos2(x + 14.0, top + block_h - sub.size().y), sub, muted);
+    p.galley(egui::pos2(x + 14.0, top), title, on);
+    // the tab strip with its one tab
+    let pad = look.px("tabs-pad", 0.0);
+    let mut strip = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(egui::Rect::from_min_max(egui::pos2(rect.left(), head.bottom()), rect.max))
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    strip.set_clip_rect(rect);
+    let under = strip.painter().add(egui::Shape::Noop);
+    let band = Frame::new()
+        .inner_margin(Margin { left: pad as i8, right: pad as i8, top: pad as i8, bottom: 0 })
+        .show(&mut strip, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                let _ = top_tab(ui, &look, tab.0, tab.1, true, "");
+            });
+        })
+        .response
+        .rect;
+    strip.painter().set(
+        under,
+        egui::Shape::Vec(crate::depth::box_shapes(band, look.gradient("tabs"), look.c("tabs"), look.shadows("tabs"))),
+    );
+    // the footer
+    let bar = look.px("footer-bar-w", 3.0);
+    let foot = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.bottom() - 32.0 - bar), rect.max);
+    let body = egui::Rect::from_min_max(egui::pos2(foot.left(), foot.top() + bar), foot.max);
+    crate::depth::paint_box(&p, body, look.gradient("footer"), look.c("footer"), look.shadows("footer-line"));
+    if bar > 0.0 {
+        p.rect_filled(egui::Rect::from_min_size(foot.min, egui::vec2(foot.width(), bar)), 0.0, look.c("footer-bar"));
+    }
+    let strong = look.c("footer-strong");
+    let company = p.layout_no_wrap(
+        "© AD Manager".into(),
+        egui::FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+        strong,
+    );
+    p.galley(egui::pos2(body.left() + 20.0, body.center().y - company.size().y / 2.0), company, strong);
+    let version =
+        p.layout_no_wrap(format!("ad-manager desktop-rs {}", cx.version), egui::FontId::proportional(11.0), strong);
+    p.galley(
+        egui::pos2(body.right() - 20.0 - version.size().x, body.center().y - version.size().y / 2.0),
+        version,
+        strong,
+    );
+    egui::Rect::from_min_max(egui::pos2(rect.left(), band.bottom()), egui::pos2(rect.right(), foot.top())).shrink(20.0)
+}
+
 /// The web's .tab-aux (API, Queues at the right of the tabs): a plain link, px-4 py-2, semibold 12 px in the
 /// on-tab-aux ink, the tab-aux-hover tint on hover; no tab box.
 fn aux_tab(ui: &mut Ui, look: &crate::style::Look, icon: &str, label: &str, hint: &str) -> egui::Response {

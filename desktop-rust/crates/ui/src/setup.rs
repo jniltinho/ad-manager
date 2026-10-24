@@ -116,11 +116,17 @@ impl Setup {
             _ => 0,
         };
         let mut changed = false;
+        // theme and look side by side, the interface language under them (the Settings card's grid of two)
+        let sw = ((ui.available_width() - 16.0) / 2.0).floor().max(1.0);
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 16.0;
-            changed |= widgets::labeled_select(ui, &look, t("Theme"), "setup-theme", &mut theme, &names, 240.0);
-            changed |= widgets::labeled_select(ui, &look, t("Look"), "setup-flat", &mut flat, &flats, 240.0);
+            changed |= widgets::labeled_select(ui, &look, t("Theme"), "setup-theme", &mut theme, &names, sw);
+            changed |= widgets::labeled_select(ui, &look, t("Look"), "setup-flat", &mut flat, &flats, sw);
         });
+        ui.add_space(12.0);
+        let langs = [t("Panel default").to_string(), "Português".into(), "English".into()];
+        widgets::labeled_select(ui, &look, t("Language"), "setup-lang", &mut self.lang, &langs, sw);
+        ui.add_space(8.0);
         ui.add_space(4.0);
         let panel =
             adm_core::theme::palette(&cx.panel_theme.0).map(|(_, p)| t(&p.label).to_string()).unwrap_or_default();
@@ -156,7 +162,8 @@ impl Setup {
         let choices = adm_core::gpu::choices(os);
         let names: Vec<String> = choices.iter().map(|b| t(b.label(os)).to_string()).collect();
         let before = self.gpu;
-        widgets::labeled_select(ui, &look, t("Rendering backend"), "setup-gpu", &mut self.gpu, &names, 240.0);
+        let w = ui.available_width();
+        widgets::labeled_select(ui, &look, t("Rendering backend"), "setup-gpu", &mut self.gpu, &names, w);
         ui.add_space(4.0);
         if self.gpu != before
             && let Some(b) = choices.get(self.gpu)
@@ -299,61 +306,71 @@ impl Setup {
         let look = cx.look.clone();
         cx.title = t("AD Manager — configure").into();
         egui::CentralPanel::default().frame(Frame::new().fill(look.c("page"))).show(ui, |ui| {
-            look.page_pattern(ui.painter(), ui.max_rect());
-            ui.vertical_centered(|ui| {
-                ui.set_max_width(820.0);
-                ui.add_space(16.0);
-                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                    ui.label(
-                        crate::style::semibold(t("Configure AD Manager desktop"), 18.0).color(look.c("fg-strong")),
-                    );
-                    ui.add_space(4.0);
-                    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
-                    ui.painter().rect_filled(r, 0.0, look.c("accent"));
-                    egui::ScrollArea::vertical().max_height(ui.available_height() - 70.0).show(ui, |ui| {
-                        ui.add_space(16.0);
+            // the other screens' frame: app box, header, tab strip and footer; the cards in two columns as Settings
+            let area = crate::shell::app_frame(
+                ui,
+                cx,
+                t("Configure AD Manager desktop"),
+                (crate::icons::SETTINGS, t("Configure")),
+            );
+            let mut page =
+                ui.new_child(egui::UiBuilder::new().max_rect(area).layout(egui::Layout::top_down(egui::Align::Min)));
+            page.set_clip_rect(area.expand(20.0));
+            let ui = &mut page;
+            // only a very short window (or the certificate's details) scrolls
+            egui::ScrollArea::vertical().max_height(area.height() - 44.0).auto_shrink([false, true]).show(ui, |ui| {
+                let total = ui.available_width();
+                // the web's Settings grid: the main column, and a 520-point one at its right
+                let right_w = 520.0_f32.min((total * 0.45).floor()).max(1.0);
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = 20.0;
+                    let col = egui::Layout::top_down(egui::Align::Min);
+                    ui.allocate_ui_with_layout(egui::vec2((total - right_w - 20.0).max(1.0), 0.0), col, |ui| {
+                        ui.set_width((total - right_w - 20.0).max(1.0));
                         widgets::card(ui, &look, t("Panel"), |ui| self.panel_card(ui, cx));
-                        ui.add_space(16.0);
+                    });
+                    ui.allocate_ui_with_layout(egui::vec2(right_w, 0.0), col, |ui| {
+                        ui.set_width(right_w);
+                        ui.spacing_mut().item_spacing.y = 20.0;
                         widgets::card(ui, &look, t("Appearance"), |ui| self.appearance_card(ui, cx));
-                        ui.add_space(16.0);
                         widgets::card(ui, &look, t("Graphics"), |ui| self.graphics_card(ui, cx));
-                        ui.add_space(8.0);
-                        widgets::muted(
-                            ui,
-                            &look,
-                            &format!(
-                                "{}{}{}",
-                                t("File: "),
-                                cx.cfg_path.display(),
-                                t("  (another file: ad-manager-desktop --config path)")
-                            ),
-                        );
                     });
-                    if let Some(e) = &self.write_err {
-                        ui.label(RichText::new(e).color(look.c("err")));
+                });
+            });
+            if let Some(e) = &self.write_err {
+                ui.label(RichText::new(e).color(look.c("err")));
+            }
+            ui.add_space(12.0);
+            // the file at the left; right to left: Cancel at the right end, Save before it
+            ui.horizontal(|ui| {
+                widgets::muted(
+                    ui,
+                    &look,
+                    &format!(
+                        "{}{}{}",
+                        t("File: "),
+                        cx.cfg_path.display(),
+                        t("  (another file: ad-manager-desktop --config path)")
+                    ),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if self.back != Back::None && widgets::button(ui, &look, "", t("Cancel"), Kind::Secondary).clicked()
+                    {
+                        self.forget(ui.ctx());
+                        self.abandon(cx);
+                        self.generation = next_generation(); // a test still running is signed out when it ends
+                        cx.go = Some(if self.back == Back::Shell { Go::KeepShell } else { Go::Login });
                     }
-                    ui.add_space(12.0);
-                    // right to left: Cancel at the right end, Save before it (the web's dialog footer)
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if self.back != Back::None
-                            && widgets::button(ui, &look, "", t("Cancel"), Kind::Secondary).clicked()
-                        {
-                            self.forget(ui.ctx());
-                            self.abandon(cx);
-                            self.generation = next_generation(); // a test still running is signed out when it ends
-                            cx.go = Some(if self.back == Back::Shell { Go::KeepShell } else { Go::Login });
-                        }
-                        let can = self.can_save(cx);
-                        if ui
-                            .add_enabled_ui(can, |ui| {
-                                widgets::button(ui, &look, crate::icons::CHECK, t("Save"), Kind::Primary)
-                            })
-                            .inner
-                            .clicked()
-                        {
-                            self.save(cx);
-                        }
-                    });
+                    let can = self.can_save(cx);
+                    if ui
+                        .add_enabled_ui(can, |ui| {
+                            widgets::button(ui, &look, crate::icons::CHECK, t("Save"), Kind::Primary)
+                        })
+                        .inner
+                        .clicked()
+                    {
+                        self.save(cx);
+                    }
                 });
             });
         });
@@ -362,8 +379,9 @@ impl Setup {
     fn panel_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         let mut changed = false;
-        // the web's form: labels above, 12 points between fields
-        let w = 520.0_f32.min(ui.available_width());
+        // the web's form: labels above, 12 points between fields; the URL on its row, user and password side by side
+        let w = ui.available_width();
+        let half = ((w - 16.0) / 2.0).floor().max(1.0);
         let url = widgets::above(ui, &look, t("Panel URL"), w, |ui, _| {
             ui.add(
                 crate::widgets::line(&mut self.url)
@@ -373,33 +391,38 @@ impl Setup {
         });
         changed |= url.changed();
         ui.add_space(12.0);
-        let user = widgets::above(ui, &look, t("User"), w, |ui, _| {
-            ui.add(
-                crate::widgets::line(&mut self.user).hint_text(crate::widgets::hint("administrator")).desired_width(w),
-            )
+        let (pwd_id, focus) = (self.pwd_id, std::mem::take(&mut self.focus));
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            let user = widgets::above(ui, &look, t("User"), half, |ui, _| {
+                ui.add(
+                    crate::widgets::line(&mut self.user)
+                        .hint_text(crate::widgets::hint("administrator"))
+                        .desired_width(half),
+                )
+            });
+            changed |= user.changed();
+            let pwd = &mut self.pwd;
+            let r = widgets::above(ui, &look, t("Password"), half, |ui, _| {
+                crate::widgets::secret_field(ui, pwd_id, pwd, "", half)
+            });
+            if focus {
+                r.request_focus();
+            }
+            changed |= r.changed();
         });
-        changed |= user.changed();
-        ui.add_space(12.0);
-        let (pwd_id, pwd) = (self.pwd_id, &mut self.pwd);
-        let r =
-            widgets::above(ui, &look, t("Password"), w, |ui, _| crate::widgets::secret_field(ui, pwd_id, pwd, "", w));
-        if std::mem::take(&mut self.focus) {
-            r.request_focus();
-        }
-        changed |= r.changed();
-        ui.add_space(12.0);
-        let names = [t("Panel default").to_string(), "Português".into(), "English".into()];
-        widgets::labeled_select(ui, &look, t("Language"), "setup-lang", &mut self.lang, &names, 240.0);
         ui.add_space(12.0);
         if changed {
             self.edited(cx);
         }
-        widgets::wrapped(
+        widgets::muted(
             ui,
+            &look,
             t(
                 "Test signs in with the account (Domain Admins). The password is used only for the test and the session; it is never saved.",
             ),
         );
+        ui.add_space(4.0);
         if widgets::button(ui, &look, crate::icons::SEARCH, t("Test connection"), Kind::Secondary).clicked() {
             self.test(cx);
         }
