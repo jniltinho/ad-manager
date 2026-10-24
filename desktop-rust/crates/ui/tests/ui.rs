@@ -225,7 +225,7 @@ fn cancelled_disable_sends_nothing_and_enable_needs_no_confirmation() {
     e.users_page();
     let users = e.visible_users();
     let on = users.iter().find(|u| !u.protected && u.enabled && !u.locked).unwrap();
-    e.field(0);
+    e.field(1); // 0 is the header's global search
     e.type_text(&on.sam);
     e.h.get_by_label("Click to disable").click();
     e.h.step();
@@ -235,7 +235,7 @@ fn cancelled_disable_sends_nothing_and_enable_needs_no_confirmation() {
     assert!(e.sent("POST", "/api/users/").is_empty());
     // a disabled account (off screen, maybe): find it by its login
     let off = users.iter().find(|u| !u.enabled && !u.protected).unwrap();
-    e.field(0);
+    e.field(1); // 0 is the header's global search
     e.type_text(&off.sam);
     e.h.get_by_label("Click to enable").click();
     e.wait("the enable", |_, m| m.sent("POST", "/api/users/").iter().any(|r| r.path.ends_with("/enable")));
@@ -373,7 +373,7 @@ fn sign_out_starts_a_new_session() {
     let mut e = env();
     e.sign_in();
     let first = e.app().cx.panel.id;
-    e.click("Sign out");
+    e.click("sign out");
     e.wait("the sign-in screen", |a, _| matches!(a.screen, Screen::Login(_)));
     assert_ne!(e.app().cx.panel.id, first, "a new cookie jar and identity: replies of the old session are dropped");
     e.wait("the sign-out", |_, m| !m.sent("POST", "/api/logout").is_empty());
@@ -437,7 +437,7 @@ fn shots() {
     page(&mut e, "Logs");
     save(&mut e, "09-logs");
     page(&mut e, "Users");
-    e.field(0);
+    e.field(1); // 0 is the header's global search
     e.type_text("bruno.silva");
     e.h.get_by_label("Set a password for bruno.silva").click();
     e.h.run_steps(3);

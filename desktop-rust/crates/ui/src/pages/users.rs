@@ -70,6 +70,14 @@ impl Users {
         });
     }
 
+    /// Shows the accounts matching the header's global search.
+    pub fn search_for(&mut self, cx: &Cx, term: &str) {
+        self.search = term.to_string();
+        if self.loaded {
+            self.apply(cx);
+        }
+    }
+
     /// Filters the list again (search, filter) and forgets the selection.
     fn apply(&mut self, cx: &Cx) {
         self.visible = logic::filter_users(&self.all, self.filter, &self.search, cx.inactive_days(), Utc::now());

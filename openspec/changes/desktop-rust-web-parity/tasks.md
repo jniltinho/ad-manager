@@ -22,10 +22,10 @@
 
 ## 3. Shell and viewport
 
-- [ ] 3.1 (A10, A15) Header (logo/company, domain, global search, user, my password dialog, sign out) and footer.
-- [ ] 3.2 (A11, A12) Top tab strip in the web's order; Backup with Backup | Sync page tabs; browser hand-off for Import/export,
+- [x] 3.1 (A10, A15) Header (logo/company, domain, global search, user, my password dialog, sign out) and footer.
+- [x] 3.2 (A11, A12) Top tab strip in the web's order; Backup with Backup | Sync page tabs; browser hand-off for Import/export,
       Settings, API, Queues; no side menu.
-- [ ] 3.3 (A16) App box in egui points after zoom; zoom steps from the client width × current zoom; boundary tests
+- [x] 3.3 (A16) App box in egui points after zoom; zoom steps from the client width × current zoom; boundary tests
       2399/2400, 3199/3200, fractional OS scale, monitor change; `Me` gains the swagger and queue flags.
 
 ## 4. Pages and dialogs (one task per matrix row)

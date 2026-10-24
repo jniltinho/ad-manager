@@ -193,6 +193,64 @@ pub fn tag_button(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::T
     resp
 }
 
+/// The web's page tabs (.subtab: Logs, Backup | Sync): the theme's line under the strip, the other tabs lower by the
+/// theme's inset in their recipe, the current one in the subtab-on recipe covering the line; returns a tab clicked.
+pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: usize) -> Option<usize> {
+    let mut out = None;
+    let inset = look.px("subtab-inset-top", 0.0);
+    let line_w = look.px("subtabs-line-w", 2.0);
+    let overlap = look.px("subtab-on-overlap", 0.0);
+    let r = ui
+        .push_id(id, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = look.px("subtabs-gap", 0.0);
+                ui.add_space(look.px("subtabs-pad", 0.0));
+                for (i, (icon, label)) in tabs.iter().enumerate() {
+                    let on = i == sel;
+                    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+                    let g = ui.painter().layout_no_wrap(label.to_string(), font, Color32::PLACEHOLDER);
+                    let ig = ui.painter().layout_no_wrap(
+                        icon.to_string(),
+                        egui::FontId::proportional(13.0),
+                        Color32::PLACEHOLDER,
+                    );
+                    let w = 16.0 + ig.size().x + 6.0 + g.size().x + 16.0;
+                    let h = 6.0 + g.size().y.max(ig.size().y) + 6.0;
+                    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h + inset), egui::Sense::click());
+                    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let top = if on { 0.0 } else { inset };
+                    let bottom = if on { overlap } else { 0.0 };
+                    let b = egui::Rect::from_min_max(
+                        egui::pos2(rect.left(), rect.top() + top),
+                        egui::pos2(rect.right(), rect.bottom() + bottom),
+                    );
+                    let (fill, ink, shadow) = if on {
+                        (look.c("subtab-on"), look.c("on-subtab-on"), "subtab-on")
+                    } else if resp.hovered() {
+                        (look.c("subtab-hover"), look.c("on-subtab"), "subtab")
+                    } else {
+                        (look.c("subtab"), look.c("on-subtab"), "subtab")
+                    };
+                    look.paint(ui.painter(), b, "", shadow, fill);
+                    let y = rect.top() + top + (h - top.min(0.0)) / 2.0;
+                    ui.painter().galley(egui::pos2(b.left() + 16.0, y - ig.size().y / 2.0), ig, ink);
+                    ui.painter().galley(egui::pos2(b.left() + 16.0 + 6.0 + 13.0, y - g.size().y / 2.0), g, ink);
+                    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, on, *label));
+                    if resp.clicked() && !on {
+                        out = Some(i);
+                    }
+                }
+            })
+        })
+        .inner
+        .response;
+    // the line under the strip; the current tab covers it by its overlap
+    let y = r.rect.bottom() + line_w / 2.0;
+    ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(line_w, look.c("subtab-line")));
+    ui.add_space(line_w + 12.0);
+    out
+}
+
 /// The kind of a callout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Note {

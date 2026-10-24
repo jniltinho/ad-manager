@@ -1,6 +1,7 @@
-//! The main window: header (logo, domain, operator, Configure, Sign out), the sidebar with the nine pages (the theme's
-//! top-tab colors), the page and the footer (company, status line, version). Each page loads the first time it is
-//! opened.
+//! The main window as the web's App.vue: an app box (16 points from the window, at most 1840 wide) with the header
+//! (logo, "Active Directory" with the domain, global search, the operator with Configure, my password and sign out),
+//! the top tab strip in the web's order, the page (20 points of padding) and the footer (company, Support, domain,
+//! status line, operator, session idle time, version). Each page loads the first time it is opened.
 
 use adm_core::i18n::t;
 use egui::{Frame, Margin, RichText, Ui};
@@ -65,15 +66,19 @@ impl Page {
 }
 
 /// What a page asks of the shell.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Nav {
     To(Page),
     /// Users with the password policy dialog over it (Home's policy alert).
     Policy,
+    /// Users filtered by the header's global search.
+    Search(String),
 }
 
 pub struct Shell {
     page: Page,
+    /// The header's global search.
+    search: String,
     opened: [bool; 9],
     pub home: home::Home,
     pub users: users::Users,
@@ -90,6 +95,7 @@ impl Shell {
     pub fn new(cx: &mut Cx) -> Self {
         let mut s = Self {
             page: Page::Home,
+            search: String::new(),
             opened: [false; 9],
             home: home::Home::default(),
             users: users::Users::default(),
@@ -132,172 +138,395 @@ impl Shell {
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, modal: bool) {
         let look = cx.look.clone();
         cx.title = format!("AD Manager — {} — {}", cx.me.domain, cx.me.user);
-        egui::Panel::top("header")
-            .frame(Frame::new().fill(look.c("header")).inner_margin(Margin::symmetric(10, 6)))
-            .show(ui, |ui| {
-                self.header(ui, cx);
-            });
-        egui::Panel::bottom("footer")
-            .exact_size(26.0)
-            .frame(Frame::new().fill(look.c("footer")).inner_margin(Margin::symmetric(10, 4)))
-            .show(ui, |ui| {
-                let strong = look.c("footer-strong");
-                ui.horizontal_centered(|ui| {
-                    let company = if cx.me.brand.company.is_empty() {
-                        "AD Manager".to_string()
-                    } else {
-                        cx.me.brand.company.clone()
-                    };
-                    ui.label(RichText::new(format!("© {company}")).size(11.0).color(strong));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(format!("ad-manager desktop-rs {}", cx.version)).size(11.0).color(strong),
-                        );
-                        ui.centered_and_justified(|ui| {
-                            let s = cx.hover.clone().unwrap_or_else(|| cx.status.clone());
-                            ui.add(egui::Label::new(RichText::new(s).size(11.0).color(strong)).truncate());
-                        });
-                    });
-                });
-            });
         let mut nav = None;
-        egui::Panel::left("sidebar")
-            .exact_size(200.0)
-            .resizable(false)
-            .frame(Frame::new().fill(look.c("tabs")).inner_margin(Margin::same(6)))
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = 2.0;
-                for p in Page::ALL {
-                    if nav_item(ui, &look, p, p == self.page).clicked() {
-                        nav = Some(Nav::To(p));
-                    }
-                }
-            });
-        egui::CentralPanel::default().frame(Frame::new().fill(look.c("surface-2")).inner_margin(Margin::same(8))).show(
-            ui,
-            |ui| {
-                let keys = !modal;
-                let out = match self.page {
-                    Page::Home => self.home.ui(ui, cx),
-                    Page::Users => {
-                        self.users.ui(ui, cx, keys);
-                        None
-                    }
-                    Page::Groups => {
-                        self.groups.ui(ui, cx, keys);
-                        None
-                    }
-                    Page::Ous => {
-                        self.ous.ui(ui, cx, keys);
-                        None
-                    }
-                    Page::Computers => {
-                        self.computers.ui(ui, cx, keys);
-                        None
-                    }
-                    Page::Shares => {
-                        self.shares.ui(ui, cx, keys);
-                        None
-                    }
-                    Page::Backup => {
-                        self.backup.ui(ui, cx, keys);
-                        None
-                    }
-                    Page::Sync => {
-                        self.sync.ui(ui, cx, keys);
-                        None
-                    }
-                    Page::Logs => {
-                        self.logs.ui(ui, cx, keys);
-                        None
-                    }
-                };
-                nav = nav.or(out);
-            },
-        );
+        egui::CentralPanel::default().frame(Frame::new().fill(look.c("page"))).show(ui, |ui| {
+            // the web's app box: the window less 16 points around, at most 1840 wide, centered (egui's zoom scales it)
+            let full = ui.max_rect();
+            let w = (full.width() - 32.0).clamp(0.0, 1840.0);
+            let rect = egui::Rect::from_min_max(
+                egui::pos2(full.center().x - w / 2.0, full.top() + 16.0),
+                egui::pos2(full.center().x + w / 2.0, full.bottom() - 16.0),
+            );
+            look.paint(ui.painter(), rect, "", "app", look.c("surface"));
+            let mut app =
+                ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
+            app.set_clip_rect(rect);
+            app.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            self.header(&mut app, cx);
+            if let Some(n) = self.tabs(&mut app, cx) {
+                nav = Some(n);
+            }
+            let footer_h = 32.0 + look.px("footer-bar-w", 3.0);
+            let main = egui::Rect::from_min_max(app.cursor().min, egui::pos2(rect.right(), rect.bottom() - footer_h));
+            let mut page = app.new_child(
+                egui::UiBuilder::new().max_rect(main.shrink(20.0)).layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            page.set_clip_rect(main);
+            page.spacing_mut().item_spacing = egui::vec2(look.px("toolbar-gap", 8.0), 6.0);
+            if let Some(n) = self.page_ui(&mut page, cx, !modal) {
+                nav = Some(n);
+            }
+            let foot = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.bottom() - footer_h), rect.max);
+            let mut f = app.new_child(egui::UiBuilder::new().max_rect(foot));
+            self.footer(&mut f, cx);
+        });
         match nav {
             Some(Nav::To(p)) => self.go_to(cx, p),
             Some(Nav::Policy) => {
                 self.go_to(cx, Page::Users);
                 crate::pages::policy::open(cx);
             }
+            Some(Nav::Search(term)) => {
+                self.users.search_for(cx, &term);
+                self.go_to(cx, Page::Users);
+            }
             None => {}
         }
     }
 
-    fn header(&mut self, ui: &mut Ui, cx: &mut Cx) {
+    /// The current page; Backup and Sync share the Backup tab and show the web's Backup | Sync page tabs.
+    fn page_ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) -> Option<Nav> {
+        if matches!(self.page, Page::Backup | Page::Sync) {
+            let tabs = [("🗄", t("Backup")), ("🔄", t("Sync"))];
+            let sel = usize::from(self.page == Page::Sync);
+            if let Some(i) = widgets::subtabs(ui, &cx.look, "backup-tabs", &tabs, sel) {
+                return Some(Nav::To(if i == 1 { Page::Sync } else { Page::Backup }));
+            }
+        }
+        match self.page {
+            Page::Home => self.home.ui(ui, cx),
+            Page::Users => {
+                self.users.ui(ui, cx, keys);
+                None
+            }
+            Page::Groups => {
+                self.groups.ui(ui, cx, keys);
+                None
+            }
+            Page::Ous => {
+                self.ous.ui(ui, cx, keys);
+                None
+            }
+            Page::Computers => {
+                self.computers.ui(ui, cx, keys);
+                None
+            }
+            Page::Shares => {
+                self.shares.ui(ui, cx, keys);
+                None
+            }
+            Page::Backup => {
+                self.backup.ui(ui, cx, keys);
+                None
+            }
+            Page::Sync => {
+                self.sync.ui(ui, cx, keys);
+                None
+            }
+            Page::Logs => {
+                self.logs.ui(ui, cx, keys);
+                None
+            }
+        }
+    }
+
+    /// The web's header (px 20, py 12, 40 high): logo, "Active Directory" with the domain behind the theme's bar,
+    /// and at the right the global search then the operator with Configure, my password and sign out. Laid out by
+    /// rects: egui reverses a row nested in a right-to-left layout.
+    fn header(&mut self, ui: &mut Ui, cx: &mut Cx) -> Option<Nav> {
         let look = cx.look.clone();
         let (on, muted) = (look.c("on-header"), look.c("on-header-muted"));
-        ui.horizontal(|ui| {
-            let logo = if adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("header").to_srgba_unmultiplied())) {
+        let mut nav = None;
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 64.0), egui::Sense::hover());
+        crate::depth::paint_box(ui.painter(), rect, look.gradient("header"), look.c("header"), &[]);
+        let inner = rect.shrink2(egui::vec2(20.0, 12.0));
+        // logo, 40 high (at most 256 wide)
+        let logo = match &cx.brand.logo {
+            Some(l) if cx.me.brand.logo => l.image(),
+            _ if adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("header").to_srgba_unmultiplied())) => {
                 crate::logo::product_white()
-            } else {
-                crate::logo::product_navy()
-            };
-            ui.add(logo.fit_to_exact_size(egui::vec2(180.0, 60.0)));
-            let (r, _) = ui.allocate_exact_size(egui::vec2(2.0, 40.0), egui::Sense::hover());
-            ui.painter().rect_filled(r, 0.0, look.c("header-bar"));
-            ui.add_space(6.0);
-            ui.vertical(|ui| {
-                ui.add_space(8.0);
-                ui.add(egui::Label::new(RichText::new("Active Directory").strong().size(16.0).color(on)).extend());
-                ui.add(egui::Label::new(RichText::new(&cx.me.domain).size(12.0).color(muted)).extend());
-            });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::button(ui, &look, "↩", t("Sign out"), Kind::Secondary).clicked() {
+            }
+            _ => crate::logo::product_navy(),
+        };
+        // painted, not allocated (the header's rect is already taken), left-aligned at its own aspect
+        let size = logo.load_and_calc_size(ui, egui::vec2(256.0, 40.0)).unwrap_or(egui::vec2(160.0, 40.0));
+        let size = size * (40.0 / size.y.max(1.0)).min(256.0 / size.x.max(1.0));
+        let lr = egui::Rect::from_min_size(egui::pos2(inner.left(), inner.center().y - size.y / 2.0), size);
+        logo.paint_at(ui, lr);
+        let logo_w = size.x;
+        // the title block: the bar, then "Active Directory" and the domain
+        let x = inner.left() + logo_w + 16.0;
+        let title = ui.painter().layout_no_wrap(
+            "Active Directory".into(),
+            egui::FontId::new(15.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+            on,
+        );
+        let dom = ui.painter().layout_no_wrap(cx.me.domain.clone(), egui::FontId::proportional(11.0), muted);
+        let block_h = title.size().y + dom.size().y;
+        let top = inner.center().y - block_h / 2.0;
+        ui.painter().rect_filled(
+            egui::Rect::from_min_size(egui::pos2(x, top), egui::vec2(2.0, block_h)),
+            0.0,
+            look.c("header-bar"),
+        );
+        ui.painter().galley(egui::pos2(x + 14.0, top), title, on);
+        ui.painter().galley(egui::pos2(x + 14.0, top + block_h - dom.size().y), dom, muted);
+        // the operator block, right-aligned
+        let ur = egui::Rect::from_min_max(egui::pos2(inner.right() - 360.0, inner.top()), inner.max);
+        let mut user =
+            ui.new_child(egui::UiBuilder::new().max_rect(ur).layout(egui::Layout::top_down(egui::Align::Max)));
+        self.user_block(&mut user, cx);
+        let user_left = user.min_rect().left();
+        // the global search, 288 wide, left of the operator
+        let sr = egui::Rect::from_center_size(
+            egui::pos2(user_left - 16.0 - 144.0, inner.center().y),
+            egui::vec2(288.0, crate::style::control_h()),
+        );
+        let mut search =
+            ui.new_child(egui::UiBuilder::new().max_rect(sr).layout(egui::Layout::right_to_left(egui::Align::Center)));
+        search.spacing_mut().item_spacing.x = 0.0;
+        let go = widgets::button(&mut search, &look, "🔍", t("Search"), Kind::Primary).clicked();
+        let w = search.available_width();
+        let field =
+            search.add(widgets::line(&mut self.search).hint_text(t("Search user, login or e-mail…")).desired_width(w));
+        let _ = search.ctx().accesskit_node_builder(field.id, |n| n.set_label(t("Global search")));
+        let enter = field.lost_focus() && search.input(|i| i.key_pressed(egui::Key::Enter));
+        if (go || enter) && !self.search.trim().is_empty() {
+            nav = Some(Nav::Search(std::mem::take(&mut self.search).trim().to_string()));
+        }
+        nav
+    }
+
+    /// The operator's name, and under it Configure (desktop only), my password and sign out as the web's links.
+    fn user_block(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        ui.spacing_mut().item_spacing.y = 2.0;
+        ui.add_space(2.0);
+        ui.label(crate::style::semibold(&cx.me.user, 12.0).color(look.c("on-header")));
+        // right to left: the last link first
+        ui.allocate_ui_with_layout(
+            egui::vec2(ui.available_width(), 16.0),
+            egui::Layout::right_to_left(egui::Align::Center),
+            |ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let link = |ui: &mut Ui, icon: &str, s: &str| {
+                    let r = ui.add(
+                        egui::Button::new(RichText::new(format!("{icon} {s}")).size(11.0).color(look.c("header-link")))
+                            .frame(false),
+                    );
+                    r.on_hover_cursor(egui::CursorIcon::PointingHand)
+                };
+                let dot = |ui: &mut Ui| {
+                    ui.label(RichText::new("·").size(11.0).color(look.c("on-header-subtle")));
+                };
+                if link(ui, "↩", t("sign out")).clicked() {
                     let api = cx.panel.clone();
                     cx.spawn(async move { api.logout().await }, |_, ()| {});
                     cx.go = Some(Go::Login);
                 }
-                if widgets::button(ui, &look, "⚙", t("Configure"), Kind::Secondary).clicked() {
+                dot(ui);
+                if link(ui, "🔑", t("my password")).clicked() {
+                    cx.push(crate::own_password::OwnPassword::new());
+                }
+                dot(ui);
+                if link(ui, "⚙", t("Configure")).clicked() {
                     cx.go = Some(Go::Setup);
                 }
-                ui.add_space(8.0);
-                // the operator, right-aligned beside the buttons (as the Fyne header)
-                ui.allocate_ui_with_layout(egui::vec2(220.0, 40.0), egui::Layout::top_down(egui::Align::Max), |ui| {
-                    ui.add(egui::Label::new(RichText::new(&cx.me.user).strong().size(13.0).color(on)).truncate());
-                    ui.add(egui::Label::new(RichText::new(t("domain administrator")).size(11.0).color(muted)).extend());
+            },
+        );
+    }
+
+    /// The web's top tab strip: the pages in the web's order, Import/export and Settings (opened in the browser), and
+    /// API and Queues at the right when the panel serves them.
+    fn tabs(&mut self, ui: &mut Ui, cx: &mut Cx) -> Option<Nav> {
+        let look = cx.look.clone();
+        let mut nav = None;
+        let pad = look.px("tabs-pad", 0.0);
+        let under = ui.painter().add(egui::Shape::Noop);
+        let current = if self.page == Page::Sync { Page::Backup } else { self.page };
+        let base = cx.cfg.panel.url.trim_end_matches('/').to_string();
+        let r = Frame::new()
+            .inner_margin(Margin { left: pad as i8, right: pad as i8, top: pad as i8, bottom: 0 })
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = look.px("tab-gap", 0.0);
+                    for tab in TABS {
+                        let clicked = match tab {
+                            Tab::Page(p) => top_tab(ui, &look, p.icon(), p.label(), p == current, "")
+                                .clicked()
+                                .then_some(Nav::To(p)),
+                            Tab::Web(icon, label, path) => {
+                                if top_tab(ui, &look, icon, t(label), false, t("Opens in the browser")).clicked() {
+                                    ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}{path}")));
+                                }
+                                None
+                            }
+                        };
+                        if clicked.is_some() {
+                            nav = clicked;
+                        }
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
+                        if cx.me.asynqmon
+                            && top_tab(
+                                ui,
+                                &look,
+                                "☑",
+                                t("Queues"),
+                                false,
+                                t("Agent queue monitor (opens in a new tab)"),
+                            )
+                            .clicked()
+                        {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}/asynqmon")));
+                        }
+                        if cx.me.settings.swagger
+                            && top_tab(ui, &look, "📖", "API", false, t("API documentation (opens in a new tab)"))
+                                .clicked()
+                        {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}/swagger")));
+                        }
+                    });
                 });
             });
+        ui.painter().set(
+            under,
+            egui::Shape::Vec(crate::depth::box_shapes(
+                r.response.rect,
+                look.gradient("tabs"),
+                look.c("tabs"),
+                look.shadows("tabs"),
+            )),
+        );
+        nav
+    }
+
+    /// The web's footer: its bar on top, the company, Support and the domain at the left; the status line; the
+    /// operator, the session's idle time and the version at the right.
+    fn footer(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        let rect = ui.max_rect();
+        let bar = look.px("footer-bar-w", 3.0);
+        let body = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.top() + bar), rect.max);
+        crate::depth::paint_box(ui.painter(), body, look.gradient("footer"), look.c("footer"), &[]);
+        if bar > 0.0 {
+            ui.painter().rect_filled(
+                egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), bar)),
+                0.0,
+                look.c("footer-bar"),
+            );
+        }
+        let (ink, strong) = (look.c("on-footer"), look.c("footer-strong"));
+        let mut inner = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(body.shrink2(egui::vec2(20.0, 0.0)))
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        inner.spacing_mut().item_spacing.x = 20.0;
+        let small = |s: String, c| RichText::new(s).size(11.0).color(c);
+        let company =
+            if cx.me.brand.company.is_empty() { "AD Manager".to_string() } else { cx.me.brand.company.clone() };
+        inner.label(crate::style::semibold(format!("© {company}"), 11.0).color(strong));
+        let support = if cx.me.settings.support_url.is_empty() {
+            SUPPORT.to_string()
+        } else {
+            cx.me.settings.support_url.clone()
+        };
+        if inner
+            .add(egui::Button::new(small(format!("{} {}", SUPPORT_ICON, t("Support")), ink)).frame(false))
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
+            inner.ctx().open_url(egui::OpenUrl::new_tab(support));
+        }
+        let domain = if cx.me.netbios.is_empty() {
+            cx.me.domain.clone()
+        } else {
+            format!("{} ({})", cx.me.domain, cx.me.netbios)
+        };
+        inner.label(small(format!("🖥 {domain}"), ink));
+        inner.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(small(format!("ad-manager desktop-rs {}", cx.version), strong));
+            if cx.me.settings.session_minutes > 0 {
+                ui.label(small(
+                    format!(
+                        "🕐 {}",
+                        adm_core::tf!("session expires after %d min idle", cx.me.settings.session_minutes)
+                    ),
+                    ink,
+                ));
+            }
+            ui.label(small(format!("👤 {}", cx.me.user), ink));
+            let s = cx.hover.clone().unwrap_or_else(|| cx.status.clone());
+            ui.add(egui::Label::new(small(s, strong)).truncate());
         });
     }
 }
 
-/// A sidebar item: the theme's tab colors (tab, hover, current with its mark on the left).
-fn nav_item(ui: &mut Ui, look: &crate::style::Look, p: Page, active: bool) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 34.0), egui::Sense::click());
+/// The footer's Support icon (the web's life buoy has no glyph in egui's fonts).
+const SUPPORT_ICON: &str = "❓";
+
+/// The project's support page (the web's default).
+const SUPPORT: &str = "https://github.com/jniltinho/ad-manager/wiki";
+
+/// A tab of the strip: a page, or a panel page opened in the browser (icon, English label, path).
+enum Tab {
+    Page(Page),
+    Web(&'static str, &'static str, &'static str),
+}
+
+/// The web's tab order (App.vue): Import/export and Settings are the panel's own pages.
+const TABS: [Tab; 10] = [
+    Tab::Page(Page::Home),
+    Tab::Page(Page::Users),
+    Tab::Page(Page::Groups),
+    Tab::Page(Page::Ous),
+    Tab::Page(Page::Computers),
+    Tab::Page(Page::Shares),
+    Tab::Web("↔", "Import/export", "/import-export"),
+    Tab::Page(Page::Backup),
+    Tab::Page(Page::Logs),
+    Tab::Web("⚙", "Settings", "/settings"),
+];
+
+/// A top tab as the web's: px 16 py 8, a 15 point icon and the 12 point semibold label; the current one in the
+/// theme's tab-on recipe (fill or gradient, its inset marks), the others lower by the theme's inset.
+fn top_tab(
+    ui: &mut Ui,
+    look: &crate::style::Look,
+    icon: &str,
+    label: &str,
+    active: bool,
+    hint: &str,
+) -> egui::Response {
+    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, egui::Color32::PLACEHOLDER);
+    let icon_g =
+        ui.painter().layout_no_wrap(icon.to_string(), egui::FontId::proportional(15.0), egui::Color32::PLACEHOLDER);
+    let inset = if active { 0.0 } else { look.px("tab-inset-top", 0.0) };
+    let w = 16.0 + icon_g.size().x + 6.0 + galley.size().x + 16.0;
+    let h = 8.0 + galley.size().y.max(icon_g.size().y) + 8.0;
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h + look.px("tab-inset-top", 0.0)), egui::Sense::click());
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
-    let (bg, ink) = if active {
-        (look.c("tab-on"), look.c("on-tab-on"))
+    let resp = if hint.is_empty() { resp } else { resp.on_hover_text(hint) };
+    let box_rect = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.top() + inset), rect.max);
+    let (fill, ink, part, shadow) = if active {
+        (look.c("tab-on"), look.c("on-tab-on"), "tab-on", "tab-on")
     } else if resp.hovered() {
-        (look.c("tab-hover"), look.c("on-tab-hover"))
+        (look.c("tab-hover"), look.c("on-tab-hover"), "", "")
     } else {
-        (look.c("tab"), look.c("on-tab"))
+        (look.c("tab"), look.c("on-tab"), "", "")
     };
-    let painter = ui.painter();
-    painter.rect_filled(rect, 0.0, bg);
-    if active && let Some(m) = look.p.tab_mark {
-        painter.rect_filled(
-            egui::Rect::from_min_size(rect.min, egui::vec2(3.0, rect.height())),
-            0.0,
-            crate::style::c32(m),
-        );
-    }
+    look.paint(ui.painter(), box_rect, part, shadow, fill);
     let icon_ink = if active { look.c("tab-on-icon") } else { ink };
-    painter.text(
-        rect.left_center() + egui::vec2(12.0, 0.0),
-        egui::Align2::LEFT_CENTER,
-        p.icon(),
-        egui::FontId::proportional(15.0),
-        icon_ink,
-    );
-    painter.text(
-        rect.left_center() + egui::vec2(38.0, 0.0),
-        egui::Align2::LEFT_CENTER,
-        p.label(),
-        egui::FontId::proportional(13.5),
+    let y = box_rect.center().y;
+    ui.painter().galley(egui::pos2(box_rect.left() + 16.0, y - icon_g.size().y / 2.0), icon_g.clone(), icon_ink);
+    ui.painter().galley(
+        egui::pos2(box_rect.left() + 16.0 + icon_g.size().x + 6.0, y - galley.size().y / 2.0),
+        galley,
         ink,
     );
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, active, p.label()));
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, active, label));
     resp
 }

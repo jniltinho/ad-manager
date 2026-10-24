@@ -186,7 +186,7 @@ impl Home {
                                 if let Some((label, to)) = &a.link
                                     && widgets::button(ui, &look, "", label, Kind::Link).clicked()
                                 {
-                                    nav = Some(*to);
+                                    nav = Some(to.clone());
                                 }
                             });
                         }
@@ -247,9 +247,9 @@ mod tests {
         users.push(User { sam: "idle".into(), enabled: true, ..Default::default() });
         let a = Home::alerts(&s, &users, 90);
         assert_eq!(a.len(), 3);
-        assert_eq!(a[0].link.as_ref().map(|l| l.1), Some(Nav::Policy));
+        assert_eq!(a[0].link.as_ref().map(|l| l.1.clone()), Some(Nav::Policy));
         assert!(a[1].text.starts_with("4 locked account(s): U0 (u0), U1 (u1), U2 (u2), …"), "{}", a[1].text);
-        assert_eq!(a[2].link.as_ref().map(|l| l.1), Some(Nav::To(Page::Users)));
+        assert_eq!(a[2].link.as_ref().map(|l| l.1.clone()), Some(Nav::To(Page::Users)));
         let ok = Summary { policy: PolicySummary { complexity: true, min_length: 8 }, ..Default::default() };
         assert_eq!(Home::alerts(&ok, &[], 90)[0].text, "Nothing pending.");
     }

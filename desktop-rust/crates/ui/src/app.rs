@@ -272,6 +272,8 @@ pub struct App {
     heights: Vec<f32>,
     /// The graphics start until it counts as working.
     gpu: Option<GpuStart>,
+    /// The client width last seen (points before zoom) and since when, for the web's zoom steps.
+    zoom_seen: (f32, std::time::Instant),
     _rt: Option<tokio::runtime::Runtime>,
 }
 
@@ -347,6 +349,7 @@ impl App {
             kept: None,
             heights: Vec::new(),
             gpu: None,
+            zoom_seen: (0.0, std::time::Instant::now()),
             _rt: own,
         };
         if let Some(g) = start.gpu {
@@ -364,6 +367,25 @@ impl App {
             None => Screen::Login(Box::new(login::Login::new(&mut app.cx))),
         };
         Ok(app)
+    }
+
+    /// The web's zoom steps (design D6): from the client width before zoom — the content rect in points times the
+    /// current zoom, never the monitor — 1.6 from 3200, 1.25 from 2400, else 1; applied once the size has stayed for
+    /// 300 ms, so a resize does not relayout at every step of the drag.
+    fn zoom(&mut self, ctx: &Context) {
+        let w = ctx.content_rect().width() * ctx.zoom_factor();
+        let now = std::time::Instant::now();
+        if (w - self.zoom_seen.0).abs() > 0.5 {
+            self.zoom_seen = (w, now);
+            ctx.request_repaint_after(std::time::Duration::from_millis(320));
+            return;
+        }
+        let z = zoom_step(w);
+        if now.duration_since(self.zoom_seen.1) >= std::time::Duration::from_millis(300)
+            && (ctx.zoom_factor() - z).abs() > 1e-3
+        {
+            ctx.set_zoom_factor(z);
+        }
     }
 
     /// Once [`adm_core::gpu::START_FRAMES`] frames completed (and eframe painted them: a frame's extra layout passes
@@ -427,6 +449,7 @@ impl App {
 
     /// One frame.
     pub fn frame(&mut self, ui: &mut Ui) {
+        self.zoom(ui.ctx());
         self.pump();
         self.cx.hover = None;
         let modal_open = !self.cx.dialogs.is_empty();
@@ -574,6 +597,17 @@ impl eframe::App for App {
     }
 }
 
+/// The web's zoom for a client width in points before zoom (style.css: 1.25 from 2400 px, 1.6 from 3200 px).
+pub fn zoom_step(w: f32) -> f32 {
+    if w >= 3200.0 {
+        1.6
+    } else if w >= 2400.0 {
+        1.25
+    } else {
+        1.0
+    }
+}
+
 /// A mouse wheel notch scrolls at once, in one frame, as in the Fyne app. egui spreads a notch (a "line", what X11
 /// and Windows wheels report) over several frames, each a redraw of the whole window; it applies at once the small
 /// steps a touchpad sends, so a notch is handed over as those (under 8 points each).
@@ -618,6 +652,13 @@ fn failed(ui: &mut Ui, look: &Look, msg: &str) {
 mod tests {
     use super::immediate_wheel;
     use egui::{Event, Modifiers, MouseWheelUnit, TouchPhase, vec2};
+
+    #[test]
+    fn zoom_steps_at_the_web_boundaries() {
+        use super::zoom_step;
+        assert_eq!((zoom_step(1920.0), zoom_step(2399.0), zoom_step(2400.0)), (1.0, 1.0, 1.25));
+        assert_eq!((zoom_step(3199.0), zoom_step(3200.0), zoom_step(3840.0)), (1.25, 1.6, 1.6));
+    }
 
     #[test]
     fn a_notch_becomes_small_steps_of_the_same_total() {

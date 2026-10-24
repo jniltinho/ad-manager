@@ -193,11 +193,11 @@ pub fn demo(users: usize) -> Arc<Route> {
         }
         match p {
             "/api/health" => ok(json!({"domain":"domain.local","netbios":"DOMAIN","version":"0.22.0","ldap":"up",
-                "brand":{"theme":"classic-blue","flat":true,"company":"Example Company Ltd","lang":"en","logo":false}})),
+                "brand":{"theme":"classic-blue","flat":false,"company":"Example Company Ltd","lang":"en","logo":false}})),
             "/api/i18n" => ok(json!({"messages": {}, "patterns": []})),
             "/api/me" => {
                 ok(json!({"user":"administrator","domain":"domain.local","netbios":"DOMAIN","version":"0.22.0",
-                "brand":{"theme":"classic-blue","flat":true,"company":"Example Company Ltd"},
+                "brand":{"theme":"classic-blue","flat":false,"company":"Example Company Ltd"},
                 "settings":{"lang":"en","inactive_days":90,"password_length":14,"default_ou":""}}))
             }
             "/api/summary" => {

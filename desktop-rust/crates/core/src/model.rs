@@ -150,6 +150,12 @@ pub struct MeSettings {
     pub inactive_days: i64,
     pub password_length: i64,
     pub default_ou: String,
+    /// Idle minutes before the session ends (the footer says it).
+    pub session_minutes: i64,
+    /// The API documentation is served (the API tab).
+    pub swagger: bool,
+    /// The company's support link (the footer's Support; the project's when empty).
+    pub support_url: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -159,6 +165,8 @@ pub struct Me {
     pub domain: String,
     pub netbios: String,
     pub version: String,
+    /// The agent queue monitor is served (the Queues tab).
+    pub asynqmon: bool,
     pub brand: Brand,
     pub settings: MeSettings,
 }

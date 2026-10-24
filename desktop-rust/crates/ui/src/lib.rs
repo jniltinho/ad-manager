@@ -8,6 +8,7 @@ pub mod fonts;
 pub mod login;
 pub mod logo;
 pub mod modal;
+pub mod own_password;
 pub mod pages;
 pub mod setup;
 pub mod shell;
