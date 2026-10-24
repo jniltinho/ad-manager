@@ -417,9 +417,32 @@ pub fn unc(host: &str, share: &str, path: &str) -> String {
     s
 }
 
-/// The default share folder for a new share name: /srv/shares/<lowercase, spaces as dashes>.
-pub fn share_folder(name: &str) -> String {
-    format!("/srv/shares/{}", name.trim().replace(' ', "-").to_lowercase())
+/// The folder name a new share starts with, as the web's: lowercase, accents dropped, every run of other characters
+/// than a-z, 0-9, ".", "_" and "-" as one dash.
+pub fn share_slug(name: &str) -> String {
+    let mut out = String::new();
+    let mut dash = false;
+    for c in name.to_lowercase().chars() {
+        let c = match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+            'ç' => 'c',
+            'è' | 'é' | 'ê' | 'ë' => 'e',
+            'ì' | 'í' | 'î' | 'ï' => 'i',
+            'ñ' => 'n',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' => 'o',
+            'ù' | 'ú' | 'û' | 'ü' => 'u',
+            'ý' | 'ÿ' => 'y',
+            c => c,
+        };
+        if c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-') {
+            out.push(c);
+            dash = false;
+        } else if !dash {
+            out.push('-');
+            dash = true;
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -533,7 +556,8 @@ mod tests {
         assert_eq!(backup_code("panel-20261001-120000-abcdef12"), "abcdef12");
         assert_eq!(backup_code("short"), "short");
         assert_eq!(unc("fs", "dados", "a/b"), r"\\fs\dados\a\b");
-        assert_eq!(share_folder("Finance Team"), "/srv/shares/finance-team");
+        assert_eq!(share_slug("Finance Team"), "finance-team");
+        assert_eq!(share_slug("Ações & Cia"), "acoes-cia");
         assert!(legacy_os("Windows XP Professional") && !legacy_os("Windows 11 Pro"));
         assert_eq!(backup_origin("schedule:nightly"), "schedule nightly");
     }

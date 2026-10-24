@@ -46,6 +46,11 @@ pub struct Shares {
     table: TableState,
     pub tasks: Vec<TaskItem>,
     dc: DcHealth,
+    /// The roots where the server on screen may create shares (`GET /api/dirs`).
+    roots: Vec<String>,
+    /// The form's suggestions: the domain's security groups and users as NETBIOS\name.
+    ad_groups: Vec<String>,
+    ad_users: Vec<String>,
 }
 
 /// What a click on the page asks for, done after drawing.
@@ -64,6 +69,26 @@ enum Act {
 
 impl Shares {
     pub fn load(&mut self, cx: &Cx) {
+        // the form's suggestions (as the web's: security groups and every login, after the NETBIOS name)
+        let (api, nb) = (cx.panel.clone(), cx.me.netbios.clone());
+        cx.spawn(
+            async move {
+                let groups = api.get::<Vec<adm_core::model::Group>>("/api/groups").await.unwrap_or_default();
+                let users = api.get::<Vec<adm_core::model::User>>("/api/users").await.unwrap_or_default();
+                (groups, users)
+            },
+            move |app, (groups, users)| {
+                app.with_shell(|s, _| {
+                    let mut g: Vec<String> =
+                        groups.iter().filter(|g| g.kind == "security").map(|g| format!("{nb}\\{}", g.name)).collect();
+                    g.sort();
+                    let mut u: Vec<String> = users.iter().map(|u| format!("{nb}\\{}", u.sam)).collect();
+                    u.sort();
+                    s.shares.ad_groups = g;
+                    s.shares.ad_users = u;
+                });
+            },
+        );
         let api = cx.panel.clone();
         cx.run(async move { api.get::<Vec<Agent>>("/api/agents").await }, |app, agents| {
             app.with_shell(|s, cx| s.shares.agents_loaded(cx, agents));
@@ -138,6 +163,24 @@ impl Shares {
         let session = cx.panel.id;
         let list = api.clone();
         self.loading = true;
+        let dirs = api.clone();
+        cx.spawn(
+            async move {
+                #[derive(serde::Deserialize, Default)]
+                struct Dirs {
+                    #[serde(default)]
+                    roots: Vec<String>,
+                }
+                dirs.get::<Dirs>("/api/dirs").await.map(|d| d.roots).unwrap_or_default()
+            },
+            move |app, roots| {
+                app.with_shell(|s, _| {
+                    if s.shares.key == key {
+                        s.shares.roots = roots;
+                    }
+                });
+            },
+        );
         cx.spawn(async move { list.get::<Vec<Share>>("/api/shares").await }, move |app, r| {
             if app.cx.panel.id != session {
                 return; // another session now
@@ -470,7 +513,7 @@ impl Shares {
         let Some((a, api)) = self.server.clone() else { return };
         let form = match &s {
             Some(s) => ShareForm::edit(s),
-            None => ShareForm::new_share(),
+            None => ShareForm::new_share(self.roots.first().map_or("", String::as_str)),
         };
         let editing = form.editing.then(|| form.folder.clone());
         let id = cx.push(ShareDialog {
@@ -481,15 +524,28 @@ impl Shares {
             netbios: cx.me.netbios.clone(),
             pending: Default::default(),
             acl: None,
+            roots: self.roots.clone(),
+            groups: self.ad_groups.iter().map(|g| (g.clone(), String::new())).collect(),
+            users: self.ad_users.iter().map(|u| (u.clone(), String::new())).collect(),
+            history: Vec::new(),
         });
-        // the folder's Windows permissions, read when editing
+        // the folder's Windows permissions and the earlier ones, read when editing
         if let Some(path) = editing {
             let url = format!("/api/acl?path={}", adm_core::api::q(&path));
-            cx.spawn(async move { api.get::<Acl>(&url).await }, move |app, r| {
-                if let Some(d) = app.cx.dialog_mut::<ShareDialog>(id) {
-                    d.acl = Some(r.map_err(|e| e.to_string()));
-                }
-            });
+            let hist = format!("/api/acl/history?path={}", adm_core::api::q(&path));
+            cx.spawn(
+                async move {
+                    let acl = api.get::<Acl>(&url).await;
+                    let history = api.get::<Vec<AclChange>>(&hist).await.unwrap_or_default();
+                    (acl, history)
+                },
+                move |app, (r, history)| {
+                    if let Some(d) = app.cx.dialog_mut::<ShareDialog>(id) {
+                        d.acl = Some(r.map_err(|e| e.to_string()));
+                        d.history = history.into_iter().filter(|h| !h.before.is_empty()).collect();
+                    }
+                },
+            );
         }
     }
 
@@ -620,6 +676,22 @@ struct ShareDialog {
     /// The name being typed into each list.
     pending: [String; 6],
     acl: Option<Result<Acl, String>>,
+    /// The agent's roots for a new share's folder.
+    roots: Vec<String>,
+    /// Suggestions: the domain's security groups and users as NETBIOS\name.
+    groups: Vec<(String, String)>,
+    users: Vec<(String, String)>,
+    /// The folder's earlier permissions that can be put back.
+    history: Vec<AclChange>,
+}
+
+/// One recorded change of a folder's permissions (`GET /api/acl/history`).
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct AclChange {
+    path: String,
+    time: String,
+    before: String,
 }
 
 const LISTS: [(&str, bool); 6] = [
@@ -649,15 +721,17 @@ impl Dialog for ShareDialog {
         let muted = look.c("fg-muted");
         let w = ui.available_width();
         let cw = ((w - 16.0) / 2.0).floor();
+        let mut restore: Option<(AclChange, String)> = None;
         let f = &mut self.form;
         let editing = f.editing;
         // name and comment
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 16.0;
             widgets::above(ui, &look, t("Share name"), cw, |ui, _| {
+                let old = f.name.clone();
                 let r = ui.add_enabled(!editing, crate::widgets::line(&mut f.name).char_limit(80).desired_width(cw));
                 if r.changed() {
-                    f.name_changed();
+                    f.name_changed(&old);
                 }
                 r
             });
@@ -666,13 +740,33 @@ impl Dialog for ShareDialog {
             });
         });
         ui.add_space(12.0);
-        // shortcut: the folder is one path field (the web picks a root then the folder under it)
-        widgets::above(ui, &look, t("Folder"), w, |ui, _| {
-            ui.add_enabled(
-                !editing,
-                crate::widgets::line(&mut f.folder).font(egui::TextStyle::Monospace).desired_width(w),
-            )
-        });
+        // the folder: an edit's path read only; a new share's root (of the agent) and the folder under it
+        if editing {
+            widgets::above(ui, &look, t("Folder"), w, |ui, _| {
+                ui.add_enabled(
+                    false,
+                    crate::widgets::line(&mut f.folder).font(egui::TextStyle::Monospace).desired_width(w),
+                )
+            });
+        } else {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                let l = widgets::lbl(ui, &look, t("Folder"));
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    let roots: Vec<String> =
+                        if self.roots.is_empty() { vec![f.root.clone()] } else { self.roots.clone() };
+                    let names: Vec<String> = roots.iter().map(|r| format!("{}/", r.trim_end_matches('/'))).collect();
+                    let mut i = roots.iter().position(|r| *r == f.root).unwrap_or(0);
+                    if widgets::select(ui, "share-root", &mut i, &names, 216.0) {
+                        f.root = roots[i].clone();
+                    }
+                    let edit = crate::widgets::line(&mut f.sub).font(egui::TextStyle::Monospace);
+                    ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
+                });
+                ui.label(RichText::new(f.path()).monospace().size(11.0).color(muted));
+            });
+        }
         // the six lists, two per row
         let values: [&mut String; 6] =
             [&mut f.full, &mut f.rw, &mut f.ro, &mut f.full_users, &mut f.rw_users, &mut f.ro_users];
@@ -697,13 +791,19 @@ impl Dialog for ShareDialog {
                                 add |= widgets::button(ui, &look, "", "+", Kind::Secondary)
                                     .on_hover_text(t("Add"))
                                     .clicked();
-                                let r = ui.add(
-                                    crate::widgets::line(&mut **pending)
-                                        .hint_text(&hint)
-                                        .desired_width(ui.available_width()),
+                                let options = if group { &self.groups } else { &self.users };
+                                let w = ui.available_width();
+                                let sg = widgets::suggest(
+                                    ui,
+                                    &look,
+                                    egui::Id::new(("share-list", *i)),
+                                    pending,
+                                    options,
+                                    &hint,
+                                    w,
                                 );
-                                let r = r.labelled_by(l.id);
-                                add |= r.lost_focus() && ui.input(|x| x.key_pressed(egui::Key::Enter));
+                                let _ = sg.response.labelled_by(l.id);
+                                add |= sg.enter || sg.picked.is_some();
                             },
                         );
                         let mut names = adm_core::logic::split_list(value);
@@ -777,6 +877,25 @@ impl Dialog for ShareDialog {
                                     .size(11.0)
                                     .color(muted),
                             );
+                            // the earlier permissions, each one put back by a task
+                            if !self.history.is_empty() {
+                                ui.add_space(8.0);
+                                widgets::lbl(ui, &look, t("Earlier permissions"));
+                                for h in &self.history {
+                                    ui.horizontal(|ui| {
+                                        let when = chrono::DateTime::parse_from_rfc3339(&h.time)
+                                            .map(|d| adm_core::i18n::date(Some(d.with_timezone(&chrono::Utc))))
+                                            .unwrap_or_else(|_| h.time.clone());
+                                        ui.label(RichText::new(tf!("Before %s", when)).size(12.0))
+                                            .on_hover_text(&h.before);
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            if widgets::act(ui, &look, "", t("Restore"), None, 12.0).clicked() {
+                                                restore = Some((h.clone(), when));
+                                            }
+                                        });
+                                    });
+                                }
+                            }
                         }
                     }
                 });
@@ -812,6 +931,20 @@ impl Dialog for ShareDialog {
                     .size(11.0)
                     .color(muted),
             );
+        }
+        if let Some((h, when)) = restore {
+            let msg = tf!(
+                "Put back the permissions %s had before %s, also on the files and subfolders that inherit them?",
+                h.path,
+                when
+            );
+            let (api, key) = (self.api.clone(), self.key);
+            let me = cx.current_dialog();
+            cx.confirm(t("Restore"), msg, t("Restore"), false, move |cx| {
+                let label = tf!("Restore the permissions of %s", h.path);
+                enqueue(cx, api, key, "acl:restore", json!({ "path": h.path, "time": h.time }), label);
+                cx.dialogs.retain(|d| d.0 != me);
+            });
         }
         let button = if editing { t("Save") } else { t("Create") };
         let foot = footer(ui, cx, Some(button), "", false, f.ready());

@@ -315,6 +315,155 @@ pub fn chip(ui: &mut Ui, look: &Look, text: &str) -> bool {
         .inner
 }
 
+/// What a suggestions field did this frame.
+pub struct Suggest {
+    pub response: Response,
+    /// A suggestion picked (click, or Enter on the highlighted one): the field holds it too.
+    pub picked: Option<String>,
+    /// Enter with no suggestion highlighted (the caller's action: add, open).
+    pub enter: bool,
+}
+
+/// A field with the web's suggestions (Suggestions.vue): the options whose value or label holds the text, at most
+/// 50, in a list under the field while it has focus; arrow keys move, Enter picks, Esc closes the list (not the
+/// dialog). `options` are (value, label).
+pub fn suggest(
+    ui: &mut Ui,
+    look: &Look,
+    id: egui::Id,
+    text: &mut String,
+    options: &[(String, String)],
+    hint: &str,
+    width: f32,
+) -> Suggest {
+    #[derive(Clone, Copy, Default)]
+    struct State {
+        active: Option<usize>,
+        hovered: bool,
+        closed: bool,
+    }
+    let mut st: State = ui.data(|d| d.get_temp(id)).unwrap_or_default();
+    let q = text.trim().to_lowercase();
+    let items: Vec<&(String, String)> = options
+        .iter()
+        .filter(|(v, l)| q.is_empty() || v.to_lowercase().contains(&q) || l.to_lowercase().contains(&q))
+        .take(50)
+        .collect();
+    let focused = ui.memory(|m| m.has_focus(id));
+    let mut picked = None;
+    let mut enter = false;
+    if focused {
+        let (down, up, ret, esc) = ui.input_mut(|i| {
+            (
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),
+                !st.closed && i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
+            )
+        });
+        let n = items.len();
+        if (down || up) && n > 0 {
+            st.closed = false;
+            st.active = Some(match (st.active, down) {
+                (None, true) => 0,
+                (None, false) => n - 1,
+                (Some(a), true) => (a + 1) % n,
+                (Some(a), false) => (a + n - 1) % n,
+            });
+        }
+        if ret {
+            match st.active.and_then(|a| items.get(a)) {
+                Some((v, _)) if !st.closed => picked = Some(v.clone()),
+                _ => enter = true,
+            }
+            st.closed = true;
+        }
+        if esc {
+            st.closed = true;
+        }
+    }
+    let response = ui.add(line(text).id(id).hint_text(hint).desired_width(width));
+    if response.changed() {
+        st.active = None;
+        st.closed = false;
+    }
+    if response.gained_focus() {
+        st.closed = false;
+    }
+    let open = (focused || st.hovered) && !st.closed && !items.is_empty() && picked.is_none();
+    st.hovered = false;
+    if open {
+        let rect = response.rect;
+        let below = ui.ctx().content_rect().bottom() - rect.bottom();
+        let max_h = 260.0_f32.min(below - 12.0).max(80.0);
+        let area = egui::Area::new(id.with("list"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(egui::pos2(rect.left(), rect.bottom() + 2.0))
+            .show(ui.ctx(), |ui| {
+                Frame::new()
+                    .fill(look.c("surface"))
+                    .stroke(Stroke::new(1.0, look.c("line")))
+                    .shadow(look.shadows("popup").first().map_or(egui::Shadow::NONE, |l| egui::Shadow {
+                        offset: [l.dx as i8, l.dy as i8],
+                        blur: l.blur as u8,
+                        spread: l.spread as u8,
+                        color: Color32::from_rgba_unmultiplied(l.color.0[0], l.color.0[1], l.color.0[2], l.color.0[3]),
+                    }))
+                    .show(ui, |ui| {
+                        ui.set_width(rect.width() - 2.0);
+                        egui::ScrollArea::vertical().max_height(max_h).show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.y = 0.0;
+                            for (i, (v, l)) in items.iter().enumerate() {
+                                let on = st.active == Some(i);
+                                let (r, resp) = ui
+                                    .allocate_exact_size(egui::vec2(ui.available_width(), 24.0), egui::Sense::click());
+                                if on || resp.hovered() {
+                                    ui.painter().rect_filled(r, 0.0, look.c("selection"));
+                                }
+                                let ink = if on || resp.hovered() { look.c("on-selection") } else { look.c("fg") };
+                                let g = ui.painter().layout_no_wrap(v.clone(), egui::FontId::proportional(12.0), ink);
+                                ui.painter().galley(
+                                    egui::pos2(r.left() + 8.0, r.center().y - g.size().y / 2.0),
+                                    g,
+                                    ink,
+                                );
+                                if !l.is_empty() {
+                                    let muted = if on || resp.hovered() { ink } else { look.c("fg-muted") };
+                                    let g =
+                                        ui.painter().layout_no_wrap(l.clone(), egui::FontId::proportional(11.0), muted);
+                                    let at = egui::pos2(r.right() - 8.0 - g.size().x, r.center().y - g.size().y / 2.0);
+                                    ui.painter().galley(at, g, muted);
+                                }
+                                let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
+                                    n.set_role(egui::accesskit::Role::ListBoxOption);
+                                    n.set_label(if l.is_empty() { v.clone() } else { format!("{v} — {l}") });
+                                    if on {
+                                        n.set_selected(true);
+                                    }
+                                });
+                                if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                                    picked = Some(v.clone());
+                                }
+                                if on {
+                                    ui.scroll_to_rect(r, None);
+                                }
+                            }
+                        });
+                    });
+            });
+        st.hovered = area.response.contains_pointer();
+    }
+    if let Some(v) = &picked {
+        *text = v.clone();
+        st.closed = true;
+        st.active = None;
+        response.request_focus();
+    }
+    let _ = ui.ctx().accesskit_node_builder(response.id, |n| n.set_role(egui::accesskit::Role::ComboBox));
+    ui.data_mut(|d| d.insert_temp(id, st));
+    Suggest { response, picked, enter }
+}
+
 /// A small link inside a list item or a card head (the web's .act): `ink` when given (the current item's text color),
 /// else the link color.
 pub fn act(ui: &mut Ui, look: &Look, icon: &str, label: &str, ink: Option<Color32>, size: f32) -> Response {

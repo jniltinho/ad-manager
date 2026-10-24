@@ -62,7 +62,11 @@ pub fn template_groups(u: &User) -> Vec<String> {
 pub struct ShareForm {
     pub editing: bool,
     pub name: String,
+    /// The folder: an edit's path as published; a new share's path is `root`/`sub` (`path`).
     pub folder: String,
+    /// A new share: one of the agent's roots and the folder under it (filled from the name until edited).
+    pub root: String,
+    pub sub: String,
     pub comment: String,
     pub full: String,
     pub rw: String,
@@ -78,8 +82,10 @@ pub struct ShareForm {
 }
 
 impl ShareForm {
-    pub fn new_share() -> Self {
-        Self { folder: "/srv/shares/".into(), create_path: true, ..Default::default() }
+    /// A new share under `root` (the agent's first allowed folder; /srv/shares when it lists none).
+    pub fn new_share(root: &str) -> Self {
+        let root = if root.is_empty() { "/srv/shares" } else { root };
+        Self { root: root.into(), create_path: true, ..Default::default() }
     }
 
     /// The edit form: name and folder fixed, the lists and flags of the share; "create folder" stays on (on edit it
@@ -91,34 +97,45 @@ impl ShareForm {
             folder: s.path.clone(),
             comment: s.comment.clone(),
             full: s.full_groups.join(", "),
-            rw: s.rw_groups.join(", "),
+            // write access without the names that have full control (the web's notIn)
+            rw: not_in(&s.rw_groups, &s.full_groups).join(", "),
             ro: s.ro_groups.join(", "),
             full_users: s.full_users.join(", "),
-            rw_users: s.rw_users.join(", "),
+            rw_users: not_in(&s.rw_users, &s.full_users).join(", "),
             ro_users: s.ro_users.join(", "),
             hidden: !s.browseable,
             recycle: s.recycle,
             abe: s.abe,
             audit: s.audit,
             create_path: true,
+            ..Default::default()
         }
     }
 
-    /// Typing a new share's name fills its folder.
-    pub fn name_changed(&mut self) {
-        if !self.editing {
-            self.folder = crate::logic::share_folder(&self.name);
+    /// Typing a new share's name fills its folder, until the folder is edited apart (`old`: the name before).
+    pub fn name_changed(&mut self, old: &str) {
+        if !self.editing && (self.sub.is_empty() || self.sub == crate::logic::share_slug(old)) {
+            self.sub = crate::logic::share_slug(&self.name);
+        }
+    }
+
+    /// The folder the share publishes.
+    pub fn path(&self) -> String {
+        if self.editing {
+            self.folder.clone()
+        } else {
+            format!("{}/{}", self.root.trim_end_matches('/'), self.sub.trim())
         }
     }
 
     pub fn ready(&self) -> bool {
-        !self.name.trim().is_empty() && !self.folder.trim().is_empty()
+        !self.name.trim().is_empty() && (self.editing || !self.sub.trim().is_empty())
     }
 
     /// The task payload.
     pub fn payload(&self) -> Value {
         json!({
-            "name": self.name.trim(), "path": self.folder.trim(), "comment": self.comment,
+            "name": self.name.trim(), "path": self.path(), "comment": self.comment,
             "rw_groups": split_list(&self.rw), "ro_groups": split_list(&self.ro),
             "rw_users": split_list(&self.rw_users), "ro_users": split_list(&self.ro_users),
             "full_groups": split_list(&self.full), "full_users": split_list(&self.full_users),
@@ -130,6 +147,11 @@ impl ShareForm {
     pub fn unc(&self, server: &str) -> String {
         format!(r"\\{server}\{}", self.name.trim())
     }
+}
+
+/// `list` without the names of `drop` (case-insensitive).
+fn not_in(list: &[String], drop: &[String]) -> Vec<String> {
+    list.iter().filter(|n| !drop.iter().any(|d| d.eq_ignore_ascii_case(n))).cloned().collect()
 }
 
 /// What a restore asks, per backup kind.
@@ -316,7 +338,7 @@ mod tests {
         };
         let mut f = ShareForm::edit(&s);
         f.name = "renamed".into(); // the form does not offer it; even so the name follows the field
-        f.name_changed();
+        f.name_changed("dados");
         assert_eq!(f.folder, "/srv/shares/dados", "an edit never moves the folder");
         f.ro = " DOMAIN\\Sales , ,DOMAIN\\HR".into();
         let p = f.payload();
@@ -328,10 +350,21 @@ mod tests {
             (p["hidden"].as_bool(), p["audit"].as_bool(), p["create_path"].as_bool()),
             (Some(true), Some(true), Some(true))
         );
-        let mut n = ShareForm::new_share();
-        n.name = "Finance Team".into();
-        n.name_changed();
-        assert_eq!(n.folder, "/srv/shares/finance-team");
+        let mut n = ShareForm::new_share("/srv/shares/");
+        n.name = "Finanças Equipe".into();
+        n.name_changed("");
+        assert_eq!(n.path(), "/srv/shares/financas-equipe", "the web's slug: no accents, others as dashes");
+        n.sub = "fin".into(); // edited apart: the name no longer moves it
+        let old = n.name.clone();
+        n.name = "Finance".into();
+        n.name_changed(&old);
+        assert_eq!(n.path(), "/srv/shares/fin");
+        let full = Share {
+            full_groups: vec![r"DOMAIN\Board".into()],
+            rw_groups: vec![r"domain\board".into(), r"DOMAIN\Finance".into()],
+            ..Default::default()
+        };
+        assert_eq!(ShareForm::edit(&full).rw, "DOMAIN\\Finance", "full control left out of write access");
     }
 
     #[test]

@@ -201,14 +201,17 @@ impl Home {
                 panel(ui, &look, t("Reset password / unlock"), |ui| {
                     egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let r = ui.add(
-                                widgets::line(&mut self.login)
-                                    .hint_text(t("user login"))
-                                    .desired_width(ui.available_width() - 88.0),
-                            );
-                            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(t("Login")));
-                            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                            quick = widgets::button(ui, &look, "🔑", t("Open"), Kind::Primary).clicked() || enter;
+                            // the logins as suggestions with their names (the web's quick box)
+                            let options: Vec<(String, String)> = self
+                                .data
+                                .as_ref()
+                                .map(|(_, us)| us.iter().map(|u| (u.sam.clone(), u.name.clone())).collect())
+                                .unwrap_or_default();
+                            let w = ui.available_width() - 88.0;
+                            let id = egui::Id::new("home-quick");
+                            let sg = widgets::suggest(ui, &look, id, &mut self.login, &options, t("user login"), w);
+                            let _ = ui.ctx().accesskit_node_builder(sg.response.id, |n| n.set_label(t("Login")));
+                            quick = widgets::button(ui, &look, "🔑", t("Open"), Kind::Primary).clicked() || sg.enter;
                         });
                     });
                 });
@@ -351,22 +354,24 @@ impl Home {
     }
 
     /// Opens the password dialog of the typed login.
+    /// Opens the password dialog of the login typed, found in the list (an unknown one only warns, as the web's).
     fn quick(&mut self, cx: &mut Cx) {
-        let login = self.login.trim().to_string();
+        let login = self.login.trim().to_lowercase();
         if login.is_empty() {
             return;
         }
-        let api = cx.panel.clone();
-        let path = format!("/api/users/{}", esc(&login));
-        cx.run(async move { api.get::<User>(&path).await }, |app, x| {
-            let d = crate::pages::users::PasswordDialog::new(&app.cx, x).after(|app| {
-                app.with_shell(|s, cx| {
-                    s.home.login.clear();
-                    s.home.load(cx);
-                });
+        let Some(x) = self.data.as_ref().and_then(|(_, us)| us.iter().find(|u| u.sam.to_lowercase() == login)).cloned()
+        else {
+            cx.set_status(t("Login not found."));
+            return;
+        };
+        let d = crate::pages::users::PasswordDialog::new(cx, x).after(|app| {
+            app.with_shell(|s, cx| {
+                s.home.login.clear();
+                s.home.load(cx);
             });
-            app.cx.push(d);
         });
+        cx.push(d);
     }
 }
 

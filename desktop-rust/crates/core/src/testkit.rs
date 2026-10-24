@@ -188,7 +188,9 @@ pub fn demo(users: usize) -> Arc<Route> {
                     json!({"token": "Tk-EXAMPLE-0001", "hash": "h", "command": "echo h | sudo tee /opt/ad-manager/agent.token"}),
                 ),
                 "/api/agents/1/tasks" => ok(json!({"id": "t1", "state": "pending"})),
-                "/api/agents/1/syncs/public/preview" => ok(json!({"id": "p1", "job": "public", "preview": true, "status": "running"})),
+                "/api/agents/1/syncs/public/preview" => {
+                    ok(json!({"id": "p1", "job": "public", "preview": true, "status": "running"}))
+                }
                 "/api/users/bruno.silva/password-link" => {
                     ok(json!({"token": "Zq3xY7", "expires": "2026-10-24T10:00:00Z"}))
                 }
@@ -306,6 +308,10 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"sid":"S-1-5-18","name":"NT AUTHORITY\\SYSTEM","type":"allow","access":"full"},
                 {"sid":"S-1-5-21-1-1104","name":"DOMAIN\\Finance","type":"allow","access":"rw"},
                 {"sid":"S-1-5-21-1-1105","name":"DOMAIN\\Auditors","type":"allow","access":"ro"}]})),
+            "/api/agents/1/dirs" => ok(json!({"roots": ["/srv/shares", "/srv/projects"]})),
+            "/api/agents/1/acl/history" => ok(json!([
+                {"path":"/srv/shares/finance","time":"2026-10-20T14:30:00Z","before":"O:BAG:DUD:(A;OICI;FA;;;BA)"},
+                {"path":"/srv/shares/finance","time":"2026-10-01T09:00:00Z","before":""}])),
             "/api/agents/1/health" => ok(json!({"status":"ok","dc":false,"files":true,"samba":true})),
             "/api/agents/1/sessions" => ok(json!({"sessions":[
                 {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],

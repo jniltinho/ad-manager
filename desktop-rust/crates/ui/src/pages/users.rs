@@ -483,38 +483,41 @@ fn group_list(
     id: &str,
     names: &[String],
     groups: &[String],
-    pick: &mut usize,
+    pick: &mut String,
 ) -> Option<GroupEvent> {
     let look = cx.look.clone();
     let mut ev = None;
-    let rest: Vec<String> = names.iter().filter(|n| !groups.contains(n)).cloned().collect();
+    // the web's: a field with the other groups as suggestions and Add, then the table of groups with remove
+    let rest: Vec<(String, String)> =
+        names.iter().filter(|n| !groups.contains(n)).map(|n| (n.clone(), String::new())).collect();
     ui.horizontal(|ui| {
-        let mut opts = vec![t("Add to a group…").to_string()];
-        opts.extend(rest.iter().cloned());
-        widgets::select(ui, (id, "pick"), pick, &opts, 300.0);
-        if widgets::button(ui, &look, "➕", t("Add"), Kind::Secondary).clicked()
-            && *pick > 0
-            && let Some(g) = rest.get(*pick - 1)
-        {
-            ev = Some(GroupEvent::Add(g.clone()));
-            *pick = 0;
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let w = ui.available_width() - 72.0;
+        let sg = widgets::suggest(ui, &look, egui::Id::new((id, "pick")), pick, &rest, t("Add to a group…"), w);
+        let _ = ui.ctx().accesskit_node_builder(sg.response.id, |n| n.set_label(t("Group")));
+        let ready = !pick.trim().is_empty();
+        let add =
+            ui.add_enabled_ui(ready, |ui| widgets::button(ui, &look, "", t("Add"), Kind::Primary)).inner.clicked();
+        if (add || sg.enter) && ready {
+            // the group as the directory names it, when it is one of the list
+            let typed = pick.trim().to_string();
+            let g = names.iter().find(|n| n.eq_ignore_ascii_case(&typed)).cloned().unwrap_or(typed);
+            ev = Some(GroupEvent::Add(g));
+            pick.clear();
         }
     });
-    egui::ScrollArea::vertical().id_salt((id, "list")).max_height(150.0).min_scrolled_height(130.0).show(ui, |ui| {
-        if groups.is_empty() {
-            ui.label(t("Only the primary group (Domain Users)."));
+    ui.add_space(12.0);
+    let rows: Vec<[RichText; 2]> = groups.iter().map(|g| [RichText::new(g), RichText::new("")]).collect();
+    let mut cell = |ui: &mut Ui, r: usize| {
+        if widgets::act(ui, &look, "🗑", t("remove"), None, 12.0).clicked() {
+            ev = Some(GroupEvent::Remove(groups[r].clone()));
         }
-        for g in groups {
-            ui.horizontal(|ui| {
-                ui.label(g);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::button(ui, &look, "🗑", t("remove"), Kind::Link).clicked() {
-                        ev = Some(GroupEvent::Remove(g.clone()));
-                    }
-                });
-            });
-        }
-    });
+    };
+    widgets::mini_table(ui, &look, [t("Group"), t("Action")], &rows, Some(&mut cell));
+    if groups.is_empty() {
+        ui.add_space(6.0);
+        ui.label(RichText::new(t("Only the primary group (Domain Users).")).size(12.0).color(look.c("fg-muted")));
+    }
     ev
 }
 
@@ -725,7 +728,7 @@ pub fn edit_user(cx: &mut Cx, sam: String) {
             user: x,
             names,
             groups,
-            pick: 0,
+            pick: String::new(),
             tab: 0,
             busy: false,
             done: false,
@@ -738,7 +741,8 @@ pub struct EditUser {
     fields: UserFields,
     names: Vec<String>,
     groups: Vec<String>,
-    pick: usize,
+    /// The group being typed in the Groups tab.
+    pick: String,
     tab: usize,
     busy: bool,
     done: bool,

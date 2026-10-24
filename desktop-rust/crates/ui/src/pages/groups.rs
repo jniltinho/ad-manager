@@ -292,11 +292,18 @@ impl Dialog for Detail {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             let w = ui.available_width() - 80.0;
-            let r = ui.add(
-                widgets::line(&mut self.add).hint_text(t("New member's login (computers end with $)")).desired_width(w),
-            );
-            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(t("New member")));
-            let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            // the logins as suggestions with their names, members left out (the web's)
+            let options: Vec<(String, String)> = self
+                .logins
+                .iter()
+                .filter(|(sam, _)| !self.members.iter().any(|m| m.eq_ignore_ascii_case(sam)))
+                .cloned()
+                .collect();
+            let hint = t("New member's login (computers end with $)");
+            let sg =
+                widgets::suggest(ui, &look, egui::Id::new(("group-add", &self.name)), &mut self.add, &options, hint, w);
+            let _ = ui.ctx().accesskit_node_builder(sg.response.id, |n| n.set_label(t("New member")));
+            let enter = sg.enter;
             let ready = !self.add.trim().is_empty();
             if (ui.add_enabled_ui(ready, |ui| widgets::button(ui, &look, "", t("Add"), Kind::Primary)).inner.clicked()
                 || enter)

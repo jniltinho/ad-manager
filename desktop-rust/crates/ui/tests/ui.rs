@@ -626,3 +626,29 @@ fn sync_preview_is_followed_in_the_wizard() {
     e.h.get_by_label("▶  Run now").click_accesskit();
     e.wait("the run", |_, m| !m.sent("POST", "/api/agents/1/syncs/public/run").is_empty());
 }
+
+#[test]
+fn home_quick_box_suggests_logins_and_warns_on_unknown_ones() {
+    let mut e = env();
+    e.sign_in();
+    e.wait("the users", |_, m| !m.sent("GET", "/api/users").is_empty());
+    e.h.run_steps(3);
+    e.h.get_by_label("Login").click();
+    e.h.step();
+    e.type_text("bruno.sil");
+    e.h.run_steps(2);
+    assert!(e.h.query_by_label_contains("Bruno Silva").is_some(), "the login suggested with its name");
+    e.key(egui::Key::ArrowDown);
+    e.key(egui::Key::Enter); // picks the suggestion only
+    e.h.run_steps(2);
+    e.key(egui::Key::Enter); // opens it
+    e.h.run_steps(3);
+    assert!(e.h.query_by_label_contains("Reset password — Bruno Silva").is_some(), "the password dialog");
+    e.key(egui::Key::Escape);
+    e.h.get_by_label("Login").click();
+    e.h.step();
+    e.type_text("x");
+    e.key(egui::Key::Enter);
+    e.h.run_steps(2);
+    assert_eq!(e.app().cx.status, "Login not found.");
+}
