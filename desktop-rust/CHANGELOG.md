@@ -23,3 +23,7 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 - Unit and UI acceptance tests (egui_kittest against an in-process mock panel), docs screenshots at 2×, and a
   benchmark against the Fyne app (`bench/`, report in `docs/benchmark.md`).
 - Its own CI and release (`.github/workflows/desktop-rust-*.yml`), path-filtered to `desktop-rust/`.
+- A crash-safe graphics start (rustXterm's design): a start killed by a graphics driver moves the next one down a
+  per-OS ladder of backends (Windows OpenGL → DX12 → Vulkan → WARP; Linux Vulkan → OpenGL → llvmpipe; macOS Metal →
+  OpenGL); a working fallback is kept in `graphics.toml`, Configure › Graphics changes it, `--safe-gpu` and
+  `--gpu-info`. Linux and Windows render through wgpu (glow only as the macOS fallback); the window keeps its place.

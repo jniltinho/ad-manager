@@ -43,7 +43,7 @@ fn env_at(users: usize, w: f32, ppp: f32, host: &str, port: u16, version: &'stat
     std::fs::create_dir_all(&dir).unwrap();
     let loaded = Loaded { config, path: dir.join("desktop.toml"), needs_setup: false, notice: None };
     let platform = Arc::new(TestPlatform { user_config: dir.join("user.toml") });
-    let start = Start { platform, config: Ok(loaded), version };
+    let start = Start { platform, config: Ok(loaded), version, gpu: None };
     let handle = rt.handle().clone();
     let h = Harness::builder()
         .with_size(egui::vec2(w, 800.0))
@@ -283,6 +283,54 @@ fn compact_icons_at_1280_and_names_when_wide() {
     let mut w = env_sized(60, 1900.0);
     w.users_page();
     assert!(!compact(&w), "wide: icon and name");
+}
+
+#[test]
+fn graphics_fallback_is_saved_after_three_frames_and_announced() {
+    adm_core::i18n::set_lang("en");
+    let dir = std::env::temp_dir().join(format!("adm-gpu-ui-{}-{}", std::process::id(), rand_suffix()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let cleared = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = cleared.clone();
+    let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
+    let mut config = Config::default();
+    config.panel.url = "https://panel.domain.local:8443".into();
+    let loaded = Loaded { config, path: dir.join("desktop.toml"), needs_setup: false, notice: None };
+    let gpu = adm_ui::app::GpuStart {
+        dir: dir.clone(),
+        save: Some("dx12"),
+        notice: Some(("gl", "dx12")),
+        warning: None,
+        choices: vec!["auto", "gl", "dx12", "vulkan", "cpu"],
+        current: String::new(),
+        on_started: Box::new(move || flag.store(true, std::sync::atomic::Ordering::SeqCst)),
+    };
+    let platform = Arc::new(TestPlatform { user_config: dir.join("user.toml") });
+    let start = Start { platform, config: Ok(loaded), version: "test", gpu: Some(gpu) };
+    let handle = rt.handle().clone();
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1280.0, 800.0))
+        .build_eframe(move |cc| App::with_runtime(&cc.egui_ctx, start, handle, None).unwrap());
+    // counted in completed frames, not passes: nothing is saved or cleared before GPU_START_FRAMES were painted
+    let need = u64::from(adm_ui::app::GPU_START_FRAMES);
+    for _ in 0..20 {
+        if cleared.load(std::sync::atomic::Ordering::SeqCst) {
+            break;
+        }
+        assert!(adm_core::config::load_graphics(&dir).is_empty(), "not saved before the frames are painted");
+        h.step();
+    }
+    assert!(h.ctx.cumulative_frame_nr() >= need, "cleared only after {need} painted frames");
+    assert!(cleared.load(std::sync::atomic::Ordering::SeqCst), "the marker is cleared once painted");
+    assert_eq!(adm_core::config::load_graphics(&dir), "dx12", "a working hardware fallback is saved");
+    assert!(!dir.join("desktop.toml").exists(), "desktop.toml is not written");
+    assert!(
+        h.query_by_label_contains("The graphics driver stopped the last start (gl); now using dx12").is_some(),
+        "said before sign-in"
+    );
+    use eframe::App as _;
+    assert!(!h.state().persist_egui_memory(), "egui's memory (text fields) never goes to the disk");
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

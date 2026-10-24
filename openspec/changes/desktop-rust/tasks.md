@@ -60,18 +60,25 @@
       should-fix: eframe-owned window placement, `WGPU_BACKEND` forced launches, qualified software/adapter
       guarantees, Graphics in Configure without a panel test, `graphics.toml` instead of desktop.toml, a manual
       GPU-less WARP presentation gate, an isolated and recorded benchmark); applied.
-- [ ] 7.1 `apps/ad-manager-desktop-rs/src/gpu.rs` from rustXterm with the corrections of D12: `Backend`, `Os`,
+- [x] 7.1 `apps/ad-manager-desktop-rs/src/gpu.rs` from rustXterm with the corrections of D12: `Backend`, `Os`,
       `ladder`, `next`, `plan` (forced, `to_save`, `notice`), `Marker` (lock before truncate, clear under the lock),
       `configuration`, `pick_adapter`; unit tests (ladders, plan, forced launches, what is saved, adapter choice incl.
       no software adapter) and the two-process marker test.
-- [ ] 7.2 eframe: `wgpu` on Linux and Windows, `glow` only on macOS (Metal → glow), `persistence`; rustXterm's
+- [x] 7.2 eframe: `wgpu` on Linux and Windows, `glow` only on macOS (Metal → glow), `persistence`; rustXterm's
       vendored `wgpu-hal` patch (output-owning WARP) with its `vendor/README.md` note.
-- [ ] 7.3 `main.rs`: plan before the window, `--safe-gpu`, `--gpu-info`, `WGPU_BACKEND`, `persist_window`,
+- [x] 7.3 `main.rs`: plan before the window, `--safe-gpu`, `--gpu-info`, `WGPU_BACKEND`, `persist_window`,
       1280×800 / 800×600, the `run_native` error message, the missing `libxkbcommon` error.
-- [ ] 7.4 App: `GPU_START_FRAMES` = 3 then clear the marker and save a working hardware fallback to `graphics.toml`
+- [x] 7.4 App: `GPU_START_FRAMES` = 3 then clear the marker and save a working hardware fallback to `graphics.toml`
       (write errors as notices), the notice under the sign-in box and in the status line, Configure › Graphics saved
       without a panel test ("Applies at the next start."), tests that desktop.toml is never written by it.
-- [ ] 7.5 CI: a `windows-latest` job in `desktop-rust-ci.yml` (native build + `tests/warp.rs` readback); the release
-      keeps the cross-built Windows zip; the GPU-less Windows presentation gate recorded in `docs/gates/windows.md`.
-- [ ] 7.6 Benchmark: `--gpu-info` recorded per run, `WGPU_BACKEND=gl` + llvmpipe for the wgpu build, a fresh
-      `HOME`/`XDG_*` per run; rerun and update `docs/benchmark.md` with glow and wgpu numbers.
+- [x] 7.5 CI: a `windows-latest` job in `desktop-rust-ci.yml` (native build + `tests/warp.rs` readback); the release
+      keeps the cross-built Windows zip; the GPU-less Windows presentation gate written in `docs/gates/windows.md`.
+- [ ] 7.5a Run the GPU-less Windows presentation gate and fill its receipt (needs a Windows VM without 3D).
+- [x] 7.6 Benchmark: `--gpu-info` recorded per run, `WGPU_BACKEND=gl` + llvmpipe for the wgpu build, a fresh
+      `HOME`/`XDG_*` per run; rerun and update `docs/benchmark.md` with glow and wgpu numbers (wgpu: still faster to
+      start and to Users and lighter, but +26% scroll CPU vs Fyne on llvmpipe and +5 MiB binary vs glow).
+- [x] 7.7 Codex review of the implementation (2 blockers: frames counted as UI passes — now egui's completed frames
+      with a repaint until then; the marker and window beside desktop.toml — now a private `desktop-rs/` state folder
+      refused when a link or open to others. 3 should-fix: a stable `gpu-starting.lock` separate from the removable
+      marker, the protection-off warning shown at once and on the sign-in screen, the two-process test reaping its
+      child); applied, with tests.

@@ -53,6 +53,8 @@ pub struct Setup {
     write_err: Option<String>,
     focus: bool,
     pwd_id: egui::Id,
+    /// The result of the last Graphics change (text, ok).
+    gpu_msg: Option<(String, bool)>,
 }
 
 /// Test generations are unique across Configure screens: a test of a screen that was left never counts in a new one.
@@ -78,6 +80,7 @@ impl Setup {
             write_err: None,
             focus: true,
             pwd_id: crate::widgets::secret_id("setup-password"),
+            gpu_msg: None,
         }
     }
 
@@ -276,6 +279,20 @@ impl Setup {
             let names = [t("Panel default").to_string(), "Português".into(), "English".into()];
             widgets::select(ui, "setup-lang", &mut self.lang, &names, 200.0);
             ui.end_row();
+            if !cx.gpu_choices.is_empty() {
+                widgets::label(ui, &look, t("Graphics"));
+                ui.horizontal(|ui| {
+                    let names: Vec<String> = cx.gpu_choices.iter().map(|c| (*c).to_string()).collect();
+                    let mut i = cx.gpu_choices.iter().position(|c| *c == cx.gpu_current).unwrap_or(0);
+                    if widgets::select(ui, "setup-graphics", &mut i, &names, 200.0) {
+                        self.gpu_msg = Some(save_graphics(cx, cx.gpu_choices[i]));
+                    }
+                    if let Some((m, ok)) = &self.gpu_msg {
+                        ui.label(RichText::new(m).color(if *ok { look.c("fg-muted") } else { look.c("err") }));
+                    }
+                });
+                ui.end_row();
+            }
         });
         if changed {
             self.edited(cx);
@@ -319,6 +336,19 @@ impl Setup {
             self.accepted = pin;
             self.test(cx);
         }
+    }
+}
+
+/// Configure › Graphics: saved at once to graphics.toml (no panel test, nothing else written); applies at the next
+/// start.
+fn save_graphics(cx: &mut Cx, backend: &'static str) -> (String, bool) {
+    let Some(dir) = cx.gpu_dir.clone() else { return (String::new(), false) };
+    match adm_core::config::save_graphics(cx.platform.as_ref(), &dir, backend) {
+        Ok(()) => {
+            cx.gpu_current = backend.into();
+            (t("Applies at the next start.").into(), true)
+        }
+        Err(e) => (format!("{}{e}", t("Could not save the graphics backend: ")), false),
     }
 }
 

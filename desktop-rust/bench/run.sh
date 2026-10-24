@@ -67,16 +67,28 @@ served() {
 
 Xvfb "$DISP" -screen 0 1920x1080x24 -dpi 96 >/dev/null 2>&1 &
 x_pid=$!
-# the same scale for both: 1 (96 dpi), software GL
-export DISPLAY=$DISP LIBGL_ALWAYS_SOFTWARE=1 WINIT_X11_SCALE_FACTOR=1 FYNE_SCALE=1
+echo "bench: display $DISP, mock $MOCK, out $OUT" >&2
+# the same scale for both: 1 (96 dpi), software OpenGL (Mesa llvmpipe); the Rust app renders through wgpu, held to
+# its OpenGL backend here so both draw with the same rasterizer (its --gpu-info line is kept in the report)
+export DISPLAY=$DISP LIBGL_ALWAYS_SOFTWARE=1 WINIT_X11_SCALE_FACTOR=1 FYNE_SCALE=1 WGPU_BACKEND=gl
 sleep 1
 "$MOCK" --users "$USERS" --port "$PORT" >"$mock_log" 2>&1 &
 mock_pid=$!
-until grep -q '^fingerprint' "$mock_log"; do sleep 0.05; done
+until grep -q '^fingerprint' "$mock_log"; do
+    kill -0 "$mock_pid" 2>/dev/null || { echo "the mock panel ended: $(cat "$mock_log")" >&2; exit 1; }
+    sleep 0.05
+done
 pin=$(sed -n 's/^fingerprint = "\(.*\)"/\1/p' "$mock_log")
-cfg=$work/desktop.toml
-printf 'lang = "en"\n\n[panel]\nurl = "https://localhost:%s"\nfingerprint = "%s"\nuser = "administrator"\n' "$PORT" "$pin" >"$cfg"
-chmod 600 "$cfg"
+# each run gets its own config folder and HOME: the Rust app keeps its window's place, its start marker and
+# graphics.toml beside desktop.toml, and nothing may carry over from one run to the next
+new_cfg() {
+    local d=$work/$1
+    mkdir -p "$d/home"
+    chmod 700 "$d"
+    printf 'lang = "en"\n\n[panel]\nurl = "https://localhost:%s"\nfingerprint = "%s"\nuser = "administrator"\n' "$PORT" "$pin" >"$d/desktop.toml"
+    chmod 600 "$d/desktop.toml"
+    echo "$d"
+}
 
 # the password field and the table, per app (both windows 1280 x 800 at the origin; the sidebar's Users item is at
 # the same place in both)
@@ -87,8 +99,13 @@ TABLE_AT="740 500"
 # one run: prints "cold idle signin users_pss scroll"
 run() {
     local app=$1 bin=$2 t0 t1 t2 t3 mark cpu0 cpu1 h0 h1 win
+    local d
+    d=$(new_cfg "$app-$run_n")
+    local extra=()
+    [ "$app" = rust ] && extra=(--gpu-info)
     t0=$(now_ms)
-    "$bin" --config "$cfg" >"$work/$app.log" 2>&1 &
+    HOME=$d/home XDG_CONFIG_HOME=$d/home/.config XDG_DATA_HOME=$d/home/.local/share XDG_CACHE_HOME=$d/home/.cache \
+        "$bin" --config "$d/desktop.toml" "${extra[@]}" >"$OUT/$app-$run_n.log" 2>&1 &
     app_pid=$!
     until win=$(xdotool search --onlyvisible --name "AD Manager" 2>/dev/null | head -n 1) && [ -n "$win" ]; do
         sleep 0.005
@@ -158,6 +175,7 @@ median() { sort -n | awk '{a[NR]=$1} END {print (NR % 2) ? a[(NR + 1) / 2] : (a[
     echo "rust: $RUST ($(stat -c %s "$RUST") bytes, $("$RUST" --version 2>/dev/null))"
     echo "users: $USERS, runs: $RUNS (+1 warm-up each, discarded), alternating fyne/rust"
 } >"$OUT/machine.txt"
+# the renderer and adapter the Rust app reports are added after its first run (--gpu-info)
 echo "app run cold_ms idle_pss_mib signin_to_users_ms users_pss_mib scroll_cpu_ms scroll_wall_ms" >"$OUT/raw.txt"
 
 declare -A RES
@@ -187,6 +205,8 @@ size() {
     printf '%.1f' "$(echo "$(stat -c %s "$s") / 1048576" | bc -l)"
     rm -f "$s"
 }
+
+grep -h '^gpu:' "$OUT"/rust-*.log 2>/dev/null | sort -u | sed 's/^/rust /' >>"$OUT/machine.txt" || true
 
 col() { printf '%s' "${RES[$1]}" | awk -v c="$2" 'NF {print $c}' | median; }
 exec > >(tee "$OUT/result.md")

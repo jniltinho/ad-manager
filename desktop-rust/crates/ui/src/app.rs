@@ -15,6 +15,7 @@ use adm_core::api::{Api, ApiError, ApiResult};
 use adm_core::config::Config;
 use adm_core::i18n::{self, t};
 use adm_core::model::Me;
+use adm_core::tf;
 use adm_platform::Platform;
 use egui::{Align2, Context, Ui};
 
@@ -73,6 +74,12 @@ pub struct Cx {
     pub brand: crate::login::PublicBrand,
     /// The window title wanted (sent to the window when it changes).
     pub title: String,
+    /// A notice of the graphics start (a fallback, or the protection being off), shown before and after sign-in.
+    pub gpu_notice: Option<String>,
+    /// Configure › Graphics: the choices, the saved one and where it is saved.
+    pub gpu_choices: Vec<&'static str>,
+    pub gpu_current: String,
+    pub gpu_dir: Option<PathBuf>,
 }
 
 impl Cx {
@@ -237,6 +244,8 @@ pub struct App {
     pub screen: Screen,
     rx: Receiver<Job>,
     shown_title: String,
+    /// The graphics start until it counts as working.
+    gpu: Option<GpuStart>,
     /// When the last frame started (frame pacing).
     last_frame: Option<std::time::Instant>,
     /// The shell kept aside while Configure is open from the header.
@@ -251,6 +260,28 @@ pub struct Start {
     pub platform: Arc<dyn Platform>,
     pub config: Result<adm_core::config::Loaded, String>,
     pub version: &'static str,
+    /// The crash-safe graphics start of the binary (none in tests).
+    pub gpu: Option<GpuStart>,
+}
+
+/// Frames painted before a graphics start counts as working.
+pub const GPU_START_FRAMES: u32 = 3;
+
+/// The crash-safe graphics start handed over by the binary (its `gpu` module).
+pub struct GpuStart {
+    /// The folder of graphics.toml (that of desktop.toml).
+    pub dir: PathBuf,
+    /// The backend to save once painted: a hardware fallback that worked.
+    pub save: Option<&'static str>,
+    /// A fallback launch: the backend whose start died and the one now used.
+    pub notice: Option<(&'static str, &'static str)>,
+    /// Why the crash protection is off for this launch (its state folder or marker could not be used).
+    pub warning: Option<String>,
+    /// What Configure › Graphics offers, and the saved choice.
+    pub choices: Vec<&'static str>,
+    pub current: String,
+    /// Called once painted: removes the start marker.
+    pub on_started: Box<dyn FnOnce() + Send>,
 }
 
 impl App {
@@ -296,12 +327,29 @@ impl App {
             version: start.version,
             brand: Default::default(),
             title: String::new(),
+            gpu_notice: start.gpu.as_ref().and_then(|g| {
+                g.notice
+                    .map(|(a, b)| {
+                        tf!(
+                            "The graphics driver stopped the last start (%s); now using %s. Change it in Configure.",
+                            a,
+                            b
+                        )
+                    })
+                    .or_else(|| {
+                        g.warning.as_ref().map(|w| format!("{}{w}", t("The graphics start protection is off: ")))
+                    })
+            }),
+            gpu_choices: start.gpu.as_ref().map(|g| g.choices.clone()).unwrap_or_default(),
+            gpu_current: start.gpu.as_ref().map(|g| g.current.clone()).unwrap_or_default(),
+            gpu_dir: start.gpu.as_ref().map(|g| g.dir.clone()),
         };
         let mut app = Self {
             cx,
             screen: Screen::Failed(String::new()),
             rx,
             shown_title: String::new(),
+            gpu: start.gpu,
             last_frame: None,
             kept: None,
             heights: Vec::new(),
@@ -363,10 +411,32 @@ impl App {
         self.dialogs(ui.ctx());
         style::focus_ring(ui.ctx(), &self.cx.look);
         self.switch();
+        self.gpu_started(ui.ctx());
         if self.cx.title != self.shown_title {
             self.shown_title = self.cx.title.clone();
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(self.shown_title.clone()));
         }
+    }
+
+    /// After [`GPU_START_FRAMES`] painted frames the graphics start counts as working: a hardware fallback is saved
+    /// and the start marker removed.
+    fn gpu_started(&mut self, ctx: &Context) {
+        if self.gpu.is_none() {
+            return;
+        }
+        // completed frames (each painted before the next one runs), not UI passes: one frame may run several passes
+        if ctx.cumulative_frame_nr() < u64::from(GPU_START_FRAMES) {
+            ctx.request_repaint();
+            return;
+        }
+        let Some(start) = self.gpu.take() else { return };
+        if let Some(b) = start.save {
+            match adm_core::config::save_graphics(self.cx.platform.as_ref(), &start.dir, b) {
+                Ok(()) => self.cx.gpu_current = b.into(),
+                Err(e) => self.cx.gpu_notice = Some(format!("{}{e}", t("Could not save the graphics backend: "))),
+            }
+        }
+        (start.on_started)();
     }
 
     /// Draws the open dialogs, top one last; each is taken out while it draws so it can use the services.
@@ -467,6 +537,9 @@ impl App {
         if let Some((msg, err)) = self.cx.notice.take() {
             self.cx.set_status(format!("{}{err}", t(&msg)));
         }
+        if let Some(n) = self.cx.gpu_notice.take() {
+            self.cx.set_status(n);
+        }
         self.screen = Screen::Shell(Box::new(shell::Shell::new(&mut self.cx)));
     }
 }
@@ -476,6 +549,12 @@ impl App {
 const MIN_FRAME: std::time::Duration = std::time::Duration::from_micros(16_600);
 
 impl eframe::App for App {
+    /// Only the window's place and size are kept between starts (eframe's `persist_window`): egui's memory would carry
+    /// text field states, password fields included, to the disk.
+    fn persist_egui_memory(&self) -> bool {
+        false
+    }
+
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         if let Some(last) = self.last_frame {
             let since = last.elapsed();

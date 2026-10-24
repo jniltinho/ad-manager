@@ -270,7 +270,8 @@ catalog, and color the interface with the panel theme's roles (18 themes, flat l
 The app SHALL plan its graphics backend before the window exists: a `gpu-starting` marker that no running instance
 holds SHALL move the start to the next safer backend of the platform's ladder, otherwise the backend saved in
 `graphics.toml` applies; `--safe-gpu` and `WGPU_BACKEND` override the plan. The marker SHALL be removed after 3
-painted frames.
+completed frames. The marker, its lock file and the saved window SHALL live in a private state folder that is
+refused when it is a link or open to others.
 
 #### Scenario: A start that died
 - **WHEN** the last start on OpenGL (Windows) left a marker that no process holds
@@ -279,13 +280,17 @@ painted frames.
   marker is removed, desktop.toml untouched
 
 #### Scenario: Another instance starting
-- **WHEN** another process holds the marker's lock while this instance starts
-- **THEN** this start does not treat it as a crash, does not truncate or rewrite the marker, and uses the saved
-  backend
+- **WHEN** another process holds `gpu-starting.lock` while this instance starts
+- **THEN** this start does not treat it as a crash, does not write or remove the marker, and uses the saved backend
 
 #### Scenario: Forced by the environment
 - **WHEN** `WGPU_BACKEND` is set, also when a marker of a start that died is there
 - **THEN** wgpu's choice is used, nothing is saved or announced, and a start that dies under it moves no rung
+
+#### Scenario: State folder open to others
+- **WHEN** the `desktop-rs` state folder beside desktop.toml is a link, or has mode 0755 on Unix
+- **THEN** the app starts without crash protection and without a saved window, writes nothing in it, and says "The
+  graphics start protection is off: …" on stderr and on the sign-in screen
 
 #### Scenario: Software is never saved silently
 - **WHEN** a crash moves the start down to the software rung

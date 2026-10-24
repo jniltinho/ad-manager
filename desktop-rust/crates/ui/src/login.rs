@@ -206,6 +206,14 @@ impl Login {
                         });
                     });
                 }
+                // the graphics start fell back: said before anyone signs in
+                if let Some(n) = &cx.gpu_notice {
+                    ui.add_space(4.0);
+                    Frame::new().fill(look.c("surface")).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+                        ui.set_width(BOX_W - 20.0);
+                        ui.add(egui::Label::new(RichText::new(n).size(12.0).color(look.c("warn"))).wrap());
+                    });
+                }
                 ui.add_space(8.0);
                 let dom = if cx.brand.domain.is_empty() { t("domain").to_string() } else { cx.brand.domain.clone() };
                 let nb = if cx.brand.netbios.is_empty() { netbios_of(&dom) } else { cx.brand.netbios.clone() };

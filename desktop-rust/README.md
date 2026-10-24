@@ -31,6 +31,17 @@ The same as the Fyne app, against the same panel API, with the same rules (the s
 - The panel's 18 themes (`crates/core/assets/themes.json`, generated from `desktop/themes_gen.go`) in their flat
   look: the same colors, without drawn gradients and shadows.
 
+## Graphics
+
+A crash-safe start, as rustXterm's: if a graphics driver kills the app while its window is being created, the next
+start notices (a `gpu-starting` marker left in `desktop-rs/` beside desktop.toml) and tries the next safer backend — Windows OpenGL →
+DirectX 12 → Vulkan → software (WARP), Linux Vulkan → OpenGL → software (llvmpipe), macOS Metal → OpenGL. A
+hardware fallback that worked is kept in `graphics.toml` and said under the sign-in box; **Configure › Graphics**
+changes it. `--safe-gpu` renders in software for one launch, `--gpu-info` prints the adapter in use and
+`WGPU_BACKEND` forces wgpu's choice. The window opens at 1280×800 and comes back where it was (also saved in
+`desktop-rs/`, which must be private: a link or a folder open to others turns the protection and the saved window
+off, and the sign-in screen says so).
+
 ## Layout
 
 A Cargo workspace, laid out as [rustXterm](https://github.com/jniltinho/rustXterm):

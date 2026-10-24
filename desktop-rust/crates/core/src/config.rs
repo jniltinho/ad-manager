@@ -237,6 +237,48 @@ fn nanos() -> u128 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())
 }
 
+/// The graphics choice of this app (`graphics.toml` beside desktop.toml): its own file, so the first-run rule of
+/// desktop.toml holds and the Fyne app, which rewrites desktop.toml, never drops it.
+pub const GRAPHICS_FILE: &str = "graphics.toml";
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct Graphics {
+    #[serde(default)]
+    gpu_backend: String,
+}
+
+/// The saved graphics backend name ("" when none or unreadable: the platform default).
+pub fn load_graphics(dir: &Path) -> String {
+    fs::read_to_string(dir.join(GRAPHICS_FILE))
+        .ok()
+        .and_then(|t| toml::from_str::<Graphics>(&t).ok())
+        .map(|g| g.gpu_backend)
+        .unwrap_or_default()
+}
+
+/// Saves the graphics backend name (0600, atomically).
+pub fn save_graphics(platform: &dyn Platform, dir: &Path, backend: &str) -> Result<(), ConfigError> {
+    let path = dir.join(GRAPHICS_FILE);
+    let io = |source| ConfigError::Io { path: path.display().to_string(), source };
+    let text = format!(
+        "# ad-manager-desktop-rs graphics backend: auto, gl, dx12, vulkan or cpu (Configure › Graphics)\n{}",
+        toml::to_string(&Graphics { gpu_backend: backend.into() })?
+    );
+    platform.create_private_dir(dir).map_err(io)?;
+    let tmp = dir.join(format!(".graphics-{}-{}.toml", std::process::id(), nanos()));
+    let result = (|| {
+        let mut f = platform.create_private(&tmp)?;
+        f.write_all(text.as_bytes())?;
+        f.sync_all()?;
+        drop(f);
+        fs::rename(&tmp, &path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    result.map_err(io)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,6 +374,20 @@ mod tests {
             PathBuf::from("/x.toml")
         );
         assert_eq!(resolve_path(None, Some("/y.toml"), Some(local), user).0, PathBuf::from("/y.toml"));
+    }
+
+    #[test]
+    fn graphics_choice_has_its_own_file() {
+        let d = tmp("graphics");
+        assert_eq!(load_graphics(&d), "");
+        save_graphics(&plat(), &d, "dx12").unwrap();
+        assert_eq!(load_graphics(&d), "dx12");
+        assert!(!d.join("desktop.toml").exists(), "desktop.toml is never written by it");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(fs::metadata(d.join(GRAPHICS_FILE)).unwrap().permissions().mode() & 0o777, 0o600);
+        }
     }
 
     #[test]

@@ -150,14 +150,20 @@ its tests and the corrections below:
   saved). `WGPU_BACKEND` set → a **forced** launch: wgpu's own choice, the marker written as `env`, nothing promoted,
   saved or announced; a dead `env` marker is not a crash of any rung (the next start uses the preference). Otherwise a
   marker that died → `next(tried, os)`, recorded as `crashed`; else the preference.
-- **Marker, ownership first** (fixes a race in rustXterm, whose `start` truncates before it locks): `gpu-starting` in
-  the folder of desktop.toml is opened with `create` and **without** `truncate`, then `try_lock`ed; only the holder
-  of the lock truncates and writes the backend name. A lock that cannot be taken belongs to another instance that is
-  starting: this launch neither treats it as a crash nor writes the marker (that instance's protection covers it).
-  `Marker::died` reads a marker only when it can take its lock. `clear` removes the path while still holding the
-  lock, then unlocks. The app clears it after `GPU_START_FRAMES` = 3 painted frames; an error creating it only loses
-  the protection (a status-line notice, never fatal). A regression test runs two processes (the test binary
-  re-invoked) to show a held marker is neither erased nor read as a crash.
+- **State folder**: the marker and the window's place live in `desktop-rs/` beside desktop.toml (each copy of the app
+  keeps its own, as its config), created private (0700 on Unix). It is refused when it is a link, not a folder, or
+  open to others (Unix): then this launch runs without crash protection and without a saved window, says so on stderr
+  at once and on the sign-in screen ("The graphics start protection is off: …"), never fatal.
+- **Marker, ownership first** (fixes two races in rustXterm, whose `start` truncates before it locks and whose lock
+  is on the file it removes): ownership is a lock on `gpu-starting.lock`, opened without `truncate` and never
+  removed, so every instance locks the same file. Only the holder of that lock writes the removable `gpu-starting`
+  marker (the backend name; a link there is removed, never written through) and removes it. A lock that cannot be
+  taken belongs to another instance that is starting: this launch neither treats it as a crash nor touches the marker
+  (that instance's protection covers it). `Marker::died` takes the lock first, then reads the marker. `clear` removes
+  the marker while still holding the lock, then unlocks. The app clears it once `GPU_START_FRAMES` = 3 frames
+  completed (egui's `cumulative_frame_nr`, not UI passes, and a repaint is requested until then). A regression test
+  runs two processes (the test binary re-invoked, killed and reaped by a guard) to show a held marker is neither
+  erased nor read as a crash.
 - **Ladders**: Windows `gl → dx12 → vulkan → cpu` (OpenGL first: DX12 presentation flickers on Intel graphics);
   Linux `vulkan → gl → cpu`; macOS `auto (Metal) → gl`, `cpu` terminal — on macOS `gl` and `cpu` both mean
   `eframe::Renderer::Glow`, the safest renderer once Metal is out (hardware-preferred OpenGL, not guaranteed CPU
@@ -177,8 +183,10 @@ its tests and the corrections below:
   keeps the output-owning one, `vendor/wgpu-hal` + `[patch.crates-io]`), else the first usable adapter so the window
   still opens (NVIDIA's EGL hides llvmpipe), which may be hardware. Linux `auto` keeps wgpu's default selection.
 - **Window** (as rustXterm: eframe owns it): `with_inner_size(1280×800)` (it scales on QHD and 4K displays by the
-  system scale), minimum 800×600, `persist_window: true` (eframe `persistence`); restoration and its monitor clamp
-  are eframe's — the app never moves the window itself (it cannot know monitor origins). `run_native` failing ends
+  system scale), minimum 800×600, `persist_window: true` (eframe `persistence`), stored in `window/` of the
+  state folder (off when that folder was refused); restoration and its monitor clamp are eframe's —
+  the app never moves the window itself (it cannot know monitor origins). `persist_egui_memory` is off: egui's memory
+  holds text field states, password fields included, and must never reach the disk. `run_native` failing ends
   with "cannot open the window: …; the next start tries a safer graphics backend" (the marker stays); winit's panic
   for a missing `libxkbcommon(-x11)` becomes "cannot open the window: libxkbcommon-x11.so.0 is not installed".
 - **WARP**: the CI readback test (64×64 frame on the CPU WARP adapter, `windows-latest`) shows WARP renders; it does
