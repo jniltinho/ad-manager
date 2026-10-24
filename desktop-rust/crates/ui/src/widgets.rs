@@ -144,7 +144,12 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
                     ui.add_space(6.0);
                     ui.add(egui::Label::new(RichText::new(note).size(size).color(look.c("fg-muted"))).truncate());
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // what sits in the head is semibold as the head (the web's .card-h buttons inherit it)
+                    ui.style_mut().override_font_id =
+                        Some(egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())));
+                    right(ui)
+                });
             });
         })
         .response;

@@ -393,9 +393,18 @@ fn pad(ui: &mut Ui, right: bool, px: f32, add: impl FnOnce(&mut Ui)) {
         egui::Layout::left_to_right(egui::Align::Center)
     };
     ui.with_layout(layout, |ui| {
-        ui.add_space(px);
-        ui.set_clip_rect(ui.max_rect().shrink2(egui::vec2(px / 2.0, 0.0)).intersect(ui.clip_rect()));
-        add(ui);
+        let clip = ui.max_rect().shrink2(egui::vec2(px / 2.0, 0.0)).intersect(ui.clip_rect());
+        // the padding before the text, half of it after: a truncated text ends in its ellipsis inside the clip
+        let m = ui.max_rect();
+        let inner = if right {
+            egui::Rect::from_min_max(egui::pos2(m.left() + px / 2.0, m.top()), egui::pos2(m.right() - px, m.bottom()))
+        } else {
+            egui::Rect::from_min_max(egui::pos2(m.left() + px, m.top()), egui::pos2(m.right() - px / 2.0, m.bottom()))
+        };
+        ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(layout), |ui| {
+            ui.set_clip_rect(clip);
+            add(ui);
+        });
     });
 }
 

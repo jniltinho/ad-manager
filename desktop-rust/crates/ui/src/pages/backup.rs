@@ -285,11 +285,11 @@ impl Backup {
                 }
                 let cols = [
                     Column::new(t("Date"), 160.0),
-                    Column::new(t("Kind"), 230.0).fill(),
-                    Column::new(t("Origin"), 200.0),
+                    Column::new(t("Kind"), 160.0).fill(),
+                    Column::new(t("Origin"), 180.0),
                     Column::new(t("Size"), 90.0).right(),
                     Column::new(t("Status"), 110.0),
-                    Column::new("", 160.0).right(),
+                    Column::new("", 120.0).right(),
                 ];
                 let rows = &cur.backups;
                 let mut hover = None;

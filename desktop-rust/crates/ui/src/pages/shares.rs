@@ -432,11 +432,11 @@ impl Shares {
         widgets::panel(ui, &look, (&title, &note), right, h, |ui| {
             let w = ui.available_width();
             let cols = [
-                Column::new(t("Name"), (w * 0.16).floor()),
+                Column::new(t("Name"), (w * 0.14).floor()),
                 Column::new(t("Path"), (w * 0.19).floor()),
                 Column::new(t("Size"), 80.0).right(),
                 Column::new(t("Write access"), (w * 0.20).floor()),
-                Column::new(t("Read access"), (w * 0.14).floor()),
+                Column::new(t("Read access"), (w * 0.16).floor()),
                 Column::new(t("Comment"), 120.0).fill(),
                 Column::new(t("Actions"), 144.0).right(),
             ];
