@@ -231,4 +231,5 @@ export default {
   'every share': 'todos os compartilhamentos',
   "the folders of this server's shares of the same name": 'as pastas dos compartilhamentos de mesmo nome deste servidor',
   'the shares of the same name': 'os compartilhamentos de mesmo nome',
+  'comparing {n} files': 'comparando {n} arquivos',
 }

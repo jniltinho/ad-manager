@@ -482,15 +482,23 @@ enum RunAct {
 /// What a running run is doing right now (so the panel never shows an opaque "running").
 fn phase_text(r: &SyncRun) -> String {
     let p = &r.progress;
-    match p.phase.as_str() {
+    // a server job's run also says which share (n of total) it is on, as the web's
+    let share = match (p.share.is_empty(), p.share_count) {
+        (true, _) => String::new(),
+        (false, 0) => format!("{} · ", p.share),
+        (false, n) => format!("{} ({}/{n}) · ", p.share, p.share_index),
+    };
+    let phase = match p.phase.as_str() {
         "preparing" => t("preparing").into(),
         "copying" if p.total > 0 => tf!("copying %d of %d", p.transfers, p.total),
+        "copying" if p.checks > 0 => tf!("comparing %d files", p.checks),
         "copying" => t("copying").into(),
         "acl" if p.acl_items > 0 => format!("{} ({})", t("applying Windows permissions"), p.acl_items),
         "acl" => t("applying Windows permissions").into(),
         "finalizing" => t("finalizing").into(),
-        _ => String::new(),
-    }
+        _ => return share.trim_end_matches(" · ").to_string(),
+    };
+    format!("{share}{phase}")
 }
 
 fn reload(app: &mut App) {

@@ -800,6 +800,7 @@
  "certificate from config.toml": "certificado do config.toml",
  "characters": "caracteres",
  "choose": "escolher",
+ "comparing %d files": "comparando %d arquivos",
  "computer part disabled": "parte de computador desabilitada",
  "computers.csv": "computadores.csv",
  "container": "container",

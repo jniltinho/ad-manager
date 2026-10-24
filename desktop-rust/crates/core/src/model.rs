@@ -525,6 +525,12 @@ pub struct SyncProgress {
     /// The files to copy (copying), and the items whose permissions were applied (acl).
     pub total: i64,
     pub acl_items: i64,
+    /// The files rclone compared (nothing new planned yet).
+    pub checks: i64,
+    /// A server job's share being brought, and its place among them.
+    pub share: String,
+    pub share_index: i64,
+    pub share_count: i64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

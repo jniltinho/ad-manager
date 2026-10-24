@@ -336,13 +336,15 @@ impl ImportExport {
                 ui.vertical(|ui| {
                     // the web's 360-point column with its scroll bar inside: the cards 349.6 wide, the plan at 20
                     // points from the column (egui draws its bar beside the content: the content is the 350)
-                    ui.set_width(350.0);
+                    ui.set_width(354.5); // egui's bar takes 6 inside and 6.5 beside: cards ≈349, the column ≈361
                     egui::ScrollArea::vertical()
                         .id_salt("import-left")
                         .max_height(h)
                         .auto_shrink([false, true])
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                         .show(ui, |ui| {
+                            // the cards' frames as wide as their content (not over the bar's room)
+                            ui.set_width(ui.available_width());
                             self.export_card(ui, cx);
                             ui.add_space(20.0 - ui.spacing().item_spacing.y); // the web's space-y-5
                             preview = self.import_card(ui, cx);

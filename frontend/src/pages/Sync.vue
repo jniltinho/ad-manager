@@ -90,18 +90,22 @@ const statusClass = (s) => (s === 'ok' ? 'text-ok' : s === 'error' ? 'text-err' 
 const statusText = (s) =>
   ({ ok: t('ok'), error: t('error'), cancelled: t('cancelled'), running: t('running'), queued: t('queued') })[s] || s
 // what a running run is doing right now (so the panel never shows an opaque "running")
+// what a running run does now; a server job's run also says which share (n of total) it is on
 const phaseText = (p) => {
+  const share = p?.share ? (p.share_count ? `${p.share} (${p.share_index}/${p.share_count})` : p.share) + ' · ' : ''
   switch (p?.phase) {
     case 'preparing':
-      return t('preparing')
+      return share + t('preparing')
     case 'copying':
-      return p.total ? t('copying {n} of {total}', { n: p.transfers || 0, total: p.total }) : t('copying')
+      if (p.total) return share + t('copying {n} of {total}', { n: p.transfers || 0, total: p.total })
+      // nothing new planned yet: rclone compares the files (its checks)
+      return share + (p.checks ? t('comparing {n} files', { n: p.checks.toLocaleString() }) : t('copying'))
     case 'acl':
-      return t('applying Windows permissions') + (p.acl_items ? ` (${p.acl_items})` : '')
+      return share + t('applying Windows permissions') + (p.acl_items ? ` (${p.acl_items})` : '')
     case 'finalizing':
-      return t('finalizing')
+      return share + t('finalizing')
     default:
-      return ''
+      return share.replace(/ · $/, '')
   }
 }
 const lastRun = (id) => data.value?.runs?.find((r) => r.job === id)

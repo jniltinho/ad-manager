@@ -301,9 +301,11 @@ impl Settings {
                                     ui.add(crate::widgets::line(&mut f.session).desired_width(cw))
                                 });
                             });
-                            ui.add_space(12.0 - ui.spacing().item_spacing.y); // the web's gap-y-3, egui's spacing included
+                            // the web's gap-y-3, egui's spacing included, less the 4 points its fields' row is taller here
+                            ui.add_space(12.0 - ui.spacing().item_spacing.y - 4.0);
                             ui.horizontal_top(|ui| {
-                                ui.spacing_mut().item_spacing.x = 32.0; // the web's gap-x-8
+                                // the web's gap-x-8, plus what its native checkbox and gap-2 put before a label beyond ours
+                                ui.spacing_mut().item_spacing.x = 37.0;
                                 crate::widgets::check(ui, &mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(11.0));
                                 ui.vertical(|ui| {
                                     let label = crate::style::semibold(t("API documentation (Swagger) at /swagger"), 11.0).color(look.c("fg-strong"));
@@ -354,7 +356,7 @@ impl Settings {
                                     ui.add(crate::widgets::line(&mut f.support).hint_text(crate::widgets::hint(hint)).desired_width(cw))
                                 });
                             });
-                            ui.add_space(12.0);
+                            ui.add_space(16.0); // the web's gap-4 row gap, measured against its logo row
                             widgets::lbl(ui, &look, t("Logo (login page and header)"));
                             ui.add_space(4.0);
                             // as the web's flex-wrap row: the 224 x 64 preview and the buttons centered beside it, the

@@ -477,9 +477,15 @@ func (a *Agent) syncTree(rctx context.Context, j SyncJob, r *SyncRun, part strin
 		if aclPending {
 			r.Notes = append(r.Notes, "an earlier run left the Windows inheritance pending: reapplying it to the whole folder")
 		}
+		prev := r.Progress
 		r.Progress = map[string]any{"phase": "acl", "acl_items": len(changed), "acl_full": full}
 		if part != "" {
 			r.Progress["share"] = j.Source.Share
+			for _, k := range []string{"share_index", "share_count"} {
+				if v, ok := prev[k]; ok {
+					r.Progress[k] = v
+				}
+			}
 		}
 		a.writeRun(*r)
 		var acl *sambabridge.ACL
@@ -724,8 +730,13 @@ func (a *Agent) runSyncWorker(ctx context.Context, j SyncJob, r *SyncRun, part s
 			continue
 		}
 		if m.Progress != nil && time.Since(last) > 3*time.Second {
-			if part != "" {
+			if part != "" { // the share, and its place among the server job's (set by syncServer)
 				m.Progress["share"] = j.Source.Share
+				for _, k := range []string{"share_index", "share_count"} {
+					if v, ok := r.Progress[k]; ok {
+						m.Progress[k] = v
+					}
+				}
 			}
 			r.Progress, last = m.Progress, time.Now()
 			a.writeRun(*r)
