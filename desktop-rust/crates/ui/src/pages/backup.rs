@@ -1,5 +1,6 @@
-//! Backup: the panel and each file server with their backups — back up now, send a backup, download, restore (per
-//! kind, with its guards), log, delete (typed) and the last restoration — and the schedules of a file server.
+//! Backup as the web's page: the servers at the left (health, DC tag, number of backups); at the right the chosen
+//! server's backups — back up now (kind, folders, full), send a backup, per-row log, download, restore (per kind, with
+//! its guards) and delete (typed), the last restoration — and the schedules of a file server.
 
 use std::time::Duration;
 
@@ -26,21 +27,12 @@ pub struct Backup {
     schedules: Vec<BackupSchedule>,
     sched: TableState,
     generation: u64,
+    now: BackupNow,
 }
 
 /// The API path of a server's backups.
 pub fn backup_base(s: &BackupServer) -> String {
     if s.id == 0 { "/api/backups/panel".into() } else { format!("/api/agents/{}/backups", s.id) }
-}
-
-fn server_name(s: &BackupServer) -> String {
-    if s.id == 0 {
-        t("This panel").into()
-    } else if s.dc {
-        format!("{} (DC)", s.name)
-    } else {
-        s.name.clone()
-    }
 }
 
 impl Backup {
@@ -96,81 +88,253 @@ impl Backup {
         );
     }
 
-    fn selected(&self) -> Option<BackupManifest> {
-        self.current().and_then(|c| self.table.sel.and_then(|i| c.backups.get(i))).cloned()
-    }
-
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
         let h = ui.available_height();
-        let agent = self.current().is_some_and(|c| c.id != 0 && c.error.is_empty() && !c.kinds.is_empty());
-        ui.allocate_ui(egui::vec2(ui.available_width(), if agent { h * 0.62 } else { h }), |ui| {
-            widgets::card(ui, &look, t("Backup"), |ui| self.list(ui, cx, keys));
-        });
-        if agent {
-            ui.add_space(6.0);
-            widgets::card(ui, &look, t("Schedules"), |ui| self.schedules_ui(ui, cx));
-        }
-    }
-
-    fn list(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
-        let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            let names: Vec<String> = self.servers.iter().map(server_name).collect();
-            let mut i = self.cur.unwrap_or(0);
-            if widgets::select(ui, "backup-server", &mut i, &names, 320.0) {
-                self.cur = Some(i);
-                self.show(cx);
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
-                    self.reload(cx);
+        let mut pick = None;
+        let mut refresh = false;
+        // shortcut: always side by side (the web stacks below 1024 px), the window's minimum still fits both
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 20.0;
+            ui.vertical(|ui| {
+                ui.set_width(300.0);
+                let right = |ui: &mut Ui| refresh = widgets::act(ui, &look, "⟳", t("refresh"), None, 12.0).clicked();
+                widgets::panel(ui, &look, (t("Servers"), ""), right, 0.0, |ui| {
+                    for (i, s) in self.servers.iter().enumerate() {
+                        let on = self.cur == Some(i);
+                        let r = widgets::side_item(ui, &look, on, i == 0, |ui, ink| {
+                            let dot = if s.error.is_empty() { look.c("ok-fill") } else { look.c("err-fill") };
+                            let (r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                            ui.painter().rect_filled(r, 0.0, dot);
+                            let name = if s.id == 0 { t("This panel").to_string() } else { s.name.clone() };
+                            ui.label(crate::style::semibold(name, 12.0).color(ink));
+                            if s.dc {
+                                widgets::tag(ui, &look, "DC", Tone::Normal);
+                            }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let n = if on { ink } else { look.c("fg-muted") };
+                                ui.label(RichText::new(s.backups.len().to_string()).size(12.0).color(n));
+                            });
+                        });
+                        if !s.error.is_empty() {
+                            r.response.clone().on_hover_text(server_text(&s.error));
+                        }
+                        if r.response.clicked() && !on {
+                            pick = Some(i);
+                        }
+                    }
+                    if self.servers.is_empty() {
+                        ui.add_space(12.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(12.0);
+                            ui.label(RichText::new(t("No servers.")).size(12.0).color(look.c("fg-muted")));
+                        });
+                        ui.add_space(12.0);
+                    }
+                });
+                ui.add_space(20.0);
+                ui.label(
+                    RichText::new(t("Each agent makes and keeps its server's backups in its backup folder (default /var/backups/ad-manager); the schedules run on the agent, with the panel off too. A DC backup holds the domain's secrets."))
+                        .size(11.0)
+                        .color(look.c("fg-muted")),
+                );
+            });
+            ui.vertical(|ui| {
+                ui.set_width(ui.available_width());
+                let agent = self.current().is_some_and(|c| c.id != 0 && c.error.is_empty() && !c.kinds.is_empty());
+                if self.current().is_some() {
+                    self.list(ui, cx, keys, if agent { (h * 0.58).floor() } else { h });
                 }
-                if let Some(c) = self.current() {
-                    let s =
-                        if c.error.is_empty() { tf!("%d backup(s)", c.backups.len()) } else { server_text(&c.error) };
-                    ui.label(RichText::new(s).color(look.c("fg-muted")));
+                if agent {
+                    ui.add_space(20.0);
+                    self.schedules_ui(ui, cx);
                 }
             });
         });
-        let cur = self.current().cloned();
-        let sel = self.selected();
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "💾", t("Back up now"), Kind::Primary).clicked()
-                && let Some(s) = cur.clone()
-            {
-                back_up_now(cx, s);
-            }
-            let can_send = cur.as_ref().is_some_and(|c| !c.upload_kinds.is_empty());
-            if ui.add_enabled_ui(can_send, |ui| widgets::button(ui, &look, "⬆", t("Send a backup"), Kind::Secondary)).inner.clicked()
-                && let Some(s) = cur.clone()
-            {
-                crate::files::pick_file(cx, move |app, path| {
-                    app.cx.push(SendBackup { server: s, path, kind: 0 });
+        if refresh {
+            self.reload(cx);
+        }
+        if let Some(i) = pick {
+            self.cur = Some(i);
+            self.now = BackupNow::default();
+            self.show(cx);
+        }
+    }
+
+    fn list(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool, h: f32) {
+        let look = cx.look.clone();
+        let Some(cur) = self.current().cloned() else { return };
+        let name = if cur.id == 0 { t("This panel").to_string() } else { cur.name.clone() };
+        let title = format!("🗄  {name}");
+        let note = tf!("%d backup(s)", cur.backups.len());
+        let mut act: Option<(Act, usize)> = None;
+        widgets::panel(
+            ui,
+            &look,
+            (&title, &note),
+            |_| {},
+            h,
+            |ui| {
+                let muted = look.c("fg-muted");
+                egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    if !cur.error.is_empty() {
+                        ui.colored_label(look.c("err"), server_text(&cur.error));
+                        return;
+                    }
+                    if cur.kinds.is_empty() {
+                        ui.label(
+                            RichText::new(t(
+                                "This server makes no backup: the agent is read only here (role not known).",
+                            ))
+                            .size(12.0)
+                            .color(muted),
+                        );
+                        return;
+                    }
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
+                        let kind = cur.kinds.get(self.now.kind).map_or("", String::as_str);
+                        if cur.kinds.len() > 1 {
+                            ui.vertical(|ui| {
+                                ui.spacing_mut().item_spacing.y = 4.0;
+                                widgets::lbl(ui, &look, t("Kind"));
+                                let names: Vec<String> = cur.kinds.iter().map(|k| backup_kind_name(k)).collect();
+                                widgets::select(ui, "backup-kind", &mut self.now.kind, &names, 384.0);
+                            });
+                        }
+                        if kind == "fileserver-data" {
+                            ui.vertical(|ui| {
+                                ui.spacing_mut().item_spacing.y = 4.0;
+                                widgets::lbl(
+                                    ui,
+                                    &look,
+                                    &tf!("Folders (one per line, inside %s)", cur.roots.join(", ")),
+                                );
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut self.now.folders)
+                                        .font(egui::TextStyle::Monospace)
+                                        .desired_rows(2)
+                                        .desired_width(320.0),
+                                );
+                                ui.checkbox(
+                                    &mut self.now.full,
+                                    RichText::new(t("Full backup (starts a new chain)")).size(12.0),
+                                );
+                            });
+                        }
+                        if widgets::button(ui, &look, "🗄", t("Back up now"), Kind::Primary).clicked() {
+                            act = Some((Act::Now, 0));
+                        }
+                        if !cur.upload_kinds.is_empty()
+                            && widgets::button(ui, &look, "⬆", t("Send a backup"), Kind::Secondary).clicked()
+                        {
+                            act = Some((Act::Send, 0));
+                        }
+                    });
                 });
-            }
-            let ok = sel.as_ref().is_some_and(|b| b.status == "ok");
-            if ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "⬇", t("Download"), Kind::Secondary)).inner.clicked()
-                && let (Some(b), Some(s)) = (sel.clone(), cur.clone())
-            {
-                let path = format!("{}/{}/download", backup_base(&s), esc(&b.id));
-                crate::files::save_download(cx, cx.panel.clone(), path, b.file.clone(), move |app, p| {
-                    app.cx.set_status(tf!("Saved to %s (SHA-256 %s)", p.display(), b.sha256));
-                });
-            }
-            if ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "🕘", t("Restore"), Kind::Secondary)).inner.clicked()
-                && let (Some(b), Some(s)) = (sel.clone(), cur.clone())
-            {
-                let f = RestoreForm::new(&b.kind, &b.folders);
-                if f.refused() {
-                    cx.show_info(t("Restore"), t("A domain controller backup is not restored over a DC in use: install ad-manager on a new server and, in the initial setup, choose \"Restore a DC\" with this backup (docs/backup.md)."));
-                } else {
-                    cx.push(Restore { form: f, backup: b, server: s });
+                // the last restoration, with its log
+                if let Some(r) = &cur.restore {
+                    let (st, ink) = match r.status.as_str() {
+                        "ok" => (t("ok").to_string(), look.c("ok")),
+                        "error" => (server_text(&r.error), look.c("err")),
+                        _ => (t("running").to_string(), look.c("warn")),
+                    };
+                    let y = ui.cursor().top();
+                    ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+                    egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0;
+                            ui.label(RichText::new("🕘").size(12.0).color(ink));
+                            ui.label(crate::style::semibold(format!("{}:", t("Last restoration")), 12.0).color(ink));
+                            ui.label(
+                                RichText::new(format!("{} · {}", backup_kind_name(&r.kind), date(r.started)))
+                                    .size(12.0),
+                            );
+                            if !r.dest.is_empty() {
+                                ui.label(RichText::new(format!("→ {}", r.dest)).monospace().size(11.0).color(muted));
+                            }
+                            ui.label(RichText::new(st).size(12.0).color(ink));
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if widgets::act(ui, &look, "📄", "", None, 12.0).on_hover_text(t("Log")).clicked() {
+                                    act = Some((Act::RestoreLog, 0));
+                                }
+                            });
+                        });
+                    });
+                }
+                let cols = [
+                    Column::new(t("Date"), 160.0),
+                    Column::new(t("Kind"), 230.0).fill(),
+                    Column::new(t("Origin"), 200.0),
+                    Column::new(t("Size"), 90.0).right(),
+                    Column::new(t("Status"), 110.0),
+                    Column::new("", 160.0).right(),
+                ];
+                let rows = &cur.backups;
+                let mut hover = None;
+                let out = table::Table { id: "backups", cols: &cols, rows: rows.len(), keys, row_h: 0.0, frame: false }
+                    .show(ui, &look, &mut self.table, &mut hover, |r, c| {
+                        let b = &rows[r];
+                        match c {
+                            0 => Cell::plain(date(b.started)),
+                            1 if b.kind == "fileserver-data" => Cell::plain(backup_kind_name(&b.kind))
+                                .with_tag(if b.full { t("full") } else { t("incremental") }, Tone::Normal),
+                            1 => Cell::plain(backup_kind_name(&b.kind)),
+                            2 if b.by.is_empty() => Cell::new(backup_origin(&b.origin), Tone::Muted),
+                            2 => Cell::new(format!("{} · {}", backup_origin(&b.origin), b.by), Tone::Muted),
+                            3 if b.status != "ok" => Cell::plain("—"),
+                            3 => Cell::plain(size_text(b.size)),
+                            4 => match b.status.as_str() {
+                                "ok" => Cell::new(t("ok"), Tone::Ok),
+                                "error" => Cell::new(t("error"), Tone::Err),
+                                _ => Cell::new(t("running"), Tone::Warn),
+                            },
+                            _ => {
+                                let mut cell =
+                                    Cell::plain("").and_link("", Tone::Normal, "📄", t("Log").into(), (Act::Log, r));
+                                if b.status == "ok" {
+                                    cell = cell
+                                        .and_link("", Tone::Normal, "⬇", t("Download").into(), (Act::Download, r))
+                                        .and_link("", Tone::Normal, "🕘", t("Restore").into(), (Act::Restore, r));
+                                }
+                                cell.and_link("", Tone::Normal, "🗑", t("Delete").into(), (Act::Delete, r))
+                            }
+                        }
+                    });
+                cx.hover = hover.or(cx.hover.take());
+                if out.clicked.is_some() {
+                    act = out.clicked;
+                }
+                if rows.is_empty() {
+                    ui.add_space(12.0);
+                    ui.vertical_centered(|ui| ui.label(RichText::new(t("No backups yet.")).size(12.0).color(muted)));
+                }
+            },
+        );
+        if let Some((a, r)) = act {
+            self.act(cx, cur, a, r);
+        }
+    }
+
+    fn act(&mut self, cx: &mut Cx, s: BackupServer, a: Act, r: usize) {
+        let b = s.backups.get(r).cloned();
+        match (a, b) {
+            (Act::Now, _) => self.back_up_now(cx, s),
+            (Act::Send, _) => crate::files::pick_file(cx, move |app, path| {
+                app.cx.push(SendBackup { server: s, path, kind: 0 });
+            }),
+            (Act::RestoreLog, _) => {
+                if let Some(r) = s.restore {
+                    let mut lines = r.log.clone();
+                    if !r.error.is_empty() {
+                        lines.push(format!("{}: {}", t("Error"), server_text(&r.error)));
+                    }
+                    cx.show_info(r.backup.clone(), lines.join("\n"));
                 }
             }
-            if ui.add_enabled_ui(sel.is_some(), |ui| widgets::button(ui, &look, "📄", t("Log"), Kind::Secondary)).inner.clicked()
-                && let Some(b) = sel.clone()
-            {
+            (Act::Log, Some(b)) => {
                 let mut lines = b.log.clone();
                 if !b.error.is_empty() {
                     lines.push(format!("{}: {}", t("Error"), server_text(&b.error)));
@@ -180,9 +344,21 @@ impl Backup {
                 }
                 cx.show_info(b.id, lines.join("\n"));
             }
-            if ui.add_enabled_ui(sel.is_some(), |ui| widgets::button(ui, &look, "🗑", t("Delete"), Kind::Danger)).inner.clicked()
-                && let (Some(b), Some(s)) = (sel.clone(), cur.clone())
-            {
+            (Act::Download, Some(b)) => {
+                let path = format!("{}/{}/download", backup_base(&s), esc(&b.id));
+                crate::files::save_download(cx, cx.panel.clone(), path, b.file.clone(), move |app, p| {
+                    app.cx.set_status(tf!("Saved to %s (SHA-256 %s)", p.display(), b.sha256));
+                });
+            }
+            (Act::Restore, Some(b)) => {
+                let f = RestoreForm::new(&b.kind, &b.folders);
+                if f.refused() {
+                    cx.show_info(t("Restore"), t("A domain controller backup is not restored over a DC in use: install ad-manager on a new server and, in the initial setup, choose \"Restore a DC\" with this backup (docs/backup.md)."));
+                } else {
+                    cx.push(Restore { form: f, backup: b, server: s });
+                }
+            }
+            (Act::Delete, Some(b)) => {
                 let mut msg = tf!("Delete the backup %s?", b.id);
                 if b.full && b.kind == "fileserver-data" {
                     msg = format!("{msg}\n{}", t("The incremental backups of this chain go too."));
@@ -197,98 +373,106 @@ impl Backup {
                     });
                 });
             }
-        });
-        // the last restoration, with its log
-        if let Some(r) = cur.as_ref().and_then(|c| c.restore.clone()) {
-            let (st, ink) = match r.status.as_str() {
-                "ok" => (t("ok").to_string(), look.c("ok")),
-                "error" => (server_text(&r.error), look.c("err")),
-                _ => (t("running").to_string(), look.c("warn")),
-            };
-            let mut txt = format!("{}: {} · {}", t("Last restoration"), backup_kind_name(&r.kind), date(r.started));
-            if !r.dest.is_empty() {
-                txt = format!("{txt} → {}", r.dest);
-            }
-            ui.horizontal(|ui| {
-                ui.add(egui::Label::new(RichText::new(format!("{txt} · {st}")).color(ink)).truncate());
-                if widgets::icon_button(ui, &look, "📄", t("Log")).clicked() {
-                    let mut lines = r.log.clone();
-                    if !r.error.is_empty() {
-                        lines.push(format!("{}: {}", t("Error"), server_text(&r.error)));
-                    }
-                    cx.show_info(r.backup.clone(), lines.join("\n"));
-                }
-            });
+            _ => {}
         }
-        let cols = [
-            Column::new(t("Date"), 150.0),
-            Column::new(t("Kind"), 230.0),
-            Column::new(t("Origin"), 200.0),
-            Column::new(t("Size"), 90.0).badge(),
-            Column::new(t("Status"), 110.0).badge(),
-        ];
-        let empty = Vec::new();
-        let rows = self.cur.and_then(|i| self.servers.get(i)).map_or(&empty, |c| &c.backups);
-        let mut hover = None;
-        table::Table { id: "backups", cols: &cols, rows: rows.len(), keys, row_h: 0.0, frame: true }.show::<()>(
-            ui,
-            &look,
-            &mut self.table,
-            &mut hover,
-            |r, c| {
-                let b = &rows[r];
-                match c {
-                    0 => Cell::new(date(b.started), Tone::Strong),
-                    1 => {
-                        let mut k = backup_kind_name(&b.kind);
-                        if b.kind == "fileserver-data" {
-                            k = format!("{k} · {}", if b.full { t("full") } else { t("incremental") });
-                        }
-                        Cell::plain(k)
-                    }
-                    2 => {
-                        let mut o = backup_origin(&b.origin);
-                        if !b.by.is_empty() {
-                            o = format!("{o} · {}", b.by);
-                        }
-                        Cell::new(o, Tone::Muted)
-                    }
-                    3 if b.status != "ok" => Cell::new("—", Tone::Muted),
-                    3 => Cell::plain(size_text(b.size)),
-                    _ => match b.status.as_str() {
-                        "ok" => Cell::new(t("ok").to_uppercase(), Tone::Ok),
-                        "error" => Cell::new(t("error").to_uppercase(), Tone::Err),
-                        _ => Cell::new(t("running").to_uppercase(), Tone::Warn),
-                    },
-                }
-            },
-        );
+    }
+
+    /// Backs up now: the panel at once, a file server with the kind (and the folders, full or incremental) chosen.
+    fn back_up_now(&mut self, cx: &mut Cx, s: BackupServer) {
+        if !s.error.is_empty() || s.kinds.is_empty() {
+            return;
+        }
+        if s.id == 0 {
+            let api = cx.panel.clone();
+            cx.run(async move { api.act(Method::POST, "/api/backups/panel").await }, |app, ()| {
+                app.cx.set_status(t("Backup done."));
+                reload(app);
+            });
+            return;
+        }
+        let k = s.kinds.get(self.now.kind).cloned().unwrap_or_default();
+        let fs = lines(&self.now.folders);
+        if k == "fileserver-data" && fs.is_empty() {
+            cx.show_info(t("Back up now"), tf!("Folders (one per line, inside %s)", s.roots.join(", ")));
+            return;
+        }
+        let body = json!({ "kind": k, "folders": fs, "full": self.now.full && k == "fileserver-data" });
+        let api = cx.panel.clone();
+        let path = backup_base(&s);
+        cx.run(async move { api.act_with(Method::POST, &path, &body).await }, move |app, ()| {
+            app.cx.set_status(tf!("Backup queued on %s: it shows in the list when it ends.", s.name));
+            reload(app);
+        });
     }
 
     fn schedules_ui(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         let Some(cur) = self.current().cloned() else { return };
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "➕", t("New schedule"), Kind::Primary).clicked() {
-                cx.push(NewSchedule::new(&cur, &self.schedules));
+        let mut add = false;
+        let right = |ui: &mut Ui| add = widgets::act(ui, &look, "+", t("new"), None, 12.0).clicked();
+        let mut act: Option<(bool, usize)> = None;
+        widgets::panel(ui, &look, (&format!("📅  {}", t("Schedules")), ""), right, 0.0, |ui| {
+            let cols = [
+                Column::new(t("Name"), 140.0),
+                Column::new(t("Kind"), 220.0).fill(),
+                Column::new(t("When (cron)"), 120.0),
+                Column::new(t("Keep chains"), 100.0),
+                Column::new(t("Keep days"), 90.0),
+                Column::new(t("New full every (days)"), 160.0),
+                Column::new(t("On"), 60.0),
+                Column::new("", 40.0).right(),
+            ];
+            let list = &self.schedules;
+            let mut hover = None;
+            let out =
+                table::Table { id: "schedules", cols: &cols, rows: list.len(), keys: false, row_h: 0.0, frame: false }
+                    .show(ui, &look, &mut self.sched, &mut hover, |r, c| {
+                        let x = &list[r];
+                        match c {
+                            0 => Cell::plain(&x.id).mono(),
+                            1 => Cell::plain(backup_kind_name(&x.kind)),
+                            2 => Cell::plain(&x.cron).mono(),
+                            3 => Cell::plain(x.retention.chains.to_string()),
+                            4 => Cell::plain(x.retention.days.to_string()),
+                            5 if x.kind == "fileserver-data" => Cell::plain(x.full_every_days.to_string()),
+                            5 => Cell::new("—", Tone::Muted),
+                            6 => {
+                                let (text, tone) =
+                                    if x.enabled { (t("yes"), Tone::Ok) } else { (t("no"), Tone::Muted) };
+                                Cell::new(text, tone).link("", tf!("Turn %s on or off", x.id), (true, r))
+                            }
+                            _ => Cell::plain("").and_link("", Tone::Normal, "🗑", t("Delete").into(), (false, r)),
+                        }
+                    });
+            cx.hover = hover.or(cx.hover.take());
+            act = out.clicked;
+            if list.is_empty() {
+                ui.add_space(12.0);
+                ui.vertical_centered(|ui| {
+                    ui.label(RichText::new(t("No schedules.")).size(12.0).color(look.c("fg-muted")))
+                });
             }
-            let sel = self.sched.sel.filter(|&i| i < self.schedules.len());
-            if ui
-                .add_enabled_ui(sel.is_some(), |ui| widgets::button(ui, &look, "⏸", t("On/off"), Kind::Secondary))
-                .inner
-                .clicked()
-                && let Some(i) = sel
-            {
+            let y = ui.cursor().top() + 8.0;
+            ui.add_space(8.0);
+            ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+            egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                ui.label(
+                    RichText::new(t("Retention deletes whole chains only (a full backup and its incrementals), never the backup just made; 0 = no limit."))
+                        .size(11.0)
+                        .color(look.c("fg-muted")),
+                );
+            });
+        });
+        if add {
+            cx.push(NewSchedule::new(&cur, &self.schedules));
+        }
+        match act {
+            Some((true, i)) => {
                 let mut list = self.schedules.clone();
                 list[i].enabled = !list[i].enabled;
                 save_schedules(cx, cur.id, list);
             }
-            if ui
-                .add_enabled_ui(sel.is_some(), |ui| widgets::button(ui, &look, "🗑", t("Remove"), Kind::Danger))
-                .inner
-                .clicked()
-                && let Some(i) = sel
-            {
+            Some((false, i)) => {
                 let mut list = self.schedules.clone();
                 let x = list.remove(i);
                 let id = cur.id;
@@ -297,37 +481,32 @@ impl Backup {
                     tf!("Remove the schedule %s? Its backups stay.", x.id),
                     t("Remove"),
                     true,
-                    move |cx| {
-                        save_schedules(cx, id, list);
-                    },
+                    move |cx| save_schedules(cx, id, list),
                 );
             }
-        });
-        let cols = [
-            Column::new(t("Name"), 140.0),
-            Column::new(t("Kind"), 220.0),
-            Column::new(t("When (cron)"), 120.0),
-            Column::new(t("Keep chains"), 110.0),
-            Column::new(t("Keep days"), 100.0),
-            Column::new(t("On"), 60.0).badge(),
-        ];
-        let list = &self.schedules;
-        let mut hover = None;
-        table::Table { id: "schedules", cols: &cols, rows: list.len(), keys: false, row_h: 0.0, frame: true }
-            .show::<()>(ui, &look, &mut self.sched, &mut hover, |r, c| {
-                let x = &list[r];
-                match c {
-                    0 => Cell::new(&x.id, Tone::Strong),
-                    1 => Cell::plain(backup_kind_name(&x.kind)),
-                    2 => Cell::plain(&x.cron),
-                    3 => Cell::plain(x.retention.chains.to_string()),
-                    4 => Cell::plain(x.retention.days.to_string()),
-                    _ if x.enabled => Cell::new(t("yes"), Tone::Ok),
-                    _ => Cell::new(t("no"), Tone::Muted),
-                }
-            });
-        ui.label(RichText::new(t("Retention deletes whole chains only (a full backup and its incrementals), never the backup just made; 0 = no limit.")).size(11.0).color(look.c("fg-muted")));
+            None => {}
+        }
     }
+}
+
+/// What a click on the page asks for, done after drawing.
+#[derive(Clone, Copy)]
+enum Act {
+    Now,
+    Send,
+    RestoreLog,
+    Log,
+    Download,
+    Restore,
+    Delete,
+}
+
+/// The "Back up now" form of a file server: the kind, and for data the folders and full or incremental.
+#[derive(Default)]
+struct BackupNow {
+    kind: usize,
+    folders: String,
+    full: bool,
 }
 
 fn reload(app: &mut App) {
@@ -345,80 +524,8 @@ fn save_schedules(cx: &Cx, id: i64, list: Vec<BackupSchedule>) {
     );
 }
 
-/// The panel backs up at once; a file server asks the kind, the folders and full/incremental.
-fn back_up_now(cx: &mut Cx, s: BackupServer) {
-    if !s.error.is_empty() || s.kinds.is_empty() {
-        return;
-    }
-    if s.id == 0 {
-        let api = cx.panel.clone();
-        cx.run(async move { api.act(Method::POST, "/api/backups/panel").await }, |app, ()| {
-            app.cx.set_status(t("Backup done."));
-            reload(app);
-        });
-        return;
-    }
-    cx.push(BackUpNow { server: s, kind: 0, folders: String::new(), full: false });
-}
-
 fn lines(s: &str) -> Vec<String> {
     s.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string).collect()
-}
-
-struct BackUpNow {
-    server: BackupServer,
-    kind: usize,
-    folders: String,
-    full: bool,
-}
-
-impl Dialog for BackUpNow {
-    fn title(&self) -> String {
-        tf!("Back up %s", self.server.name)
-    }
-
-    fn width(&self) -> f32 {
-        620.0
-    }
-
-    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
-        let look = cx.look.clone();
-        let names: Vec<String> = self.server.kinds.iter().map(|k| backup_kind_name(k)).collect();
-        widgets::form(ui, "backup-now", |ui| {
-            widgets::label(ui, &look, t("Kind"));
-            widgets::select(ui, "backup-kind", &mut self.kind, &names, 320.0);
-            ui.end_row();
-            widgets::label(ui, &look, &tf!("Folders (one per line, inside %s)", self.server.roots.join(", ")));
-            ui.add(
-                egui::TextEdit::multiline(&mut self.folders)
-                    .hint_text(self.server.roots.join("\n"))
-                    .desired_rows(3)
-                    .desired_width(320.0),
-            );
-            ui.end_row();
-            ui.label("");
-            ui.checkbox(&mut self.full, t("Full backup (starts a new chain)"));
-            ui.end_row();
-        });
-        let f = footer(ui, cx, Some(t("Back up now")), "", false, true);
-        if f.ok {
-            let k = self.server.kinds.get(self.kind).cloned().unwrap_or_default();
-            let fs = lines(&self.folders);
-            if k == "fileserver-data" && fs.is_empty() {
-                return Flow::Keep;
-            }
-            let body = json!({ "kind": k, "folders": fs, "full": self.full && k == "fileserver-data" });
-            let api = cx.panel.clone();
-            let path = backup_base(&self.server);
-            let name = self.server.name.clone();
-            cx.run(async move { api.act_with(Method::POST, &path, &body).await }, move |app, ()| {
-                app.cx.set_status(tf!("Backup queued on %s: it shows in the list when it ends.", name));
-                reload(app);
-            });
-            return Flow::Close;
-        }
-        if f.cancel { Flow::Close } else { Flow::Keep }
-    }
 }
 
 struct SendBackup {
