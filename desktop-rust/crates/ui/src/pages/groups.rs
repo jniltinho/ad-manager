@@ -123,7 +123,21 @@ impl Groups {
                     new_group(cx);
                 }
                 if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
-                    crate::files::export(cx, "groups", t("groups.csv"));
+                    let mut rows = vec![
+                        [t("Group"), t("Group type"), t("Scope"), t("Members"), t("Description")]
+                            .map(String::from)
+                            .to_vec(),
+                    ];
+                    rows.extend(self.visible.iter().filter_map(|&i| self.groups.get(i)).map(|g| {
+                        vec![
+                            g.name.clone(),
+                            g.kind.clone(),
+                            g.scope.clone(),
+                            g.member_count.to_string(),
+                            g.description.clone(),
+                        ]
+                    }));
+                    crate::files::save_csv(cx, t("groups.csv"), rows);
                 }
             });
         });

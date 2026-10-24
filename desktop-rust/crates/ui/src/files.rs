@@ -46,14 +46,6 @@ pub fn pick_file(cx: &Cx, done: impl FnOnce(&mut App, PathBuf) + Send + 'static)
     );
 }
 
-/// GET /api/export/<file> (the CSV the CLI import reads) saved where the operator picks.
-pub fn export(cx: &Cx, file: &str, name: &str) {
-    let path = format!("/api/export/{file}");
-    save_download(cx, cx.panel.clone(), path, name.into(), |app, p| {
-        app.cx.set_status(adm_core::tf!("Exported to %s", p.display()));
-    });
-}
-
 /// Asks where to save `name` and writes `rows` (the header first) there as the web's CSV export: `;` between
 /// fields, every field quoted, a BOM for Excel and CRLF line ends.
 pub fn save_csv(cx: &Cx, name: &str, rows: Vec<Vec<String>>) {

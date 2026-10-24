@@ -103,7 +103,24 @@ impl Computers {
                     self.reload(cx);
                 }
                 if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
-                    crate::files::export(cx, "computers", t("computers.csv"));
+                    let yes = |v: bool| if v { t("yes") } else { t("no") }.to_string();
+                    let mut rows = vec![
+                        [t("Name"), "DNS", t("System"), t("Version"), t("Active"), "DC", t("Last logon")]
+                            .map(String::from)
+                            .to_vec(),
+                    ];
+                    rows.extend(self.visible.iter().filter_map(|&i| self.all.get(i)).map(|c| {
+                        vec![
+                            c.name.clone(),
+                            c.dns_name.clone(),
+                            c.os.clone(),
+                            c.os_version.clone(),
+                            yes(c.enabled),
+                            yes(c.is_dc),
+                            adm_core::i18n::date(c.last_logon),
+                        ]
+                    }));
+                    crate::files::save_csv(cx, t("computers.csv"), rows);
                 }
                 if widgets::button(ui, &look, "🌐", "DNS", Kind::Secondary).clicked() {
                     crate::pages::dns::open(cx);

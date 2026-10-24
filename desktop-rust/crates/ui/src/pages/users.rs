@@ -70,6 +70,42 @@ impl Users {
         });
     }
 
+    /// The rows on screen (search and filter) as the web's CSV.
+    fn export_csv(&self, cx: &Cx) {
+        let yes = |v: bool| if v { t("yes") } else { t("no") }.to_string();
+        let mut rows = vec![
+            [
+                t("Login"),
+                t("Name"),
+                t("E-mail"),
+                t("Department"),
+                t("Job title"),
+                t("Active"),
+                t("Locked out"),
+                t("Last logon"),
+                t("OU"),
+                t("Groups"),
+            ]
+            .map(String::from)
+            .to_vec(),
+        ];
+        rows.extend(self.visible().map(|u| {
+            vec![
+                u.sam.clone(),
+                u.name.clone(),
+                u.mail.clone(),
+                u.department.clone(),
+                u.title.clone(),
+                yes(u.enabled),
+                yes(u.locked),
+                date(u.last_logon),
+                ou_name(&u.dn),
+                u.groups.join(", "),
+            ]
+        }));
+        crate::files::save_csv(cx, t("users.csv"), rows);
+    }
+
     /// Shows the accounts of one status (Home's tiles and alerts).
     pub fn show_filter(&mut self, cx: &Cx, f: UserFilter) {
         self.filter = f;
@@ -174,7 +210,7 @@ impl Users {
                         new_user(cx, None);
                     }
                     if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
-                        crate::files::export(cx, "users", t("users.csv"));
+                        self.export_csv(cx);
                     }
                     if widgets::button(ui, &look, "⚙", t("Password policy"), Kind::Secondary).clicked() {
                         super::policy::open(cx);
@@ -188,7 +224,7 @@ impl Users {
                             super::policy::open(cx);
                         }
                         if ui.button(t("Export CSV")).clicked() {
-                            crate::files::export(cx, "users", t("users.csv"));
+                            self.export_csv(cx);
                         }
                         if ui.button(t("Refresh")).clicked() {
                             self.reload(cx);
