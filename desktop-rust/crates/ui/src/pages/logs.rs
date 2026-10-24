@@ -656,9 +656,11 @@ fn samba_entries(
         let mut keep = None;
         if rows.key != key || rows.width != width {
             if rows.key == key {
-                let (n, within) = rows.anchor;
+                let (n, part) = rows.anchor;
                 let before: f32 = shown.iter().take(n).map(|&k| estimate(&entries[k], td_py)).sum();
-                keep = Some(before + within);
+                // the same share of the entry at the new width (an offset in points could pass its new height)
+                let own = shown.get(n).map_or(0.0, |&k| estimate(&entries[k], td_py));
+                keep = Some(before + part * own);
             } else {
                 rows.anchor = (0, 0.0);
             }
@@ -681,8 +683,8 @@ fn samba_entries(
                 let (top, bottom) = (y - area.top(), y - area.top() + h);
                 if bottom >= view.min.y && top <= view.max.y {
                     if !anchored {
-                        // the entry at the top of the view and how far into it: kept across a resize
-                        rows.anchor = (n, (view.min.y - top).max(0.0));
+                        // the entry at the top of the view and the share of it above: kept across a resize
+                        rows.anchor = (n, ((view.min.y - top) / h.max(1.0)).clamp(0.0, 1.0));
                         anchored = true;
                     }
                     let row = egui::Rect::from_min_size(egui::pos2(area.left(), y), egui::vec2(w, h));
@@ -716,7 +718,7 @@ fn samba_entries(
 struct RowHeights {
     key: (usize, Option<usize>, Option<usize>),
     width: i64,
-    /// The row at the top of the view and the offset into it.
+    /// The row at the top of the view and the share of it scrolled past (0 to 1).
     anchor: (usize, f32),
     heights: Vec<f32>,
 }
