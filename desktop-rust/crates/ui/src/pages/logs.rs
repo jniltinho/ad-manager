@@ -61,7 +61,7 @@ impl Logs {
                     if !v.loaded {
                         v.load(cx, n - 2);
                     }
-                    v.ui(ui, cx, keys, n - 2);
+                    v.ui(ui, cx, n - 2);
                 }
             }
         }
@@ -376,7 +376,6 @@ struct SambaView {
     lines: usize,
     /// Only the entries of level 0 (errors).
     errors: bool,
-    table: TableState,
 }
 
 const LINES: [usize; 4] = [200, 500, 2000, 5000];
@@ -396,7 +395,6 @@ impl SambaView {
             search: String::new(),
             lines: 1,
             errors: false,
-            table: TableState::default(),
         }
     }
 
@@ -430,7 +428,6 @@ impl SambaView {
 
     fn load_entries(&mut self, cx: &Cx, i: usize) {
         self.entries.clear();
-        self.table.clear();
         if self.current.is_empty() {
             self.count = t("Choose a file.").into();
             return;
@@ -455,7 +452,7 @@ impl SambaView {
         });
     }
 
-    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool, i: usize) {
+    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, i: usize) {
         let look = cx.look.clone();
         let muted = look.c("fg-muted");
         ui.horizontal_top(|ui| {
@@ -581,50 +578,14 @@ impl SambaView {
                     }
                 });
                 ui.add_space(look.px("toolbar-mb", 12.0));
-                let cols = [
-                    Column::new(t("Date"), 160.0),
-                    Column::new(t("Level"), 56.0).badge(),
-                    Column::new(t("Message"), 400.0).fill(),
-                ];
-                let entries = &self.entries;
-                let mut hover = None;
                 let room = ui.available_height() - 24.0;
-                let out = ui
-                    .allocate_ui(egui::vec2(ui.available_width(), room), |ui| {
-                        table::Table {
-                            id: &format!("samba-{i}"),
-                            cols: &cols,
-                            rows: shown.len(),
-                            keys,
-                            row_h: 0.0,
-                            frame: true,
-                        }
-                        .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
-                            let e = &entries[shown[r]];
-                            match c {
-                                0 if e.time.is_empty() => Cell::plain("—").mono(),
-                                0 => Cell::plain(&e.time).mono(),
-                                1 => match e.level {
-                                    l if l < 0 => Cell::new("—", Tone::Normal),
-                                    0 => Cell::new("0", Tone::Err),
-                                    l if l <= 2 => Cell::new(l.to_string(), Tone::Warn),
-                                    l => Cell::new(l.to_string(), Tone::Normal),
-                                },
-                                // shortcut: one line per entry (the web wraps it with its source below); the
-                                // whole message opens on a click
-                                _ => Cell::plain(e.message.replace('\n', " ¶ ")).mono(),
-                            }
-                        })
-                    })
-                    .inner;
+                ui.allocate_ui(egui::vec2(ui.available_width(), room), |ui| {
+                    samba_entries(ui, &look, &self.entries, &shown, i);
+                });
                 if shown.is_empty() {
                     ui.add_space(16.0);
                     let msg = if self.current.is_empty() { t("Choose a file.") } else { t("No entries.") };
                     ui.vertical_centered(|ui| ui.label(RichText::new(msg).size(12.0).color(muted)));
-                }
-                // the full message (cells show one truncated line)
-                if let Some(e) = out.selected.and_then(|r| shown.get(r)).and_then(|&k| entries.get(k)) {
-                    cx.push(Info::new(e.time.clone(), format!("{}\n\n{}", e.source, e.message)).wide(720.0));
                 }
                 ui.add_space(8.0);
                 ui.label(
@@ -642,4 +603,97 @@ impl SambaView {
 /// A log file's size as the web's: bytes, else KB with one decimal.
 fn samba_size(n: i64) -> String {
     if n < 1024 { format!("{n} B") } else { format!("{:.1} KB", n as f64 / 1024.0) }
+}
+
+/// The entries as the web's table: the date and the level (a tag) at the top of each row, the message in mono
+/// wrapped over its lines and its source under it in small muted text; rows as tall as their message.
+fn samba_entries(ui: &mut Ui, look: &crate::style::Look, entries: &[SambaEntry], shown: &[usize], id: usize) {
+    let (th_px, td_py) = (look.px("th-px", 8.0), look.px("td-py", 4.0));
+    let (date_w, level_w) = (160.0, 56.0);
+    let frame = egui::Frame::new().stroke(egui::Stroke::new(1.0, look.c("line")));
+    frame.show(ui, |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        let w = ui.available_width();
+        // the header band, as the tables'
+        let head_h = (12.0 * 1.5 + 2.0 * look.px("th-py", 6.0) + 1.0).round();
+        let (head, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
+        crate::depth::paint_box(
+            ui.painter(),
+            head,
+            look.gradient("table-head"),
+            look.c("table-head"),
+            look.shadows("table-head"),
+        );
+        ui.painter().hline(head.x_range(), head.bottom() - 0.5, egui::Stroke::new(1.0, look.c("line")));
+        let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+        for (x, title) in [(0.0, t("Date")), (date_w, t("Level")), (date_w + level_w, t("Message"))] {
+            let g = ui.painter().layout_no_wrap(title.to_string(), font.clone(), look.c("on-table-head"));
+            ui.painter().galley(
+                egui::pos2(head.left() + x + th_px, head.center().y - g.size().y / 2.0),
+                g,
+                look.c("on-table-head"),
+            );
+        }
+        egui::ScrollArea::vertical().id_salt(("samba-entries", id)).auto_shrink([false, true]).show(ui, |ui| {
+            ui.set_width(w);
+            let msg_w = (w - date_w - level_w - 2.0 * th_px).max(80.0);
+            for (n, &k) in shown.iter().enumerate() {
+                let e = &entries[k];
+                let top = ui.cursor().top();
+                let under = ui.painter().add(egui::Shape::Noop);
+                let r = ui
+                    .horizontal_top(|ui| {
+                        ui.add_space(th_px);
+                        ui.vertical(|ui| {
+                            ui.set_width(date_w - th_px);
+                            ui.add_space(td_py);
+                            let time = if e.time.is_empty() { "—" } else { &e.time };
+                            ui.label(RichText::new(time).monospace().size(11.0));
+                        });
+                        ui.vertical(|ui| {
+                            ui.set_width(level_w);
+                            ui.add_space(td_py);
+                            let (fill, ink) = match e.level {
+                                0 => (look.c("err-fill"), look.c("on-err-fill")),
+                                l if l < 0 => (look.c("surface-2"), look.c("fg-muted")),
+                                l if l <= 2 => (look.c("warn-soft"), look.c("on-warn-soft")),
+                                _ => (look.c("surface-3"), look.c("fg-strong")),
+                            };
+                            let text = if e.level < 0 { "—".to_string() } else { e.level.to_string() };
+                            widgets::tag_filled(ui, look, &text, fill, ink);
+                        });
+                        ui.vertical(|ui| {
+                            ui.set_width(msg_w);
+                            ui.add_space(td_py);
+                            ui.add(egui::Label::new(RichText::new(&e.message).monospace().size(11.0)).wrap());
+                            if !e.source.is_empty() {
+                                ui.add_space(2.0);
+                                ui.add(
+                                    egui::Label::new(RichText::new(&e.source).size(10.0).color(look.c("fg-muted")))
+                                        .truncate(),
+                                );
+                            }
+                            ui.add_space(td_py);
+                        });
+                    })
+                    .response;
+                let row = egui::Rect::from_min_max(
+                    egui::pos2(ui.max_rect().left(), top),
+                    egui::pos2(ui.max_rect().right(), r.rect.bottom()),
+                );
+                let mut shapes = Vec::new();
+                if n % 2 == 1 {
+                    shapes.push(egui::Shape::rect_filled(row, 0.0, look.c("row-alt")));
+                }
+                if n > 0 {
+                    shapes.push(egui::Shape::hline(
+                        row.x_range(),
+                        row.top() + 0.5,
+                        egui::Stroke::new(1.0, look.c("line")),
+                    ));
+                }
+                ui.painter().set(under, egui::Shape::Vec(shapes));
+            }
+        });
+    });
 }

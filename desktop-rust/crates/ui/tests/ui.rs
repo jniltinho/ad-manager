@@ -408,10 +408,17 @@ fn shots() {
     let mut e = env_at(60, 1280.0, 2.0, &host, port, env!("CARGO_PKG_VERSION"), |_| None);
     let save = |e: &mut Env, name: &str| {
         std::thread::sleep(Duration::from_millis(300));
+        // no pointer in the picture (nor the hover it causes)
+        e.h.event(egui::Event::PointerGone);
         e.h.run_steps(4);
         e.h.render().unwrap().save(dir.join(format!("desktop-rs-{name}.png"))).unwrap();
     };
+    // the footer's status of the sign-in, put back on each page (not an earlier screen's message)
+    let connected = std::cell::RefCell::new(String::new());
     let page = |e: &mut Env, label: &str| {
+        if !connected.borrow().is_empty() {
+            e.h.state_mut().cx.status = connected.borrow().clone();
+        }
         // the sidebar is drawn first: its item comes before a cell with the same text (the Users container)
         e.h.get_all_by_label(label).next().unwrap().click();
         std::thread::sleep(Duration::from_millis(300));
@@ -427,6 +434,7 @@ fn shots() {
     save(&mut e, "02-configure");
     e.click("Cancel");
     e.sign_in();
+    *connected.borrow_mut() = e.app().cx.status.clone();
     save(&mut e, "03-home");
     page(&mut e, "Users");
     e.wait("the users", |a, _| matches!(&a.screen, Screen::Shell(s) if s.users.visible().count() > 0));

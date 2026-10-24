@@ -646,6 +646,16 @@ pub fn tag_w(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone, 
     resp
 }
 
+/// A tag in the given colors (a role the tones do not cover: the Samba levels' soft warning).
+pub fn tag_filled(ui: &mut Ui, look: &Look, text: &str, fill: Color32, ink: Color32) -> Response {
+    let (galley, size) = tag_layout(ui, look, text, ink, 0.0);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, fill);
+    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
+    resp
+}
+
 /// A tag that is a link (an editable account's status, 104 wide as the web's): a button drawn as the tag, with the
 /// web's power icon after the text (drawn: the system fonts may lack ⏻).
 pub fn tag_button(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
