@@ -57,6 +57,8 @@ pub struct Setup {
     /// Configure › Graphics: the index in `adm_core::gpu::choices`, and the result of saving it.
     gpu: usize,
     gpu_msg: Option<Result<(), String>>,
+    /// Configure › Appearance could not be saved.
+    look_err: Option<String>,
 }
 
 /// Test generations are unique across Configure screens: a test of a screen that was left never counts in a new one.
@@ -87,21 +89,82 @@ impl Setup {
                 adm_core::gpu::choices(adm_core::gpu::Os::current()).iter().position(|b| *b == saved).unwrap_or(0)
             },
             gpu_msg: None,
+            look_err: None,
         }
     }
 
     /// Configure › Graphics, as rustXterm's Settings › Display › Graphics: the rendering backend, saved at once as
     /// `[graphics]` in desktop.toml (only that changes: the rest stays as saved), with the same hint.
+    /// Configure › Appearance: this computer's theme and flat look over the panel's, applied at once and saved into
+    /// the configuration as it is on disk (on a first run, with the rest by Save).
+    fn appearance_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        let order = adm_core::theme::order();
+        let mut names = vec![t("Panel default").to_string()];
+        names.extend(
+            order
+                .iter()
+                .map(|id| adm_core::theme::palette(id).map_or_else(|| id.clone(), |(_, p)| t(&p.label).to_string())),
+        );
+        let a = &cx.cfg.appearance;
+        let mut theme = order.iter().position(|id| *id == a.theme).map_or(0, |i| i + 1);
+        let flats =
+            [t("Panel default").to_string(), t("Flat (no gradients or shadows)").into(), t("With depth").into()];
+        let mut flat = match a.flat.as_str() {
+            "flat" => 1,
+            "depth" => 2,
+            _ => 0,
+        };
+        let mut changed = false;
+        // theme and look side by side, the interface language under them (the Settings card's grid of two)
+        let sw = ((ui.available_width() - 16.0) / 2.0).floor().max(1.0);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            changed |= widgets::labeled_select(ui, &look, t("Theme"), "setup-theme", &mut theme, &names, sw);
+            changed |= widgets::labeled_select(ui, &look, t("Look"), "setup-flat", &mut flat, &flats, sw);
+        });
+        ui.add_space(12.0);
+        let langs = [t("Panel default").to_string(), "Português".into(), "English".into()];
+        widgets::labeled_select(ui, &look, t("Language"), "setup-lang", &mut self.lang, &langs, sw);
+        ui.add_space(8.0);
+        ui.add_space(4.0);
+        let panel =
+            adm_core::theme::palette(&cx.panel_theme.0).map(|(_, p)| t(&p.label).to_string()).unwrap_or_default();
+        let note = if panel.is_empty() {
+            t("Only on this computer; \"Panel default\" follows the panel's Settings.").to_string()
+        } else {
+            format!(
+                "{} {}",
+                t("Only on this computer; \"Panel default\" follows the panel's Settings."),
+                tf!("The panel uses %s.", panel)
+            )
+        };
+        widgets::muted(ui, &look, &note);
+        if changed {
+            let a = &mut cx.cfg.appearance;
+            a.theme = if theme == 0 { String::new() } else { order[theme - 1].clone() };
+            a.flat = ["", "flat", "depth"][flat.min(2)].to_string();
+            cx.refresh_look();
+            self.look_err = if cx.cfg_path.exists() {
+                config::save(cx.platform.as_ref(), &cx.cfg_path, &cx.cfg).err().map(|e| e.to_string())
+            } else {
+                None
+            };
+        }
+        if let Some(e) = &self.look_err {
+            ui.label(RichText::new(format!("{}{e}", t("Could not write "))).color(look.c("err")));
+        }
+    }
+
     fn graphics_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         let os = adm_core::gpu::Os::current();
         let choices = adm_core::gpu::choices(os);
         let names: Vec<String> = choices.iter().map(|b| t(b.label(os)).to_string()).collect();
         let before = self.gpu;
-        widgets::form(ui, "setup-graphics", |ui| {
-            widgets::labeled_select(ui, &look, t("Rendering backend"), "setup-gpu", &mut self.gpu, &names, 200.0);
-            ui.end_row();
-        });
+        let w = ui.available_width();
+        widgets::labeled_select(ui, &look, t("Rendering backend"), "setup-gpu", &mut self.gpu, &names, w);
+        ui.add_space(4.0);
         if self.gpu != before
             && let Some(b) = choices.get(self.gpu)
         {
@@ -212,6 +275,7 @@ impl Setup {
         n.panel.user = self.user.trim().to_string();
         n.lang = LANG_CODES[self.lang.min(2)].to_string();
         n.graphics = cx.cfg.graphics.clone();
+        n.appearance = cx.cfg.appearance.clone();
         if self.tested.is_none() {
             // signed in, same account: only the language changes, the session and the trust stay
             n.panel.fingerprint = cx.cfg.panel.fingerprint.clone();
@@ -241,51 +305,77 @@ impl Setup {
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         cx.title = t("AD Manager — configure").into();
-        egui::CentralPanel::default().frame(Frame::new().fill(look.c("surface-2"))).show(ui, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.set_max_width(820.0);
-                ui.add_space(16.0);
-                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                    ui.label(
-                        RichText::new(t("Configure AD Manager desktop")).strong().size(18.0).color(look.c("fg-strong")),
-                    );
-                    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
-                    ui.painter().rect_filled(r, 0.0, look.c("accent"));
-                    egui::ScrollArea::vertical().max_height(ui.available_height() - 70.0).show(ui, |ui| {
+        egui::CentralPanel::default().frame(Frame::new().fill(look.c("page"))).show(ui, |ui| {
+            // the other screens' frame: app box, header, tab strip and footer; the cards in two columns as Settings
+            let file = format!(
+                "{}{}{}",
+                t("File: "),
+                cx.cfg_path.display(),
+                t("  (another file: ad-manager-desktop --config path)")
+            );
+            let area = crate::shell::app_frame(
+                ui,
+                cx,
+                t("Configure AD Manager desktop"),
+                (crate::icons::SETTINGS, t("Configure")),
+                &file,
+            );
+            let mut page =
+                ui.new_child(egui::UiBuilder::new().max_rect(area).layout(egui::Layout::top_down(egui::Align::Min)));
+            page.set_clip_rect(area.expand(20.0));
+            let ui = &mut page;
+            // only a very short window (or the certificate's details) scrolls
+            egui::ScrollArea::vertical().max_height(area.height() - 48.0).auto_shrink([false, true]).show(ui, |ui| {
+                let total = ui.available_width();
+                // the web's Settings grid: the main column and a 520-point one at its right; stacked when narrow (the
+                // web's xl breakpoint)
+                if total < 900.0 {
+                    ui.spacing_mut().item_spacing.y = 20.0;
+                    widgets::card(ui, &look, t("Panel"), |ui| self.panel_card(ui, cx));
+                    widgets::card(ui, &look, t("Appearance"), |ui| self.appearance_card(ui, cx));
+                    widgets::card(ui, &look, t("Graphics"), |ui| self.graphics_card(ui, cx));
+                    return;
+                }
+                let right_w = 520.0_f32.min((total * 0.45).floor()).max(1.0);
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = 20.0;
+                    let col = egui::Layout::top_down(egui::Align::Min);
+                    ui.allocate_ui_with_layout(egui::vec2((total - right_w - 20.0).max(1.0), 0.0), col, |ui| {
+                        ui.set_width((total - right_w - 20.0).max(1.0));
                         widgets::card(ui, &look, t("Panel"), |ui| self.panel_card(ui, cx));
+                    });
+                    ui.allocate_ui_with_layout(egui::vec2(right_w, 0.0), col, |ui| {
+                        ui.set_width(right_w);
+                        ui.spacing_mut().item_spacing.y = 20.0;
+                        widgets::card(ui, &look, t("Appearance"), |ui| self.appearance_card(ui, cx));
                         widgets::card(ui, &look, t("Graphics"), |ui| self.graphics_card(ui, cx));
-                        widgets::muted(
-                            ui,
-                            &look,
-                            &format!(
-                                "{}{}{}",
-                                t("File: "),
-                                cx.cfg_path.display(),
-                                t("  (another file: ad-manager-desktop --config path)")
-                            ),
-                        );
                     });
-                    if let Some(e) = &self.write_err {
-                        ui.label(RichText::new(e).color(look.c("err")));
+                });
+            });
+            if let Some(e) = &self.write_err {
+                ui.label(RichText::new(e).color(look.c("err")));
+            }
+            ui.add_space(12.0);
+            // the buttons at the right (the file is in the footer)
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if self.back != Back::None && widgets::button(ui, &look, "", t("Cancel"), Kind::Secondary).clicked()
+                    {
+                        self.forget(ui.ctx());
+                        self.abandon(cx);
+                        self.generation = next_generation(); // a test still running is signed out when it ends
+                        cx.go = Some(if self.back == Back::Shell { Go::KeepShell } else { Go::Login });
                     }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let can = self.can_save(cx);
-                        if ui
-                            .add_enabled_ui(can, |ui| widgets::button(ui, &look, "💾", t("Save"), Kind::Primary))
-                            .inner
-                            .clicked()
-                        {
-                            self.save(cx);
-                        }
-                        if self.back != Back::None
-                            && widgets::button(ui, &look, "✖", t("Cancel"), Kind::Secondary).clicked()
-                        {
-                            self.forget(ui.ctx());
-                            self.abandon(cx);
-                            self.generation = next_generation(); // a test still running is signed out when it ends
-                            cx.go = Some(if self.back == Back::Shell { Go::KeepShell } else { Go::Login });
-                        }
-                    });
+                    let can = self.can_save(cx);
+                    if ui
+                        .add_enabled_ui(can, |ui| {
+                            widgets::button(ui, &look, crate::icons::CHECK, t("Save"), Kind::Primary)
+                        })
+                        .inner
+                        .clicked()
+                    {
+                        self.save(cx);
+                    }
                 });
             });
         });
@@ -294,40 +384,51 @@ impl Setup {
     fn panel_card(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         let mut changed = false;
-        widgets::form(ui, "setup-form", |ui| {
-            changed |= widgets::labeled_field(
-                ui,
-                &look,
-                t("Panel URL"),
-                &mut self.url,
-                "https://panel.example.local:8443",
-                520.0,
+        // the web's form: labels above, 12 points between fields; the URL on its row, user and password side by side
+        let w = ui.available_width();
+        let half = ((w - 16.0) / 2.0).floor().max(1.0);
+        let url = widgets::above(ui, &look, t("Panel URL"), w, |ui, _| {
+            ui.add(
+                crate::widgets::line(&mut self.url)
+                    .hint_text(crate::widgets::hint("https://panel.example.local:8443"))
+                    .desired_width(w),
             )
-            .changed();
-            ui.end_row();
-            changed |= widgets::labeled_field(ui, &look, t("User"), &mut self.user, "administrator", 520.0).changed();
-            ui.end_row();
-            widgets::label(ui, &look, t("Password"));
-            let r = crate::widgets::secret_field(ui, self.pwd_id, &mut self.pwd, "", 520.0);
-            if std::mem::take(&mut self.focus) {
+        });
+        changed |= url.changed();
+        ui.add_space(12.0);
+        let (pwd_id, focus) = (self.pwd_id, std::mem::take(&mut self.focus));
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            let user = widgets::above(ui, &look, t("User"), half, |ui, _| {
+                ui.add(
+                    crate::widgets::line(&mut self.user)
+                        .hint_text(crate::widgets::hint("administrator"))
+                        .desired_width(half),
+                )
+            });
+            changed |= user.changed();
+            let pwd = &mut self.pwd;
+            let r = widgets::above(ui, &look, t("Password"), half, |ui, _| {
+                crate::widgets::secret_field(ui, pwd_id, pwd, "", half)
+            });
+            if focus {
                 r.request_focus();
             }
             changed |= r.changed();
-            ui.end_row();
-            let names = [t("Panel default").to_string(), "Português".into(), "English".into()];
-            widgets::labeled_select(ui, &look, t("Language"), "setup-lang", &mut self.lang, &names, 200.0);
-            ui.end_row();
         });
+        ui.add_space(12.0);
         if changed {
             self.edited(cx);
         }
-        widgets::wrapped(
+        widgets::muted(
             ui,
+            &look,
             t(
                 "Test signs in with the account (Domain Admins). The password is used only for the test and the session; it is never saved.",
             ),
         );
-        if widgets::button(ui, &look, "🔍", t("Test connection"), Kind::Secondary).clicked() {
+        ui.add_space(4.0);
+        if widgets::button(ui, &look, crate::icons::SEARCH, t("Test connection"), Kind::Secondary).clicked() {
             self.test(cx);
         }
         let mut trust = None;
@@ -351,7 +452,9 @@ impl Setup {
                     ),
                 );
                 cert_details(ui, &look, c);
-                if widgets::button(ui, &look, "✔", t("Trust this certificate"), Kind::Secondary).clicked() {
+                if widgets::button(ui, &look, crate::icons::CHECK, t("Trust this certificate"), Kind::Secondary)
+                    .clicked()
+                {
                     trust = Some(c.pin.clone());
                 }
             }

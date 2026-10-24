@@ -5,10 +5,10 @@
 import { Archive, Eye, FolderSync, Pencil, Play, Plus, RefreshCw, ScrollText, Square, Trash2 } from 'lucide-vue-next'
 import { computed, onUnmounted, ref } from 'vue'
 import { del, enc, get, post } from '../api'
-import { confirmTyped } from '../dialogs'
+import { askConfirm, confirmTyped } from '../dialogs'
 import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
-import { agentHost, formatDate } from '../util'
+import { agentHost, formatDate, spinner } from '../util'
 import BackupTabs from '../components/BackupTabs.vue'
 import SyncWizardDialog from '../components/dialogs/SyncWizardDialog.vue'
 import QuarantineDialog from '../components/QuarantineDialog.vue'
@@ -21,6 +21,7 @@ const currentId = ref(0)
 const data = ref(null) // { jobs, runs, roots, file_server, kerberos }
 const error = ref('')
 const loading = ref(false)
+const spin = spinner(loading) // the refresh icon turns while loading, at least briefly
 const agentsLoaded = ref(false)
 let timer = null
 onUnmounted(() => clearTimeout(timer))
@@ -76,7 +77,7 @@ loadAgents()
 
 const base = computed(() => `/agents/${currentId.value}`)
 const jobName = (id) => data.value?.jobs?.find((j) => j.id === id)?.name || id
-const unc = (s) => `\\\\${s.host}\\${s.share}${s.path ? '\\' + s.path.replaceAll('/', '\\') : ''}`
+const unc = (s) => `\\\\${s.host}${s.share ? '\\' + s.share : ''}${s.path ? '\\' + s.path.replaceAll('/', '\\') : ''}`
 const size = (n) =>
   !n
     ? '0'
@@ -89,18 +90,22 @@ const statusClass = (s) => (s === 'ok' ? 'text-ok' : s === 'error' ? 'text-err' 
 const statusText = (s) =>
   ({ ok: t('ok'), error: t('error'), cancelled: t('cancelled'), running: t('running'), queued: t('queued') })[s] || s
 // what a running run is doing right now (so the panel never shows an opaque "running")
+// what a running run does now; a server job's run also says which share (n of total) it is on
 const phaseText = (p) => {
+  const share = p?.share ? (p.share_count ? `${p.share} (${p.share_index}/${p.share_count})` : p.share) + ' · ' : ''
   switch (p?.phase) {
     case 'preparing':
-      return t('preparing')
+      return share + t('preparing')
     case 'copying':
-      return p.total ? t('copying {n} of {total}', { n: p.transfers || 0, total: p.total }) : t('copying')
+      if (p.total) return share + t('copying {n} of {total}', { n: p.transfers || 0, total: p.total })
+      // nothing new planned yet: rclone compares the files (its checks)
+      return share + (p.checks ? t('comparing {n} files', { n: p.checks.toLocaleString(locale()) }) : t('copying'))
     case 'acl':
-      return t('applying Windows permissions') + (p.acl_items ? ` (${p.acl_items})` : '')
+      return share + t('applying Windows permissions') + (p.acl_items ? ` (${p.acl_items})` : '')
     case 'finalizing':
-      return t('finalizing')
+      return share + t('finalizing')
     default:
-      return ''
+      return share.replace(/ · $/, '')
   }
 }
 const lastRun = (id) => data.value?.runs?.find((r) => r.job === id)
@@ -150,6 +155,8 @@ async function start(j, preview) {
   }
 }
 async function cancel(r) {
+  const msg = t('Stop the run of {name}? What it already copied stays, and the job can run again later.', { name: jobName(r.job) })
+  if (!(await askConfirm(msg, { title: t('Stop run'), ok: t('Stop run') }))) return
   try {
     await post(`${base.value}/sync-runs/${enc(r.id)}/cancel`)
     setTimeout(load, 1000)
@@ -179,7 +186,9 @@ const details = ref(null)
         <section class="card">
           <div class="card-h flex items-center justify-between">
             {{ t('Servers') }}
-            <button class="act normal-case" :disabled="loading" @click="load"><RefreshCw :size="12" /> {{ t('refresh') }}</button>
+            <button class="act normal-case" :disabled="loading" @click="load">
+              <RefreshCw :class="spin && 'motion-safe:animate-spin'" :size="12" /> {{ t('refresh') }}
+            </button>
           </div>
           <ul class="side-nav divide-y divide-line text-[12px]">
             <li
@@ -235,9 +244,20 @@ const details = ref(null)
                   <td class="max-w-56 truncate font-semibold whitespace-nowrap" :title="j.name || j.id">{{ j.name || j.id }}</td>
                   <td class="max-w-80 truncate font-mono text-[11px] whitespace-nowrap" :title="unc(j.source)">
                     {{ unc(j.source) }}
+                    <span v-if="j.kind === 'server'" class="tag bg-surface-2 text-fg-muted">{{ t('every share') }}</span>
                     <span class="tag bg-surface-2 text-fg-muted">{{ j.source.auth === 'ntlm' ? 'NTLM' : 'Kerberos' }}</span>
                   </td>
-                  <td class="max-w-64 truncate font-mono text-[11px] whitespace-nowrap" :title="j.dest">{{ j.dest }}</td>
+                  <td
+                    v-if="j.kind === 'server' && data?.roots?.length"
+                    class="max-w-64 truncate font-mono text-[11px] whitespace-nowrap"
+                    :title="t('the shares of the same name')"
+                  >
+                    {{ data.roots.join(', ') }}
+                  </td>
+                  <td v-else-if="j.kind === 'server'" class="max-w-64 truncate text-[11px] whitespace-nowrap text-fg-muted">
+                    {{ t('the shares of the same name') }}
+                  </td>
+                  <td v-else class="max-w-64 truncate font-mono text-[11px] whitespace-nowrap" :title="j.dest">{{ j.dest }}</td>
                   <td>
                     {{ j.mode === 'mirror' ? t('mirror') : t('copy') }}
                     <span v-if="j.mode === 'mirror' && j.approved_rev !== j.rev" class="text-warn">· {{ t('preview needed') }}</span>

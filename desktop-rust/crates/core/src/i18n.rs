@@ -80,6 +80,23 @@ pub fn date(d: Option<DateTime<Utc>>) -> String {
     }
 }
 
+/// A count with its thousands grouped as the web's toLocaleString in the interface language (9,768 or 9.768).
+pub fn count(n: impl Into<i64>) -> String {
+    group(n.into(), if PT.load(Ordering::Relaxed) { '.' } else { ',' })
+}
+
+fn group(n: i64, sep: char) -> String {
+    let digits = n.unsigned_abs().to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(sep);
+        }
+        out.push(c);
+    }
+    if n < 0 { format!("-{out}") } else { out }
+}
+
 /// The translated yes/no.
 pub fn yes_no(b: bool) -> &'static str {
     if b { t("yes") } else { t("no") }
@@ -242,5 +259,17 @@ pub(crate) mod tests {
                 out.push(p);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod count_tests {
+    #[test]
+    fn groups_thousands() {
+        assert_eq!(super::group(9768, ','), "9,768");
+        assert_eq!(super::group(1_234_567, ','), "1,234,567");
+        assert_eq!(super::group(999, ','), "999");
+        assert_eq!(super::group(-1000, ','), "-1,000");
+        assert_eq!(super::group(9768, '.'), "9.768");
     }
 }

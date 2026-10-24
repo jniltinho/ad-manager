@@ -28,47 +28,277 @@ fn colors(look: &Look, kind: Kind) -> (Color32, Color32, Color32) {
     }
 }
 
-/// A button with an optional icon glyph before its label.
+/// The recipe parts of a button kind: background and shadow (the web's .btn, .btn-ghost, .btn-danger, brand).
+fn parts(kind: Kind, hovered: bool) -> (&'static str, &'static str) {
+    match kind {
+        Kind::Primary if hovered => ("action-hover", "btn"),
+        Kind::Primary => ("action", "btn"),
+        Kind::Secondary => ("action-2", "btn-2"),
+        Kind::Danger => ("danger", "btn-danger"),
+        Kind::Brand => ("brand-action", "brand-action"),
+        Kind::Link => ("", ""),
+    }
+}
+
+/// A button with an optional icon glyph before its label, as the web's buttons: a 28 px border box with the theme's
+/// gradient and shadow (none in the flat look), semibold except the secondary (ghost) one.
 pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> Response {
+    // disabled: the web's opacity-50 on the whole button (a group: the label keeps its contrast on the paler fill),
+    // so the colors are mixed with the surface and drawn at full opacity, not each shape faded by egui
+    let disabled = !ui.is_enabled() && kind != Kind::Link;
     let (fill, ink, line) = colors(look, kind);
+    let (fill, ink, line) = if disabled {
+        let s = look.c("surface");
+        (fill.lerp_to_gamma(s, 0.5), ink.lerp_to_gamma(s, 0.5), line.lerp_to_gamma(s, 0.5))
+    } else {
+        (fill, ink, line)
+    };
     let text = match (icon.is_empty(), label.is_empty()) {
         (true, _) => label.to_string(),
         (false, true) => icon.to_string(),
         (false, false) => format!("{icon}  {label}"),
     };
-    let mut b = egui::Button::new(RichText::new(text).color(ink)).fill(fill).stroke(Stroke::new(1.0, line));
-    if kind == Kind::Link {
-        b = b.frame(false);
+    let size = look.px("control-text", 12.0);
+    let rich = match kind {
+        Kind::Primary | Kind::Danger | Kind::Brand => crate::style::semibold(text, size),
+        Kind::Secondary | Kind::Link => RichText::new(text).size(size),
     }
-    let r = ui.add(b);
-    if kind == Kind::Link { r.on_hover_cursor(egui::CursorIcon::PointingHand) } else { r }
+    .color(ink);
+    if kind == Kind::Link {
+        let r = ui.add(egui::Button::new(rich).frame(false));
+        if !label.is_empty() {
+            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+        }
+        return r.on_hover_cursor(egui::CursorIcon::PointingHand);
+    }
+    let r = if disabled {
+        ui.scope(|ui| {
+            ui.set_opacity(1.0);
+            boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0)
+        })
+        .inner
+    } else {
+        boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0)
+    };
+    // named by its label: the icon is a private-use glyph a screen reader cannot read
+    if !label.is_empty() {
+        let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    }
+    r
+}
+
+/// How long a refresh icon turns at least after a click (a quick reload still shows its spin), and one turn's time
+/// (the web's animate-spin).
+const SPIN_MIN: f64 = 0.6;
+const SPIN_TURN: f64 = 1.0;
+
+/// The angle of a refresh icon that turns while `busy` and for [`SPIN_MIN`] after a click (recorded by
+/// [`spin_clicked`]); None when it rests. Asks for the next frame while it turns.
+fn spin_angle(ui: &Ui, id: egui::Id, busy: bool) -> Option<f32> {
+    let now = ui.input(|i| i.time);
+    let key = id.with("spin-since");
+    let since = ui.ctx().data(|d| d.get_temp::<f64>(key));
+    let since = match (since, busy) {
+        (None, true) => {
+            ui.ctx().data_mut(|d| d.insert_temp(key, now));
+            now
+        }
+        (Some(s), _) if busy || now - s < SPIN_MIN => s,
+        (Some(_), _) => {
+            ui.ctx().data_mut(|d| d.remove::<f64>(key));
+            return None;
+        }
+        (None, false) => return None,
+    };
+    ui.ctx().request_repaint();
+    Some((((now - since) / SPIN_TURN).fract() * std::f64::consts::TAU) as f32)
+}
+
+/// Starts a refresh icon's minimum spin after its control was clicked.
+fn spin_clicked(ui: &Ui, id: egui::Id, r: &Response) {
+    if r.clicked() {
+        let now = ui.input(|i| i.time);
+        ui.ctx().data_mut(|d| d.insert_temp(id.with("spin-since"), now));
+    }
+}
+
+/// `icon` turned by `angle` around its center, which sits `left` points right of `rect`'s left edge.
+fn paint_spun(ui: &Ui, rect: egui::Rect, left: f32, icon: &str, size: f32, ink: Color32, angle: f32) {
+    let g = ui.painter().layout_no_wrap(icon.to_string(), egui::FontId::proportional(size), ink);
+    let half = g.size() / 2.0;
+    let center = egui::pos2(rect.left() + left + half.x, rect.center().y);
+    let rot = egui::emath::Rot2::from_angle(angle);
+    let pos = center - rot * half;
+    ui.painter().add(egui::epaint::TextShape::new(pos, g, ink).with_angle(angle));
+}
+
+/// The text of a control whose icon turns: the icon kept in place but invisible (drawn turned over it), then the label.
+fn spun_text(icon: &str, gap: &str, label: &str, font: egui::FontId, ink: Color32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(icon, 0.0, egui::TextFormat::simple(font.clone(), Color32::TRANSPARENT));
+    if !label.is_empty() {
+        job.append(&format!("{gap}{label}"), 0.0, egui::TextFormat::simple(font, ink));
+    }
+    job
+}
+
+/// A refresh button (the web's ghost button with its turning icon): its icon turns while `busy` and briefly after
+/// each click.
+pub fn refresh(ui: &mut Ui, look: &Look, label: &str, busy: bool) -> Response {
+    let id = ui.next_auto_id();
+    let Some(angle) = spin_angle(ui, id, busy) else {
+        let r = button(ui, look, crate::icons::REFRESH, label, Kind::Secondary);
+        spin_clicked(ui, id, &r);
+        return r;
+    };
+    let r = spun_button(ui, look, crate::icons::REFRESH, label, Kind::Secondary, angle);
+    spin_clicked(ui, id, &r);
+    r
+}
+
+/// A boxed button whose `icon` is drawn turned by `angle` before its label.
+fn spun_button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind, angle: f32) -> Response {
+    let size = look.px("control-text", 12.0);
+    let disabled = !ui.is_enabled();
+    let (fill, ink, line) = colors(look, kind);
+    let (fill, ink, line) = if disabled {
+        let s = look.c("surface");
+        (fill.lerp_to_gamma(s, 0.5), ink.lerp_to_gamma(s, 0.5), line.lerp_to_gamma(s, 0.5))
+    } else {
+        (fill, ink, line)
+    };
+    let font = match kind {
+        Kind::Primary | Kind::Danger | Kind::Brand => {
+            egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()))
+        }
+        _ => egui::FontId::proportional(size),
+    };
+    let job = spun_text(icon, "  ", label, font, ink);
+    let r = ui
+        .scope(|ui| {
+            ui.set_opacity(1.0);
+            boxed(ui, look, egui::Button::new(job), kind, line, fill, 0.0)
+        })
+        .inner;
+    paint_spun(ui, r.rect, ui.spacing().button_padding.x, icon, size, ink, angle);
+    if !label.is_empty() {
+        let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    }
+    r
+}
+
+/// A button that shows a turning loader before `busy_label` while `busy` (the login's Sign in), else `label`.
+pub fn busy_button(ui: &mut Ui, look: &Look, label: &str, busy_label: &str, kind: Kind, busy: bool) -> Response {
+    if !busy {
+        return button(ui, look, "", label, kind);
+    }
+    ui.ctx().request_repaint();
+    let angle = ((ui.input(|i| i.time) / SPIN_TURN).fract() * std::f64::consts::TAU) as f32;
+    spun_button(ui, look, crate::icons::LOADER, busy_label, kind, angle)
+}
+
+/// A button whose icon becomes a turning loader while `busy` and briefly after its click, `busy_label` meanwhile (the
+/// web's Save settings).
+pub fn action_button(ui: &mut Ui, look: &Look, icon: &str, labels: (&str, &str), kind: Kind, busy: bool) -> Response {
+    let id = ui.next_auto_id();
+    // disabled while it turns (the web's :disabled for its whole spin): a second click sends nothing
+    let r = match spin_angle(ui, id, busy) {
+        Some(a) => ui.add_enabled_ui(false, |ui| spun_button(ui, look, crate::icons::LOADER, labels.1, kind, a)).inner,
+        None => button(ui, look, icon, labels.0, kind),
+    };
+    spin_clicked(ui, id, &r);
+    r
+}
+
+/// A refresh link (the web's .act refresh): its icon turns while `busy` and briefly after each click.
+pub fn refresh_act(ui: &mut Ui, look: &Look, label: &str, size: f32, busy: bool) -> Response {
+    let id = ui.next_auto_id();
+    let Some(angle) = spin_angle(ui, id, busy) else {
+        let r = act(ui, look, crate::icons::REFRESH, label, None, size);
+        spin_clicked(ui, id, &r);
+        return r;
+    };
+    let ink = look.c("link");
+    let job = spun_text(crate::icons::REFRESH, " ", label, egui::FontId::proportional(size), ink);
+    let r = ui.add(egui::Button::new(job).frame(false));
+    paint_spun(ui, r.rect, ui.spacing().button_padding.x, crate::icons::REFRESH, size, ink, angle);
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    spin_clicked(ui, id, &r);
+    r.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// A label without its icons (private-use glyphs a screen reader cannot read), as a control's accessible name.
+pub fn spoken(label: &str) -> String {
+    label.chars().filter(|c| !('\u{e000}'..='\u{f8ff}').contains(c)).collect::<String>().trim().to_string()
+}
+
+/// A button `w` wide with its label at the left and `icon` at the right (the web's export buttons).
+pub fn button_end(ui: &mut Ui, look: &Look, label: &str, icon: &str, kind: Kind, w: f32) -> Response {
+    let (fill, ink, line) = colors(look, kind);
+    let size = look.px("control-text", 12.0);
+    let b = egui::Button::new(RichText::new(label).size(size).color(ink))
+        .right_text(RichText::new(icon).size(size).color(ink));
+    let r = boxed(ui, look, b, kind, line, fill, w);
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    r
+}
+
+/// Draws `b` framed as the theme's button of `kind` (its fill, gradient and shadow under it), at least `w` wide.
+fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color32, fill: Color32, w: f32) -> Response {
+    // the box is painted under the label: a placeholder taken before the button, filled once its rect is known
+    let under = ui.painter().add(egui::Shape::Noop);
+    let r = ui.add(
+        b.fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0, line)).min_size(egui::vec2(w, crate::style::control_h())),
+    );
+    let (bg, shadow) = parts(kind, r.hovered());
+    // a disabled button's colors come mixed (see button): its gradient's stops mixed the same way
+    let mixed = (!ui.is_enabled()).then(|| look.gradient(bg)).flatten().map(|g| {
+        let s = look.c("surface");
+        let mut g = g.clone();
+        for stop in &mut g.stops {
+            let c = stop.color.0;
+            let m = Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]).lerp_to_gamma(s, 0.5);
+            stop.color = adm_core::theme::Rgba(m.to_srgba_unmultiplied());
+        }
+        g
+    });
+    let gradient = if ui.is_enabled() { look.gradient(bg) } else { mixed.as_ref() };
+    // the outer layers and the fill around the box; the inset ones inside its 1-px border (the web's inset bevel
+    // sits inside the border, which egui draws over the rect's edge)
+    let layers = look.shadows(shadow);
+    let (outer, inner): (Vec<_>, Vec<_>) = layers.iter().copied().partition(|l| !l.inset);
+    let mut shapes = crate::depth::box_shapes(r.rect, gradient, fill, &outer);
+    shapes.extend(crate::depth::box_shapes(r.rect.shrink(1.0), None, Color32::TRANSPARENT, &inner));
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+    r
+}
+
+/// A toolbar's refresh button: disabled while `busy` (a reload in flight), so a click shows it is working.
+pub fn refresh_button(ui: &mut Ui, look: &Look, busy: bool) -> bool {
+    let name = adm_core::i18n::t("Refresh");
+    let r = ui.add_enabled_ui(!busy, |ui| refresh(ui, look, "", busy)).inner;
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name.to_string()));
+    r.on_hover_text(name).clicked()
 }
 
 /// An icon-only button with its name as tooltip.
 pub fn icon_button(ui: &mut Ui, look: &Look, icon: &str, name: &str) -> Response {
-    button(ui, look, icon, "", Kind::Secondary).on_hover_text(name)
+    let r = button(ui, look, icon, "", Kind::Secondary);
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name.to_string()));
+    r.on_hover_text(name)
 }
 
-/// A card: the theme's head with a bar left of the title, the content on the surface, a 1 px frame.
+/// A card as the web's .card: a 1 px frame, the theme's head (28 px, its gradient, the bar left of the title at the
+/// theme's width, the title in the theme's size, weight and case, a line under it) and the content on the surface.
 pub fn card<R>(ui: &mut Ui, look: &Look, title: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let (head, on_head, bar) = (look.c("card-head"), look.c("on-card-head"), look.c("card-head-bar"));
     Frame::new()
         .fill(look.c("surface"))
         .stroke(Stroke::new(1.0, look.c("line")))
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            let w = ui.available_width();
-            Frame::new().fill(head).inner_margin(Margin { left: 0, right: 10, top: 6, bottom: 6 }).show(ui, |ui| {
-                ui.set_width(w - 10.0);
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(egui::vec2(4.0, 18.0), egui::Sense::hover());
-                    ui.painter().rect_filled(r, 0.0, bar);
-                    ui.add_space(6.0);
-                    ui.label(RichText::new(title).strong().size(14.0).color(on_head));
-                });
-            });
+            card_head(ui, look, title, |_| {});
             Frame::new()
-                .inner_margin(Margin::same(10))
+                .inner_margin(Margin::same(12))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 6.0;
                     add(ui)
@@ -78,19 +308,625 @@ pub fn card<R>(ui: &mut Ui, look: &Look, title: &str, add: impl FnOnce(&mut Ui) 
         .inner
 }
 
-/// A tag (badge), like the web .tag: the state's fill with its own ink (ok, err, warn, neutral; strong otherwise). Drawn,
-/// not framed: a hover-only widget, so a click on it reaches what is under it (the table row).
-pub fn tag(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+/// The web's .card-h: the head of a card or a panel, with `right` drawn at its right end (a link, a count).
+pub fn card_head(ui: &mut Ui, look: &Look, title: &str, right: impl FnOnce(&mut Ui)) {
+    card_head_note(ui, look, title, "", right);
+}
+
+/// A card head with a muted note after its title (the web's "Shares on fs01" and the server's URL).
+pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: impl FnOnce(&mut Ui)) {
+    let w = ui.available_width();
+    let bar = look.px("card-head-bar-w", 4.0);
+    let size = look.px("card-head-size", 12.0);
+    let key = title.to_string();
+    let title =
+        if look.p.text("card-head-transform") == "uppercase" { title.to_uppercase() } else { title.to_string() };
+    let rich = if look.px("card-head-weight", 600.0) >= 600.0 {
+        crate::style::semibold(title, size)
+    } else {
+        RichText::new(title).size(size)
+    }
+    .color(look.c("on-card-head"));
+    let under = ui.painter().add(egui::Shape::Noop);
+    let row_id = ui.id().with(("card-head-row", key.as_str()));
+    let prev = ui.ctx().data(|d| d.get_temp::<f32>(row_id)).unwrap_or(0.0);
+    let w_id = row_id.with("right-w");
+    let prev_w = ui.ctx().data(|d| d.get_temp::<f32>(w_id)).unwrap_or(0.0);
+    // py-1.5 around the web's 18-point line (egui's line is 15: 7 and 8 here); around buttons, the plain py-1.5
+    let (top, bottom) = if prev >= 24.0 { (6, 6) } else { (7, 8) };
+    let r = Frame::new()
+        .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top, bottom })
+        .show(ui, |ui| {
+            ui.set_width((w - 24.0 - bar).max(0.0));
+            // the head's line, not a control's 28 points (a row starts at this height: set before it opens); the
+            // row as tall as last frame's, so the title centers on the buttons at its right
+            ui.spacing_mut().interact_size.y = 0.0;
+            let row = ui.horizontal(|ui| {
+                ui.set_min_height(prev);
+                ui.label(rich);
+                if !note.is_empty() {
+                    // the web's gap-3 between the title and its note; the note gives way to what sits at the right
+                    // (as wide as last frame's), truncated rather than drawn under it
+                    ui.add_space(12.0 - ui.spacing().item_spacing.x);
+                    let room = (ui.available_width() - prev_w - 12.0).max(0.0);
+                    ui.scope(|ui| {
+                        ui.set_max_width(room);
+                        ui.add(egui::Label::new(RichText::new(note).size(size).color(look.c("fg-muted"))).truncate());
+                    });
+                }
+                let (right_h, right_w) = ui
+                    .with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // what sits in the head is semibold as the head (the web's .card-h buttons inherit it)
+                        ui.style_mut().override_font_id =
+                            Some(egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())));
+                        right(ui);
+                        (ui.min_rect().height(), ui.min_rect().width())
+                    })
+                    .inner;
+                if (right_h - prev).abs() > 0.5 || (right_w - prev_w).abs() > 0.5 {
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(row_id, right_h);
+                        d.insert_temp(w_id, right_w);
+                    });
+                    ui.ctx().request_repaint();
+                }
+            });
+            let _ = row;
+        })
+        .response;
+    let mut shapes = crate::depth::box_shapes(r.rect, look.gradient("card-head"), look.c("card-head"), &[]);
+    if bar > 0.0 {
+        shapes.push(egui::Shape::rect_filled(
+            egui::Rect::from_min_size(r.rect.min, egui::vec2(bar, r.rect.height())),
+            0.0,
+            look.c("card-head-bar"),
+        ));
+    }
+    shapes.push(egui::Shape::hline(r.rect.x_range(), r.rect.bottom() - 0.5, Stroke::new(1.0, look.c("line"))));
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+}
+
+/// The web's .card with a head (title, muted note, `right` at its right end) and a body without padding (a list or
+/// a table edge to edge), at least `min_h` high: a card that fills its column.
+pub fn panel<R>(
+    ui: &mut Ui,
+    look: &Look,
+    head: (&str, &str),
+    right: impl FnOnce(&mut Ui),
+    min_h: f32,
+    add: impl FnOnce(&mut Ui) -> R,
+) -> R {
+    // the web's .card shadow under the frame (its outer layers; the fill covers the rest)
+    let under = ui.painter().add(egui::Shape::Noop);
+    let r = Frame::new().fill(look.c("surface")).stroke(Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
+        ui.set_min_height((min_h - 2.0).max(0.0));
+        ui.spacing_mut().item_spacing.y = 0.0;
+        // a card without a title (its own tabs on top)
+        if !head.0.is_empty() {
+            card_head_note(ui, look, head.0, head.1, right);
+        }
+        add(ui)
+    });
+    let outer: Vec<_> = look.shadows("card").iter().filter(|l| !l.inset).cloned().collect();
+    ui.painter()
+        .set(under, egui::Shape::Vec(crate::depth::box_shapes(r.response.rect, None, Color32::TRANSPARENT, &outer)));
+    // the border over the head too (the head's fill covered the frame's stroke; High contrast shows it)
+    ui.painter().rect_stroke(r.response.rect, 0.0, Stroke::new(1.0, look.c("line")), egui::StrokeKind::Inside);
+    r.inner
+}
+
+/// An item of a side list (the web's .side-nav li: px 12, py 8, 12 px text): the current one in the theme's nav-on
+/// colors and shadow, the others tinted on hover, a divider between items. `add` gets the ink to draw with; the
+/// response is the item's click (registered before its content, so links inside it keep their own clicks).
+pub fn side_item<R>(
+    ui: &mut Ui,
+    look: &Look,
+    on: bool,
+    first: bool,
+    add: impl FnOnce(&mut Ui, Color32) -> R,
+) -> egui::InnerResponse<R> {
+    let under = ui.painter().add(egui::Shape::Noop);
+    let ink = if on { look.c("on-nav-on") } else { look.c("fg") };
+    let w = ui.available_width();
+    let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
+        // the item's texts are not selectable: a click on them picks the item
+        ui.style_mut().interaction.selectable_labels = false;
+        Frame::new()
+            // px-3 py-2 around the web's 18-point line (egui's is 15): the web's 35-point item
+            .inner_margin(Margin { left: 12, right: 12, top: 10, bottom: 9 })
+            .show(ui, |ui| {
+                ui.set_width(w - 24.0);
+                ui.spacing_mut().interact_size.y = 0.0; // the web's 35-point item, not a control's height
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    add(ui, ink)
+                })
+                .inner
+            })
+            .inner
+    });
+    let rect = r.response.rect;
+    let mut shapes = if on {
+        crate::depth::box_shapes(rect, None, look.c("nav-on"), look.shadows("nav-on"))
+    } else if r.response.hovered() {
+        vec![egui::Shape::rect_filled(rect, 0.0, look.c("row-hover"))]
+    } else {
+        Vec::new()
+    };
+    if !first {
+        shapes.push(egui::Shape::hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, look.c("line"))));
+    }
+    if on {
+        shapes.push(egui::Shape::hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, look.c("nav-on-line"))));
+    }
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+    let resp = r.response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    egui::InnerResponse::new(r.inner, resp)
+}
+
+/// The web's `.cardtabs.fit` at the top of a dialog: a band across the dialog's whole width (over the body's
+/// padding) with tabs as wide as their labels, the current one in the theme's cardtab-on colors with its bar at the
+/// left. Returns the tab clicked.
+pub fn cardtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize) -> Option<usize> {
+    let (bx, by) = crate::modal::BODY;
+    cardtabs_at(ui, look, id, tabs, sel, bx, by, true)
+}
+
+/// The cardtabs band reaching `bx` past the sides and `by` above (a dialog's body padding; 0 at a card's top).
+/// `fit`: tabs as wide as their labels (a dialog's `.fit`); else they share the band's width, labels centered (the
+/// web's `.cardtab { flex: 1 }`).
+#[allow(clippy::too_many_arguments)]
+pub fn cardtabs_at(
+    ui: &mut Ui,
+    look: &Look,
+    id: &str,
+    tabs: &[&str],
+    sel: usize,
+    bx: f32,
+    by: f32,
+    fit: bool,
+) -> Option<usize> {
+    let upper = look.p.text("cardtab-transform") == "uppercase";
+    let bar = look.px("cardtab-bar-w", 4.0);
+    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let (pad, gap) = (look.px("cardtabs-pad", 0.0), look.px("cardtabs-gap", 0.0));
+    let n = tabs.len().max(1) as f32;
+    // not fit: the web's flex: 1 buttons on one line, as the browser lays them out: equal shares, a label wider
+    // than its share keeping its own width (min-width: auto) and the others sharing what is left; fit: as wide as
+    // their labels
+    let room = ui.available_width() + 2.0 * bx - 2.0 * pad - gap * (n - 1.0);
+    let galleys: Vec<_> = tabs
+        .iter()
+        .enumerate()
+        .map(|(i, l)| {
+            let text = if upper { l.to_uppercase() } else { l.to_string() };
+            let ink = if i == sel { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
+            ui.painter().layout_no_wrap(text, font.clone(), ink)
+        })
+        .collect();
+    let natural: Vec<f32> = galleys.iter().map(|g| g.size().x + 24.0).collect();
+    let widths = flex_widths(&natural, room);
+    let line = galleys.iter().map(|g| g.rows.first().map_or(15.0, |r| r.height())).fold(0.0, f32::max);
+    let tallest = galleys.iter().map(|g| g.size().y).fold(0.0, f32::max);
+    // the web's band: its top padding, the flex line (an inactive tab's margin-top over its 34: the current tab
+    // stretches to it) and the 1 px border under it
+    let h = 34.0 + pad + look.px("cardtab-inset-top", 0.0) + 1.0 + (tallest - line).max(0.0);
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
+    let band =
+        egui::Rect::from_min_max(egui::pos2(r.left() - bx, r.top() - by), egui::pos2(r.right() + bx, r.bottom()));
+    // the layer's painter: a ui's painter only clips narrower (it intersects), and the band reaches over the dialog
+    // body's padding, outside the scroll area
+    let clip = ui
+        .clip_rect()
+        .expand2(egui::vec2(bx, 0.0))
+        .with_min_y(ui.clip_rect().top() - by)
+        .intersect(band.union(ui.clip_rect()));
+    let mut painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(clip);
+    // a disabled strip at the web's .cardtab:disabled opacity 0.6 (egui's blend: 0.5 here, as disabled_alpha)
+    painter.set_opacity(if ui.is_enabled() { ui.painter().opacity() } else { 0.5 });
+    // the tabs answer clicks over the whole part drawn: a ui with the same clip
+    let mut band_ui = ui.new_child(egui::UiBuilder::new().max_rect(band));
+    band_ui.set_clip_rect(clip);
+    painter.rect_filled(band, 0.0, look.c("cardtabs"));
+    // the band's line under the tabs: the current tab covers it (the web's overlap)
+    painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
+    let mut x = band.left() + pad;
+    let mut out = None;
+    for (i, (label, g)) in tabs.iter().zip(galleys).enumerate() {
+        let on = i == sel;
+        let ink = if on { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
+        let w = if fit { g.size().x + 24.0 + if on { bar } else { 0.0 } } else { widths[i] };
+        // the band's padding on top (the web's --cardtabs-pad), the inactive tabs lower by their inset, the current
+        // one over the band's line by its overlap
+        let top = band.top() + pad + if on { 0.0 } else { look.px("cardtab-inset-top", 0.0) };
+        // an inactive tab stops over the band's line (the web's line runs under it); the current one covers it
+        let bottom = if on { band.bottom() + look.px("cardtab-on-overlap", 0.0) } else { band.bottom() - 1.0 };
+        let tab = egui::Rect::from_min_max(egui::pos2(x, top), egui::pos2(x + w, bottom));
+        let resp = band_ui
+            .interact(tab.intersect(clip), ui.id().with((id, i)), egui::Sense::click())
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        let fill = if on {
+            look.c("cardtab-on")
+        } else if resp.hovered() {
+            look.c("cardtab-hover")
+        } else {
+            look.c("cardtab")
+        };
+        let shadow = if on { look.shadows("cardtab-on") } else { look.shadows("cardtab") };
+        painter.extend(crate::depth::box_shapes(tab, None, fill, shadow));
+        if on && bar > 0.0 {
+            painter.rect_filled(
+                egui::Rect::from_min_size(tab.min, egui::vec2(bar, tab.height())),
+                0.0,
+                look.c("cardtab-bar"),
+            );
+        }
+        let left = if fit {
+            tab.left() + 12.0 + if on { bar } else { 0.0 }
+        } else {
+            tab.center().x - g.size().x / 2.0 + if on { bar / 2.0 } else { 0.0 }
+        };
+        painter.galley(egui::pos2(left, tab.center().y - g.size().y / 2.0), g, ink);
+        let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
+            n.set_role(egui::accesskit::Role::Tab);
+            n.set_label(label.to_string());
+            if on {
+                n.set_selected(true);
+            }
+        });
+        if resp.clicked() && !on {
+            out = Some(i);
+        }
+        x += w + gap;
+    }
+    if by > 0.0 {
+        ui.add_space(12.0); // a dialog's body goes on under the band
+    }
+    out
+}
+
+/// A field with its label above, `w` wide (the web's .lbl over an .inp in a grid cell).
+pub fn above(
+    ui: &mut Ui,
+    look: &Look,
+    label: &str,
+    w: f32,
+    add: impl FnOnce(&mut Ui, egui::Id) -> Response,
+) -> Response {
+    ui.vertical(|ui| {
+        ui.set_width(w);
+        ui.spacing_mut().item_spacing.y = 4.0;
+        let l = lbl(ui, look, label);
+        add(ui, l.id).labelled_by(l.id)
+    })
+    .inner
+}
+
+/// A removable name as the web's chip (11 px text in the third surface, a 1-point line, × to remove); true when its ×
+/// was clicked.
+pub fn chip(ui: &mut Ui, look: &Look, text: &str) -> bool {
+    Frame::new()
+        .fill(look.c("surface-3"))
+        .stroke(Stroke::new(1.0, look.c("line")))
+        .inner_margin(Margin::symmetric(8, 2))
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+            ui.spacing_mut().interact_size.y = 0.0;
+            ui.label(RichText::new(text).size(11.0));
+            let r = act(ui, look, "", "×", None, 11.0);
+            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(adm_core::tf!("remove %s", text)));
+            r.clicked()
+        })
+        .inner
+}
+
+/// What a suggestions field did this frame.
+pub struct Suggest {
+    pub response: Response,
+    /// A suggestion picked (click, or Enter on the highlighted one): the field holds it too.
+    pub picked: Option<String>,
+    /// Enter with no suggestion highlighted (the caller's action: add, open).
+    pub enter: bool,
+}
+
+/// A field with the web's suggestions (Suggestions.vue): the options whose value or label holds the text, at most
+/// 50, in a list under the field while it has focus; arrow keys move, Enter picks, Esc closes the list (not the
+/// dialog). `options` are (value, label).
+pub fn suggest(
+    ui: &mut Ui,
+    look: &Look,
+    id: egui::Id,
+    text: &mut String,
+    options: &[(String, String)],
+    hint: &str,
+    width: f32,
+) -> Suggest {
+    #[derive(Clone, Copy, Default)]
+    struct State {
+        active: Option<usize>,
+        hovered: bool,
+        closed: bool,
+    }
+    let mut st: State = ui.data(|d| d.get_temp(id)).unwrap_or_default();
+    let q = text.trim().to_lowercase();
+    let items: Vec<&(String, String)> = options
+        .iter()
+        .filter(|(v, l)| q.is_empty() || v.to_lowercase().contains(&q) || l.to_lowercase().contains(&q))
+        .take(50)
+        .collect();
+    let focused = ui.memory(|m| m.has_focus(id));
+    let mut picked = None;
+    let mut enter = false;
+    if focused {
+        let (down, up, ret, esc) = ui.input_mut(|i| {
+            (
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),
+                !st.closed && i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
+            )
+        });
+        let n = items.len();
+        if (down || up) && n > 0 {
+            st.closed = false;
+            st.active = Some(match (st.active, down) {
+                (None, true) => 0,
+                (None, false) => n - 1,
+                (Some(a), true) => (a + 1) % n,
+                (Some(a), false) => (a + n - 1) % n,
+            });
+        }
+        if ret {
+            match st.active.and_then(|a| items.get(a)) {
+                Some((v, _)) if !st.closed => picked = Some(v.clone()),
+                _ => enter = true,
+            }
+            st.closed = true;
+        }
+        if esc {
+            st.closed = true;
+        }
+    }
+    let response = ui.add(line(text).id(id).hint_text(crate::widgets::hint(hint)).desired_width(width));
+    if response.changed() {
+        st.active = None;
+        st.closed = false;
+    }
+    if response.gained_focus() {
+        st.closed = false;
+    }
+    let open = (focused || st.hovered) && !st.closed && !items.is_empty() && picked.is_none();
+    st.hovered = false;
+    if open {
+        let rect = response.rect;
+        let below = ui.ctx().content_rect().bottom() - rect.bottom();
+        let max_h = 260.0_f32.min(below - 12.0).max(80.0);
+        let area = egui::Area::new(id.with("list"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(egui::pos2(rect.left(), rect.bottom() + 2.0))
+            .show(ui.ctx(), |ui| {
+                Frame::new()
+                    .fill(look.c("surface"))
+                    .stroke(Stroke::new(1.0, look.c("line")))
+                    .shadow(look.shadows("popup").first().map_or(egui::Shadow::NONE, |l| egui::Shadow {
+                        offset: [l.dx as i8, l.dy as i8],
+                        blur: l.blur as u8,
+                        spread: l.spread as u8,
+                        color: Color32::from_rgba_unmultiplied(l.color.0[0], l.color.0[1], l.color.0[2], l.color.0[3]),
+                    }))
+                    .show(ui, |ui| {
+                        ui.set_width(rect.width() - 2.0);
+                        egui::ScrollArea::vertical().max_height(max_h).show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.y = 0.0;
+                            for (i, (v, l)) in items.iter().enumerate() {
+                                let on = st.active == Some(i);
+                                let (r, resp) = ui
+                                    .allocate_exact_size(egui::vec2(ui.available_width(), 24.0), egui::Sense::click());
+                                if on || resp.hovered() {
+                                    ui.painter().rect_filled(r, 0.0, look.c("selection"));
+                                }
+                                let ink = if on || resp.hovered() { look.c("on-selection") } else { look.c("fg") };
+                                let g = ui.painter().layout_no_wrap(v.clone(), egui::FontId::proportional(12.0), ink);
+                                ui.painter().galley(
+                                    egui::pos2(r.left() + 8.0, r.center().y - g.size().y / 2.0),
+                                    g,
+                                    ink,
+                                );
+                                if !l.is_empty() {
+                                    let muted = if on || resp.hovered() { ink } else { look.c("fg-muted") };
+                                    let g =
+                                        ui.painter().layout_no_wrap(l.clone(), egui::FontId::proportional(11.0), muted);
+                                    let at = egui::pos2(r.right() - 8.0 - g.size().x, r.center().y - g.size().y / 2.0);
+                                    ui.painter().galley(at, g, muted);
+                                }
+                                let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
+                                    n.set_role(egui::accesskit::Role::ListBoxOption);
+                                    n.set_label(if l.is_empty() { v.clone() } else { format!("{v} — {l}") });
+                                    if on {
+                                        n.set_selected(true);
+                                    }
+                                });
+                                if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                                    picked = Some(v.clone());
+                                }
+                                if on {
+                                    ui.scroll_to_rect(r, None);
+                                }
+                            }
+                        });
+                    });
+            });
+        st.hovered = area.response.contains_pointer();
+    }
+    if let Some(v) = &picked {
+        *text = v.clone();
+        st.closed = true;
+        st.active = None;
+        response.request_focus();
+    }
+    let _ = ui.ctx().accesskit_node_builder(response.id, |n| n.set_role(egui::accesskit::Role::ComboBox));
+    ui.data_mut(|d| d.insert_temp(id, st));
+    Suggest { response, picked, enter }
+}
+
+/// The colors of the web's square check and radio, set by the look (`Look::apply`).
+#[derive(Clone, Copy, Default)]
+pub struct CheckColors {
+    pub field: Color32,
+    pub line: Color32,
+    pub on: Color32,
+    pub mark: Color32,
+    pub ink: Color32,
+}
+
+fn check_colors(ctx: &egui::Context) -> CheckColors {
+    ctx.data(|d| d.get_temp(egui::Id::new("adm-check-colors"))).unwrap_or_default()
+}
+
+/// The web's checkbox: a 14 px square on the field color with the check line, filled with the action color and a
+/// white tick when checked, its text 8 points after (also a click on the text toggles it).
+pub fn check(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>) -> Response {
+    check_or_radio(ui, on, text, false)
+}
+
+/// The web's radio (square too: a small square mark when chosen); sets `value` to `alt` when clicked.
+pub fn radio_value<T: PartialEq>(ui: &mut Ui, value: &mut T, alt: T, text: impl Into<egui::WidgetText>) -> Response {
+    let mut on = *value == alt;
+    let r = check_or_radio(ui, &mut on, text, true);
+    if r.clicked() {
+        *value = alt;
+    }
+    r
+}
+
+fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>, radio: bool) -> Response {
+    let c = check_colors(ui.ctx());
+    // a plain label at the web's 12 px (a styled one keeps its own size)
+    let text = match text.into() {
+        egui::WidgetText::Text(s) => egui::WidgetText::from(RichText::new(s).size(12.0)),
+        other => other,
+    };
+    let label = text.text().to_string();
+    // the box, the web's ~5-point gap, the label
+    let wrap_w = ui.available_width() - 19.0;
+    let galley = text.into_galley(ui, Some(egui::TextWrapMode::Wrap), wrap_w, egui::TextStyle::Body);
+    let size = egui::vec2(14.0 + if label.is_empty() { 0.0 } else { 5.0 + galley.size().x }, galley.size().y.max(18.0));
+    let (rect, mut resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    if resp.clicked() {
+        if radio {
+            *on = true;
+        } else {
+            *on = !*on;
+        }
+        resp.mark_changed();
+    }
+    let kind = if radio { egui::WidgetType::RadioButton } else { egui::WidgetType::Checkbox };
+    resp.widget_info(|| egui::WidgetInfo::selected(kind, ui.is_enabled(), *on, &label));
+    if ui.is_rect_visible(rect) {
+        let fade = |col: Color32| if ui.is_enabled() { col } else { col.gamma_multiply(0.5) };
+        let first_row = galley.rows.first().map_or(14.0, |r| r.height());
+        // the text centered in the row (a label beside it shares its line), the box on its first line
+        let y0 = rect.top() + (rect.height() - galley.size().y).max(0.0) / 2.0;
+        let b = egui::Rect::from_min_size(
+            egui::pos2(rect.left(), y0 + (first_row - 14.0).max(0.0) / 2.0 + 1.0),
+            egui::vec2(14.0, 14.0),
+        );
+        let p = ui.painter();
+        if *on {
+            p.rect_filled(b, 0.0, fade(c.on));
+            if radio {
+                p.rect_filled(egui::Rect::from_center_size(b.center(), egui::vec2(6.0, 6.0)), 0.0, fade(c.mark));
+            } else {
+                // the tick: the web's 8 × 5 border turned -45°
+                let s = egui::Stroke::new(2.0, fade(c.mark));
+                let pts = [
+                    egui::pos2(b.left() + 3.0, b.top() + 7.0),
+                    egui::pos2(b.left() + 6.0, b.top() + 10.0),
+                    egui::pos2(b.right() - 3.0, b.top() + 4.0),
+                ];
+                p.line_segment([pts[0], pts[1]], s);
+                p.line_segment([pts[1], pts[2]], s);
+            }
+        } else {
+            p.rect_filled(b, 0.0, fade(c.field));
+            p.rect_stroke(b, 0.0, egui::Stroke::new(1.0, fade(c.line)), egui::StrokeKind::Inside);
+        }
+        if !label.is_empty() {
+            p.galley(egui::pos2(rect.left() + 19.0, y0), galley, fade(c.ink));
+        }
+    }
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// A small link inside a list item or a card head (the web's .act): `ink` when given (the current item's text color),
+/// else the link color.
+pub fn act(ui: &mut Ui, look: &Look, icon: &str, label: &str, ink: Option<Color32>, size: f32) -> Response {
+    let text = if icon.is_empty() { label.to_string() } else { format!("{icon} {label}") };
+    let r = ui.add(egui::Button::new(RichText::new(text).size(size).color(ink.unwrap_or(look.c("link")))).frame(false));
+    if !label.is_empty() {
+        let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    }
+    r.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// An icon-only control's name: for screen readers (its glyph says nothing) and as its tooltip.
+pub fn named(ui: &Ui, r: Response, name: &str) -> Response {
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name.to_string()));
+    r.on_hover_text(name)
+}
+
+/// The fill and ink of a tag tone, as the web's tag classes: soft green for ok (`bg-ok-soft`), solid for errors,
+/// warnings, neutral and strong, the second surface with muted ink for a plain tag.
+fn tag_colors(look: &Look, tone: adm_core::logic::Tone) -> (Color32, Color32) {
     use adm_core::logic::Tone;
-    let (fill, ink) = match tone {
-        Tone::Ok => (look.c("ok-fill"), look.c("on-ok-fill")),
+    match tone {
+        Tone::Ok => (look.c("ok-soft"), look.c("on-ok-soft")),
         Tone::Err => (look.c("err-fill"), look.c("on-err-fill")),
         Tone::Warn => (look.c("warn-fill"), look.c("on-warn-fill")),
         Tone::Muted => (look.c("neutral-fill"), look.c("on-neutral-fill")),
-        _ => (look.c("strong-fill"), look.c("on-strong-fill")),
-    };
-    let galley = ui.painter().layout_no_wrap(text.to_string(), egui::FontId::proportional(11.0), ink);
-    let size = egui::vec2((galley.size().x + 12.0).max(64.0), 18.0);
+        Tone::Strong => (look.c("strong-fill"), look.c("on-strong-fill")),
+        Tone::Normal => (look.c("surface-2"), look.c("fg-muted")),
+    }
+}
+
+/// The galley and box size of a tag: the web's .tag (semibold uppercase at the tag size, 6/1 padding), at least
+/// `min_w` wide (the Users status is 104).
+pub fn tag_layout(ui: &Ui, look: &Look, text: &str, ink: Color32, min_w: f32) -> (std::sync::Arc<egui::Galley>, Vec2) {
+    let font = egui::FontId::new(look.px("tag-size", 10.0), egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    tag_layout_in(ui, look, text, ink, min_w, font)
+}
+
+/// A tag's text in a monospace cell: the web's .tag keeps the cell's font-mono.
+pub fn tag_layout_mono(ui: &Ui, look: &Look, text: &str, ink: Color32) -> (std::sync::Arc<egui::Galley>, Vec2) {
+    tag_layout_in(ui, look, text, ink, 0.0, egui::FontId::monospace(look.px("tag-size", 10.0)))
+}
+
+fn tag_layout_in(
+    ui: &Ui,
+    look: &Look,
+    text: &str,
+    ink: Color32,
+    min_w: f32,
+    font: egui::FontId,
+) -> (std::sync::Arc<egui::Galley>, Vec2) {
+    let galley = ui.painter().layout_no_wrap(text.to_uppercase(), font, ink);
+    let (px, py) = (look.px("tag-px", 6.0), look.px("tag-py", 1.0));
+    let w = (galley.size().x + 2.0 * px).max(min_w).ceil();
+    let h = (galley.size().y + 2.0 * py).ceil().max(17.0);
+    (galley, egui::vec2(w, h))
+}
+
+/// A tag (badge) as the web's .tag, as wide as its text. Drawn, not framed: a hover-only widget, so a click on it
+/// reaches what is under it (the table row).
+pub fn tag(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+    tag_w(ui, look, text, tone, 0.0)
+}
+
+/// A tag at least `min_w` wide, its text centered.
+pub fn tag_w(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone, min_w: f32) -> Response {
+    let (fill, ink) = tag_colors(look, tone);
+    let (galley, size) = tag_layout(ui, look, text, ink, min_w);
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
     ui.painter().rect_filled(rect, 0.0, fill);
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, ink);
@@ -98,77 +934,707 @@ pub fn tag(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) ->
     resp
 }
 
-/// A tag that is a link (an editable account's status): a button drawn as the tag.
-pub fn tag_button(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
-    use adm_core::logic::Tone;
-    let (fill, ink) = match tone {
-        Tone::Ok => (look.c("ok-fill"), look.c("on-ok-fill")),
-        Tone::Err => (look.c("err-fill"), look.c("on-err-fill")),
-        Tone::Warn => (look.c("warn-fill"), look.c("on-warn-fill")),
-        Tone::Muted => (look.c("neutral-fill"), look.c("on-neutral-fill")),
-        _ => (look.c("strong-fill"), look.c("on-strong-fill")),
-    };
-    ui.add(
-        egui::Button::new(RichText::new(text).size(11.0).color(ink))
-            .fill(fill)
-            .stroke(Stroke::NONE)
-            .min_size(egui::vec2(64.0, 18.0)),
-    )
+/// A tag in a monospace cell (the web's tag after a UNC path).
+pub fn tag_mono(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+    let (fill, ink) = tag_colors(look, tone);
+    let (galley, size) = tag_layout_mono(ui, look, text, ink);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, fill);
+    // the web's semibold: egui's monospace has no bold face, so the text is drawn twice half a point apart
+    let at = rect.center() - galley.size() / 2.0 - egui::vec2(0.25, 0.0);
+    ui.painter().galley(at, galley.clone(), ink);
+    ui.painter().galley(at + egui::vec2(0.5, 0.0), galley, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
+    resp
 }
 
-/// A Home tile: the label, a big number in its color, a stripe in the decor color on top (the theme's width).
-pub fn stat_tile(ui: &mut Ui, look: &Look, label: &str, value: &str, ink: Color32, decor: Color32) {
-    Frame::new().fill(look.c("surface")).stroke(Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
-        let w = ui.available_width();
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 2.0;
-            if look.p.card_stripe > 0.0 {
-                let (r, _) = ui.allocate_exact_size(egui::vec2(w, look.p.card_stripe), egui::Sense::hover());
-                ui.painter().rect_filled(r, 0.0, decor);
-            }
-            Frame::new().inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
-                ui.set_width(w - 20.0);
-                ui.add(egui::Label::new(RichText::new(label).size(11.0).strong().color(look.c("fg-muted"))).truncate());
-                ui.label(RichText::new(value).size(34.0).strong().color(ink));
-            });
+/// A tag in the given colors (a role the tones do not cover: the Samba levels' soft warning).
+pub fn tag_filled(ui: &mut Ui, look: &Look, text: &str, fill: Color32, ink: Color32) -> Response {
+    let (galley, size) = tag_layout(ui, look, text, ink, 0.0);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, fill);
+    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
+    resp
+}
+
+/// A tag that is a link (an editable account's status, 104 wide as the web's): a button drawn as the tag, with the
+/// web's power icon after the text (drawn: the system fonts may lack ⏻).
+pub fn tag_button(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+    let (fill, ink) = tag_colors(look, tone);
+    let (icon, gap) = (9.0, 4.0);
+    let (galley, mut size) = tag_layout(ui, look, text, ink, 104.0);
+    size.x = size.x.max((galley.size().x + gap + icon + 2.0 * look.px("tag-px", 6.0)).ceil());
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    let p = ui.painter();
+    p.rect_filled(rect, 0.0, fill);
+    let left = rect.center().x - (galley.size().x + gap + icon) / 2.0;
+    let c = egui::pos2(left + galley.size().x + gap + icon / 2.0, rect.center().y + 0.5);
+    p.galley(egui::pos2(left, rect.center().y - galley.size().y / 2.0), galley, ink);
+    let stroke = Stroke::new(1.2, ink);
+    let r = icon / 2.0 - 0.5;
+    // the ring open at the top (from 1 to 11 o'clock), the bar through the gap
+    let ring: Vec<egui::Pos2> = (0..=20)
+        .map(|i| {
+            let a = -std::f32::consts::FRAC_PI_2 + 0.6 + i as f32 * (std::f32::consts::TAU - 1.2) / 20.0;
+            c + egui::vec2(a.cos(), a.sin()) * r
+        })
+        .collect();
+    p.add(egui::Shape::line(ring, stroke));
+    p.line_segment([c - egui::vec2(0.0, r + 0.5), c - egui::vec2(0.0, 0.5)], stroke);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, text));
+    resp
+}
+
+/// A status tag that is not a link, laid out as `tag_button` with its icon slot empty (the web keeps the slot,
+/// invisible, so every status tag has the same width and its text in the same place).
+pub fn tag_slot(ui: &mut Ui, look: &Look, text: &str, tone: adm_core::logic::Tone) -> Response {
+    let (fill, ink) = tag_colors(look, tone);
+    let (icon, gap) = (9.0, 4.0);
+    let (galley, mut size) = tag_layout(ui, look, text, ink, 104.0);
+    size.x = size.x.max((galley.size().x + gap + icon + 2.0 * look.px("tag-px", 6.0)).ceil());
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, fill);
+    let left = rect.center().x - (galley.size().x + gap + icon) / 2.0;
+    ui.painter().galley(egui::pos2(left, rect.center().y - galley.size().y / 2.0), galley, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
+    resp
+}
+
+/// The web's page tabs (.subtab: Logs, Backup | Sync): the theme's line under the strip, the other tabs lower by the
+/// theme's inset in their recipe, the current one in the subtab-on recipe covering the line; returns a tab clicked.
+pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: usize) -> Option<usize> {
+    let mut out = None;
+    let inset = look.px("subtab-inset-top", 0.0);
+    let line_w = look.px("subtabs-line-w", 2.0);
+    let overlap = look.px("subtab-on-overlap", 0.0);
+    // at most three rows of tabs (many file servers): the strip scrolls, the page's controls stay on screen
+    let strip = egui::ScrollArea::vertical()
+        .id_salt((id, "strip"))
+        .max_height(3.0 * (12.0 * 1.25 + 12.0 + inset) + 2.0)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            ui.push_id(id, |ui| {
+                // flex-wrap as the web's .subtabs: many file servers go on to a second row instead of past the window
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = look.px("subtabs-gap", 0.0);
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    ui.add_space(look.px("subtabs-pad", 0.0));
+                    for (i, (icon, label)) in tabs.iter().enumerate() {
+                        let on = i == sel;
+                        let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+                        let g = ui.painter().layout_no_wrap(label.to_string(), font, Color32::PLACEHOLDER);
+                        let ig = ui.painter().layout_no_wrap(
+                            icon.to_string(),
+                            egui::FontId::proportional(13.0),
+                            Color32::PLACEHOLDER,
+                        );
+                        let w = 16.0 + ig.size().x + 6.0 + g.size().x + 16.0;
+                        let h = 6.0 + g.size().y.max(ig.size().y) + 6.0;
+                        let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h + inset), egui::Sense::click());
+                        let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                        let top = if on { 0.0 } else { inset };
+                        let bottom = if on { overlap } else { 0.0 };
+                        let b = egui::Rect::from_min_max(
+                            egui::pos2(rect.left(), rect.top() + top),
+                            egui::pos2(rect.right(), rect.bottom() + bottom),
+                        );
+                        let (fill, ink, shadow) = if on {
+                            (look.c("subtab-on"), look.c("on-subtab-on"), "subtab-on")
+                        } else if resp.hovered() {
+                            (look.c("subtab-hover"), look.c("on-subtab"), "subtab")
+                        } else {
+                            (look.c("subtab"), look.c("on-subtab"), "subtab")
+                        };
+                        look.paint(ui.painter(), b, "", shadow, fill);
+                        let y = rect.top() + top + (h - top.min(0.0)) / 2.0;
+                        ui.painter().galley(egui::pos2(b.left() + 16.0, y - ig.size().y / 2.0), ig, ink);
+                        ui.painter().galley(egui::pos2(b.left() + 16.0 + 6.0 + 13.0, y - g.size().y / 2.0), g, ink);
+                        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, on, *label));
+                        if resp.clicked() && !on {
+                            out = Some(i);
+                        }
+                    }
+                })
+            })
+            .inner
+            .response
         });
-    });
+    let mut r = strip.inner;
+    // the rows' bottom, at most the strip's (its inner rect keeps the three-row height even when it shrinks)
+    r.rect = r.rect.intersect(strip.inner_rect);
+    // the line under the strip; the current tab covers it by its overlap
+    let y = r.rect.bottom() + line_w / 2.0;
+    ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(line_w, look.c("subtab-line")));
+    // the web's 12 px under the line, egui's item spacing included
+    ui.add_space((line_w + 12.0 - ui.spacing().item_spacing.y).max(line_w));
+    out
+}
+
+/// The kind of a callout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Note {
+    Info,
+    Warn,
+}
+
+/// A callout as the web's notes: a tinted box with a bar on the left (accent for information, warning for a
+/// recommendation), the text at a 1.5 line height.
+pub fn callout(ui: &mut Ui, look: &Look, kind: Note, text: &str) -> Response {
+    let (bg, bar, ink) = match kind {
+        Note::Info => (look.c("surface-2"), look.c("accent"), look.c("fg-muted")),
+        // the web's box keeps the page's ink: the warning color is the bar's
+        Note::Warn => (look.c("warn-soft"), look.c("warn"), look.c("fg")),
+    };
+    let r = Frame::new()
+        .fill(bg)
+        .inner_margin(Margin { left: 16, right: 10, top: 8, bottom: 8 })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let size = look.px("control-text", 12.0);
+            let mut job = egui::text::LayoutJob::single_section(
+                text.to_string(),
+                egui::TextFormat {
+                    font_id: egui::FontId::proportional(size),
+                    color: ink,
+                    line_height: Some(size * 1.625),
+                    ..Default::default()
+                },
+            );
+            job.wrap.max_width = ui.available_width();
+            ui.label(job);
+        })
+        .response;
+    ui.painter().rect_filled(egui::Rect::from_min_size(r.rect.min, egui::vec2(4.0, r.rect.height())), 0.0, bar);
+    r
+}
+
+/// A Home tile as the web's: a card `w` wide with the decor stripe on top (the theme's width), the label (11 point
+/// semibold uppercase, muted), the number (30 point semibold in its color) and a faint icon at the bottom right; the
+/// whole tile is a button.
+#[allow(clippy::too_many_arguments)]
+pub fn stat_tile(
+    ui: &mut Ui,
+    look: &Look,
+    w: f32,
+    label: &str,
+    value: &str,
+    ink: Color32,
+    decor: Color32,
+    icon: &str,
+) -> Response {
+    // the web's card: 1 px border, p-3, the 16.5 label line, mt-1, the 36 number line (its stripe is absolute: no room)
+    let h = 1.0 + 12.0 + 16.5 + 4.0 + 36.0 + 12.0 + 1.0;
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::click());
+    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let p = ui.painter();
+    let line = if resp.hovered() { look.c("card-hover-line") } else { look.c("line") };
+    let shadow = if resp.hovered() { "card-hover" } else { "card" };
+    crate::depth::paint_box(p, rect, None, look.c("surface"), look.shadows(shadow));
+    p.rect_stroke(rect, 0.0, Stroke::new(1.0, line), egui::StrokeKind::Inside);
+    if look.p.card_stripe > 0.0 {
+        p.rect_filled(egui::Rect::from_min_size(rect.min, egui::vec2(w, look.p.card_stripe)), 0.0, decor);
+    }
+    p.text(
+        rect.right_bottom() - egui::vec2(8.0, 6.0),
+        egui::Align2::RIGHT_BOTTOM,
+        icon,
+        egui::FontId::proportional(36.0),
+        ink.gamma_multiply(0.15),
+    );
+    let top = rect.top() + 1.0 + 12.0;
+    let lg = p.layout_no_wrap(
+        label.to_uppercase(),
+        egui::FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+        look.c("fg-muted"),
+    );
+    // centered in its line, as a browser does
+    let ly = top + (16.5 - lg.size().y) / 2.0;
+    p.galley(egui::pos2(rect.left() + 12.0, ly), lg, look.c("fg-muted"));
+    let vg = p.layout_no_wrap(
+        value.to_string(),
+        egui::FontId::new(30.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+        ink,
+    );
+    p.galley(egui::pos2(rect.left() + 12.0, top + 16.5 + 4.0 + (36.0 - vg.size().y) / 2.0), vg, ink);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{label}: {value}")));
+    resp
+}
+
+/// Draws one row's cell (its index) in a custom way.
+pub type RowCell<'a> = dyn FnMut(&mut Ui, usize) + 'a;
+
+/// A small table inside a panel, as the web's .grid-t without its frame (Home's domain controllers): the theme's
+/// header band and the rows with their dividers and stripes.
+/// `last`, when given, draws the last column of each row (a remove link) instead of its text.
+pub fn mini_table<const N: usize>(
+    ui: &mut Ui,
+    look: &Look,
+    heads: [&str; N],
+    rows: &[[RichText; N]],
+    last: Option<&mut RowCell<'_>>,
+) {
+    mini_table_aligned(ui, look, heads, [false; N], [0.0; N], rows, last);
+}
+
+/// `mini_table` with the columns marked in `right` aligned at the right (the web's text-right numbers) and each
+/// column at least `mins` wide. Cells are 12 px unless sized (a mono cell at the web's 11).
+#[allow(clippy::too_many_arguments)]
+pub fn mini_table_aligned<const N: usize>(
+    ui: &mut Ui,
+    look: &Look,
+    heads: [&str; N],
+    right: [bool; N],
+    mins: [f32; N],
+    rows: &[[RichText; N]],
+    mut last: Option<&mut RowCell<'_>>,
+) {
+    let w = ui.available_width();
+    let (th_px, th_py, td_py) = (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-py", 4.0));
+    let head_h = (12.0 * 1.5 + 2.0 * th_py + 1.0).round();
+    let row_h = (12.0 * 1.5 + 2.0 * td_py + 2.0).round(); // as the list tables' rows
+    // the web's auto layout: each column as wide as its widest cell, the spare width shared in proportion
+    let measure = |t: RichText, semibold: bool| {
+        let font = egui::FontId::new(
+            12.0,
+            if semibold {
+                egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())
+            } else {
+                egui::FontFamily::Proportional
+            },
+        );
+        egui::WidgetText::from(t).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, font).size().x
+    };
+    // a row whose only text is its first cell spans the table (the web's colspan: the DNS names below)
+    let spans = |r: &[RichText; N]| N > 1 && !r[0].text().is_empty() && r[1..].iter().all(|c| c.text().is_empty());
+    let natural: Vec<f32> = (0..N)
+        .map(|i| {
+            let cells = rows.iter().filter(|r| !spans(r)).map(|r| measure(r[i].clone(), false));
+            let widest = cells.fold(measure(RichText::new(heads[i]), true), f32::max);
+            // the last column of links (`last`) has no text to measure: room for an icon link
+            let widest = if i + 1 == N && last.is_some() { widest.max(24.0) } else { widest };
+            (widest + 2.0 * th_px).max(mins[i])
+        })
+        .collect();
+    let col_w = share_widths(&natural, &mins, last.is_some(), w);
+    // rows touch each other, as the web's
+    let spacing = std::mem::replace(&mut ui.spacing_mut().item_spacing.y, 0.0);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
+    // the recipe per column, as the web's th (a bevel theme separates them)
+    let mut cx0 = rect.left();
+    for cw in &col_w {
+        let cell = egui::Rect::from_min_max(egui::pos2(cx0, rect.top()), egui::pos2(cx0 + cw, rect.bottom()));
+        crate::depth::paint_box(
+            ui.painter(),
+            cell,
+            look.gradient("table-head"),
+            look.c("table-head"),
+            look.shadows("table-head"),
+        );
+        cx0 += cw;
+    }
+    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, look.c("line")));
+    let mut x = rect.left();
+    for (i, h) in heads.iter().enumerate() {
+        let g = ui.painter().layout_no_wrap(
+            h.to_string(),
+            egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+            look.c("on-table-head"),
+        );
+        let gx = if right[i] { x + col_w[i] - th_px - g.size().x } else { x + th_px };
+        ui.painter().galley(egui::pos2(gx, rect.center().y - g.size().y / 2.0), g, look.c("on-table-head"));
+        x += col_w[i];
+    }
+    for (r, row) in rows.iter().enumerate() {
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(w, row_h), egui::Sense::hover());
+        if r % 2 == 1 {
+            ui.painter().rect_filled(rect, 0.0, look.c("row-alt"));
+        }
+        if r > 0 {
+            ui.painter().hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, look.c("line")));
+        }
+        let mut x = rect.left();
+        let span = spans(row);
+        for (i, cell) in row.iter().enumerate() {
+            let cw = if span && i == 0 { w - col_w[N - 1] } else { col_w[i] };
+            let cell_rect =
+                egui::Rect::from_min_size(egui::pos2(x + th_px, rect.top()), egui::vec2(cw - 2.0 * th_px, row_h));
+            if span && i > 0 && i + 1 < N {
+                x += col_w[i];
+                continue;
+            }
+            match (&mut last, i + 1 == N) {
+                (Some(f), true) => {
+                    let layout = egui::Layout::right_to_left(egui::Align::Center);
+                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell_rect).layout(layout));
+                    f(&mut child, r);
+                }
+                _ => {
+                    let layout = if right[i] {
+                        egui::Layout::right_to_left(egui::Align::Center)
+                    } else {
+                        egui::Layout::left_to_right(egui::Align::Center)
+                    };
+                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell_rect).layout(layout));
+                    // a plain cell at 12 px (a styled one, mono at 11, keeps its own)
+                    child.style_mut().text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(12.0));
+                    child.add(egui::Label::new(cell.clone()).truncate());
+                }
+            }
+            x += col_w[i];
+        }
+    }
+    ui.spacing_mut().item_spacing.y = spacing;
+}
+
+/// The columns' widths for `w`: the natural widths shared in proportion when they fit; else each column keeps its
+/// minimum (and the links column its natural width) and only what is past those shrinks, long values truncating.
+fn share_widths(natural: &[f32], mins: &[f32], links_last: bool, w: f32) -> Vec<f32> {
+    let sum: f32 = natural.iter().sum::<f32>().max(1.0);
+    if sum <= w {
+        return natural.iter().map(|n| n * w / sum).collect();
+    }
+    let last = natural.len().saturating_sub(1);
+    let base: Vec<f32> = (0..natural.len())
+        .map(|i| if links_last && i == last { natural[i] } else { mins[i].min(natural[i]) })
+        .collect();
+    let extra: Vec<f32> = natural.iter().zip(&base).map(|(n, b)| n - b).collect();
+    let room = w - base.iter().sum::<f32>();
+    let extra_sum: f32 = extra.iter().sum::<f32>().max(1.0);
+    if room <= 0.0 {
+        let k = w / base.iter().sum::<f32>().max(1.0);
+        return base.iter().map(|b| b * k).collect();
+    }
+    base.iter().zip(&extra).map(|(b, e)| b + e * room / extra_sum).collect()
 }
 
 /// A labeled form (two columns: bold label, field) laid out by egui's grid.
 pub fn form<R>(ui: &mut Ui, id: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
-    egui::Grid::new(id).num_columns(2).spacing(Vec2::new(10.0, 6.0)).show(ui, add).inner
+    // the web's forms stack each label over its field; `end_row` does nothing outside a grid
+    ui.push_id(id, |ui| {
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            add(ui)
+        })
+        .inner
+    })
+    .inner
 }
 
-/// The label cell of a form row.
+/// The label of a form field: the web's .lbl, 8 points under the field before it.
 pub fn label(ui: &mut Ui, look: &Look, s: &str) -> Response {
-    ui.label(RichText::new(s).strong().color(look.c("fg-strong")))
+    ui.add_space(8.0);
+    lbl(ui, look, s)
+}
+
+/// Makes the read-only text fields drawn next in `ui` look as editable ones (the web's readonly input keeps its
+/// border and ink; egui would draw a non-interactive widget's faint frame).
+pub fn readonly_look(ui: &mut Ui) {
+    let w = &mut ui.visuals_mut().widgets;
+    w.noninteractive.bg_stroke = w.inactive.bg_stroke;
+    w.noninteractive.bg_fill = w.inactive.weak_bg_fill; // the field's white (the strong fill is the scroll handle's)
+    w.noninteractive.weak_bg_fill = w.inactive.weak_bg_fill;
+}
+
+/// The web's margin under a page's toolbar (`--toolbar-mb`), egui's item spacing counted in.
+pub fn toolbar_gap(ui: &mut Ui, look: &Look) {
+    ui.add_space((look.px("toolbar-mb", 12.0) - ui.spacing().item_spacing.y).max(0.0));
+}
+
+/// The 8-point status square of a side list item, centered on its 12-point text line (the row's items are placed
+/// before its height is known). Returns the square's rect.
+pub fn status_square(ui: &mut Ui) -> (egui::Rect, Response) {
+    let (cell, resp) = ui.allocate_exact_size(egui::vec2(8.0, 12.0 * 1.25), egui::Sense::hover());
+    (egui::Rect::from_center_size(cell.center(), egui::vec2(8.0, 8.0)), resp)
+}
+
+/// CSS flex: 1 1 0 widths with min-width: auto: equal shares of `room`, an item whose content is wider than its
+/// share frozen at its content width and the rest shared again among the others.
+fn flex_widths(natural: &[f32], room: f32) -> Vec<f32> {
+    let mut frozen = vec![false; natural.len()];
+    loop {
+        let left = room - natural.iter().zip(&frozen).filter(|(_, f)| **f).map(|(w, _)| w).sum::<f32>();
+        let free = frozen.iter().filter(|f| !**f).count().max(1) as f32;
+        let share = (left / free).max(0.0);
+        let mut changed = false;
+        for (i, w) in natural.iter().enumerate() {
+            if !frozen[i] && *w > share {
+                frozen[i] = true;
+                changed = true;
+            }
+        }
+        if !changed || frozen.iter().all(|f| *f) {
+            return natural.iter().zip(&frozen).map(|(w, f)| if *f { *w } else { share.floor() }).collect();
+        }
+    }
+}
+
+/// A select (combo box) with the web's arrow: the 10 x 6 triangle of the theme's --bg-select-arrow, in its color.
+pub fn combo(id_salt: impl egui::AsIdSalt) -> egui::ComboBox {
+    egui::ComboBox::from_id_salt(id_salt).icon(|ui, rect, _, _| {
+        let ink = ui.ctx().data(|d| d.get_temp::<Color32>(egui::Id::new(SELECT_ARROW))).unwrap_or(Color32::GRAY);
+        // the web's "right 8px" inside the 1 px border: 5 points right of egui's icon slot
+        let r = egui::Rect::from_center_size(rect.center() + egui::vec2(5.0, 0.0), egui::vec2(10.0, 6.0));
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![r.left_top(), r.right_top(), r.center_bottom()],
+            ink,
+            Stroke::NONE,
+        ));
+    })
+}
+
+/// The colors of the web's select list (`.select-pop`), set by the look.
+#[derive(Clone, Copy)]
+pub struct OptionColors {
+    pub ink: Color32,
+    pub stripe: Color32,
+    pub line: Color32,
+    pub on: Color32,
+    pub on_ink: Color32,
+    pub accent: Color32,
+}
+
+fn option_colors(ctx: &egui::Context) -> OptionColors {
+    ctx.data(|d| d.get_temp::<OptionColors>(egui::Id::new("adm-option-colors"))).unwrap_or(OptionColors {
+        ink: Color32::BLACK,
+        stripe: Color32::from_gray(240),
+        line: Color32::from_gray(220),
+        on: Color32::from_rgb(17, 48, 88),
+        on_ink: Color32::WHITE,
+        accent: Color32::from_rgb(17, 48, 88),
+    })
+}
+
+/// The top of a select's list, as the web's: the accent's 3-point border (call first in the popup).
+pub fn options_top(ui: &mut Ui) {
+    let c = option_colors(ui.ctx());
+    ui.spacing_mut().item_spacing.y = 0.0;
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
+    ui.painter().rect_filled(r, 0.0, c.accent);
+}
+
+/// One option of a select's list, as the web's: 5/8 padding, every other row striped, a line under each, the
+/// chosen one semibold, the one under the pointer (or keyboard) in the selection colors.
+pub fn option(ui: &mut Ui, chosen: bool, text: &str, index: usize) -> Response {
+    let c = option_colors(ui.ctx());
+    let font = if chosen {
+        egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()))
+    } else {
+        egui::FontId::proportional(12.0)
+    };
+    let g = ui.painter().layout_no_wrap(text.to_string(), font, Color32::PLACEHOLDER);
+    let w = ui.available_width().max(g.size().x + 16.0);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, g.size().y + 11.0), egui::Sense::click());
+    let lit = resp.hovered() || resp.has_focus();
+    let (fill, ink) = if lit {
+        (c.on, c.on_ink)
+    } else if index % 2 == 1 {
+        (c.stripe, c.ink)
+    } else {
+        (Color32::TRANSPARENT, c.ink)
+    };
+    ui.painter().rect_filled(rect, 0.0, fill);
+    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, c.line));
+    ui.painter().galley(egui::pos2(rect.left() + 8.0, rect.center().y - g.size().y / 2.0), g, ink);
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, chosen, text));
+    // the chosen option scrolled into view when the list opens, not on every frame (the wheel must move it)
+    if chosen {
+        let key = ui.id().with("adm-option-opened");
+        let pass = ui.ctx().cumulative_pass_nr();
+        let last = ui.ctx().data(|d| d.get_temp::<u64>(key));
+        if last.is_none_or(|l| l + 1 < pass) {
+            resp.scroll_to_me(Some(egui::Align::Center));
+        }
+        ui.ctx().data_mut(|d| d.insert_temp(key, pass));
+    }
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// The memory key of the select arrow's color (set by the look).
+pub const SELECT_ARROW: &str = "adm-select-arrow";
+
+/// A page's toolbar as the web's `flex flex-wrap items-center gap-2`: the items wrap to further rows when the window
+/// is narrow; `toolbar_end` puts the right-hand group (the web's ml-auto) at the end of the last row.
+pub fn toolbar_row<R>(ui: &mut Ui, look: &Look, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.horizontal_wrapped(|ui| {
+        let gap = look.px("toolbar-gap", 8.0);
+        ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
+        add(ui)
+    })
+    .inner
+}
+
+/// The right-hand group of a `toolbar_row`, right-aligned; on a row of its own when it does not fit after the items
+/// (its width is last frame's).
+pub fn toolbar_end<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let id = ui.id().with("toolbar-end");
+    let w = ui.ctx().data(|d| d.get_temp::<f32>(id)).unwrap_or(0.0);
+    if w > ui.available_size_before_wrap().x {
+        ui.end_row();
+    }
+    let room = ui.available_size_before_wrap().x;
+    let r = ui.allocate_ui_with_layout(
+        egui::vec2(room, crate::style::control_h()),
+        egui::Layout::right_to_left(egui::Align::Center),
+        |ui| {
+            let inner = add(ui);
+            (inner, ui.min_rect().width())
+        },
+    );
+    let (inner, used) = r.inner;
+    if (used - w).abs() > 0.5 {
+        ui.ctx().data_mut(|d| d.insert_temp(id, used));
+        ui.ctx().request_repaint();
+    }
+    inner
+}
+
+/// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).
+pub const LEADING: f32 = 1.5;
+
+/// A paragraph as the web's: `size` points at its line of 1.5, broken as a browser does — whole words on a row while
+/// the row's visible text fits the available width (its last space hangs past the edge; egui would instead move the
+/// word before a space that does not fit). A word longer than the row overflows, as in the browser.
+pub fn para(ui: &mut Ui, text: impl Into<String>, size: f32, color: Color32) -> Response {
+    let text = text.into();
+    let font = egui::FontId::proportional(size);
+    let w = ui.available_width();
+    let width = |s: &str| ui.painter().layout_no_wrap(s.to_string(), font.clone(), color).size().x;
+    let mut rows: Vec<String> = Vec::new();
+    for line in text.split('\n') {
+        let mut row = String::new();
+        for word in line.split(' ') {
+            let candidate = if row.is_empty() { word.to_string() } else { format!("{row} {word}") };
+            if !row.is_empty() && width(&candidate) > w {
+                rows.push(std::mem::replace(&mut row, word.to_string()));
+            } else {
+                row = candidate;
+            }
+        }
+        rows.push(row);
+    }
+    let job = egui::text::LayoutJob::single_section(
+        rows.join("\n"),
+        egui::TextFormat { font_id: font, color, line_height: Some(LEADING * size), ..Default::default() },
+    );
+    let g = ui.painter().layout_job(job);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, g.size().y), egui::Sense::hover());
+    ui.painter().galley(rect.min, g, color);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &text));
+    resp
+}
+
+/// A field's placeholder at the control's 12 px (egui draws it in the body's 11 whatever the field's font).
+pub fn hint(text: impl ToString) -> RichText {
+    RichText::new(text.to_string()).size(12.0)
+}
+
+/// A single-line text edit as the web's .inp: a 28 px border box with 8 px side padding, the text vertically centered.
+pub fn line(text: &mut dyn egui::TextBuffer) -> Line<'_> {
+    Line(
+        egui::TextEdit::singleline(text)
+            // the web's --control-text (12 px), its placeholder too (egui's body text is the page's 11)
+            .font(egui::TextStyle::Button)
+            .margin(Margin::symmetric(8, 0))
+            .min_size(egui::vec2(0.0, crate::style::control_h()))
+            .vertical_align(egui::Align::Center),
+    )
+}
+
+/// The theme's inset shadow of a field (the web's .inp box-shadow), set by `Look::apply`.
+#[derive(Clone, Copy, Default)]
+pub struct FieldInset(pub &'static [adm_core::theme::Layer]);
+
+/// A single-line field as the web's .inp: egui's text edit, then the theme's inner shadow inside its 1-px border.
+pub struct Line<'t>(egui::TextEdit<'t>);
+
+impl<'t> Line<'t> {
+    pub fn id(self, id: egui::Id) -> Self {
+        Self(self.0.id(id))
+    }
+    pub fn hint_text(self, hint: impl Into<egui::WidgetText>) -> Self {
+        Self(self.0.hint_text(hint))
+    }
+    pub fn desired_width(self, w: f32) -> Self {
+        Self(self.0.desired_width(w))
+    }
+    pub fn font(self, font: impl Into<egui::FontSelection>) -> Self {
+        Self(self.0.font(font))
+    }
+    pub fn char_limit(self, n: usize) -> Self {
+        Self(self.0.char_limit(n))
+    }
+    pub fn password(self, on: bool) -> Self {
+        Self(self.0.password(on))
+    }
+    pub fn interactive(self, on: bool) -> Self {
+        Self(self.0.interactive(on))
+    }
+}
+
+impl egui::Widget for Line<'_> {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let r = self.0.ui(ui);
+        field_inset(ui, r.rect);
+        r
+    }
+}
+
+/// Paints the theme's field inset shadow inside the 1-px border of a field's `rect` (a text field, a select, a text
+/// area), as the web's .inp; none in the flat look.
+pub fn field_inset(ui: &Ui, rect: egui::Rect) {
+    let inset = ui.ctx().data(|d| d.get_temp::<FieldInset>(egui::Id::new("adm-field-inset"))).unwrap_or_default();
+    if !inset.0.is_empty() {
+        ui.painter().extend(crate::depth::box_shapes(rect.shrink(1.0), None, Color32::TRANSPARENT, inset.0));
+    }
 }
 
 /// A single-line text field of `width` (INFINITY: the rest of the row).
 pub fn field(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> Response {
-    ui.add(egui::TextEdit::singleline(text).hint_text(hint).desired_width(width))
+    ui.add(line(text).hint_text(crate::widgets::hint(hint)).desired_width(width))
+}
+
+/// A label above its field, as the web's .lbl: small semibold uppercase in the muted ink.
+pub fn lbl(ui: &mut Ui, look: &Look, s: &str) -> Response {
+    // the web's .lbl: 11 px semibold capitals, tracking-wide (0.025em), in the page's line of 1.5
+    let text = crate::style::semibold(s.to_uppercase(), 11.0)
+        .extra_letter_spacing(0.025 * 11.0)
+        .line_height(Some(LEADING * 11.0))
+        .color(look.c("fg-muted"));
+    let r = ui.label(text);
+    // drawn in capitals, named as written (the web's text-transform leaves the accessible name alone)
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_value(s.to_string()));
+    r
 }
 
 /// A select of `options` by index.
 pub fn select(
     ui: &mut Ui,
     id: impl std::hash::Hash + std::fmt::Debug,
+    name: &str,
     sel: &mut usize,
     options: &[String],
     width: f32,
 ) -> bool {
     let before = *sel;
     let shown = options.get(*sel).cloned().unwrap_or_default();
-    egui::ComboBox::from_id_salt(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+    let r = combo(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+        options_top(ui);
         for (i, o) in options.iter().enumerate() {
-            ui.selectable_value(sel, i, o);
+            if option(ui, *sel == i, o, i).clicked() {
+                *sel = i;
+                ui.close();
+            }
         }
     });
+    // its name for screen readers (the web's aria-label), also when a label above names it visually
+    field_inset(ui, r.response.rect);
+    let _ = ui.ctx().accesskit_node_builder(r.response.id, |n| n.set_label(name.to_string()));
     *sel != before
 }
 
-/// A form row: a label and a select named by it (for screen readers and tests); true when the choice changed.
+/// A select with its label above (the web's .lbl over a select), named by it for screen readers and tests; true
+/// when the choice changed.
 pub fn labeled_select(
     ui: &mut Ui,
     look: &Look,
@@ -178,19 +1644,27 @@ pub fn labeled_select(
     options: &[String],
     width: f32,
 ) -> bool {
-    let l = self::label(ui, look, label);
     let before = *sel;
-    let shown = options.get(*sel).cloned().unwrap_or_default();
-    egui::ComboBox::from_id_salt(id)
-        .width(width)
-        .selected_text(shown)
-        .show_ui(ui, |ui| {
-            for (i, o) in options.iter().enumerate() {
-                ui.selectable_value(sel, i, o);
-            }
-        })
-        .response
-        .labelled_by(l.id);
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 4.0;
+        let l = lbl(ui, look, label);
+        let shown = options.get(*sel).cloned().unwrap_or_default();
+        let r = combo(id)
+            .width(width)
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                options_top(ui);
+                for (i, o) in options.iter().enumerate() {
+                    if option(ui, *sel == i, o, i).clicked() {
+                        *sel = i;
+                        ui.close();
+                    }
+                }
+            })
+            .response;
+        field_inset(ui, r.rect);
+        let _ = r.labelled_by(l.id);
+    });
     *sel != before
 }
 
@@ -208,7 +1682,7 @@ pub fn secret_id(name: &str) -> egui::Id {
 
 /// A password field of its own id (hidden text).
 pub fn secret_field(ui: &mut Ui, id: egui::Id, text: &mut String, hint: &str, width: f32) -> Response {
-    ui.add(egui::TextEdit::singleline(text).id(id).password(true).hint_text(hint).desired_width(width))
+    ui.add(line(text).id(id).password(true).hint_text(crate::widgets::hint(hint)).desired_width(width))
 }
 
 /// Forgets a text field's egui state: its text history (undo) is gone with it.
@@ -230,7 +1704,7 @@ pub fn wrapped(ui: &mut Ui, s: &str) -> Response {
 /// A text that can be selected and copied (a fingerprint to compare).
 pub fn selectable(ui: &mut Ui, s: &str) -> Response {
     let mut v = s.to_string();
-    ui.add(egui::TextEdit::singleline(&mut v).desired_width(f32::INFINITY).interactive(true))
+    ui.add(line(&mut v).desired_width(f32::INFINITY).interactive(true))
 }
 
 #[cfg(test)]
@@ -275,5 +1749,49 @@ mod tests {
             }
         }
         assert!(missing.is_empty(), "no glyph for {missing:?}");
+    }
+}
+
+#[cfg(test)]
+mod share_tests {
+    #[test]
+    fn minimums_survive_a_narrow_table() {
+        // a long data value: the name keeps its 200, the links their natural 40, the rest shrinks
+        let w = super::share_widths(&[220.0, 90.0, 60.0, 900.0, 40.0], &[200.0, 0.0, 0.0, 0.0, 0.0], true, 700.0);
+        assert!((w.iter().sum::<f32>() - 700.0).abs() < 0.01);
+        assert!(w[0] >= 200.0 && (w[4] - 40.0).abs() < 0.01, "{w:?}");
+        // all fit: shared in proportion
+        let f = super::share_widths(&[100.0, 100.0], &[0.0, 0.0], false, 400.0);
+        assert_eq!(f, vec![200.0, 200.0]);
+    }
+}
+
+#[cfg(test)]
+mod flex_tests {
+    #[test]
+    fn a_wide_label_keeps_its_width() {
+        assert_eq!(super::flex_widths(&[90.0, 140.0, 70.0], 342.0), vec![101.0, 140.0, 101.0]);
+        assert_eq!(super::flex_widths(&[90.0, 100.0, 70.0], 360.0), vec![120.0, 120.0, 120.0]);
+    }
+
+    #[test]
+    fn a_paragraph_wraps_as_a_browser() {
+        // "aaa aaa" fills the row exactly: the space after it hangs, so the second word stays (egui alone moves it down)
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let font = egui::FontId::proportional(11.0);
+            let w = ui.painter().layout_no_wrap("aaa aaa".into(), font, egui::Color32::WHITE).size().x;
+            ui.allocate_ui(egui::vec2(w, 200.0), |ui| {
+                let h = super::para(ui, "aaa aaa aaa", 11.0, egui::Color32::WHITE).rect.height();
+                // rows of 16.5, rounded to whole points
+                assert!((32.0..=35.0).contains(&h), "two rows, not three: {h}");
+            });
+            // a point narrower, the second word itself no longer fits: it goes to the next row
+            ui.allocate_ui(egui::vec2(w - 1.0, 200.0), |ui| {
+                let h = super::para(ui, "aaa aaa aaa", 11.0, egui::Color32::WHITE).rect.height();
+                assert!((48.0..=52.0).contains(&h), "three rows: {h}");
+            });
+        });
+        out.textures_delta.clear(); // no renderer to hand the font atlas to
     }
 }

@@ -4,18 +4,22 @@
 
 pub mod backup;
 pub mod computers;
+pub mod dns;
+pub mod file_servers;
+pub mod gpos;
 pub mod groups;
 pub mod home;
+pub mod import_export;
 pub mod logs;
 pub mod ous;
 pub mod policy;
 pub mod quarantine;
+pub mod settings;
 pub mod shares;
 pub mod sync;
 pub mod sync_wizard;
 pub mod users;
 
-use adm_core::logic::ou_path;
 use adm_core::model::OrgUnit;
 use egui::Ui;
 
@@ -31,7 +35,7 @@ impl OuPicker {
     /// OUs (sorted by path) with `current` selected (case-insensitive DN), none when absent.
     pub fn new(ous: &[OrgUnit], current: &str) -> Self {
         Self {
-            labels: ous.iter().map(|o| ou_path(&o.dn)).collect(),
+            labels: ous.iter().map(|o| o.dn.clone()).collect(), // the DN, as the web's selects
             dns: ous.iter().map(|o| o.dn.clone()).collect(),
             sel: ous.iter().position(|o| o.dn.eq_ignore_ascii_case(current)),
         }
@@ -54,19 +58,26 @@ impl OuPicker {
         self.sel.is_some()
     }
 
-    pub fn ui(&mut self, ui: &mut Ui, id: &str, width: f32) {
+    /// The select, named `name` for screen readers (its label above names it visually).
+    pub fn ui(&mut self, ui: &mut Ui, id: &str, name: &str, width: f32) {
         let shown = self.sel.and_then(|i| self.labels.get(i).cloned()).unwrap_or_default();
-        egui::ComboBox::from_id_salt(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+        let r = crate::widgets::combo(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+            crate::widgets::options_top(ui);
             for (i, l) in self.labels.iter().enumerate() {
-                if ui.selectable_label(self.sel == Some(i), l).clicked() {
+                if crate::widgets::option(ui, self.sel == Some(i), l, i).clicked() {
                     self.sel = Some(i);
+                    ui.close();
                 }
             }
         });
+        crate::widgets::field_inset(ui, r.response.rect);
+        let _ = ui.ctx().accesskit_node_builder(r.response.id, |n| n.set_label(name.to_string()));
     }
 }
 
-/// The search field of a list page (with its icon as hint).
+/// The search field of a list page, as the web's (its placeholder, no icon).
 pub fn search(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> egui::Response {
-    ui.add(egui::TextEdit::singleline(text).hint_text(format!("🔍 {hint}")).desired_width(width))
+    let r = ui.add(crate::widgets::line(text).hint_text(crate::widgets::hint(hint)).desired_width(width));
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(adm_core::i18n::t("Filter")));
+    r
 }

@@ -8,7 +8,7 @@ use adm_core::api::{Api, esc};
 use adm_core::forms::{SyncForm, SyncFormError, new_sync_job, sync_unc};
 use adm_core::i18n::{server_text, t};
 use adm_core::logic::{Tone, size_text, slug};
-use adm_core::model::{CheckStep, SyncJob, SyncList};
+use adm_core::model::{CheckStep, SyncJob, SyncList, SyncRun};
 use adm_core::tf;
 use chrono::{DateTime, Local, Utc};
 use egui::{RichText, Ui};
@@ -41,6 +41,8 @@ pub fn open(cx: &mut Cx, agent: i64, data: SyncList, job: Option<SyncJob>) {
         items: Vec::new(),
         src_size: None,
         size_label: String::new(),
+        item_sizes: Default::default(),
+        targets: None,
         dirs: Vec::new(),
         cur_dir: String::new(),
         dest: j.dest.clone(),
@@ -53,6 +55,9 @@ pub fn open(cx: &mut Cx, agent: i64, data: SyncList, job: Option<SyncJob>) {
         next_runs: (String::new(), Tone::Muted),
         cron_ok: true,
         done: false,
+        run: None,
+        saving: false,
+        reached: 0,
         data,
         job: j,
     };
@@ -89,9 +94,12 @@ pub struct SyncWizard {
     shares: Vec<String>,
     // 2. what to copy
     items: Vec<String>,
+    /// The size counted for a subfolder (its "size" link), by name.
+    item_sizes: std::collections::HashMap<String, String>,
     src_size: Option<(i64, i64)>,
     size_label: String,
-    // 3. where to
+    // 3. where to (a server job: where each share goes, as the agent maps it)
+    targets: Option<Vec<Target>>,
     dirs: Vec<String>,
     cur_dir: String,
     dest: String,
@@ -105,6 +113,21 @@ pub struct SyncWizard {
     next_runs: (String, Tone),
     cron_ok: bool,
     done: bool,
+    // 5. the preview, followed here
+    run: Option<SyncRun>,
+    /// A save in flight: no second one meanwhile.
+    saving: bool,
+    /// The furthest step reached: the done ones can be opened again (not from the preview).
+    reached: usize,
+}
+
+/// Where a server job brings one share of the source (`targets` of the browse answer).
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct Target {
+    share: String,
+    dest: String,
+    skip: String,
 }
 
 /// The wizard `id`, if still open (a reply never reaches another wizard opened later).
@@ -114,19 +137,18 @@ fn wizard(app: &mut App, id: u64) -> Option<&mut SyncWizard> {
 
 impl SyncWizard {
     /// The request body with the source's credentials (and the job, when editing: its stored password is used).
-    fn creds(&self, share: &str, path: &str, extra: Value) -> Value {
+    fn creds(&self, share: &str, path: &str, extra: Value) -> Zeroizing<Vec<u8>> {
         let mut src = self.job.source.clone();
         src.share = share.into();
         src.path = path.into();
-        let mut b =
-            json!({ "source": src, "password": self.password.as_str(), "password_file": self.job.password_file });
+        let mut b = json!({ "source": src, "password_file": self.job.password_file });
         if !self.is_new {
             b["job"] = json!(self.job.id);
         }
         if let (Some(b), Value::Object(e)) = (b.as_object_mut(), extra) {
             b.extend(e);
         }
-        b
+        adm_core::api::json_with_secret(&b, "password", &self.password)
     }
 
     /// Copies step 1's fields into the job ("DOMAIN\user" and "user@domain" split).
@@ -160,6 +182,11 @@ impl SyncWizard {
                 let (share, path) = (self.job.source.share.clone(), self.job.source.path.clone());
                 self.open_dir(cx, share, path);
             }
+            2 if self.job.kind == "server" => {
+                if self.targets.is_none() {
+                    self.load_targets(cx);
+                }
+            }
             2 => {
                 let root = self.data.roots.first().cloned().unwrap_or_else(|| "/srv/shares".into());
                 let start = match self.dest.rsplit_once('/') {
@@ -173,6 +200,9 @@ impl SyncWizard {
             3 => {
                 if self.job.keep_days == 0 {
                     self.job.keep_days = 30; // 0 and missing mean the agent's default
+                }
+                if self.job.name.is_empty() && self.job.kind == "server" {
+                    self.job.name = format!("{} · {}", t("All shares"), self.job.source.host);
                 }
                 if self.job.name.is_empty() {
                     let last = format!("/{}/{}", self.job.source.share, self.job.source.path);
@@ -202,7 +232,7 @@ impl SyncWizard {
             #[serde(default)]
             steps: Vec<CheckStep>,
         }
-        cx.run(async move { api.send::<Out, _>(Method::POST, &path, Some(&body)).await }, move |app, out| {
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &path, &body).await }, move |app, out| {
             app.cx.set_status("");
             let Some(w) = wizard(app, me) else { return };
             let names = |n: &str| match n {
@@ -237,8 +267,27 @@ impl SyncWizard {
         });
     }
 
+    /// The source's shares and the folder each goes to (a server job), as the agent maps them.
+    fn load_targets(&mut self, cx: &Cx) {
+        let me = cx.current_dialog();
+        let body = self.creds("", "", json!({ "targets": true }));
+        let api = self.api.clone();
+        let url = format!("{}/syncs/browse", self.base);
+        #[derive(serde::Deserialize, Default)]
+        struct Out {
+            #[serde(default)]
+            targets: Vec<Target>,
+        }
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, out| {
+            if let Some(w) = wizard(app, me) {
+                w.targets = Some(out.targets);
+            }
+        });
+    }
+
     fn open_dir(&mut self, cx: &Cx, share: String, path: String) {
         let me = cx.current_dialog();
+        self.job.kind.clear(); // a folder, unless "Every share of the server" is picked
         if share.is_empty() {
             self.job.source.share.clear();
             self.job.source.path.clear();
@@ -253,12 +302,13 @@ impl SyncWizard {
             #[serde(default)]
             dirs: Vec<String>,
         }
-        cx.run(async move { api.send::<Out, _>(Method::POST, &url, Some(&body)).await }, move |app, out| {
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, out| {
             let Some(w) = wizard(app, me) else { return };
             w.job.source.share = share;
             w.job.source.path = path;
             w.items = out.dirs;
             w.size_label.clear();
+            w.item_sizes.clear();
             w.src_size = None;
         });
     }
@@ -279,10 +329,40 @@ impl SyncWizard {
             #[serde(default)]
             bytes: i64,
         }
-        cx.run(async move { api.send::<Out, _>(Method::POST, &url, Some(&body)).await }, move |app, out| {
+        cx.run(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, out| {
             if let Some(w) = wizard(app, me) {
                 w.src_size = Some((out.files, out.bytes));
-                w.size_label = tf!("%d files · %s", out.files, size_text(out.bytes));
+                w.size_label = tf!("%d files · %s", adm_core::i18n::count(out.files), size_text(out.bytes));
+            }
+        });
+    }
+
+    /// Counts one subfolder of the folder on screen (its row's "size" link, as the web's).
+    fn count_item(&mut self, cx: &Cx, item: String) {
+        let me = cx.current_dialog();
+        let s = &self.job.source;
+        let (share, path) = if s.share.is_empty() {
+            (item.clone(), String::new())
+        } else {
+            (s.share.clone(), format!("{}/{item}", s.path).trim_matches('/').to_string())
+        };
+        self.item_sizes.insert(item.clone(), t("Counting…").into());
+        let body = self.creds(&share, &path, json!({ "size": true }));
+        let api = self.api.with_timeout(Duration::from_secs(360));
+        let url = format!("{}/syncs/browse", self.base);
+        #[derive(serde::Deserialize, Default)]
+        #[serde(default)]
+        struct Out {
+            files: i64,
+            bytes: i64,
+        }
+        cx.spawn(async move { api.send_bytes::<Out>(Method::POST, &url, &body).await }, move |app, r| {
+            if let Some(w) = wizard(app, me) {
+                let text = match r {
+                    Ok(o) => tf!("%d files · %s", adm_core::i18n::count(o.files), size_text(o.bytes)),
+                    Err(e) => e.to_string(),
+                };
+                w.item_sizes.insert(item, text);
             }
         });
     }
@@ -410,7 +490,10 @@ impl SyncWizard {
 
     fn save(&mut self, cx: &mut Cx, preview: bool) {
         let me = cx.current_dialog();
-        if !self.cron_ok || (self.is_new && !self.dest_ok) {
+        if self.saving {
+            return;
+        }
+        if !self.cron_ok || (self.is_new && self.job.kind != "server" && !self.dest_ok) {
             cx.show_info(t("Sync"), t("Not a valid schedule (min hour day month weekday)."));
             return;
         }
@@ -423,48 +506,261 @@ impl SyncWizard {
         };
         let api = self.api.clone();
         let path = format!("{}/syncs/{}", self.base, esc(&job.id));
-        cx.run(
+        self.saving = true;
+        let session = cx.panel.id;
+        cx.spawn(
             async move {
                 api.act_with(Method::PUT, &path, &job).await?;
                 if preview {
-                    api.act(Method::POST, &format!("{path}/preview")).await?;
+                    return Ok(Some(
+                        api.send::<SyncRun, _>(Method::POST, &format!("{path}/preview"), None::<&()>).await?,
+                    ));
                 }
-                Ok(())
+                Ok(None)
             },
-            move |app, ()| {
-                app.cx.set_status(if preview { t("Sync job saved; preview queued.") } else { t("Sync job saved.") });
+            move |app, r: adm_core::api::ApiResult<Option<SyncRun>>| {
                 if let Some(w) = wizard(app, me) {
-                    w.done = true;
+                    w.saving = false;
                 }
+                if app.cx.panel.id != session {
+                    return;
+                }
+                let run = match r {
+                    Ok(run) => run,
+                    Err(e) => return app.cx.handle_error(e),
+                };
                 app.with_shell(|s, cx| s.sync.reload(cx));
+                let Some(r) = run else {
+                    app.cx.set_status(t("Sync job saved."));
+                    if let Some(w) = wizard(app, me) {
+                        w.done = true;
+                    }
+                    return;
+                };
+                // the preview is followed in the wizard (step 5); the wizard closed meanwhile: only a note
+                if let Some(w) = wizard(app, me) {
+                    w.run = Some(r);
+                    w.step = 4;
+                    poll(&app.cx, me);
+                } else {
+                    app.cx.set_status(t("Sync job saved; preview queued."));
+                }
             },
         );
     }
 
-    fn header(&self, ui: &mut Ui, cx: &Cx) {
-        let look = &cx.look;
-        ui.horizontal_wrapped(|ui| {
-            let names = [t("Source and access"), t("What to copy"), t("Where to"), t("How and when")];
-            for (i, s) in names.iter().enumerate() {
-                let txt = RichText::new(format!("{}. {s}", i + 1));
-                ui.label(if i == self.step {
-                    txt.strong().color(look.c("fg-strong"))
-                } else {
-                    txt.color(look.c("fg-muted"))
-                });
-                if i < 3 {
-                    ui.label(RichText::new("›").color(look.c("fg-muted")));
+    /// Step 5: the preview, followed here (nothing written yet), with Run now once it is done; true to close.
+    fn step5(&mut self, ui: &mut Ui, cx: &mut Cx) -> bool {
+        let look = cx.look.clone();
+        let Some(r) = self.run.clone() else { return true };
+        let running = r.status == "queued" || r.status == "running";
+        let (icon, text, ink) = if running {
+            (crate::icons::LOADER, t("Preview running: listing the source and the destination…"), look.c("fg-strong"))
+        } else if r.status == "ok" {
+            (crate::icons::CIRCLE_CHECK, t("Preview done: nothing was written yet."), look.c("ok"))
+        } else {
+            (crate::icons::CIRCLE_X, t("The preview failed."), look.c("err"))
+        };
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(icon).color(ink));
+            ui.label(crate::style::semibold(text, 12.0).color(look.c("fg-strong")));
+        });
+        if running {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+        }
+        if !r.error.is_empty() {
+            ui.colored_label(look.c("err"), adm_core::i18n::server_text(&r.error));
+        }
+        if let Some(p) = r.result.as_ref().map(|x| &x.plan) {
+            ui.add_space(8.0);
+            let mut rows = vec![
+                [RichText::new(t("New")).strong(), RichText::new(format!("{} ({})", p.new, size_text(p.new_bytes)))],
+                [
+                    RichText::new(t("Changed")).strong(),
+                    RichText::new(format!("{} ({})", p.changed, size_text(p.changed_bytes))),
+                ],
+            ];
+            if self.form.mirror {
+                let del = RichText::new(format!("{} ({})", p.delete, size_text(p.delete_bytes)));
+                rows.push([
+                    RichText::new(t("To delete")).strong(),
+                    if p.delete > 0 { del.color(look.c("warn")) } else { del },
+                ]);
+            }
+            rows.push([RichText::new(t("Unchanged")).strong(), RichText::new(p.same.to_string())]);
+            widgets::mini_table(ui, &look, ["", ""], &rows, None);
+            for (k, label) in [("new", "New"), ("changed", "Changed"), ("delete", "To delete")] {
+                if let Some(list) = p.sample.get(k).filter(|l| !l.is_empty()) {
+                    egui::CollapsingHeader::new(format!("{} ({})", t(label), tf!("first %d", list.len())))
+                        .id_salt(("preview-sample", k))
+                        .show(ui, |ui| {
+                            egui::Frame::new().fill(look.c("surface-2")).inner_margin(egui::Margin::same(8)).show(
+                                ui,
+                                |ui| {
+                                    ui.set_width(ui.available_width());
+                                    egui::ScrollArea::vertical().max_height(128.0).show(ui, |ui| {
+                                        ui.label(RichText::new(list.join("\n")).monospace().size(11.0));
+                                    });
+                                },
+                            );
+                        });
                 }
             }
+        }
+        let (mut close, mut run_now) = (false, false);
+        let ok = r.status == "ok";
+        Self::nav(
+            ui,
+            &look,
+            |_| {},
+            |ui| {
+                let label = t("Run now");
+                run_now = ui
+                    .add_enabled_ui(ok, |ui| widgets::button(ui, &look, crate::icons::PLAY, label, Kind::Primary))
+                    .inner
+                    .clicked();
+                close = widgets::button(ui, &look, "", t("Close (the job is saved)"), Kind::Secondary).clicked();
+            },
+        );
+        if run_now {
+            let api = self.api.clone();
+            // the previewed job (the run's), not the form's id, editable meanwhile
+            let path = format!("{}/syncs/{}/run", self.base, esc(&r.job));
+            cx.run(async move { api.act(Method::POST, &path).await }, |app, ()| {
+                app.cx.set_status(t("Sync queued."));
+                app.with_shell(|s, cx| s.sync.reload(cx));
+            });
+            return true;
+        }
+        close
+    }
+
+    /// The web's stepper: numbered boxes (the current one filled), a line under them, then "Step n of 4: name".
+    fn header(&mut self, ui: &mut Ui, cx: &Cx) {
+        let look = cx.look.clone();
+        let look = &look;
+        let names =
+            [t("Source and access"), t("What to copy"), t("Where to"), t("How and when"), t("Preview of the copy")];
+        let mut go = None;
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            for (i, s) in names.iter().enumerate() {
+                let on = i == self.step;
+                let (r, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover()); // the web's 24
+                if on {
+                    ui.painter().rect_filled(r, 0.0, look.c("action"));
+                } else {
+                    ui.painter().rect_stroke(r, 0.0, egui::Stroke::new(1.0, look.c("line")), egui::StrokeKind::Inside);
+                }
+                let ink = if on { look.c("on-action") } else { look.c("fg-muted") };
+                let g = ui.painter().layout_no_wrap(
+                    (i + 1).to_string(),
+                    egui::FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+                    ink,
+                );
+                ui.painter().galley(r.center() - g.size() / 2.0, g, ink);
+                let label = if on {
+                    crate::style::semibold(*s, 12.0).color(look.c("fg-strong"))
+                } else {
+                    RichText::new(*s).size(12.0).color(look.c("fg-muted"))
+                };
+                // a done step opens again (not from the preview, nor the preview itself)
+                let open = !on && i < 4 && i <= self.reached && self.step < 4;
+                let r = ui.add(egui::Label::new(label).sense(if open {
+                    egui::Sense::click()
+                } else {
+                    egui::Sense::hover()
+                }));
+                if open && r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                    go = Some(i);
+                }
+                ui.add_space(8.0);
+            }
         });
-        ui.separator();
+        ui.add_space(6.0);
+        let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
+        ui.painter().rect_filled(r, 0.0, look.c("surface-2"));
+        // the web's 15 points to the step's title and 20 under it (egui's item spacing counted in)
+        ui.add_space(7.0);
+        let head = tf!("Step %d of %d: %s", self.step + 1, names.len(), names[self.step.min(4)]);
+        ui.label(crate::style::semibold(head, 13.0).color(look.c("fg-strong")));
+        ui.add_space(12.0);
+        if let Some(i) = go {
+            self.show(cx, i);
+        }
+    }
+
+    /// The row under a step: the line, then `left` (back, test) at the left and `right` (the step's action) at the right.
+    fn nav(ui: &mut Ui, look: &crate::style::Look, left: impl FnOnce(&mut Ui), right: impl FnOnce(&mut Ui)) {
+        ui.add_space(12.0);
+        let y = ui.cursor().top();
+        ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+        ui.add_space(12.0);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            left(ui);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+        });
+    }
+
+    /// A choice as the web's card: an icon, a semibold title and its description; the chosen one stands out.
+    fn choice(ui: &mut Ui, look: &crate::style::Look, w: f32, on: bool, icon: &str, title: &str, text: &str) -> bool {
+        Self::choice_if(ui, look, w, on, true, icon, title, text)
+    }
+
+    /// A choice card, greyed and not clickable when `enabled` is false (Kerberos without a domain).
+    #[allow(clippy::too_many_arguments)]
+    fn choice_if(
+        ui: &mut Ui,
+        look: &crate::style::Look,
+        w: f32,
+        on: bool,
+        enabled: bool,
+        icon: &str,
+        title: &str,
+        text: &str,
+    ) -> bool {
+        if !enabled {
+            ui.add_enabled_ui(false, |ui| Self::choice_if(ui, look, w, false, true, icon, title, text));
+            return false;
+        }
+        let fill = if on { look.c("row-hover") } else { look.c("surface") };
+        let line = if on { look.c("fg-strong") } else { look.c("line") };
+        let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
+            ui.style_mut().interaction.selectable_labels = false; // a click on the text picks it
+            egui::Frame::new()
+                .fill(fill)
+                .stroke(egui::Stroke::new(1.0, line))
+                .inner_margin(egui::Margin::symmetric(16, 12))
+                .show(ui, |ui| {
+                    ui.set_width(w - 34.0);
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                        let title = crate::style::semibold(format!("{icon}  {title}"), 12.0).color(look.c("fg")); // the web's plain ink
+                        ui.label(title);
+                        widgets::para(ui, text, 11.0, look.c("fg-muted"));
+                    });
+                });
+        });
+        let resp = r.response.on_hover_cursor(egui::CursorIcon::PointingHand);
+        let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
+            n.set_role(egui::accesskit::Role::RadioButton);
+            n.set_label(title.to_string());
+            n.set_toggled(if on { egui::accesskit::Toggled::True } else { egui::accesskit::Toggled::False });
+        });
+        resp.clicked()
     }
 
     fn step1(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
-        widgets::form(ui, "sync-1", |ui| {
-            widgets::labeled_field(ui, &look, t("Source server"), &mut self.host, "old-fs.example.local", 360.0);
-            ui.end_row();
+        let w = ui.available_width();
+        widgets::above(ui, &look, t("Source server"), w, |ui, _| {
+            ui.add(
+                crate::widgets::line(&mut self.host)
+                    .hint_text(RichText::new("old-fs.example.local").monospace().size(12.0))
+                    .font(egui::TextStyle::Monospace)
+                    .desired_width(w),
+            )
         });
         let ip = self.host.trim().split('.').count() == 4
             && self
@@ -481,57 +777,96 @@ impl SyncWizard {
                 .color(look.c("warn")),
             );
         }
-        if self.data.kerberos {
-            ui.radio_value(&mut self.kerberos, true, t("This server's machine account (Kerberos)"));
-        }
-        ui.radio_value(&mut self.kerberos, false, t("User and password"));
-        if self.kerberos {
-            let machine = if self.data.machine.is_empty() { "FS01$".to_string() } else { self.data.machine.clone() };
-            ui.label(
-                RichText::new(tf!(
+        // how to sign in to the source: two cards, as the web's
+        ui.add_space(12.0);
+        let machine = if self.data.machine.is_empty() { "FS01$".to_string() } else { self.data.machine.clone() };
+        let cw = ((w - 12.0) / 2.0).floor();
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 12.0;
+            // shown also when not joined to a domain, greyed with why (as the web's)
+            let text = if self.data.kerberos {
+                tf!(
                     "Same domain, no password kept. Give %s (or Domain Computers) read permission on the share.",
                     machine
-                ))
-                .size(11.0)
-                .color(look.c("fg-muted")),
-            );
-        } else {
-            let kept = !self.is_new && (self.job.password_set || !self.job.password_file.is_empty());
-            widgets::form(ui, "sync-ntlm", |ui| {
-                widgets::labeled_field(ui, &look, t("User"), &mut self.user, "DOMAIN\\user", 300.0);
-                ui.end_row();
-                widgets::labeled_field(ui, &look, t("Domain (or the server name)"), &mut self.domain, "", 300.0);
-                ui.end_row();
-                widgets::label(ui, &look, t("Password"));
-                let hint = if kept { t("kept (type to change)") } else { "" };
-                crate::widgets::secret_field(ui, self.pwd_id, &mut self.password, hint, 300.0);
-                ui.end_row();
-            });
-        }
-        for (line, tone) in &self.test {
-            ui.add(egui::Label::new(RichText::new(line).color(look.tone(*tone))).wrap());
-        }
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "✔", t("Test connection"), Kind::Secondary).clicked() {
-                self.run_test(cx, false);
+                )
+            } else {
+                t("Not available: this server is not joined to a domain.").to_string()
+            };
+            let title = t("This server's machine account (Kerberos)");
+            if Self::choice_if(ui, &look, cw, self.kerberos, self.data.kerberos, crate::icons::SERVER, title, &text) {
+                self.kerberos = true;
             }
-            if widgets::button(ui, &look, "▶", t("Next"), Kind::Primary).clicked() {
-                self.read_access();
-                if self.tested.as_ref() == Some(&self.access_key()) {
-                    self.show(cx, 1);
-                } else {
-                    self.run_test(cx, true);
-                }
+            let text = t("Another domain or a standalone server; the password is kept encrypted.");
+            if Self::choice(ui, &look, cw, !self.kerberos, crate::icons::KEY, t("User and password"), text) {
+                self.kerberos = false;
             }
         });
+        if !self.kerberos {
+            let kept = !self.is_new && (self.job.password_set || !self.job.password_file.is_empty());
+            ui.add_space(12.0);
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                let fw = ((w - 16.0) / 2.0).floor();
+                widgets::above(ui, &look, t("User"), fw, |ui, _| {
+                    ui.add(
+                        crate::widgets::line(&mut self.user)
+                            .hint_text(crate::widgets::hint("DOMAIN\\user"))
+                            .desired_width(fw),
+                    )
+                });
+                widgets::above(ui, &look, t("Domain (or the server name)"), fw, |ui, _| {
+                    ui.add(crate::widgets::line(&mut self.domain).desired_width(fw))
+                });
+            });
+            ui.add_space(12.0);
+            let hint = if kept { t("kept (type to change)") } else { "" };
+            let (pwd_id, pwd) = (self.pwd_id, &mut self.password);
+            widgets::above(ui, &look, t("Password"), w, |ui, _| crate::widgets::secret_field(ui, pwd_id, pwd, hint, w));
+        }
+        if !self.test.is_empty() {
+            ui.add_space(12.0);
+            egui::Frame::new()
+                .stroke(egui::Stroke::new(1.0, look.c("line")))
+                .inner_margin(egui::Margin::symmetric(12, 8))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.spacing_mut().item_spacing.y = 4.0;
+                    widgets::lbl(ui, &look, t("Connection test"));
+                    for (line, tone) in &self.test {
+                        ui.add(egui::Label::new(RichText::new(line).size(12.0).color(look.tone(*tone))).wrap());
+                    }
+                });
+        }
+        let (mut test, mut next) = (false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| test = widgets::button(ui, &look, crate::icons::PLUG, t("Test connection"), Kind::Secondary).clicked(),
+            |ui| {
+                next = widgets::button(ui, &look, "", &format!("{} {}", t("Next"), crate::icons::RIGHT), Kind::Primary)
+                    .clicked()
+            },
+        );
+        if test {
+            self.run_test(cx, false);
+        }
+        if next {
+            self.read_access();
+            if self.tested.as_ref() == Some(&self.access_key()) {
+                self.show(cx, 1);
+            } else {
+                self.run_test(cx, true);
+            }
+        }
     }
 
     fn step2(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
         ui.label(RichText::new(t("Open the share and the folder to copy; \"size\" counts what is inside (it can take a while on large folders).")).size(11.0).color(look.c("fg-muted")));
         let mut go: Option<(String, String)> = None;
+        let mut count: Option<String> = None;
         ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Up"), Kind::Secondary).clicked() {
+            if widgets::button(ui, &look, crate::icons::LEFT, t("Up"), Kind::Secondary).clicked() {
                 let s = &self.job.source;
                 go = Some(if !s.path.is_empty() {
                     (s.share.clone(), s.path.rsplit_once('/').map(|(p, _)| p.to_string()).unwrap_or_default())
@@ -541,32 +876,75 @@ impl SyncWizard {
             }
             ui.label(RichText::new(sync_unc(&self.job)).strong());
         });
+        let mut whole = false;
+        if self.job.source.share.is_empty() && !self.items.is_empty() {
+            whole = widgets::button(ui, &look, crate::icons::SERVER, t("Every share of the server"), Kind::Secondary)
+                .clicked();
+        }
         egui::ScrollArea::vertical().id_salt("sync-items").max_height(300.0).show(ui, |ui| {
             for it in &self.items {
-                if ui.selectable_label(false, format!("📁 {it}")).clicked() {
-                    let s = &self.job.source;
-                    go = Some(if s.share.is_empty() {
-                        (it.clone(), String::new())
-                    } else {
-                        (s.share.clone(), format!("{}/{it}", s.path).trim_matches('/').to_string())
+                ui.horizontal(|ui| {
+                    if ui.selectable_label(false, format!("{}  {it}", crate::icons::FOLDER)).clicked() {
+                        let s = &self.job.source;
+                        go = Some(if s.share.is_empty() {
+                            (it.clone(), String::new())
+                        } else {
+                            (s.share.clone(), format!("{}/{it}", s.path).trim_matches('/').to_string())
+                        });
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        match self.item_sizes.get(it) {
+                            Some(sz) => {
+                                ui.label(RichText::new(sz).size(11.0).color(look.c("fg-muted")));
+                            }
+                            None => {
+                                if widgets::act(ui, &look, "", t("size"), None, 11.0).clicked() {
+                                    count = Some(it.clone());
+                                }
+                            }
+                        }
                     });
-                }
+                });
             }
         });
+        if whole {
+            self.job.kind = "server".into();
+            self.job.mode = "copy".into();
+            self.job.dest.clear();
+            self.dest.clear();
+            self.targets = None;
+            self.show(cx, 2);
+            return;
+        }
+        if let Some(it) = count {
+            self.count_item(cx, it);
+        }
         if let Some((share, path)) = go {
             self.open_dir(cx, share, path);
         }
         ui.label(RichText::new(&self.size_label).size(11.0).color(look.c("fg-muted")));
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Back"), Kind::Secondary).clicked() {
-                self.step = 0;
-            }
-            if widgets::button(ui, &look, "ℹ", t("Size"), Kind::Secondary).clicked() {
-                self.count_size(cx);
-            }
-            if widgets::button(ui, &look, "✔", t("Copy this folder"), Kind::Primary).clicked()
-                && !self.job.source.share.is_empty()
-            {
+        let (mut back, mut size, mut copy) = (false, false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| {
+                back =
+                    widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                        .clicked();
+                size = widgets::button(ui, &look, "", t("Size"), Kind::Secondary).clicked();
+            },
+            |ui| {
+                copy = widgets::button(ui, &look, "", &format!("{} ›", t("Copy this folder")), Kind::Primary).clicked()
+            },
+        );
+        if back {
+            self.step = 0;
+        }
+        if size {
+            self.count_size(cx);
+        }
+        {
+            if copy && !self.job.source.share.is_empty() {
                 if self.dest.is_empty() {
                     let root = self.data.roots.first().cloned().unwrap_or_else(|| "/srv/shares".into());
                     let src = format!("/{}/{}", self.job.source.share, self.job.source.path);
@@ -575,7 +953,71 @@ impl SyncWizard {
                 }
                 self.show(cx, 2);
             }
+        }
+    }
+
+    /// Step 3 of a server job: where each share of the source goes (the folder of the share of the same name here),
+    /// or why it is skipped.
+    fn step3_server(&mut self, ui: &mut Ui, cx: &mut Cx) {
+        let look = cx.look.clone();
+        let muted = look.c("fg-muted");
+        ui.add(
+            egui::Label::new(
+                RichText::new(t("Each share goes into the folder of the share of the same name on this server (copy: nothing is deleted); the others are skipped."))
+                    .size(11.0)
+                    .color(muted),
+            )
+            .wrap(),
+        );
+        let copied = self.targets.as_ref().map_or(0, |t| t.iter().filter(|x| x.skip.is_empty()).count());
+        egui::ScrollArea::vertical().id_salt("sync-targets").max_height(300.0).show(ui, |ui| match &self.targets {
+            None => {
+                ui.label(RichText::new(t("Listing the shares…")).size(11.0).color(muted));
+            }
+            Some(list) if list.is_empty() => {
+                ui.label(RichText::new(t("No shares this account can see.")).size(11.0).color(muted));
+            }
+            Some(list) => {
+                for x in list {
+                    ui.horizontal(|ui| {
+                        let ink = if x.skip.is_empty() { look.c("fg") } else { muted };
+                        ui.label(RichText::new(format!("{}  {}", crate::icons::FOLDER, x.share)).strong().color(ink));
+                        ui.label(RichText::new(crate::icons::RIGHT).color(muted));
+                        if x.skip.is_empty() {
+                            ui.label(RichText::new(&x.dest).monospace().size(11.0));
+                        } else {
+                            let why = tf!("skipped: %s", adm_core::i18n::server_text(&x.skip));
+                            ui.add(egui::Label::new(RichText::new(why).size(11.0).color(muted)).truncate());
+                        }
+                    });
+                }
+            }
         });
+        if let Some(list) = &self.targets {
+            ui.label(RichText::new(tf!("%d of %d shares are copied.", copied, list.len())).size(11.0).color(muted));
+        }
+        let (mut back, mut next) = (false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| {
+                back = widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                    .clicked()
+            },
+            |ui| {
+                let label = format!("{} {}", t("Next"), crate::icons::RIGHT);
+                next = ui
+                    .add_enabled_ui(copied > 0, |ui| widgets::button(ui, &look, "", &label, Kind::Primary))
+                    .inner
+                    .clicked();
+            },
+        );
+        if back {
+            self.show(cx, 1);
+        }
+        if next {
+            self.show(cx, 3);
+        }
     }
 
     fn step3(&mut self, ui: &mut Ui, cx: &mut Cx) {
@@ -587,7 +1029,7 @@ impl SyncWizard {
         );
         let mut go = None;
         ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Up"), Kind::Secondary).clicked()
+            if widgets::button(ui, &look, crate::icons::LEFT, t("Up"), Kind::Secondary).clicked()
                 && !self.cur_dir.is_empty()
                 && !self.in_root(&self.cur_dir)
             {
@@ -601,7 +1043,7 @@ impl SyncWizard {
         egui::ScrollArea::vertical().id_salt("sync-dirs").max_height(220.0).show(ui, |ui| {
             for d in &self.dirs {
                 let name = d.rsplit('/').next().unwrap_or(d);
-                if ui.selectable_label(false, format!("📁 {name}")).clicked() {
+                if ui.selectable_label(false, format!("{}  {name}", crate::icons::FOLDER)).clicked() {
                     go = Some(d.clone());
                 }
             }
@@ -611,7 +1053,7 @@ impl SyncWizard {
         }
         let mut dest_changed = false;
         ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "✔", t("Use this folder"), Kind::Secondary).clicked()
+            if widgets::button(ui, &look, crate::icons::CHECK, t("Use this folder"), Kind::Secondary).clicked()
                 && !self.cur_dir.is_empty()
                 && !self.in_root(&self.cur_dir)
             {
@@ -619,7 +1061,7 @@ impl SyncWizard {
                 dest_changed = true;
             }
             widgets::field(ui, &mut self.new_name, t("name of the new folder"), 220.0);
-            if widgets::button(ui, &look, "📁", t("New folder…"), Kind::Secondary).clicked() {
+            if widgets::button(ui, &look, crate::icons::FOLDER_PLUS, t("New folder…"), Kind::Secondary).clicked() {
                 let n = self.new_name.trim().trim_matches(['/', '\\']).to_string();
                 if !n.is_empty() && !self.cur_dir.is_empty() {
                     self.dest = format!("{}/{n}", self.cur_dir);
@@ -637,25 +1079,38 @@ impl SyncWizard {
             self.check_dest(cx, d);
         }
         ui.add(egui::Label::new(RichText::new(&self.dest_status.0).color(look.tone(self.dest_status.1))).wrap());
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Back"), Kind::Secondary).clicked() {
-                self.show(cx, 1);
-            }
-            if ui
-                .add_enabled_ui(self.dest_ok, |ui| widgets::button(ui, &look, "▶", t("Next"), Kind::Primary))
-                .inner
-                .clicked()
-            {
-                self.job.dest = self.dest.trim().into();
-                self.show(cx, 3);
-            }
-        });
+        let (mut back, mut next) = (false, false);
+        let ok = self.dest_ok;
+        Self::nav(
+            ui,
+            &look,
+            |ui| {
+                back = widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                    .clicked()
+            },
+            |ui| {
+                let label = format!("{} {}", t("Next"), crate::icons::RIGHT);
+                next =
+                    ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "", &label, Kind::Primary)).inner.clicked();
+            },
+        );
+        if back {
+            self.show(cx, 1);
+        }
+        if next {
+            self.job.dest = self.dest.trim().into();
+            self.show(cx, 3);
+        }
     }
 
     fn step4(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
-        ui.radio_value(&mut self.form.mirror, false, t("Copy (recommended)"));
-        ui.radio_value(&mut self.form.mirror, true, t("Mirror"));
+        crate::widgets::radio_value(ui, &mut self.form.mirror, false, t("Copy (recommended)"));
+        if self.job.kind == "server" {
+            self.form.mirror = false; // a server job copies only
+        } else {
+            crate::widgets::radio_value(ui, &mut self.form.mirror, true, t("Mirror"));
+        }
         let root = self
             .data
             .roots
@@ -707,7 +1162,7 @@ impl SyncWizard {
             widgets::label(ui, &look, t("When"));
             let mut labels: Vec<String> = PRESETS.iter().map(|p| t(p.1).to_string()).collect();
             labels.push(t("Custom (cron)…").into());
-            if widgets::select(ui, "sync-when", &mut self.preset, &labels, 240.0)
+            if widgets::select(ui, "sync-when", t("When"), &mut self.preset, &labels, 240.0)
                 && let Some(p) = PRESETS.get(self.preset)
             {
                 self.form.cron = p.0.into();
@@ -715,7 +1170,6 @@ impl SyncWizard {
             }
             ui.end_row();
             if self.preset >= PRESETS.len() {
-                ui.label("");
                 cron_changed |= widgets::field(ui, &mut self.form.cron, "30 22 * * 1-5", 200.0).changed();
                 ui.end_row();
             }
@@ -747,11 +1201,16 @@ impl SyncWizard {
             t("machine account").into()
         };
         let mut src = format!("{} · {who}", sync_unc(&self.job));
+        if self.job.kind == "server" {
+            src = format!("{} · {} · {who}", sync_unc(&self.job), t("every share"));
+        }
         if let Some((f, b)) = self.src_size {
-            src = format!("{src} · {}", tf!("%d files · %s", f, size_text(b)));
+            src = format!("{src} · {}", tf!("%d files · %s", adm_core::i18n::count(f), size_text(b)));
         }
         let mut dst = self.job.dest.clone();
-        if let Some(free) = self.dest_free {
+        if self.job.kind == "server" {
+            dst = t("the folders of this server's shares of the same name").into();
+        } else if let Some(free) = self.dest_free {
             dst = format!("{dst} · {}", tf!("%s free", size_text(free as i64)));
         }
         widgets::form(ui, "sync-summary", |ui| {
@@ -765,7 +1224,8 @@ impl SyncWizard {
         egui::CollapsingHeader::new(t("Advanced")).id_salt("sync-advanced").show(ui, |ui| {
             widgets::form(ui, "sync-adv", |ui| {
                 widgets::label(ui, &look, t("Leave out (one pattern per line)"));
-                ui.add(egui::TextEdit::multiline(&mut self.form.exclude).desired_rows(2).desired_width(300.0));
+                let r = ui.add(egui::TextEdit::multiline(&mut self.form.exclude).desired_rows(2).desired_width(300.0));
+                widgets::field_inset(ui, r.rect);
                 ui.end_row();
                 widgets::labeled_field(
                     ui,
@@ -778,17 +1238,20 @@ impl SyncWizard {
                 ui.end_row();
                 widgets::labeled_field(ui, &look, t("Simultaneous transfers"), &mut self.form.transfers, "", 80.0);
                 ui.end_row();
-                ui.label("");
-                ui.checkbox(&mut self.form.verify, t("Compare the content after the run (reads the source again)"));
+                crate::widgets::check(
+                    ui,
+                    &mut self.form.verify,
+                    t("Compare the content after the run (reads the source again)"),
+                );
                 ui.end_row();
-                ui.label("");
-                ui.checkbox(
+                crate::widgets::check(
+                    ui,
                     &mut self.form.reinherit,
                     t("Apply the destination folder's Windows permissions to what came"),
                 );
                 ui.end_row();
                 widgets::label(ui, &look, t("Id"));
-                ui.add_enabled(self.is_new, egui::TextEdit::singleline(&mut self.form.id).desired_width(240.0));
+                ui.add_enabled(self.is_new, crate::widgets::line(&mut self.form.id).desired_width(240.0));
                 ui.end_row();
             });
         });
@@ -800,18 +1263,60 @@ impl SyncWizard {
             );
             widgets::field(ui, &mut self.form.confirm, "", 200.0);
         }
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Back"), Kind::Secondary).clicked() {
-                self.show(cx, 2);
-            }
-            if widgets::button(ui, &look, "▶", t("Save and preview"), Kind::Primary).clicked() {
-                self.save(cx, true);
-            }
-            if widgets::button(ui, &look, "💾", t("Only save"), Kind::Secondary).clicked() {
-                self.save(cx, false);
-            }
-        });
+        let (mut back, mut preview, mut only) = (false, false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| {
+                back = widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                    .clicked()
+            },
+            |ui| {
+                preview = widgets::button(ui, &look, "", t("Save and preview"), Kind::Primary).clicked();
+                only = widgets::button(ui, &look, "", t("Only save"), Kind::Secondary).clicked();
+            },
+        );
+        if back {
+            self.show(cx, 2);
+        }
+        if preview {
+            self.save(cx, true);
+        }
+        if only {
+            self.save(cx, false);
+        }
     }
+}
+
+/// Follows the wizard's preview every 2 s until it ends (the list of runs, as the web's).
+fn poll(cx: &Cx, id: u64) {
+    let Some(w) = cx
+        .dialogs
+        .iter()
+        .find(|d| d.0 == id)
+        .and_then(|d| (d.1.as_ref() as &dyn std::any::Any).downcast_ref::<SyncWizard>())
+    else {
+        return;
+    };
+    let Some(run) = w.run.clone() else { return };
+    let (api, path) = (w.api.clone(), format!("{}/syncs", w.base));
+    cx.spawn(
+        async move {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            api.get::<SyncList>(&path).await
+        },
+        move |app, r| {
+            let Some(w) = wizard(app, id) else { return };
+            if let Ok(d) = r
+                && let Some(x) = d.runs.into_iter().find(|x| x.id == run.id)
+            {
+                w.run = Some(x);
+            }
+            if w.run.as_ref().is_some_and(|x| x.status == "queued" || x.status == "running") {
+                poll(&app.cx, id);
+            }
+        },
+    );
 }
 
 impl Dialog for SyncWizard {
@@ -820,7 +1325,7 @@ impl Dialog for SyncWizard {
     }
 
     fn width(&self) -> f32 {
-        800.0
+        760.0
     }
 
     fn closed(&self, ctx: &egui::Context) {
@@ -832,12 +1337,19 @@ impl Dialog for SyncWizard {
             return Flow::Close;
         }
         self.header(ui, cx);
-        egui::ScrollArea::vertical().id_salt("sync-wizard").max_height(520.0).show(ui, |ui| match self.step {
+        self.reached = self.reached.max(self.step);
+        match self.step {
             0 => self.step1(ui, cx),
             1 => self.step2(ui, cx),
+            2 if self.job.kind == "server" => self.step3_server(ui, cx),
             2 => self.step3(ui, cx),
-            _ => self.step4(ui, cx),
-        });
-        if crate::modal::footer(ui, cx, None, t("Close"), false, true).ok { Flow::Close } else { Flow::Keep }
+            3 => self.step4(ui, cx),
+            _ => {
+                if self.step5(ui, cx) {
+                    return Flow::Close;
+                }
+            }
+        }
+        Flow::Keep
     }
 }

@@ -8,7 +8,7 @@ import { del, get, post, put, enc } from '../api'
 import { confirmTyped, showAlert } from '../dialogs'
 import { serverText, t } from '../i18n'
 import { toast } from '../toasts'
-import { formatDate } from '../util'
+import { formatDate, spinner } from '../util'
 import BackupTabs from '../components/BackupTabs.vue'
 import RestoreBackupDialog from '../components/dialogs/RestoreBackupDialog.vue'
 import SendBackupDialog from '../components/dialogs/SendBackupDialog.vue'
@@ -16,6 +16,7 @@ import LoadingNote from '../components/LoadingNote.vue'
 
 const servers = ref([])
 const loading = ref(false)
+const spin = spinner(loading) // the refresh icon turns while loading, at least briefly
 const currentId = ref(0)
 const current = computed(() => servers.value.find((s) => s.id === currentId.value) || servers.value[0])
 async function load() {
@@ -205,7 +206,9 @@ load().then(() => current.value && pick(current.value))
         <section class="card">
           <div class="card-h flex items-center justify-between">
             {{ t('Servers') }}
-            <button class="act normal-case" :disabled="loading" @click="load"><RefreshCw :size="12" /> {{ t('refresh') }}</button>
+            <button class="act normal-case" :disabled="loading" @click="load">
+              <RefreshCw :class="spin && 'motion-safe:animate-spin'" :size="12" /> {{ t('refresh') }}
+            </button>
           </div>
           <ul class="side-nav divide-y divide-line text-[12px]">
             <li

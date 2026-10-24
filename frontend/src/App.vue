@@ -56,6 +56,8 @@ watchEffect(() => {
   document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', theme.scheme)
 })
 
+// tabs whose name stays in English in every language (their translation as the tooltip): short and steady tab widths
+const ENGLISH_TABS = new Set(['Users', 'Computers', 'Shares'])
 const tabs = [
   ['/', 'Home', Home],
   ['/users', 'Users', Users],
@@ -131,9 +133,10 @@ const ownPassword = ref(false)
         :to="to"
         class="tab flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold transition-colors duration-150"
         :class="isActive(to) ? 'on bg-tab-on bg-(image:--bg-tab-on) text-on-tab-on shadow-(--shadow-tab-on)' : 'bg-tab text-on-tab'"
+        :title="ENGLISH_TABS.has(name) && t(name) !== name ? t(name) : undefined"
       >
         <component :is="icon" :size="15" :class="isActive(to) ? 'text-tab-on-icon' : ''" />
-        {{ t(name) }}
+        {{ ENGLISH_TABS.has(name) ? name : t(name) }}
       </router-link>
       <div class="ml-auto flex">
         <a

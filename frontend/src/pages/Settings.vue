@@ -2,7 +2,7 @@
 // Runtime settings (stored in the local SQLite, applied without a restart) and
 // the read-only values that come from config.toml.
 import { computed, ref } from 'vue'
-import { Check, Copy, ImageUp, KeyRound, RotateCcw, Trash2 } from 'lucide-vue-next'
+import { Check, Copy, ImageUp, KeyRound, LoaderCircle, RotateCcw, Trash2 } from 'lucide-vue-next'
 import { auth, brand, bumpLogo, del, get, loadMe, logoUrl, post, put } from '../api'
 import { toast } from '../toasts'
 import { askConfirm } from '../dialogs'
@@ -10,6 +10,7 @@ import { languages, setLang, t } from '../i18n'
 import defaultLogo from '../assets/ad-manager-logo.png'
 import lightLogo from '../assets/ad-manager-logo-light.png'
 import LoadingNote from '../components/LoadingNote.vue'
+import { spinner } from '../util'
 
 const form = ref(null)
 const readonly = ref({})
@@ -17,6 +18,7 @@ const stored = ref(true)
 const hasLogo = ref(false)
 const ous = ref([])
 const busy = ref(false)
+const saving = spinner(busy) // the save button's loader turns visibly even when the panel answers at once
 
 async function load() {
   try {
@@ -76,6 +78,33 @@ async function removeLogo() {
 }
 
 // agent token: shown once; the file server keeps only its hash
+// the import credential (the target administrator the DC agent's GPO import uses), kept sealed by the panel
+const importCred = ref({ user: '', set: false })
+const importForm = ref({ user: 'Administrator', password: '' })
+const importBusy = ref(false)
+get('/settings/import-credential')
+  .then((r) => (importCred.value = r))
+  .catch(() => {})
+async function saveImportCred() {
+  importBusy.value = true
+  try {
+    importCred.value = await put('/settings/import-credential', importForm.value)
+    importForm.value.password = ''
+    toast.success(t('Import credential saved (encrypted).'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+  importBusy.value = false
+}
+async function removeImportCred() {
+  if (!(await askConfirm(t('Remove the import credential?'), { ok: t('Remove') }))) return
+  try {
+    importCred.value = await del('/settings/import-credential')
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
 const agentToken = ref(null)
 async function newAgentToken() {
   try {
@@ -111,152 +140,143 @@ const readonlyRows = computed(() => {
 
 <template>
   <LoadingNote v-if="!form" class="justify-center p-6" />
-  <div v-else class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_520px]">
-    <form class="space-y-5" @submit.prevent="save">
-      <p v-if="!stored" class="border-l-4 border-warn bg-warn-soft px-3 py-2 text-[12px]">
-        {{ t('No local database (db.path): settings cannot be saved.') }}
-      </p>
-      <section class="card">
-        <div class="card-h">{{ t('General') }}</div>
-        <div class="grid gap-4 p-3 md:grid-cols-2">
-          <div>
-            <label class="lbl" for="s-lang">{{ t('Default language') }}</label>
-            <select id="s-lang" v-model="form.lang" class="inp">
-              <option v-for="[code, name] in languages" :key="code" :value="code">{{ name }}</option>
-            </select>
-            <p class="mt-1 text-[11px] text-fg-muted">{{ t('Also selectable on the login page.') }}</p>
-          </div>
-          <div>
-            <label class="lbl" for="s-theme">{{ t('Theme') }}</label>
-            <select id="s-theme" v-model="form.theme" class="inp">
-              <option v-for="th in brand.themes" :key="th.id" :value="th.id">{{ t(th.label) }}</option>
-            </select>
-            <p class="mt-1 text-[11px] text-fg-muted">{{ t('Look of the panel and the login page for every operator.') }}</p>
-            <label class="mt-2 flex items-center gap-2"
-              ><input v-model="form.flat" type="checkbox" /> {{ t('Flat look (no gradients or shadows)') }}</label
-            >
-          </div>
-          <div>
-            <label class="lbl" for="s-session">{{ t('Session timeout (minutes idle)') }}</label>
-            <input id="s-session" v-model.number="form.session_minutes" type="number" min="5" max="720" class="inp" required />
-          </div>
-          <div class="md:col-span-2">
-            <label class="flex items-center gap-2 font-semibold text-fg-strong"
-              ><input v-model="form.swagger" type="checkbox" /> {{ t('API documentation (Swagger) at /swagger') }}</label
-            >
-            <p class="mt-1 text-[11px] text-fg-muted">
-              {{ t('Only for signed-in administrators, like the queue monitor. Keep it off in production.') }}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-h">{{ t('Users') }}</div>
-        <div class="grid gap-4 p-3 md:grid-cols-3">
-          <div>
-            <label class="lbl" for="s-inactive">{{ t('Inactive after (days without logon)') }}</label>
-            <input id="s-inactive" v-model.number="form.inactive_days" type="number" min="7" max="3650" class="inp" required />
-          </div>
-          <div>
-            <label class="lbl" for="s-pwlen">{{ t('Generated password length') }}</label>
-            <input id="s-pwlen" v-model.number="form.password_length" type="number" min="10" max="64" class="inp" required />
-          </div>
-          <div>
-            <label class="lbl" for="s-ou">{{ t('Default OU for new users') }}</label>
-            <select id="s-ou" v-model="form.default_ou" class="inp">
-              <option value="">CN=Users</option>
-              <option v-for="o in ous" :key="o.dn" :value="o.dn">{{ o.dn.replace(/,DC=.*$/i, '') }}</option>
-            </select>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-h">{{ t('Company') }}</div>
-        <div class="grid gap-4 p-3 md:grid-cols-2">
-          <div>
-            <label class="lbl" for="s-company">{{ t('Company name (footer)') }}</label>
-            <input id="s-company" v-model="form.company" class="inp" maxlength="80" placeholder="AD Manager" />
-          </div>
-          <div>
-            <label class="lbl" for="s-support">{{ t('Support link') }}</label>
-            <input
-              id="s-support"
-              v-model="form.support_url"
-              type="url"
-              class="inp"
-              placeholder="https://github.com/jniltinho/ad-manager/wiki"
-            />
-          </div>
-          <div class="md:col-span-2">
-            <span class="lbl">{{ t('Logo (login page and header)') }}</span>
-            <div class="flex flex-wrap items-center gap-3">
-              <div class="flex h-16 w-56 items-center justify-center border border-line bg-surface-3 p-2">
-                <img v-if="hasLogo" :src="logoUrl()" :alt="t('Logo')" class="logo-plate max-h-full max-w-full object-contain" />
-                <template v-else>
-                  <img
-                    :src="defaultLogo"
-                    :alt="t('Logo')"
-                    class="max-h-full max-w-full object-contain"
-                    style="display: var(--preview-logo-dark-ink)"
-                  />
-                  <img
-                    :src="lightLogo"
-                    :alt="t('Logo')"
-                    class="max-h-full max-w-full object-contain"
-                    style="display: var(--preview-logo-light-ink)"
-                  />
-                </template>
-              </div>
-              <input ref="logoInput" type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="uploadLogo" />
-              <button type="button" class="btn-ghost" :disabled="!stored" @click="logoInput.click()">
-                <ImageUp :size="13" /> {{ t('Upload logo') }}
-              </button>
-              <button v-if="hasLogo" type="button" class="btn-ghost" @click="removeLogo">
-                <Trash2 :size="13" /> {{ t('Use the default logo') }}
-              </button>
-              <span class="text-[11px] leading-snug text-fg-muted"
-                >{{ t('PNG, JPEG or SVG up to 512 KiB.') }}<br />{{ t('Maximum size: 660 × 220 px (width × height), ratio 3:1.') }}<br />{{
-                  t('Shown at up to 195 × 65 px on the login page and 40 px high in the header.')
-                }}</span
+  <!-- two columns of about the same height, cards close together: the page fits without a scroll bar -->
+  <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_520px]">
+    <div class="space-y-4">
+      <form class="space-y-4" @submit.prevent="save">
+        <p v-if="!stored" class="border-l-4 border-warn bg-warn-soft px-3 py-2 text-[12px]">
+          {{ t('No local database (db.path): settings cannot be saved.') }}
+        </p>
+        <section class="card">
+          <div class="card-h">{{ t('General') }}</div>
+          <div class="grid gap-x-4 gap-y-3 p-3 md:grid-cols-3">
+            <div>
+              <label class="lbl" for="s-lang">{{ t('Default language') }}</label>
+              <select id="s-lang" v-model="form.lang" class="inp">
+                <option v-for="[code, name] in languages" :key="code" :value="code">{{ name }}</option>
+              </select>
+              <p class="mt-1 text-[11px] text-fg-muted">{{ t('Also selectable on the login page.') }}</p>
+            </div>
+            <div>
+              <label class="lbl" for="s-theme">{{ t('Theme') }}</label>
+              <select id="s-theme" v-model="form.theme" class="inp">
+                <option v-for="th in brand.themes" :key="th.id" :value="th.id">{{ t(th.label) }}</option>
+              </select>
+              <p class="mt-1 text-[11px] text-fg-muted">{{ t('Look of the panel and the login page for every operator.') }}</p>
+            </div>
+            <div>
+              <label class="lbl" for="s-session">{{ t('Session timeout (minutes idle)') }}</label>
+              <input id="s-session" v-model.number="form.session_minutes" type="number" min="5" max="720" class="inp" required />
+            </div>
+            <div class="flex flex-wrap items-start gap-x-8 gap-y-2 md:col-span-3">
+              <label class="flex items-center gap-2"
+                ><input v-model="form.flat" type="checkbox" /> {{ t('Flat look (no gradients or shadows)') }}</label
               >
+              <div class="min-w-0 flex-1">
+                <label class="flex items-center gap-2 font-semibold text-fg-strong"
+                  ><input v-model="form.swagger" type="checkbox" /> {{ t('API documentation (Swagger) at /swagger') }}</label
+                >
+                <p class="mt-0.5 text-[11px] text-fg-muted">
+                  {{ t('Only for signed-in administrators, like the queue monitor. Keep it off in production.') }}
+                </p>
+              </div>
             </div>
           </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h">{{ t('Users') }}</div>
+          <div class="grid gap-4 p-3 md:grid-cols-3">
+            <div>
+              <label class="lbl" for="s-inactive">{{ t('Inactive after (days without logon)') }}</label>
+              <input id="s-inactive" v-model.number="form.inactive_days" type="number" min="7" max="3650" class="inp" required />
+            </div>
+            <div>
+              <label class="lbl" for="s-pwlen">{{ t('Generated password length') }}</label>
+              <input id="s-pwlen" v-model.number="form.password_length" type="number" min="10" max="64" class="inp" required />
+            </div>
+            <div>
+              <label class="lbl" for="s-ou">{{ t('Default OU for new users') }}</label>
+              <select id="s-ou" v-model="form.default_ou" class="inp">
+                <option value="">CN=Users</option>
+                <option v-for="o in ous" :key="o.dn" :value="o.dn">{{ o.dn.replace(/,DC=.*$/i, '') }}</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h">{{ t('Company') }}</div>
+          <div class="grid gap-4 p-3 md:grid-cols-2">
+            <div>
+              <label class="lbl" for="s-company">{{ t('Company name (footer)') }}</label>
+              <input id="s-company" v-model="form.company" class="inp" maxlength="80" placeholder="AD Manager" />
+            </div>
+            <div>
+              <label class="lbl" for="s-support">{{ t('Support link') }}</label>
+              <input
+                id="s-support"
+                v-model="form.support_url"
+                type="url"
+                class="inp"
+                placeholder="https://github.com/jniltinho/ad-manager/wiki"
+              />
+            </div>
+            <div class="md:col-span-2">
+              <span class="lbl">{{ t('Logo (login page and header)') }}</span>
+              <div class="flex flex-wrap items-center gap-3">
+                <div class="flex h-16 w-56 items-center justify-center border border-line bg-surface-3 p-2">
+                  <img v-if="hasLogo" :src="logoUrl()" :alt="t('Logo')" class="logo-plate max-h-full max-w-full object-contain" />
+                  <template v-else>
+                    <img
+                      :src="defaultLogo"
+                      :alt="t('Logo')"
+                      class="max-h-full max-w-full object-contain"
+                      style="display: var(--preview-logo-dark-ink)"
+                    />
+                    <img
+                      :src="lightLogo"
+                      :alt="t('Logo')"
+                      class="max-h-full max-w-full object-contain"
+                      style="display: var(--preview-logo-light-ink)"
+                    />
+                  </template>
+                </div>
+                <input ref="logoInput" type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="uploadLogo" />
+                <button type="button" class="btn-ghost" :disabled="!stored" @click="logoInput.click()">
+                  <ImageUp :size="13" /> {{ t('Upload logo') }}
+                </button>
+                <button v-if="hasLogo" type="button" class="btn-ghost" @click="removeLogo">
+                  <Trash2 :size="13" /> {{ t('Use the default logo') }}
+                </button>
+                <span class="text-[11px] leading-snug text-fg-muted"
+                  >{{ t('PNG, JPEG or SVG up to 512 KiB.') }}<br />{{ t('Maximum size: 660 × 220 px (width × height), ratio 3:1.')
+                  }}<br />{{ t('Shown at up to 195 × 65 px on the login page and 40 px high in the header.') }}</span
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="flex gap-2">
+          <button class="btn" :disabled="saving || !stored">
+            <LoaderCircle v-if="saving" :size="14" class="motion-safe:animate-spin" /><Check v-else :size="14" />
+            {{ saving ? t('Saving…') : t('Save settings') }}
+          </button>
+          <button type="button" class="btn-ghost" @click="load"><RotateCcw :size="13" /> {{ t('Discard changes') }}</button>
         </div>
-      </section>
-
-      <div class="flex gap-2">
-        <button class="btn" :disabled="busy || !stored"><Check :size="14" /> {{ busy ? t('Saving…') : t('Save settings') }}</button>
-        <button type="button" class="btn-ghost" @click="load"><RotateCcw :size="13" /> {{ t('Discard changes') }}</button>
-      </div>
-    </form>
-
-    <div class="space-y-5 self-start">
-      <section class="card">
-        <div class="card-h">{{ t('From config.toml (read-only)') }}</div>
-        <table class="grid-t border-0">
-          <tbody>
-            <tr v-for="[k, v] in readonlyRows" :key="k">
-              <td class="w-px font-semibold whitespace-nowrap text-fg-strong">{{ k }}</td>
-              <!-- one line per value; a value that does not fit shows in full on hover -->
-              <td class="max-w-0 truncate font-mono text-[11px] whitespace-nowrap" :title="v">{{ v }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p class="border-t border-line px-3 py-2 text-[11px] text-fg-muted">
-          {{ t('Edit /opt/ad-manager/config.toml and restart the ad-manager service to change these.') }}
-        </p>
-        <p class="px-3 pb-2 text-[11px] text-fg-muted">{{ t('Signed in as {user}.', { user: auth.user }) }}</p>
-      </section>
-
+      </form>
       <section class="card">
         <div class="card-h">{{ t('File server agent token') }}</div>
         <div class="space-y-3 px-3 py-3 text-[12px]">
-          <p class="text-fg-muted">
-            {{ t('Register the token in Shares → + new, and run the command on the file server: it keeps only the hash.') }}
-          </p>
-          <button type="button" class="btn-ghost" @click="newAgentToken"><KeyRound :size="13" /> {{ t('Generate token') }}</button>
+          <div class="flex items-center gap-3">
+            <p class="min-w-0 flex-1 text-fg-muted">
+              {{ t('Register the token in Shares → + new, and run the command on the file server: it keeps only the hash.') }}
+            </p>
+            <button type="button" class="btn-ghost shrink-0" @click="newAgentToken">
+              <KeyRound :size="13" /> {{ t('Generate token') }}
+            </button>
+          </div>
           <template v-if="agentToken">
             <div>
               <label class="lbl" for="agt">{{ t('Token (shown only now)') }}</label>
@@ -274,6 +294,55 @@ const readonlyRows = computed(() => {
             </div>
           </template>
         </div>
+      </section>
+    </div>
+
+    <div class="space-y-4 self-start">
+      <section class="card">
+        <div class="card-h">{{ t('From config.toml (read-only)') }}</div>
+        <table class="grid-t border-0">
+          <tbody>
+            <tr v-for="[k, v] in readonlyRows" :key="k">
+              <td class="w-px font-semibold whitespace-nowrap text-fg-strong">{{ k }}</td>
+              <!-- one line per value; a value that does not fit shows in full on hover -->
+              <td class="max-w-0 truncate font-mono text-[11px] whitespace-nowrap" :title="v">{{ v }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="border-t border-line px-3 py-2 text-[11px] text-fg-muted">
+          {{ t('Edit /opt/ad-manager/config.toml and restart the ad-manager service to change these.') }}
+          {{ t('Signed in as {user}.', { user: auth.user }) }}
+        </p>
+      </section>
+
+      <section class="card">
+        <div class="card-h">{{ t('Import from an existing AD') }}</div>
+        <form class="space-y-3 px-3 py-3 text-[12px]" @submit.prevent="saveImportCred">
+          <p class="text-fg-muted">
+            {{
+              t(
+                "This domain's administrator, for the GPO import of From another AD: kept encrypted in the panel's database and sent to the DC agent with each task only. Remove it after the import.",
+              )
+            }}
+          </p>
+          <p v-if="importCred.set" class="font-semibold text-ok">{{ t('Kept for {user}.', { user: importCred.user }) }}</p>
+          <div class="flex items-end gap-2">
+            <div class="min-w-0 flex-1">
+              <label class="lbl" for="icu">{{ t('User') }}</label
+              ><input id="icu" v-model.trim="importForm.user" class="inp" autocomplete="off" required />
+            </div>
+            <div class="min-w-0 flex-1">
+              <label class="lbl" for="icp">{{ t('Password') }}</label
+              ><input id="icp" v-model="importForm.password" type="password" class="inp" autocomplete="new-password" required />
+            </div>
+            <button class="btn-ghost" :disabled="importBusy || !importForm.user || !importForm.password">
+              <KeyRound :size="13" /> {{ t('Save') }}
+            </button>
+            <button v-if="importCred.set" type="button" class="btn-ghost" @click="removeImportCred">
+              <Trash2 :size="13" /> {{ t('Remove') }}
+            </button>
+          </div>
+        </form>
       </section>
     </div>
   </div>

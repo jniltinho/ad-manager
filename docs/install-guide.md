@@ -16,19 +16,20 @@ Everything is on the [Releases page](https://github.com/jniltinho/ad-manager/rel
 |---|---|---|---|
 | **Web panel** (`ad-manager server`) | Linux amd64 server, can be the DC itself | `ad-manager_X.Y.Z_amd64.deb` | `ad-manager_vX.Y.Z_linux_amd64.tar.gz` |
 | **Agent** (`ad-manager agent`) | each Samba file server, or the DC that also serves files | the same `.deb` | the same `.tar.gz` |
-| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_vX.Y.Z_linux_amd64.tar.gz`, `…_windows_amd64.zip`, `…_darwin_universal.zip` |
+| **Desktop app** (`ad-manager-desktop-rs`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop-rs_X.Y.Z_linux_x86_64.tar.gz`, `…_windows_x86_64.zip`, `…_macos_universal.zip` (releases tagged `desktop-rust-vX.Y.Z`) |
 | CLI and MCP (`ad-manager …`) | any machine with LDAPS to a DC | the same `.deb` | the same `.tar.gz` (Linux; on Windows, build it from source) |
 
 The panel, the agent, the CLI and MCP are **one binary** (`ad-manager`); what a machine runs depends on which systemd
-unit you enable. The server tarball and zip hold only the binary, a `config.toml` (a copy of
+unit you enable. The server tarball holds only the binary, a `config.toml` (a copy of
 [`config.toml.example`](../config.toml.example)) and the README: the systemd units and `deploy/install.sh` are taken
-from the repository at the same tag (below). The Windows zip is for the CLI and MCP; the panel's units, the setup
-wizard and the agent's Samba work are Linux only.
+from the repository at the same tag (below). The panel's units, the setup wizard and the agent's Samba work are Linux
+only.
 
-Check what you downloaded:
+Check what you downloaded (the server's release lists `checksums.txt`, the desktop app's `SHA256SUMS`):
 
 ```bash
-sha256sum -c checksums.txt --ignore-missing
+sha256sum -c checksums.txt --ignore-missing   # server release
+sha256sum -c SHA256SUMS --ignore-missing      # desktop release
 ```
 
 ## Prerequisites
@@ -38,7 +39,7 @@ sha256sum -c checksums.txt --ignore-missing
 | Panel | Linux amd64 (tested on **Ubuntu 26.04**); LDAPS (636) and Kerberos (TCP 88 and 464, for password links) to a DC; the browsers reach the panel port (8443); optional Redis (queues, the agent) |
 | Agent on a file server | a Samba domain member (`samba`, `winbind`, `acl`, `python3-samba`, `vfs objects = acl_xattr`); a Redis (`redis-server`, usually local); the panel reaches its port 9443 |
 | Agent on a DC | the Samba DC itself, with the panel ([dc-file-server.md](dc-file-server.md)); `tdb-tools` for DC backups |
-| Desktop app | a desktop session (Linux X11 or Wayland with OpenGL — `libgl1`; Windows 10+; macOS 12+); HTTPS to the panel only |
+| Desktop app | a desktop session (Linux X11 or Wayland with Vulkan or OpenGL, or software rendering; Windows 10+; macOS 12+); HTTPS to the panel only |
 | Setup wizard | a fresh Ubuntu 26.04 server, the `.deb`, `redis-server`, a synchronized clock and 2 GiB free (10 GiB for backups) |
 
 A domain that does not exist yet (a new domain, an additional DC or a file server) is created by the setup wizard
@@ -57,7 +58,6 @@ Both install methods use the same layout, so upgrades and support steps are the 
 | `/opt/ad-manager/data/` | SQLite, setup token, self-signed certificate | `0750 ad-manager` |
 | `/opt/ad-manager/logs/` | `audit.log`, `access.log` | `0750 ad-manager` |
 | `/opt/ad-manager/agent.token` | SHA-256 of the agent token (agent only) | `0600 root` |
-| `/opt/ad-manager/import.pass` | the import write modes' password, only after a prepared setup ([below](#write-modes-gates)) | `0600 root` |
 | `ad-manager.service`, `ad-manager-agent.service` | the units: `/usr/lib/systemd/system/` (`.deb`) or `/etc/systemd/system/` (binary) | `0644 root` |
 
 The panel runs as the `ad-manager` user with only `data/` and `logs/` writable; the agent runs as root (it changes
@@ -244,6 +244,7 @@ default and reported by `/api/health` (`files`, `gpo_restore`, `password_migrati
 | Key(s) | Turns on | Reference |
 |---|---|---|
 | `dc_file_server = true` | the DC changes files and shares (its own share roots) | [dc-file-server.md](dc-file-server.md) |
+| `import_modes = true` | both import modes below, with no secret on the DC (the GPO credential comes from the panel) | [installation.md](installation.md#import-from-an-existing-ad) |
 | `gpo_restore_user`, `gpo_restore_password_file` | restoring and importing GPOs (always as new GPOs) | [gpo.md](gpo.md) |
 | `password_migration_user`, `password_migration_password_file` | the password-material migration of a new-domain cutover | [password-migration.md](password-migration.md) |
 
@@ -251,9 +252,9 @@ Not a gate, but also in `[agent]`: `sync_unconfined = true` lets a sync run with
 without systemd only, [sync.md](sync.md)).
 
 The password files are regular `0600 root` files with only the password, never in `config.toml`. A new domain created
-by the setup wizard with **Prepare the import of GPOs and passwords** has both import modes pointing to
-`/opt/ad-manager/import.pass`; `sudo rm /opt/ad-manager/import.pass` turns both off on that DC
-([installation.md](installation.md#import-from-an-existing-ad)).
+by the setup wizard with **Prepare the import of GPOs and passwords** has `import_modes = true` instead, with the
+administrator credential encrypted in the panel's database (*Settings → Import from an existing AD*); remove it there and
+delete the `import_modes` line to turn both off on that DC ([installation.md](installation.md#import-from-an-existing-ad)).
 
 ### Verify
 
@@ -272,9 +273,9 @@ The desktop app is a client of the panel's API only (the file servers through th
 
 | System | Install |
 |---|---|
-| Linux | `tar xzf ad-manager-desktop_vX.Y.Z_linux_amd64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop` |
-| Windows | unzip `ad-manager-desktop_vX.Y.Z_windows_amd64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` |
-| macOS | unzip `…_darwin_universal.zip` and move `ad-manager-desktop.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
+| Linux | `tar xzf ad-manager-desktop-rs_X.Y.Z_linux_x86_64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop-rs` |
+| Windows | unzip `ad-manager-desktop-rs_X.Y.Z_windows_x86_64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop-rs.exe` |
+| macOS | unzip `…_macos_universal.zip` and move `AD Manager (Rust).app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
 
 On the first run the **Configure** screen asks for the panel URL, the user, the password and the language; **Test
 connection** signs in for real (a self-signed certificate is shown with its fingerprint, to trust once), and **Save**
@@ -345,7 +346,6 @@ sudo rm -rf /opt/ad-manager/ad-manager /opt/ad-manager/config.toml /opt/ad-manag
 
 **Desktop app:** delete its folder (with its `.config/`) or the `.app`, and the user configuration folder if used:
 `~/.config/ad-manager/` (Linux), `~/Library/Application Support/ad-manager/` (macOS), `%AppData%\ad-manager` (Windows).
-A file of an older version may still hold agent tokens (the current app removes them on start).
 
 Uninstalling never touches Samba, the domain, the shares or the backups in `/var/backups/ad-manager`; remove an agent
 from the panel under **Shares → File servers**.

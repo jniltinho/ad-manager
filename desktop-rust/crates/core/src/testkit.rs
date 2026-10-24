@@ -184,7 +184,24 @@ pub fn demo(users: usize) -> Arc<Route> {
         if r.method != "GET" {
             return match p {
                 "/api/login" => ok(json!({"ok": true})),
+                "/api/agents/token" => ok(
+                    json!({"token": "Tk-EXAMPLE-0001", "hash": "h", "command": "echo h | sudo tee /opt/ad-manager/agent.token"}),
+                ),
                 "/api/agents/1/tasks" => ok(json!({"id": "t1", "state": "pending"})),
+                "/api/import/ad/plan" | "/api/import/ad/apply" | "/api/import/plan" | "/api/import/apply" => {
+                    // the server's preview has no passwords yet: null, as Go encodes a nil map
+                    let passwords =
+                        if p.ends_with("/plan") { json!(null) } else { json!({"ana.souza":"Gen-Pass-0001"}) };
+                    ok(json!({"plan":[
+                    {"kind":"ou.create","target":"OU=Sales,DC=domain,DC=local","detail":"","result":"created","ok":true},
+                    {"kind":"user.create","target":"ana.souza","detail":"Ana Souza → OU=Sales","result":"created","ok":true},
+                    {"kind":"member.add","target":"Sales","detail":"ana.souza","result":"added","ok":true},
+                    {"kind":"skip","target":"Administrator","detail":"protected account","result":"","ok":true}],
+                    "passwords":passwords,"counts":{"users":24,"groups":12,"ous":5,"computers":8}}))
+                }
+                "/api/agents/1/syncs/public/preview" => {
+                    ok(json!({"id": "p1", "job": "public", "preview": true, "status": "running"}))
+                }
                 "/api/users/bruno.silva/password-link" => {
                     ok(json!({"token": "Zq3xY7", "expires": "2026-10-24T10:00:00Z"}))
                 }
@@ -193,20 +210,26 @@ pub fn demo(users: usize) -> Arc<Route> {
         }
         match p {
             "/api/health" => ok(json!({"domain":"domain.local","netbios":"DOMAIN","version":"0.22.0","ldap":"up",
-                "brand":{"theme":"classic-blue","flat":true,"company":"Example Company Ltd","lang":"en","logo":false}})),
+                "brand":{"theme":"classic-blue","flat":false,"company":"Example Company Ltd","lang":"en","logo":false}})),
             "/api/i18n" => ok(json!({"messages": {}, "patterns": []})),
             "/api/me" => {
                 ok(json!({"user":"administrator","domain":"domain.local","netbios":"DOMAIN","version":"0.22.0",
-                "brand":{"theme":"classic-blue","flat":true,"company":"Example Company Ltd"},
+                "brand":{"theme":"classic-blue","flat":false,"company":"Example Company Ltd"},
                 "settings":{"lang":"en","inactive_days":90,"password_length":14,"default_ou":""}}))
             }
             "/api/summary" => {
                 let c = |f: &dyn Fn(&Value) -> bool| list.iter().filter(|u| f(u)).count();
                 ok(json!({"users":{"enabled": c(&|u| u["enabled"] == true), "disabled": c(&|u| u["enabled"] == false),
                     "locked": c(&|u| u["locked"] == true)}, "groups": 42, "computers": 18,
-                    "policy":{"complexity": true, "min_length": 7}}))
+                    "policy":{"complexity": true, "min_length": 7}, "server": "ldaps://dc01.domain.local",
+                    "dcs": [{"name":"DC01","sam":"DC01$","dn":"CN=DC01,OU=Domain Controllers,DC=domain,DC=local","dns_name":"dc01.domain.local","os":"Windows Server 2022 Standard","os_version":"10.0 (20348)","enabled":true,"is_dc":true,"last_logon":"2026-10-22T07:00:00Z"}],
+                    "os": {"Windows 11 Pro": 11, "Windows 10 Pro": 4, "Windows Server 2022 Standard": 1, "Samba": 1, "Windows 7 Professional": 1}}))
             }
             "/api/users" => (200, list_json.clone()),
+            "/api/gpos" => ok(json!({"gpos": [
+                {"guid":"{31B2F340-016D-11D2-945F-00C04FB984F9}","name":"Default Domain Policy","user_enabled":true,"machine_enabled":true,"user_version":0,"machine_version":3,"extensions":["Security"],"links":[{"target":"DC=domain,DC=local","enforced":false,"disabled":false,"order":1}]},
+                {"guid":"{6AC1786C-016F-11D2-945F-00C04FB984F9}","name":"Default Domain Controllers Policy","user_enabled":true,"machine_enabled":true,"user_version":0,"machine_version":1,"extensions":["Security"],"links":[{"target":"OU=Domain Controllers,DC=domain,DC=local","enforced":false,"disabled":false,"order":1}]}],
+                "containers": []})),
             "/api/groups" => ok(json!([
                 {"name":"Domain Admins","type":"security","scope":"global","protected":true,"member_count":2,"description":"Designated administrators of the domain"},
                 {"name":"Domain Users","type":"security","scope":"global","protected":true,"member_count":users,"description":"All domain users"},
@@ -230,10 +253,40 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"name":"PC-FIN-01","sam":"PC-FIN-01$","dn":"CN=PC-FIN-01,CN=Computers,DC=domain,DC=local","dns_name":"pc-fin-01.domain.local","os":"Windows 11 Pro","os_version":"10.0 (26100)","enabled":true,"is_dc":false,"last_logon":"2026-10-20T08:00:00Z"},
                 {"name":"PC-OLD-02","sam":"PC-OLD-02$","dn":"CN=PC-OLD-02,CN=Computers,DC=domain,DC=local","dns_name":"pc-old-02.domain.local","os":"Windows 7 Professional","os_version":"6.1 (7601)","enabled":false,"is_dc":false,"last_logon":"2025-01-10T08:00:00Z"},
             ])),
+            // a session that ended, for the tests of the 401 handling
+            "/api/expired-probe" => (401, json!({"error": "session expired"}).to_string()),
+            "/api/ad-sources" => ok(
+                json!([{"id":1,"name":"legacy-2008","url":"ldap://old-dc.old.local","domain":"old.local","user":"migrator","insecure":true,"has_password":true}]),
+            ),
+            "/api/settings/import-credential" => ok(json!({"user": "Administrator", "set": true})),
+            "/api/settings" => ok(json!({"stored": true, "logo": false,
+                "settings": {"lang":"en","session_minutes":30,"inactive_days":90,"password_length":14,"default_ou":"",
+                    "company":"Example Company Ltd","support_url":"","swagger":false,"theme":"classic-blue","flat":false},
+                "readonly": {"ad_url":"ldaps://dc01.domain.local","domain":"domain.local","base_dn":"DC=domain,DC=local",
+                    "ca_file":"","admin_group":"","listen":":8443","tls":true,"self_signed":true,"trust_proxy":false,
+                    "audit_log":"/var/log/ad-manager/audit.log","db":"/opt/ad-manager/data/ad-manager.db","redis":"127.0.0.1:6379","version":"0.22.0"}})),
+            "/api/dns/zones" => {
+                ok(json!([{"name":"domain.local","reverse":false},{"name":"_msdcs.domain.local","reverse":false},
+                {"name":"10.168.192.in-addr.arpa","reverse":true}]))
+            }
+            "/api/dns/records" => ok(json!({"records": [
+                {"name":"@","type":"SOA","ttl":3600,"data":"dc01.domain.local. hostmaster.domain.local."},
+                {"name":"@","type":"NS","ttl":900,"data":"dc01.domain.local."},
+                {"name":"dc01","type":"A","ttl":900,"data":"192.0.2.10"},
+                {"name":"fs01","type":"A","ttl":1200,"data":"192.0.2.20"},
+                {"name":"intranet","type":"CNAME","ttl":3600,"data":"fs01.domain.local."}],
+                "nodes": [{"name":"_sites","children":1},{"name":"_tcp","children":4},{"name":"DomainDnsZones","children":2}]})),
+            "/api/computers/sessions" => ok(json!({"host":"ws01.domain.local","sessions":[
+                {"user":"DOMAIN\\bruno.silva","client":"192.0.2.51","open_files":3,"active_seconds":7500,"idle_seconds":40},
+                {"user":"DOMAIN\\ana.souza","client":"192.0.2.62","open_files":0,"active_seconds":180,"idle_seconds":180}]})),
             "/api/agents" => ok(json!([{"id":1,"name":"FS01","url":"https://fs01.domain.local:8445"}])),
             "/api/policy" => ok(
                 json!({"complexity":true,"min_length":7,"history":24,"min_age_days":1,"max_age_days":42,"lockout_threshold":10,"lockout_minutes":30,"lockout_window_minutes":30}),
             ),
+            "/api/http-log" => ok(json!([
+                {"time":"2026-10-22T10:01:00Z","ip":"10.0.0.15","user":"administrator","method":"POST","path":"/api/users/bruno.silva/password","status":200,"ms":41.2,"error":""},
+                {"time":"2026-10-22T10:00:58Z","ip":"10.0.0.15","user":"administrator","method":"GET","path":"/api/users","status":200,"ms":12.7,"error":""},
+                {"time":"2026-10-22T09:12:00Z","ip":"10.0.0.21","user":"","method":"POST","path":"/api/login","status":403,"ms":220.4,"error":"user is not a domain administrator"}])),
             "/api/audit" => ok(json!([
                 {"time":"2026-10-22T10:01:00Z","actor":"administrator","ip":"10.0.0.15","action":"user.password","target":"bruno.silva","result":"ok"},
                 {"time":"2026-10-22T09:40:00Z","actor":"administrator","ip":"10.0.0.15","action":"group.member.add","target":"Finance","result":"ok"},
@@ -250,18 +303,59 @@ pub fn demo(users: usize) -> Arc<Route> {
             "/api/agents/1/backup-schedules" => ok(
                 json!([{"id":"nightly","kind":"fileserver-data","cron":"0 1 * * *","retention":{"chains":4,"days":0},"enabled":true}]),
             ),
+            "/api/agents/1/syncs/quarantines" => ok(json!({"quarantines":[
+                {"name":"20261022-0100-finance","job":"finance","run":"r1","dest":"/srv/shares/finance","created":"2026-10-22T01:04:38Z","files":2,"size":3145728}],
+                "space":[]})),
+            "/api/agents/1/syncs/quarantines/20261022-0100-finance/files" => ok(json!({"files":[
+                {"path":"finance/old-budget.xlsx","size":2097152,"in_dest":false,"modified":"2026-09-30T18:00:00Z"},
+                {"path":"finance/notes.txt","size":1048576,"in_dest":true,"modified":"2026-10-01T10:00:00Z"}]})),
             "/api/agents/1/syncs" => ok(
                 json!({"jobs":[{"id":"finance","name":"finance · old-fs","rev":2,"approved_rev":2,"source":{"host":"old-fs.domain.local","share":"dados","path":"finance","auth":"kerberos"},
-                "dest":"/srv/shares/finance","mode":"mirror","cron":"0 1 * * *","enabled":true,"max_delete":100,"max_delete_pct":20,"reinherit":true}],
+                "dest":"/srv/shares/finance","mode":"mirror","cron":"0 1 * * *","enabled":true,"max_delete":100,"max_delete_pct":20,"reinherit":true},
+                {"id":"public","name":"public · old-fs","rev":1,"approved_rev":1,"source":{"host":"old-fs.domain.local","share":"dados","path":"public","auth":"kerberos"},
+                "dest":"/srv/shares/public","mode":"copy","cron":"","enabled":false,"keep_days":30}],
                 "runs":[{"id":"r1","job":"finance","preview":false,"started":"2026-10-22T01:00:00Z","finished":"2026-10-22T01:04:38Z","status":"ok",
-                "result":{"plan":{"New":12,"Changed":3,"Delete":1,"Same":5400},"transfers":15,"deleted":1}}],"roots":["/srv/shares"],"file_server":true,"kerberos":true,"machine":"FS01$"}),
+                "result":{"plan":{"New":12,"Changed":3,"Delete":1,"Same":5400},"transfers":15,"deleted":1}},
+                {"id":"p1","job":"public","preview":true,"started":"2026-10-22T09:00:00Z","finished":"2026-10-22T09:00:20Z","status":"ok",
+                "result":{"plan":{"New":40,"NewBytes":52428800,"Changed":2,"ChangedBytes":1048576,"Same":900,"sample":{"new":["public/report-2026.pdf","public/photos/team.jpg"]}}}}],"roots":["/srv/shares"],"file_server":true,"kerberos":true,"machine":"FS01$"}),
             ),
             "/api/agents/1/shares" => ok(json!([
                 {"name":"finance","path":"/srv/shares/finance","comment":"Finance","rw_groups":["DOMAIN\\Finance"],"ro_groups":["DOMAIN\\Auditors"],"browseable":true},
                 {"name":"public","path":"/srv/shares/public","comment":"Everyone","rw_groups":["DOMAIN\\Domain Users"],"ro_groups":[],"browseable":true},
                 {"name":"it$","path":"/srv/shares/it","comment":"IT tools","rw_groups":["DOMAIN\\IT"],"ro_groups":[],"browseable":false},
             ])),
-            "/api/agents/1/sizes" => ok(json!({"sizes":{"finance":12884901888_i64,"public":734003200,"it$":52428800}})),
+            "/api/agents/1/acl" => ok(json!({"aces":[
+                {"sid":"S-1-5-32-544","name":"BUILTIN\\Administrators","type":"allow","access":"full"},
+                {"sid":"S-1-5-18","name":"NT AUTHORITY\\SYSTEM","type":"allow","access":"full"},
+                {"sid":"S-1-5-21-1-1104","name":"DOMAIN\\Finance","type":"allow","access":"rw"},
+                {"sid":"S-1-5-21-1-1105","name":"DOMAIN\\Auditors","type":"allow","access":"ro"}]})),
+            "/api/agents/1/dirs" => ok(json!({"roots": ["/srv/shares", "/srv/projects"]})),
+            "/api/agents/1/acl/history" => ok(json!([
+                {"path":"/srv/shares/finance","time":"2026-10-20T14:30:00Z","before":"O:BAG:DUD:(A;OICI;FA;;;BA)"},
+                {"path":"/srv/shares/finance","time":"2026-10-01T09:00:00Z","before":""}])),
+            "/api/agents/1/health" => ok(json!({"status":"ok","dc":false,"files":true,"samba":true})),
+            "/api/agents/1/sessions" => ok(json!({"sessions":[
+                {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.0.2.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],
+                "open_files":[{"path":"/srv/shares/finance/budget-2026.xlsx","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.0.2.51","access":"RW","opened_at":"2026-10-22T09:12:00Z"}]})),
+            // the agent's cache: one fresh, one older than 6 h, one partial; refresh=1 answers with a scan running
+            "/api/agents/1/sizes" => {
+                let ago = |m: i64| (chrono::Utc::now() - chrono::Duration::minutes(m)).to_rfc3339();
+                let scanning = if r.path.contains("refresh=1") {
+                    json!({"kind":"manual","started_at":ago(0),"done":1,"count":3,"current":"public"})
+                } else {
+                    json!(null)
+                };
+                ok(json!({"sizes":{"finance":12884901888_i64,"public":734003200},"at":ago(10),
+                    "shares":{
+                        "finance":{"path":"/srv/shares/finance","real_path":"/srv/shares/finance","bytes":12884901888_i64,"measured_at":ago(10),"attempted_at":ago(10),"error":""},
+                        "public":{"path":"/srv/shares/public","real_path":"/srv/shares/public","bytes":734003200,"measured_at":ago(420),"attempted_at":ago(420),"error":""},
+                        "it$":{"path":"/srv/shares/it","real_path":"/srv/shares/it","partial_bytes":52428800,"attempted_at":ago(10),"error":"du: cannot read directory '/srv/shares/it/old': Permission denied"}},
+                    "total":13671333888_i64,"total_complete":false,"oldest_at":ago(420),"scanning":scanning,"next_at":ago(-230)}))
+            }
+            p if p.starts_with("/api/samba/logs/") || p.starts_with("/api/agents/1/samba/logs/") => ok(json!([
+                {"time":"2026/10/22 09:12:04","level":0,"source":"../../source3/smbd/server.c:1745(main)","message":"smbd version 4.23.2 started.\nCopyright Andrew Tridgell and the Samba Team 1992-2025"},
+                {"time":"2026/10/22 08:40:11","level":2,"source":"../../source3/auth/auth.c:327(auth_check_ntlm_password)","message":"check_ntlm_password: Authentication for user [bruno.silva] -> [bruno.silva] FAILED with error NT_STATUS_WRONG_PASSWORD"},
+                {"time":"2026/10/22 08:05:59","level":3,"source":"../../source3/smbd/service.c:1109(make_connection_snum)","message":"192.0.2.51 (ipv4:192.0.2.51:50122) connect to service finance initially as user DOMAIN\\bruno.silva"}])),
             p if p.starts_with("/api/agents/1/tasks/") => ok(json!({"id":"t1","state":"completed"})),
             p if p.starts_with("/api/users/") => {
                 let sam = p.trim_start_matches("/api/users/");

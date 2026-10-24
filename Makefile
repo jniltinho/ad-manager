@@ -1,4 +1,4 @@
-.PHONY: desktop desktop-linux desktop-windows desktop-macos server deb all frontend build build-prod test test-integration check run dev docker-build docker-allinone docker-push samba-up samba-down clean
+.PHONY: desktop desktop-check desktop-test desktop-shots desktop-themes server deb all frontend build build-prod test test-integration check run dev docker-build docker-allinone docker-push samba-up samba-down clean
 
 BINARY := ad-manager
 DIST   := dist
@@ -15,7 +15,7 @@ all: build
 frontend:
 	cd frontend && npm ci && npm run build
 
-# Everything in dist/ (not tracked by git): server binary and the desktop app.
+# Everything in dist/ (not tracked by git): server binary and the desktop app (Rust).
 build: server desktop
 
 # Server binary (panel, CLI, MCP, agent).
@@ -31,7 +31,6 @@ test:
 	go vet ./...
 	go test ./... -count=1
 	cd third_party/go-msrpc && go test ./dcerpc -run 'TestBodyComplete' -count=1  # the security patch (PATCHED.md)
-	cd desktop && go vet ./... && go test ./... -count=1
 	cd frontend && npm run test
 
 # Requires the test Samba AD: make samba-up (Docker) or the lab VM.
@@ -71,38 +70,20 @@ samba-up:
 samba-down:
 	docker compose -f docker/compose.yml down -v
 
-# Desktop app (Fyne, CGO + OpenGL), separate module in desktop/. The binary is
-# always named ad-manager-desktop; each platform gets its own folder:
-#   dist/desktop/linux-amd64/ad-manager-desktop
-#   dist/desktop/windows-amd64/ad-manager-desktop.exe   (cross-compiled with zig)
-#   dist/desktop/darwin-{arm64,amd64,universal}/…       (on a Mac: desktop/Makefile)
-ZIG       ?= $(shell command -v zig 2>/dev/null || echo /usr/local/zig/zig)
-MACOS_SDK ?=
-DESKTOP_LDFLAGS := -s -w -X main.version=$(VERSION)
-DESKTOP_OUT     := ../$(DIST)/desktop
+# Desktop app (Rust/egui, desktop-rust/): every recipe runs in Docker (its pinned toolchain image), nothing to install
+# but Docker. The Fyne app in desktop/ is archived (kept as code only: not built, tested or released).
+#   make desktop          Linux and Windows archives and the Linux binary in dist/desktop-rust/
+#   make desktop-check    what its CI runs: format, clippy, tests and cargo-deny
+#   make desktop-test     unit and UI acceptance tests only
+#   make desktop-shots    its docs screenshots (docs/screenshots/desktop-rs-*.png)
+#   make desktop-themes   themes.json again from the web's theme CSS
+desktop:
+	$(MAKE) -C desktop-rust dist DIST=$(CURDIR)/$(DIST)/desktop-rust
+	cp desktop-rust/target/docker/release/ad-manager-desktop-rs $(DIST)/desktop-rust/
+	rm -rf $(DIST)/desktop-rust/stage-*
 
-desktop: desktop-linux desktop-windows desktop-macos
-
-desktop-linux:
-	cd desktop && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(DESKTOP_LDFLAGS)" \
-		-o $(DESKTOP_OUT)/linux-amd64/ad-manager-desktop .
-
-# -H=windowsgui plus the linker flag: with an external linker both are needed
-# for a GUI app (no console window).
-desktop-windows:
-	cd desktop && CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
-		CC="$(ZIG) cc -target x86_64-windows-gnu" CXX="$(ZIG) c++ -target x86_64-windows-gnu" \
-		go build -trimpath -ldflags "$(DESKTOP_LDFLAGS) -H=windowsgui -extldflags=-Wl,--subsystem,windows" \
-		-o $(DESKTOP_OUT)/windows-amd64/ad-manager-desktop.exe .
-
-# macOS (Intel, Apple Silicon, universal and .app): see desktop/Makefile. It
-# needs Apple's SDK, so it runs on a Mac (or with MACOS_SDK=…); otherwise skipped.
-desktop-macos:
-	@if [ "$$(uname -s)" = Darwin ] || [ -n "$(MACOS_SDK)" ]; then \
-		$(MAKE) -C desktop mac VERSION=$(VERSION) MACOS_SDK=$(MACOS_SDK); \
-	else \
-		echo "desktop-macos: skipped (no macOS SDK). On a Mac: cd desktop && make mac (docs/desktop.md)."; \
-	fi
+desktop-check desktop-test desktop-shots desktop-themes:
+	$(MAKE) -C desktop-rust $(patsubst desktop-%,%,$@)
 
 # .deb package (nfpm) in dist/: binary, systemd units, config 0640 and docs.
 deb: build-prod

@@ -12,7 +12,7 @@
   --color-link: #0043a8; /* AAA, was #0060c8 */
   --color-link-hover: #00479a; /* AAA on row-hover (tables), was #004fa6 */
   --color-page: #ececec;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(0, 0, 0, 0.25);
   --color-surface: #ffffff;
   --color-surface-2: #f5f5f7;
   --color-surface-3: #e8e8ed;
@@ -157,7 +157,7 @@
   --color-login-field-line: #8e8e93;
   --color-login-focus: #0064e1; /* AAA: solid, 3 px (--focus-ring-w), >= 3:1 against the login box; was rgba(0, 100, 225, 0.4) */
   --color-logo-plate: transparent;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
   --bg-tab-on: none;
@@ -178,21 +178,21 @@
   --shadow-btn-danger: var(--bevel-raised), 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   --shadow-field-focus: 0 0 0 3px #0064e1; /* 3 px, >= 3:1 against the surface (as the focus outline) */
   --shadow-invalid: 0 0 0 2px rgba(196, 34, 26, 0.25);
-  --shadow-card: var(--bevel-raised), 0 1px 2px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-card: var(--bevel-raised), 0 0 3px rgba(0, 0, 0, 0.1);
   --shadow-field: var(--bevel-sunken), inset 0 1px 2px rgba(0, 0, 0, 0.08);
   --shadow-table-head: var(--bevel-raised), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
-  --shadow-dialog: 0 8px 28px rgba(0, 0, 0, 0.22);
+  --shadow-dialog: 0 2px 8px rgba(0, 0, 0, 0.16);
   --shadow-pop: 0 6px 16px rgba(0, 0, 0, 0.22);
   --shadow-tip: 0 3px 10px rgba(0, 0, 0, 0.22);
-  --shadow-app: 0 2px 12px rgba(0, 0, 0, 0.22);
+  --shadow-app: 0 1px 4px rgba(0, 0, 0, 0.16);
   --shadow-tabs: inset 0 -1px rgba(0, 0, 0, 0.1);
   /* top tabs as in the other themes (gap, the current one taller with a 3 px top bar, here the system blue); the
      inner and card tabs stay a segmented control */
   --shadow-tab-on: inset 1px 0 rgba(0, 0, 0, 0.14), inset -1px 0 rgba(0, 0, 0, 0.14), inset 0 3px #0064e1;
   --shadow-subtab-on: inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.15);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.22);
+  --shadow-card-hover: 0 1px 4px rgba(0, 0, 0, 0.16);
   --shadow-nav-on: inset 3px 0 0 #0064e1; /* the selection keeps a >= 3:1 mark (the tint alone is ~1.3:1) */
-  --shadow-login-box: 0 6px 20px rgba(0, 0, 0, 0.22);
+  --shadow-login-box: 0 0 4px rgba(0, 0, 0, 0.14);
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Inter', Arial, sans-serif;
   --font-size-base: 13px;
   --card-head-bar-w: 0px;
@@ -255,7 +255,7 @@
   --color-link: #78c2ff; /* AAA on row-hover too, was #62b6ff, before #4ea2ff */
   --color-link-hover: #88c1ff; /* AAA on row-hover (tables), was #77b8ff */
   --color-page: #323232;
-  --color-page-dots: transparent;
+  --color-page-dots: rgba(255, 255, 255, 0.18);
   --color-surface: #1e1e1e;
   --color-surface-2: #2a2a2a;
   --color-surface-3: #2c2c2e;
@@ -400,7 +400,7 @@
   --color-login-field-line: #7c7c80;
   --color-login-focus: #4ea2ff; /* AAA: solid, 3 px (--focus-ring-w), >= 3:1 against the login box; was rgba(78, 162, 255, 0.4) */
   --color-logo-plate: #f4f5f5;
-  --bg-page: none;
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
   --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
   --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
   --bg-tab-on: none;
@@ -421,20 +421,20 @@
   --shadow-btn-danger: var(--bevel-raised), 0 1px 2px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --shadow-field-focus: 0 0 0 3px #4ea2ff; /* 3 px, >= 3:1 against the surface (as the focus outline) */
   --shadow-invalid: 0 0 0 2px rgba(255, 105, 97, 0.25);
-  --shadow-card: var(--bevel-raised), 0 1px 2px rgba(255, 255, 255, 0.11), 0 4px 12px rgba(255, 255, 255, 0.11);
+  --shadow-card: var(--bevel-raised), 0 0 3px rgba(255, 255, 255, 0.06); /* a thin, soft glow */
   --shadow-field: var(--bevel-sunken), inset 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-table-head: var(--bevel-raised), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
-  --shadow-dialog: 0 8px 28px rgba(255, 255, 255, 0.15);
+  --shadow-dialog: 0 2px 8px rgba(255, 255, 255, 0.08);
   --shadow-pop: 0 6px 16px rgba(255, 255, 255, 0.15);
   --shadow-tip: 0 3px 10px rgba(255, 255, 255, 0.15);
   --shadow-app:
-    0 0 0 1px rgba(255, 255, 255, 0.15), 0 2px 12px rgba(255, 255, 255, 0.15); /* the 1 px line keeps the corners square under the glow */
+    0 0 0 1px rgba(255, 255, 255, 0.15), 0 1px 4px rgba(255, 255, 255, 0.08); /* the 1 px line keeps the corners square under the glow */
   --shadow-tabs: inset 0 -1px rgba(255, 255, 255, 0.1);
   --shadow-tab-on: inset 1px 0 rgba(255, 255, 255, 0.14), inset -1px 0 rgba(255, 255, 255, 0.14), inset 0 3px #4ea2ff;
   --shadow-subtab-on: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-  --shadow-card-hover: 0 4px 12px rgba(255, 255, 255, 0.15);
+  --shadow-card-hover: 0 1px 4px rgba(255, 255, 255, 0.1);
   --shadow-nav-on: inset 3px 0 0 #4ea2ff; /* the selection keeps a >= 3:1 mark (the tint alone is ~1.3:1) */
-  --shadow-login-box: 0 6px 20px rgba(255, 255, 255, 0.15);
+  --shadow-login-box: 0 0 4px rgba(255, 255, 255, 0.08);
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Inter', Arial, sans-serif;
   --font-size-base: 13px;
   --card-head-bar-w: 0px;

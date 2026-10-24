@@ -7,7 +7,7 @@ import { computed, ref } from 'vue'
 import { auth, get } from '../api'
 import { t } from '../i18n'
 import { toast } from '../toasts'
-import { downloadCsv, formatDate } from '../util'
+import { downloadCsv, formatDate, spinner } from '../util'
 import SambaLogs from '../components/SambaLogs.vue'
 import HttpLog from '../components/HttpLog.vue'
 import LoadingRow from '../components/LoadingRow.vue'
@@ -24,6 +24,7 @@ const search = ref('')
 const action = ref('')
 const failures = ref(false)
 const loading = ref(false)
+const spin = spinner(loading) // the refresh icon turns while loading, at least briefly
 async function load() {
   loading.value = true
   try {
@@ -81,7 +82,9 @@ const visible = computed(() => {
         <a v-if="auth.asynqmon" href="/asynqmon" target="_blank" rel="noopener" class="btn-ghost"
           ><ExternalLink :size="13" /> {{ t('Queues (asynqmon)') }}</a
         >
-        <button class="btn-ghost" :disabled="loading" @click="load"><RefreshCw :size="13" /> {{ t('Refresh') }}</button>
+        <button class="btn-ghost" :disabled="loading" @click="load">
+          <RefreshCw :class="spin && 'motion-safe:animate-spin'" :size="13" /> {{ t('Refresh') }}
+        </button>
         <button
           class="btn-ghost"
           @click="
@@ -99,7 +102,7 @@ const visible = computed(() => {
         </button>
       </div>
     </div>
-    <div class="max-h-[calc(var(--view-h)-260px)] overflow-auto border border-line">
+    <div class="max-h-[calc(var(--view-h)-306px)] overflow-auto border border-line">
       <table class="grid-t border-0">
         <thead>
           <tr>

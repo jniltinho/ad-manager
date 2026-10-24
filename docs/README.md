@@ -19,6 +19,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 | Preserve the users' passwords on a new-domain cutover | [password-migration.md](password-migration.md) |
 | Create folders and shares on the file servers | [agent.md](agent.md) |
 | Use Samba as DC and file server on the same machine | [dc-file-server.md](dc-file-server.md) |
+| Build that DC as a VM (separate XFS data disk) and move it to XCP-ng | [fileserver-vm.md](fileserver-vm.md) |
 | Bring folders over from another server (SMB) and restore files from quarantine | [sync.md](sync.md) |
 | Use the app on my machine (Linux, Windows, macOS) | [desktop.md](desktop.md) |
 | Automate from the terminal | [cli.md](cli.md) |
@@ -37,7 +38,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 | **CLI** (`ad-manager …`) | Cobra; everything the panel does, plus migration and export/import | any machine with LDAPS access |
 | **MCP** (`ad-manager mcp`) | MCP server (stdio) for AI agents; read-only by default | operator's machine |
 | **Agent** (`ad-manager agent`) | HTTPS API with token + asynq/Redis queue; folders, ACLs and shares (`net conf`) | each Samba file server (or the DC that also serves files) |
-| **Desktop app** (`ad-manager-desktop`) | Fyne; uses only the panel's API (shares and Samba logs through its proxy) | operator's machine |
+| **Desktop app** (`ad-manager-desktop-rs`) | Rust/egui (`desktop-rust/`; the Fyne app in `desktop/` is archived); uses only the panel's API (shares and Samba logs through its proxy) | operator's machine |
 | **Samba installer** (`scripts/samba-setup.py`) | new domain, additional DC or file server, with the panel or the agent already configured | Ubuntu 26.04 servers |
 
 A single binary (`ad-manager`) provides the panel, CLI, MCP and agent; the `.deb` package installs everything in
@@ -93,7 +94,7 @@ Details in [architecture.md](architecture.md).
 
 | Shares | Desktop app |
 |---|---|
-| ![Shares](screenshots/11-shares.png) | ![Desktop](screenshots/desktop-04-users.png) |
+| ![Shares](screenshots/11-shares.png) | ![Desktop](screenshots/desktop-rs-04-users.png) |
 
 All screens, web and desktop: [screenshots/README.md](screenshots/README.md).
 

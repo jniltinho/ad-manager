@@ -234,19 +234,20 @@
   --shadow-btn-danger: var(--bevel-raised), 0 1px 2px rgba(90, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   --shadow-field-focus: 0 0 0 2px rgba(17, 48, 88, 0.22);
   --shadow-invalid: 0 0 0 2px rgba(198, 40, 40, 0.2);
-  --shadow-card: var(--bevel-raised), 0 2px 6px rgba(17, 48, 88, 0.12);
+  --shadow-card: var(--bevel-raised), 0 0 3px rgba(17, 48, 88, 0.1);
   --shadow-field: var(--bevel-sunken);
-  --shadow-table-head: var(--bevel-raised), 0 1px 0 var(--color-cn-dark);
-  --shadow-dialog: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --shadow-table-head:
+    var(--bevel-raised), inset 0 -1px 0 rgba(0, 0, 0, 0.12); /* inside the band: an outer line showed as a stray dash under it */
+  --shadow-dialog: 0 2px 8px rgba(0, 0, 0, 0.16);
   --shadow-pop: 0 6px 16px rgba(14, 23, 45, 0.28);
   --shadow-tip: 0 3px 10px rgba(14, 23, 45, 0.3);
-  --shadow-app: 0 0 12px rgba(0, 0, 0, 0.5);
+  --shadow-app: 0 1px 4px rgba(0, 0, 0, 0.16); /* a soft, thin edge around the window */
   --shadow-tabs: 0 2px 4px rgba(14, 23, 45, 0.4);
   --shadow-tab-on: inset 0 -3px 0 var(--color-cn-accent);
   --shadow-subtab-on: inset 0 -3px 0 var(--color-cn-accent);
-  --shadow-card-hover: 0 6px 14px rgba(17, 48, 88, 0.22);
+  --shadow-card-hover: 0 1px 4px rgba(17, 48, 88, 0.16);
   --shadow-nav-on: 0 0 #0000;
-  --shadow-login-box: 0 2px 6px rgba(0, 0, 0, 0.18);
+  --shadow-login-box: 0 0 4px rgba(0, 0, 0, 0.14);
   --bg-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23113058'/%3E%3C/svg%3E");
   --tab-divider-w: 0px;
   /* top tabs: relief of the inactive ones, gap between tabs, how much lower the inactive ones start (classic tab
@@ -281,6 +282,21 @@
   --nav-on-last-line-w: 0px; /* bottom line of the current side item when it is the last one (divide-y skips it) */
   --tab-hover-filter: none;
   --table-head-h: auto;
+  /* sizes of controls, tables and badges, named so the desktop apps read the same values (desktop-rust themes.json) */
+  --control-h: 1.75rem; /* inputs, selects and buttons: 28 px border boxes */
+  --control-text: 12px;
+  --input-px: 0.5rem;
+  --select-pr: 24px; /* room for the select's arrow */
+  --button-px: 0.75rem;
+  --toolbar-gap: 0.5rem;
+  --toolbar-mb: 0.75rem;
+  --th-px: 0.5rem;
+  --th-py: 0.375rem;
+  --td-px: 0.5rem;
+  --td-py: 0.25rem;
+  --tag-px: 0.375rem;
+  --tag-py: 1px;
+  --tag-size: 10px;
   --card-head-bar-w: 4px;
   --card-head-size: 12px;
   --card-head-weight: 600;
@@ -381,16 +397,16 @@ body {
 @layer components {
   /* buttons with depth: vertical gradient, short shadow, pressed on click */
   .btn {
-    @apply inline-flex h-7 cursor-pointer items-center gap-1.5 border border-action-line bg-action bg-(image:--bg-action) px-3 text-xs font-semibold text-on-action shadow-(--shadow-btn) hover:bg-(image:--bg-action-hover) active:translate-y-px active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 transition-[box-shadow,transform,filter] duration-150;
+    @apply inline-flex h-(--control-h) cursor-pointer items-center gap-1.5 border border-action-line bg-action bg-(image:--bg-action) px-(--button-px) text-xs font-semibold text-on-action shadow-(--shadow-btn) hover:bg-(image:--bg-action-hover) active:translate-y-px active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 transition-[box-shadow,transform,filter] duration-150;
   }
   .btn:hover {
     filter: var(--btn-hover-filter);
   }
   .btn-ghost {
-    @apply inline-flex h-7 cursor-pointer items-center gap-1.5 border border-action-2-line bg-action-2 bg-(image:--bg-action-2) px-3 text-xs text-on-action-2 shadow-(--shadow-btn-2) hover:border-action-2-hover-line active:translate-y-px active:shadow-none disabled:opacity-50 transition-[border-color,box-shadow,transform] duration-150;
+    @apply inline-flex h-(--control-h) cursor-pointer items-center gap-1.5 border border-action-2-line bg-action-2 bg-(image:--bg-action-2) px-(--button-px) text-xs text-on-action-2 shadow-(--shadow-btn-2) hover:border-action-2-hover-line active:translate-y-px active:shadow-none disabled:opacity-50 transition-[border-color,box-shadow,transform] duration-150;
   }
   .btn-danger {
-    @apply inline-flex h-7 cursor-pointer items-center gap-1.5 border border-danger-line bg-danger bg-(image:--bg-danger) px-3 text-xs font-semibold text-on-danger shadow-(--shadow-btn-danger) active:translate-y-px active:shadow-none disabled:opacity-50;
+    @apply inline-flex h-(--control-h) cursor-pointer items-center gap-1.5 border border-danger-line bg-danger bg-(image:--bg-danger) px-(--button-px) text-xs font-semibold text-on-danger shadow-(--shadow-btn-danger) active:translate-y-px active:shadow-none disabled:opacity-50;
   }
   /* inner tabs (Logs) recipe, in the theme's tab style */
   .subtabs {
@@ -469,7 +485,7 @@ body {
     box-shadow: var(--shadow-btn-active);
   }
   .inp {
-    @apply h-7 w-full border border-field-line bg-field px-2 text-[12px] text-on-field shadow-(--shadow-field) outline-none focus:border-field-focus focus:shadow-(--shadow-field-focus) transition-[border-color,box-shadow] duration-150;
+    @apply h-(--control-h) w-full border border-field-line bg-field px-(--input-px) text-(length:--control-text) text-on-field shadow-(--shadow-field) outline-none focus:border-field-focus focus:shadow-(--shadow-field-focus) transition-[border-color,box-shadow] duration-150;
   }
   /* filled by the browser and focused: the focus ring and the inset shadow that hides the autofill background */
   .inp:-webkit-autofill:focus {
@@ -486,11 +502,11 @@ body {
     @apply w-full border-collapse border border-line text-[12px];
   }
   .grid-t th {
-    @apply sticky top-0 z-10 bg-table-head bg-(image:--bg-table-head) px-2 py-1.5 text-left font-semibold whitespace-nowrap text-on-table-head shadow-(--shadow-table-head);
+    @apply sticky top-0 z-10 bg-table-head bg-(image:--bg-table-head) px-(--th-px) py-(--th-py) text-left font-semibold whitespace-nowrap text-on-table-head shadow-(--shadow-table-head);
     height: var(--table-head-h);
   }
   .grid-t td {
-    @apply border-t border-line px-2 py-1 align-middle;
+    @apply border-t border-line px-(--td-px) py-(--td-py) align-middle;
   }
   .grid-t tbody tr:nth-child(even) {
     @apply bg-row-alt;
@@ -505,7 +521,7 @@ body {
     @apply inline-flex cursor-pointer items-center gap-0.5 px-1 text-link hover:text-link-hover transition-colors duration-150;
   }
   .tag {
-    @apply inline-block px-1.5 py-px text-[10px] font-semibold uppercase;
+    @apply inline-block px-(--tag-px) py-(--tag-py) text-(length:--tag-size) font-semibold uppercase;
   }
   .card {
     @apply border border-line bg-surface text-fg shadow-(--shadow-card);
@@ -765,7 +781,7 @@ dialog.pnl.closing::backdrop {
      the open list is themed too */
   select.inp {
     appearance: none;
-    padding-right: 24px;
+    padding-right: var(--select-pr);
     background: var(--color-field) var(--bg-select-arrow) no-repeat right 8px center;
     cursor: pointer;
   }

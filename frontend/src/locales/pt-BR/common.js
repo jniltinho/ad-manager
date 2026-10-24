@@ -32,6 +32,7 @@ export default {
   // login
   User: 'Usuário',
   Password: 'Senha',
+  'Signing in…': 'Entrando…',
   'Sign in': 'Entrar',
   Use: 'Use',
   user: 'usuario',
@@ -157,6 +158,12 @@ export default {
     'Link de uso único, válido até {date}. Sua senha anterior não funciona mais.',
   // agent token (Settings)
   'File server agent token': 'Token do agente de servidor de arquivos',
+  'Import from an existing AD': 'Importar de um AD existente',
+  "This domain's administrator, for the GPO import of From another AD: kept encrypted in the panel's database and sent to the DC agent with each task only. Remove it after the import.":
+    'O administrador deste domínio, para a importação de GPOs do De outro AD: fica guardado criptografado no banco do painel e só vai ao agente do DC junto de cada tarefa. Remova depois da importação.',
+  'Kept for {user}.': 'Guardada para {user}.',
+  'Import credential saved (encrypted).': 'Credencial de importação salva (criptografada).',
+  'Remove the import credential?': 'Remover a credencial de importação?',
   'Register the token in Shares → + new, and run the command on the file server: it keeps only the hash.':
     'Cadastre o token em Compartilhamentos → + novo e rode o comando no servidor de arquivos: ele guarda só o hash.',
   'Generate token': 'Gerar token',

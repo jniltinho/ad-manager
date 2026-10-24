@@ -44,7 +44,7 @@ permissions on Samba file servers.
 
 | Setup wizard | Desktop app |
 |---|---|
-| ![Setup](screenshots/setup-5-details.png) | ![Desktop](screenshots/desktop-04-users.png) |
+| ![Setup](screenshots/setup-5-details.png) | ![Desktop](screenshots/desktop-rs-04-users.png) |
 
 <p align="center">
   <img src="screenshots/themes.jpg" alt="The 18 themes" width="80%">
@@ -64,14 +64,15 @@ More in [screenshots/README.md](screenshots/README.md).
 | `ad-manager agent` | Runs on each Samba file server (or DC): folders, shares, ACLs, backups and sync through a task queue (Redis/asynq) |
 | `ad-manager` (CLI) | The same operations from a terminal, plus migration and import/export tools |
 | `ad-manager mcp` | Model Context Protocol server for AI agents |
-| `ad-manager-desktop` | Native app (Fyne) that talks only to the panel's API (the file servers through it) |
+| `ad-manager-desktop-rs` | Native app (Rust/egui) that talks only to the panel's API (the file servers through it) |
 
 ## Development
 
 ```bash
-make check && make test          # gofmt, vet, frontend lint, Go/frontend/desktop tests
+make check && make test          # gofmt, vet, frontend lint, Go and frontend tests
+make desktop-check               # the desktop app (Rust), in Docker
 make samba-up                    # a test Samba domain in Docker (empresa.test)
-make build                       # server and desktop app in dist/
+make build                       # server and desktop app (Rust) in dist/
 ```
 
 See [development.md](development.md). Issues and pull requests are welcome.

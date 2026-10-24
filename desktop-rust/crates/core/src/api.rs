@@ -60,6 +60,8 @@ pub struct Api {
     pub id: u64,
     /// A bearer token (tests); the app always uses the session cookie.
     token: Arc<str>,
+    /// Set by any answer that says the session ended (401), whoever made the call: the app goes back to sign-in.
+    expired: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl std::fmt::Debug for Api {
@@ -69,6 +71,19 @@ impl std::fmt::Debug for Api {
 }
 
 impl Api {
+    /// Whether an answer said this session ended (also to a call whose error the caller showed or ignored).
+    pub fn expired(&self) -> bool {
+        self.expired.load(Ordering::Relaxed)
+    }
+
+    fn check(&self, status: StatusCode, path: &str, data: &[u8]) -> ApiResult<()> {
+        let r = check(status, path, data, self.token.is_empty());
+        if r == Err(ApiError::SessionExpired) {
+            self.expired.store(true, Ordering::Relaxed);
+        }
+        r
+    }
+
     pub fn new(base: &str, trust: &Trust) -> ApiResult<Self> {
         let cfg = tls::client_config(trust).map_err(|e| ApiError::msg(e.to_string()))?;
         let client = reqwest::Client::builder()
@@ -87,6 +102,7 @@ impl Api {
             timeout: Some(Duration::from_secs(20)),
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             token: Arc::from(""),
+            expired: Default::default(),
         })
     }
 
@@ -124,6 +140,13 @@ impl Api {
         c
     }
 
+    /// A copy whose requests have no total timeout (an operation the server bounds itself in stages).
+    pub fn without_timeout(&self) -> Self {
+        let mut c = self.clone();
+        c.timeout = None;
+        c
+    }
+
     fn url(&self, path: &str) -> (String, String) {
         let path = match path.strip_prefix("/api") {
             Some(rest) if !self.prefix.is_empty() && rest.starts_with('/') => format!("{}{rest}", self.prefix),
@@ -155,7 +178,7 @@ impl Api {
         let resp = r.send().await.map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         Ok(data)
     }
 
@@ -189,6 +212,23 @@ impl Api {
         self.call(method, path, Some(&erased::Wrap(body))).await.map(|_| ())
     }
 
+    /// method path with a body already serialized (one with a secret, from `json_with_secret`), the answer decoded.
+    pub async fn send_bytes<T: DeserializeOwned + Default>(
+        &self,
+        method: Method,
+        path: &str,
+        body: &[u8],
+    ) -> ApiResult<T> {
+        let raw: &serde_json::value::RawValue =
+            serde_json::from_slice(body).map_err(|e| ApiError::Other(e.to_string()))?;
+        self.send(method, path, Some(&raw)).await
+    }
+
+    /// `send_bytes` with no answer of interest (whatever body the server sends back is dropped, as `act_with`).
+    pub async fn act_bytes(&self, method: Method, path: &str, body: &[u8]) -> ApiResult<()> {
+        self.send_bytes::<serde::de::IgnoredAny>(method, path, body).await.map(|_| ())
+    }
+
     /// Signs in (`POST /api/login`) and reads the session (`GET /api/me`). The body that carries the password is
     /// wiped once sent.
     pub async fn login(&self, user: &str, password: &SecretString) -> ApiResult<crate::model::Me> {
@@ -213,7 +253,7 @@ impl Api {
             .map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         self.get("/api/me").await
     }
 
@@ -267,10 +307,10 @@ impl Api {
         let status = resp.status();
         if !status.is_success() {
             let data = read_capped(resp).await.unwrap_or_default();
-            check(status, &path, &data, self.token.is_empty())?;
+            self.check(status, &path, &data)?;
             return Err(ApiError::msg(format!("{path}: HTTP {}", status.as_u16())));
         }
-        let mut f = tokio::fs::File::create(to).await.map_err(|e| ApiError::msg(e.to_string()))?;
+        let mut f = create_private_file(to).await.map_err(|e| ApiError::msg(e.to_string()))?;
         let mut s = resp.bytes_stream();
         while let Some(chunk) = s.next().await {
             f.write_all(&chunk.map_err(|e| transport(&e))?).await.map_err(|e| ApiError::msg(e.to_string()))?;
@@ -284,11 +324,51 @@ impl Api {
         let resp = self.request(Method::GET, &url, None).send().await.map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         Ok(String::from_utf8_lossy(&data).into_owned())
     }
 
     /// Sends the file `from` as the body of a POST (a backup being sent: no total timeout) and decodes the answer.
+    /// PUT `path` with one file as the multipart field `field` (the panel's logo); `name` is the file's name, its
+    /// content type taken from the extension.
+    pub async fn put_file(&self, path: &str, field: &str, name: &str, bytes: Vec<u8>) -> ApiResult<()> {
+        self.multipart(Method::PUT, path, vec![(field.to_string(), name.to_string(), bytes)]).await.map(|_| ())
+    }
+
+    /// POST `path` with files as multipart fields (field, file name, bytes) and decodes the answer (the CSV import).
+    pub async fn post_files<T: DeserializeOwned + Default>(
+        &self,
+        path: &str,
+        files: Vec<(String, String, Vec<u8>)>,
+    ) -> ApiResult<T> {
+        decode(&self.multipart(Method::POST, path, files).await?)
+    }
+
+    async fn multipart(&self, method: Method, path: &str, files: Vec<(String, String, Vec<u8>)>) -> ApiResult<Vec<u8>> {
+        let (url, path) = self.url(path);
+        let mut r = [0u8; 16];
+        getrandom::fill(&mut r).map_err(|e| ApiError::msg(e.to_string()))?;
+        let boundary = format!("adm-{}", r.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        let mut body = Vec::new();
+        for (field, name, bytes) in files {
+            body.extend_from_slice(&multipart_head(&boundary, &field, &name));
+            body.extend_from_slice(&bytes);
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+        let resp = self
+            .request(method, &url, Some(Duration::from_secs(600)))
+            .header("Content-Type", format!("multipart/form-data; boundary={boundary}"))
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| transport(&e))?;
+        let status = resp.status();
+        let data = read_capped(resp).await?;
+        self.check(status, &path, &data)?;
+        Ok(data)
+    }
+
     pub async fn upload<T: DeserializeOwned + Default>(&self, path: &str, from: &Path) -> ApiResult<T> {
         let (url, path) = self.url(path);
         let f = tokio::fs::File::open(from).await.map_err(|e| ApiError::msg(e.to_string()))?;
@@ -304,9 +384,27 @@ impl Api {
         let resp = r.send().await.map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        check(status, &path, &data, self.token.is_empty())?;
+        self.check(status, &path, &data)?;
         decode(&data)
     }
+}
+
+/// The opening of a one-file multipart body: the boundary, the part's headers and the blank line.
+fn multipart_head(boundary: &str, field: &str, name: &str) -> Vec<u8> {
+    let ext = name.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
+    let kind = match ext.as_str() {
+        "png" => "image/png",
+        "csv" => "text/csv",
+        "jpg" | "jpeg" => "image/jpeg",
+        "svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    };
+    // a quote or line break in the name would break the header: keep only safe characters
+    let safe: String = name.chars().filter(|c| !matches!(c, '"' | '\r' | '\n' | '\\')).collect();
+    format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{safe}\"\r\nContent-Type: {kind}\r\n\r\n"
+    )
+    .into_bytes()
 }
 
 /// A file as a stream of chunks for an upload body.
@@ -410,6 +508,42 @@ async fn read_capped(resp: reqwest::Response) -> ApiResult<Vec<u8>> {
     Ok(out)
 }
 
+/// The object `v` as JSON with `key` set to `secret` last, written straight into a buffer wiped when dropped: the
+/// secret never sits in a plain `Value` or `String` while the request runs.
+pub fn json_with_secret(v: &serde_json::Value, key: &str, secret: &str) -> Zeroizing<Vec<u8>> {
+    let mut out = Zeroizing::new(serde_json::to_vec(v).unwrap_or_default());
+    if out.last() != Some(&b'}') {
+        return out;
+    }
+    out.pop(); // the closing brace
+    if out.len() > 1 {
+        out.push(b',');
+    }
+    out.extend_from_slice(&serde_json::to_vec(key).unwrap_or_default());
+    out.push(b':');
+    out.extend_from_slice(&Zeroizing::new(serde_json::to_vec(secret).unwrap_or_default()));
+    out.push(b'}');
+    out
+}
+
+/// Creates (or truncates) `to` readable by its owner only, also when it already existed: a download may hold the
+/// domain's secrets (a DC backup, generated passwords).
+pub async fn create_private_file(to: &Path) -> std::io::Result<tokio::fs::File> {
+    let mut o = tokio::fs::OpenOptions::new();
+    o.write(true).create(true).truncate(true);
+    // shortcut: on Windows the file keeps the folder's DACL (as a browser download, and as adm-platform-windows does
+    // for the config); set an owner-only ACL if the app is ever used from shared folders.
+    #[cfg(unix)]
+    o.mode(0o600);
+    let f = o.open(to).await?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        f.set_permissions(std::fs::Permissions::from_mode(0o600)).await?;
+    }
+    Ok(f)
+}
+
 /// A transport error: the known TLS refusal in the interface language, else the error and its causes.
 fn transport(e: &reqwest::Error) -> ApiError {
     let full = chain(e);
@@ -463,6 +597,16 @@ pub fn q(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn json_with_secret_puts_it_last() {
+        let v: serde_json::Value =
+            serde_json::from_slice(&json_with_secret(&serde_json::json!({"a": 1}), "pw", "x\"y")).unwrap();
+        assert_eq!(v, serde_json::json!({"a": 1, "pw": "x\"y"}));
+        let e: serde_json::Value =
+            serde_json::from_slice(&json_with_secret(&serde_json::json!({}), "pw", "z")).unwrap();
+        assert_eq!(e, serde_json::json!({"pw": "z"}));
+    }
+
     use super::*;
     use crate::tls::tests::{self_signed, serve};
 

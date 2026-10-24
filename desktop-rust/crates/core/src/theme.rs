@@ -1,6 +1,7 @@
-//! The panel's 18 themes as color roles (`assets/themes.json`, generated from `desktop/themes_gen.go`, which is
-//! generated from the web panel's CSS). The UI crate turns a palette into egui visuals; this module only holds data
-//! and the contrast arithmetic, so it can be tested without a GUI.
+//! The panel's 18 themes (`assets/themes.json`, generated from the web panel's theme CSS by
+//! `desktop/internal/themegen/rustgen`, the same source as the Fyne app's `themes_gen.go`): the color roles, the named
+//! size tokens, each part's gradient and shadow layers, the font stacks and the parts the flat look clears. The UI
+//! crate draws with it; this module only holds data and the contrast arithmetic, so it can be tested without a GUI.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -27,8 +28,71 @@ fn parse_hex(s: &str) -> Option<Rgba> {
     Some(Rgba([b(0)?, b(2)?, b(4)?, b(6)?]))
 }
 
+/// A CSS linear-gradient: direction, interpolation space and stops.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Gradient {
+    /// "to bottom", "to right", "to top", "to left" or "<n>deg".
+    pub dir: String,
+    /// "oklab" or "srgb".
+    pub space: String,
+    pub stops: Vec<Stop>,
+}
+
+/// A gradient stop at `pos` (0–1).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Stop {
+    pub color: Rgba,
+    pub pos: f32,
+}
+
+/// A background repeated every 22 px (the web's `background-size`): a dot (an ellipse of radii `w`, `h` at the
+/// tile's center) or horizontal lines `h` thick every `period` px.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Pattern {
+    pub kind: PatternKind,
+    pub color: Rgba,
+    #[serde(default)]
+    pub w: f32,
+    pub h: f32,
+    #[serde(default)]
+    pub period: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PatternKind {
+    Dots,
+    Lines,
+}
+
+/// One box-shadow layer, in CSS order (the first listed is on top).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Layer {
+    #[serde(default)]
+    pub inset: bool,
+    pub dx: f32,
+    pub dy: f32,
+    #[serde(default)]
+    pub blur: f32,
+    #[serde(default)]
+    pub spread: f32,
+    pub color: Rgba,
+}
+
+/// The theme's font stacks, in the web's order.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Fonts {
+    #[serde(default)]
+    pub sans: Vec<String>,
+    #[serde(default)]
+    pub mono: Vec<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Palette {
+    /// The registry's name ("Classic blue (XP)"), translated by the catalogs.
+    #[serde(default)]
+    pub label: String,
     pub scheme: String,
     /// No depth by design (High contrast): always flat.
     pub depthless: bool,
@@ -42,6 +106,23 @@ pub struct Palette {
     pub tab_mark: Option<Rgba>,
     #[serde(rename = "c")]
     roles: HashMap<String, Rgba>,
+    /// Named sizes in px (`control-h`, `th-py`, `card-head-size`…).
+    #[serde(default)]
+    tokens: HashMap<String, f32>,
+    /// Keyword parameters (`card-head-transform`, `dialog-head-pad`…).
+    #[serde(default)]
+    text: HashMap<String, String>,
+    /// Each part's background: a gradient, or none.
+    #[serde(default)]
+    bg: HashMap<String, Option<Gradient>>,
+    /// Each part's shadow layers.
+    #[serde(default)]
+    shadow: HashMap<String, Vec<Layer>>,
+    /// Each part's repeated background (the page's dots), when it is one.
+    #[serde(default)]
+    pattern: HashMap<String, Pattern>,
+    #[serde(default)]
+    pub fonts: Fonts,
 }
 
 impl Palette {
@@ -50,22 +131,77 @@ impl Palette {
         self.roles.get(role).copied().unwrap_or_default()
     }
 
+    /// Whether the theme exports `role` (`col` answers transparent for one it does not).
+    pub fn has(&self, role: &str) -> bool {
+        self.roles.contains_key(role)
+    }
+
     pub fn dark(&self) -> bool {
         self.scheme == "dark"
     }
+
+    /// A size token in px, or `default` when the theme has none.
+    pub fn px(&self, token: &str, default: f32) -> f32 {
+        self.tokens.get(token).copied().unwrap_or(default)
+    }
+
+    /// A keyword parameter, or "".
+    pub fn text(&self, name: &str) -> &str {
+        self.text.get(name).map_or("", String::as_str)
+    }
+
+    /// A part's background gradient (`header`, `action`, `card-head`…); none when the part has a plain fill, or in the
+    /// flat look when the flat override clears it.
+    pub fn gradient(&self, part: &str, flat: bool) -> Option<&Gradient> {
+        if flat && flat_clears(&format!("--bg-{part}")) {
+            return None;
+        }
+        self.bg.get(part).and_then(Option::as_ref)
+    }
+
+    /// A part's repeated background (`page`), none in the flat look when the flat override clears it.
+    pub fn pattern(&self, part: &str, flat: bool) -> Option<Pattern> {
+        if flat && flat_clears(&format!("--bg-{part}")) {
+            return None;
+        }
+        self.pattern.get(part).copied()
+    }
+
+    /// A part's shadow layers (`btn`, `card`, `dialog`…), empty in the flat look when the flat override clears them.
+    pub fn shadows(&self, part: &str, flat: bool) -> &[Layer] {
+        if flat && flat_clears(&format!("--shadow-{part}")) {
+            return &[];
+        }
+        self.shadow.get(part).map_or(&[], Vec::as_slice)
+    }
+}
+
+/// The flat look clears this variable (`style.css`'s flat override list).
+pub fn flat_clears(var: &str) -> bool {
+    all().flat.iter().any(|v| v == var)
 }
 
 #[derive(Debug, Deserialize)]
 struct Themes {
     order: Vec<String>,
+    #[serde(default)]
+    flat: Vec<String>,
     themes: HashMap<String, Palette>,
+}
+
+/// Every theme's id.
+pub fn ids() -> impl Iterator<Item = &'static str> {
+    all().themes.keys().map(String::as_str)
 }
 
 fn all() -> &'static Themes {
     static T: OnceLock<Themes> = OnceLock::new();
     T.get_or_init(|| {
-        serde_json::from_str(include_str!("../assets/themes.json"))
-            .unwrap_or_else(|_| Themes { order: Vec::new(), themes: HashMap::new() })
+        serde_json::from_str(include_str!("../assets/themes.json")).unwrap_or_else(|_| Themes {
+            order: Vec::new(),
+            flat: Vec::new(),
+            themes: HashMap::new(),
+        })
     })
 }
 
@@ -119,6 +255,62 @@ pub fn is_dark(c: Rgba) -> bool {
 }
 
 #[cfg(test)]
+mod contrast_tests {
+    use super::*;
+
+    /// The web's contrast recipes (frontend/src/themes/matrix.json) hold on the colors the desktop draws with: each
+    /// text role over its background layers (bottom one over white), 4.5:1 for text (7:1 on the AAA themes) and 3:1
+    /// for components. Recipes of roles the desktop does not draw (toasts, tooltips) and of the segmented tabs are
+    /// left out.
+    #[test]
+    fn every_theme_keeps_the_web_contrast() {
+        #[derive(Deserialize)]
+        struct Recipe {
+            id: String,
+            fg: String,
+            bg: Vec<String>,
+            size: String,
+            #[serde(default, rename = "aaaOnly")]
+            aaa_only: bool,
+            #[serde(default, rename = "segmentedOnly")]
+            segmented_only: bool,
+        }
+        #[derive(Deserialize)]
+        struct Matrix {
+            recipes: Vec<Recipe>,
+            aaa: Vec<String>,
+        }
+        let m: Matrix = serde_json::from_str(include_str!("../../../../frontend/src/themes/matrix.json")).unwrap();
+        let mut failed = Vec::new();
+        let mut checked = 0;
+        for id in order() {
+            let (_, p) = palette(id).unwrap();
+            let aaa = m.aaa.contains(id);
+            for r in &m.recipes {
+                if r.segmented_only || (r.aaa_only && !aaa) || !p.has(&r.fg) || r.bg.iter().any(|b| !p.has(b)) {
+                    continue;
+                }
+                // the layers top→bottom: the bottom one over white, each above over the ones below
+                let bg = r.bg.iter().rev().fold(Rgba([255, 255, 255, 255]), |acc, b| over(p.col(b), acc));
+                let ratio = contrast(over(p.col(&r.fg), bg), bg);
+                let need = match (r.size.as_str(), aaa) {
+                    ("normal", true) => 7.0,
+                    ("normal", false) => 4.5,
+                    _ => 3.0,
+                };
+                checked += 1;
+                // 0.05 of slack: the export rounds each color to 8 bits per channel (the web's test reads the CSS)
+                if ratio + 0.05 < need {
+                    failed.push(format!("{id} {}: {ratio:.2} < {need}", r.id));
+                }
+            }
+        }
+        assert!(checked > 1000, "the recipes ran ({checked})");
+        assert!(failed.is_empty(), "contrast below the web's recipes:\n{}", failed.join("\n"));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -134,32 +326,19 @@ mod tests {
         assert!(hc.depthless && hc.min_text == 7.0 && hc.focus_ring == 3.0);
     }
 
-    /// assets/themes.json has the same themes and role colors as the Fyne app's generated palettes (when the
-    /// monorepo is there): a theme change in the web panel shows up here once `go generate` ran in desktop/.
+    /// The recipe data the egui app draws with: tokens, gradients (direction, space), shadow layers in CSS order,
+    /// fonts and the flat override.
     #[test]
-    fn themes_json_matches_fyne() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../desktop/themes_gen.go");
-        let Ok(src) = std::fs::read_to_string(path) else {
-            // outside the monorepo there is nothing to compare; CI sets ADM_REQUIRE_FYNE so it never skips there
-            assert!(std::env::var_os("ADM_REQUIRE_FYNE").is_none(), "{path} not found");
-            return;
-        };
-        let re = regex::Regex::new(r#""([a-z0-9-]+)":\s*\{0x(\w\w), 0x(\w\w), 0x(\w\w), 0x(\w\w)\}"#).unwrap();
-        let head = regex::Regex::new(r#"(?m)^\t"([a-z0-9-]+)": \{scheme: "#).unwrap();
-        let starts: Vec<(usize, String)> =
-            head.captures_iter(&src).map(|c| (c.get(0).unwrap().start(), c[1].to_string())).collect();
-        assert_eq!(starts.len(), all().themes.len(), "number of themes");
-        for (i, (at, id)) in starts.iter().enumerate() {
-            let end = starts.get(i + 1).map_or(src.len(), |n| n.0);
-            let p = &all().themes.get(id).unwrap_or_else(|| panic!("{id} missing in themes.json"));
-            let mut n = 0;
-            for c in re.captures_iter(&src[*at..end]) {
-                let hex = |k: usize| u8::from_str_radix(&c[k], 16).unwrap();
-                assert_eq!(p.col(&c[1]), Rgba([hex(2), hex(3), hex(4), hex(5)]), "{id} {}", &c[1]);
-                n += 1;
-            }
-            assert_eq!(n, p.roles.len(), "{id}: number of roles (run scripts/gen-themes.py)");
-        }
+    fn recipes_from_the_web_css() {
+        let p = palette("classic-blue").unwrap().1;
+        assert_eq!((p.px("control-h", 0.0), p.px("th-py", 0.0), p.px("tag-size", 0.0)), (28.0, 6.0, 10.0));
+        let h = p.gradient("header", false).expect("Classic blue header gradient");
+        assert_eq!((h.dir.as_str(), h.space.as_str(), h.stops.len()), ("to right", "oklab", 2));
+        assert!(p.gradient("header", true).is_none(), "the flat look clears the header gradient");
+        assert!(!p.shadows("btn", false).is_empty() && p.shadows("btn", true).is_empty());
+        assert!(p.shadows("tab-on", true).iter().any(|l| l.inset), "the current tab's mark stays in the flat look");
+        assert_eq!(p.fonts.sans.first().map(String::as_str), Some("Tahoma"));
+        assert!(flat_clears("--shadow-card") && !flat_clears("--shadow-dialog"), "dialog shadows stay flat");
     }
 
     /// The text roles the pages draw keep the theme's minimum contrast on their backgrounds (the web's contrast

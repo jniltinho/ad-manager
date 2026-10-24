@@ -21,7 +21,8 @@
   --font-sans: Verdana, 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 
   /* flat page (no dots) */
-  --bg-page: none;
+  --color-page-dots: rgba(17, 48, 88, 0.25);
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
 
   /* top tabs: flat band, inactive #627884 with dividers, active white "fitting" into the content */
   --color-tabs-top: #56656d; /* volume: the band lighter on top (the flat look keeps the solid #424f56) */

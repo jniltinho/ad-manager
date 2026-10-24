@@ -111,8 +111,9 @@ func TestSetupPlanImportAD(t *testing.T) {
 
 func (p SetupPlan) withoutImport() SetupPlan { p.ImportAD = false; return p }
 
-// samba-setup.py --import-ready: refused outside new-dc --panel --files; import_gates writes one 0600 file (even over
-// a looser one, whatever the umask) and the [agent] keys once, and refuses a config whose last table is not [agent].
+// samba-setup.py --import-ready: refused outside new-dc --panel --files; import_gates writes import_modes once (no
+// secret on disk), hands the credential to `ad-manager import-credential` as the service user with the password on
+// stdin only (never an argument), removes a former import.pass, and refuses a config whose last table is not [agent].
 func TestSetupScriptImportReady(t *testing.T) {
 	py, err := exec.LookPath("python3")
 	if err != nil {
@@ -130,26 +131,31 @@ func TestSetupScriptImportReady(t *testing.T) {
 	}
 	dir := t.TempDir()
 	const prog = `
-import importlib.util, os, sys, argparse
+import importlib.util, os, sys, argparse, types
 spec = importlib.util.spec_from_file_location("setup", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-m.CONFIG, m.IMPORT_PASS = m.Path(sys.argv[2]) / "config.toml", m.Path(sys.argv[2]) / "import.pass"
+d = m.Path(sys.argv[2])
+m.CONFIG, m.IMPORT_PASS, m.OPT = d / "config.toml", d / "import.pass", d
 m.sh = lambda *a, **k: ""
-os.umask(0)
+calls = []
+def run(cmd, input=None, **k):
+    calls.append((cmd, input))
+    return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+m.subprocess.run = run
 m.CONFIG.write_text("[server]\nlisten = 1\n[agent]\ndc_file_server = true\n")
-m.IMPORT_PASS.write_text("old"); os.chmod(m.IMPORT_PASS, 0o644)
-held = open(m.IMPORT_PASS)  # a reader of the old file must never see the new password
+m.IMPORT_PASS.write_text("old")
 a = argparse.Namespace(admin="Administrator", realm="example.local", admin_pw="S3cret pw")
 m.import_gates(a); m.import_gates(a)
-print("held", repr(held.read()))
 text = m.CONFIG.read_text()
-print(oct(os.stat(m.IMPORT_PASS).st_mode & 0o777), repr(m.IMPORT_PASS.read_text()), text.count("_user ="), text.rfind("[agent]") < text.find("gpo_restore_user"))
-print('password_migration_user = "Administrator@example.local"' in text, text.count(str(m.IMPORT_PASS)))
+print("modes", text.count("import_modes = true"), text.rfind("[agent]") < text.find("import_modes"), "_user" in text)
+cmd, inp = calls[0]
+print("cli", cmd[:3], "import-credential" in cmd, "S3cret pw" in " ".join(cmd), repr(inp))
+print("old file", m.IMPORT_PASS.exists())
 m.CONFIG.write_text("[agent]\nlisten = 1\n[samba]\nlog_dir = 2\n")
 m.import_gates(a)
 `
 	out, err := exec.Command(py, "-I", "-c", prog, script, dir).CombinedOutput()
-	if err == nil || !strings.Contains(string(out), "held 'old'\n0o600 'S3cret pw\\n' 2 True\nTrue 2\n") ||
-		!strings.Contains(string(out), "[agent] is not the last section") {
+	want := "modes 1 True False\ncli ['runuser', '-u', 'ad-manager'] True False 'S3cret pw\\n'\nold file False\n"
+	if err == nil || !strings.Contains(string(out), want) || !strings.Contains(string(out), "[agent] is not the last section") {
 		t.Fatalf("import_gates: %v\n%s", err, out)
 	}
 }

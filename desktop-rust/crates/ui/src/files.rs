@@ -33,9 +33,21 @@ pub fn save_download(
 /// Asks for a file to open; `done` gets it (nothing when the operator cancels, or when the session that asked was
 /// replaced meanwhile).
 pub fn pick_file(cx: &Cx, done: impl FnOnce(&mut App, PathBuf) + Send + 'static) {
+    pick_file_of(cx, None, done);
+}
+
+/// Asks for a file of one kind (`(name, extensions)`, as the web's `accept`); see `pick_file`.
+pub fn pick_file_of(cx: &Cx, kind: Option<(&str, &[&str])>, done: impl FnOnce(&mut App, PathBuf) + Send + 'static) {
     let session = cx.panel.id;
+    let kind = kind.map(|(n, e)| (n.to_string(), e.iter().map(|x| (*x).to_string()).collect::<Vec<_>>()));
     cx.spawn(
-        async move { rfd::AsyncFileDialog::new().pick_file().await.map(|h| h.path().to_path_buf()) },
+        async move {
+            let mut d = rfd::AsyncFileDialog::new();
+            if let Some((name, exts)) = &kind {
+                d = d.add_filter(name, exts);
+            }
+            d.pick_file().await.map(|h| h.path().to_path_buf())
+        },
         move |app, r| {
             if let Some(p) = r
                 && app.cx.panel.id == session
@@ -46,10 +58,40 @@ pub fn pick_file(cx: &Cx, done: impl FnOnce(&mut App, PathBuf) + Send + 'static)
     );
 }
 
-/// GET /api/export/<file> (the CSV the CLI import reads) saved where the operator picks.
-pub fn export(cx: &Cx, file: &str, name: &str) {
-    let path = format!("/api/export/{file}");
-    save_download(cx, cx.panel.clone(), path, name.into(), |app, p| {
-        app.cx.set_status(adm_core::tf!("Exported to %s", p.display()));
-    });
+/// Asks where to save `name` and writes `rows` (the header first) there as the web's CSV export: `;` between
+/// fields, every field quoted, a BOM for Excel and CRLF line ends.
+pub fn save_csv(cx: &Cx, name: &str, rows: Vec<Vec<String>>) {
+    let (name, text) = (name.to_string(), csv_text(&rows));
+    cx.run(
+        async move {
+            let Some(h) = rfd::AsyncFileDialog::new().set_file_name(&name).save_file().await else { return Ok(None) };
+            let p = h.path().to_path_buf();
+            // private: the export may be generated passwords
+            let io = |e: std::io::Error| adm_core::api::ApiError::Other(e.to_string());
+            let mut f = adm_core::api::create_private_file(&p).await.map_err(io)?;
+            tokio::io::AsyncWriteExt::write_all(&mut f, text.as_bytes()).await.map_err(io)?;
+            tokio::io::AsyncWriteExt::flush(&mut f).await.map_err(io)?;
+            Ok(Some(p))
+        },
+        |app, r| {
+            if let Some(p) = r {
+                app.cx.set_status(adm_core::tf!("Exported to %s", p.display()));
+            }
+        },
+    );
+}
+
+fn csv_text(rows: &[Vec<String>]) -> String {
+    let line =
+        |r: &Vec<String>| r.iter().map(|v| format!("\"{}\"", v.replace('"', "\"\""))).collect::<Vec<_>>().join(";");
+    format!("\u{feff}{}", rows.iter().map(line).collect::<Vec<_>>().join("\r\n"))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn csv_as_the_web() {
+        let rows = vec![vec!["Date".into(), "Target".into()], vec!["1".into(), "a \"b\"; c".into()]];
+        assert_eq!(super::csv_text(&rows), "\u{feff}\"Date\";\"Target\"\r\n\"1\";\"a \"\"b\"\"; c\"");
+    }
 }

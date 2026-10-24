@@ -1,13 +1,13 @@
 <script setup>
 // Folders and shares on the file servers (ad-manager agent).
 // Every change becomes a task in the server's queue; the page follows it until done.
-import { FolderPlus, Pencil, Plus, RefreshCw, Trash2, Users } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { FolderPlus, Plus, RefreshCw, Trash2, TriangleAlert, Users } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { auth, get, post, del, enc } from '../api'
 import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
 import { confirmTyped } from '../dialogs'
-import { agentHost, formatDate } from '../util'
+import { agentHost, formatDate, spinner, timeAgo } from '../util'
 import ShareSessionsDialog from '../components/dialogs/ShareSessionsDialog.vue'
 import FileServerDialog from '../components/dialogs/FileServerDialog.vue'
 import ShareFormDialog from '../components/dialogs/ShareFormDialog.vue'
@@ -63,6 +63,8 @@ async function loadShares() {
   const target = current.value.id // a reply from another server (quick switch) is dropped
   loading.value = true
   shares.value = []
+  sizes.value = {}
+  sizeInfo.value = null
   try {
     const r = await Promise.all([get(`/agents/${target}/shares`), get(`/agents/${target}/dirs`).then((r) => r.roots)])
     if (target !== current.value?.id) return
@@ -75,19 +77,81 @@ async function loadShares() {
   loadSizes(target)
 }
 
-// total size of each folder (du on the server, cached for 5 min); arrives after the list
+// folder sizes: the agent's cache, measured in the background (an older agent measures in the request and answers
+// only sizes); read again every 5 s while a scan runs
 const sizes = ref({})
+const sizeInfo = ref(null) // shares, total, total_complete, oldest_at, scanning, at — null from an older agent
 const measuring = ref(false)
+const STALE = 6 * 3600e3 // 4 h between scans plus 2 h of slack
+let poll = 0
+let gen = 0 // each read replaces the previous chain: a late answer (other server, page left) schedules nothing
+let gone = false
 async function loadSizes(target, refresh = false) {
+  if (gone || target !== current.value?.id) return // a late caller of another server leaves this one's chain alone
+  clearTimeout(poll)
+  const mine = ++gen
   measuring.value = true
   try {
     const r = await get(`/agents/${target}/sizes${refresh ? '?refresh=1' : ''}`)
-    if (target === current.value?.id) sizes.value = r.sizes || {}
+    if (gone || mine !== gen || target !== current.value?.id) return
+    sizes.value = r.sizes || {}
+    sizeInfo.value = r.shares ? r : null
+    if (r.scanning) poll = setTimeout(() => loadSizes(target), 5000)
   } catch {
+    if (gone || mine !== gen || target !== current.value?.id) return
     sizes.value = {}
+    sizeInfo.value = null
   }
   measuring.value = false
 }
+// the clock of "scanned … ago" and of the 6-hour staleness, also while nothing is polled
+const now = ref(Date.now())
+const clock = setInterval(() => (now.value = Date.now()), 60000)
+// the Refresh icon turns while the list reloads or the agent measures, at least briefly
+const listSpin = spinner(() => loading.value || !!sizeInfo.value?.scanning)
+onBeforeUnmount(() => {
+  gone = true
+  clearTimeout(poll)
+  clearInterval(clock)
+})
+const stale = (iso) => !!iso && now.value - new Date(iso) > STALE
+// entry is the agent's measure of share s, when it is of the same folder
+const entry = (s) => {
+  const e = sizeInfo.value?.shares?.[s.name]
+  return e && e.path === s.path ? e : null
+}
+// sizeCell: the text, whether it is muted and its tooltip
+function sizeCell(s) {
+  if (!sizeInfo.value) return { text: bytes(sizes.value[s.name]) }
+  const e = entry(s)
+  if (!e || (e.bytes == null && e.partial_bytes == null))
+    return { text: sizeInfo.value.scanning ? '…' : '—', muted: true, title: e?.error || t('not measured yet') }
+  if (e.bytes == null)
+    return { text: `≥ ${bytes(e.partial_bytes)}`, muted: true, title: t('partial (a lower bound): {error}', { error: e.error }) }
+  const title = t('measured {time}', { time: formatDate(e.measured_at) })
+  if (e.error || stale(e.measured_at))
+    return { text: bytes(e.bytes), muted: true, title: e.error ? `${title}; ${t('latest attempt: {error}', { error: e.error })}` : title }
+  return { text: bytes(e.bytes), title }
+}
+// the header: total, last full scan, the warning when some sizes are missing, partial or old, the scan's progress
+const sizeHead = computed(() => {
+  const r = sizeInfo.value
+  if (!r) return { size: measuring.value ? '…' : bytes(total.value), title: t('Sum of the folders (nested ones count again)') }
+  const listed = shares.value.filter((s) => s.path)
+  const agree =
+    listed.every((s) => entry(s)) && Object.entries(r.shares).every(([n, e]) => listed.some((s) => s.name === n && s.path === e.path))
+  const scanned = r.at && new Date(r.at).getFullYear() > 2000 ? r.at : ''
+  return {
+    size: bytes(r.total),
+    scanned: scanned && timeAgo(scanned, now.value),
+    title: scanned ? t('Sum of the folders; nested shares count once. Last full scan: {time}.', { time: formatDate(scanned) }) : '',
+    warn:
+      !r.total_complete || !agree || stale(r.oldest_at)
+        ? t('Some sizes are missing, partial or older than {time}.', { time: formatDate(r.oldest_at) })
+        : '',
+    scanning: r.scanning ? `${r.scanning.done}/${r.scanning.count}` : '',
+  }
+})
 function bytes(n) {
   if (n == null) return measuring.value ? '…' : '—'
   const u = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -104,11 +168,12 @@ async function refresh() {
   await loadShares()
   if (current.value) loadSizes(current.value.id, true)
 }
-const total = computed(() => Object.values(sizes.value).reduce((a, b) => a + b, 0))
+const total = computed(() => Object.values(sizes.value).reduce((a, b) => a + b, 0)) // an older agent's sum
 watch(current, loadShares)
 
 // ── domain controller health (agent on a DC): replication and consistency checks, read only
 const dc = ref(null)
+const dcSpin = spinner(() => !!dc.value?.loading) // the Check again icon turns while the checks run
 // replication and the database check load on their own: a slow dbcheck does not hold the replication back, and a
 // failure of one does not hide the other
 async function loadDC(refresh = false) {
@@ -219,20 +284,22 @@ const stateNames = {
           <li
             v-for="a in agents"
             :key="a.id"
-            class="flex cursor-pointer items-center gap-2 px-3 py-2"
+            class="flex cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-2"
             :class="current?.id === a.id ? 'nav-on bg-nav-on text-on-nav-on shadow-(--shadow-nav-on)' : 'hover:bg-row-hover'"
             :aria-current="current?.id === a.id || null"
             @click="current = a"
           >
             <span
-              class="h-2 w-2"
+              class="h-2 w-2 shrink-0"
               :class="status[a.id] === 'ok' ? 'bg-ok-fill' : status[a.id] === 'down' ? 'bg-err-fill' : 'bg-neutral-fill'"
               :title="status[a.id] === 'down' ? t('unavailable') : t('online')"
             ></span>
-            <span class="font-semibold">{{ a.name }}</span>
-            <span class="text-[11px]">{{ agentHost(a.url) }}</span>
-            <span v-if="dcTag[a.id]" class="tag bg-surface-2 text-fg-muted">DC</span>
-            <span class="ml-auto space-x-1">
+            <!-- one line: the host gives way first, then the name (shrink is a weight; this one is big enough to act as a
+                 priority, the name losing less than a layout unit while the host has room) -->
+            <span class="min-w-0 truncate font-semibold" :title="a.name">{{ a.name }}</span>
+            <span class="min-w-0 shrink-[1000000] truncate text-[11px]" :title="agentHost(a.url)">{{ agentHost(a.url) }}</span>
+            <span v-if="dcTag[a.id]" class="tag shrink-0 bg-surface-2 text-fg-muted">DC</span>
+            <span class="ml-auto shrink-0 space-x-1">
               <button
                 class="act px-0 text-[11px]"
                 :class="current?.id === a.id ? 'text-inherit' : ''"
@@ -285,7 +352,7 @@ const stateNames = {
         <span class="font-normal normal-case text-fg-muted">{{ t('read only') }}</span>
         <div class="ml-auto flex gap-2 normal-case">
           <button class="btn-ghost" :disabled="dc?.loading" @click="loadDC(true)">
-            <RefreshCw :size="13" /> {{ dc?.loading ? t('Checking…') : t('Check again') }}
+            <RefreshCw :size="13" :class="dcSpin && 'motion-safe:animate-spin'" /> {{ dc?.loading ? t('Checking…') : t('Check again') }}
           </button>
         </div>
       </div>
@@ -355,16 +422,24 @@ const stateNames = {
 
     <section v-else class="card flex min-h-0 min-w-0 flex-col">
       <div class="card-h flex items-center gap-3">
-        <span>{{ current ? t('Shares on {server}', { server: current.name }) : t('Shares') }}</span>
-        <span v-if="current" class="font-normal normal-case text-fg-muted">{{ current.url }}</span>
-        <div v-if="current" class="ml-auto flex gap-2 normal-case">
-          <span v-if="shares.length" class="text-[12px] text-fg-muted" :title="t('Sum of the folders (nested ones count again)')">{{
-            t('total {size}', { size: measuring ? '…' : bytes(total) })
-          }}</span>
+        <span class="shrink-0 whitespace-nowrap">{{ current ? t('Shares on {server}', { server: current.name }) : t('Shares') }}</span>
+        <!-- one line: the server's address gives way (ends in "…", whole in the tooltip) to the total and the buttons -->
+        <span v-if="current" class="min-w-0 truncate font-normal normal-case text-fg-muted" :title="current.url">{{ current.url }}</span>
+        <div v-if="current" class="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap normal-case">
+          <span v-if="shares.length" class="flex items-center gap-1 text-[12px] text-fg-muted" :title="sizeHead.title">
+            {{ t('total {size}', { size: sizeHead.size }) }}
+            <template v-if="sizeHead.scanned"> · {{ t('scanned {time}', { time: sizeHead.scanned }) }}</template>
+            <span v-if="sizeHead.warn" class="inline-flex text-warn" role="img" :aria-label="sizeHead.warn" :title="sizeHead.warn"
+              ><TriangleAlert :size="13"
+            /></span>
+            <template v-if="sizeHead.scanning"> · {{ t('measuring {n}…', { n: sizeHead.scanning }) }}</template>
+          </span>
           <button class="btn-ghost" :disabled="status[current.id] === 'down'" @click="sessions = true">
             <Users :size="13" /> {{ t('Sessions') }}
           </button>
-          <button class="btn-ghost" @click="refresh"><RefreshCw :size="13" /> {{ t('Refresh') }}</button>
+          <button class="btn-ghost" :disabled="!!sizeInfo?.scanning" @click="refresh">
+            <RefreshCw :size="13" :class="listSpin && 'motion-safe:animate-spin'" /> {{ t('Refresh') }}
+          </button>
           <button class="btn" :disabled="status[current.id] === 'down'" @click="openNew">
             <FolderPlus :size="13" /> {{ t('New share') }}
           </button>
@@ -380,7 +455,8 @@ const stateNames = {
             <col class="w-[20%]" />
             <col class="w-[14%]" />
             <col />
-            <col class="w-36" />
+            <!-- only "remove": the name is the edit link -->
+            <col class="w-24" />
           </colgroup>
           <thead>
             <tr>
@@ -398,19 +474,29 @@ const stateNames = {
             <tr v-for="s in shares" :key="s.name">
               <td>
                 <div class="flex items-center gap-1.5">
-                  <span class="truncate font-semibold" :title="s.name">{{ s.name }}</span>
+                  <button
+                    class="act truncate px-0 font-semibold"
+                    :title="s.name"
+                    :disabled="status[current.id] === 'down'"
+                    @click="openEdit(s)"
+                  >
+                    {{ s.name }}
+                  </button>
                   <span v-if="!s.browseable" class="tag shrink-0 bg-surface-2 text-fg-muted">{{ t('hidden') }}</span>
                 </div>
               </td>
               <td class="truncate font-mono text-[11px]" :title="s.path">{{ s.path }}</td>
-              <td class="text-right whitespace-nowrap tabular-nums">{{ bytes(sizes[s.name]) }}</td>
+              <td
+                class="text-right whitespace-nowrap tabular-nums"
+                :class="sizeCell(s).muted && 'text-fg-muted'"
+                :title="sizeCell(s).title"
+              >
+                {{ sizeCell(s).text }}
+              </td>
               <td class="truncate" :title="access(s, 'rw')">{{ access(s, 'rw') }}</td>
               <td class="truncate" :title="access(s, 'ro')">{{ access(s, 'ro') }}</td>
               <td class="truncate text-fg-muted" :title="s.comment">{{ s.comment }}</td>
               <td class="text-right whitespace-nowrap">
-                <button class="act" :disabled="status[current.id] === 'down'" @click="openEdit(s)">
-                  <Pencil :size="12" /> {{ t('edit') }}
-                </button>
                 <button class="act hover:!text-err" @click="remove(s)"><Trash2 :size="12" /> {{ t('remove') }}</button>
               </td>
             </tr>

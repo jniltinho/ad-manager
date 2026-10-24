@@ -6,7 +6,7 @@ import { computed, ref } from 'vue'
 import { get } from '../api'
 import { t } from '../i18n'
 import { toast } from '../toasts'
-import { downloadCsv, formatDate } from '../util'
+import { downloadCsv, formatDate, spinner } from '../util'
 import LoadingRow from './LoadingRow.vue'
 
 const list = ref([])
@@ -14,6 +14,7 @@ const search = ref('')
 const klass = ref('') // '', '2', '3', '4', '5' (first digit of the status)
 const errorsOnly = ref(false)
 const loading = ref(false)
+const spin = spinner(loading) // the refresh icon turns while loading, at least briefly
 async function load() {
   loading.value = true
   try {
@@ -56,7 +57,9 @@ function statusTag(s) {
     <label class="flex items-center gap-1 text-[12px]"><input v-model="errorsOnly" type="checkbox" /> {{ t('errors only') }}</label>
     <span class="text-[12px] text-fg-muted">{{ t('{n} of {total} (newest first)', { n: visible.length, total: list.length }) }}</span>
     <div class="ml-auto flex gap-2">
-      <button class="btn-ghost" :disabled="loading" @click="load"><RefreshCw :size="13" /> {{ t('Refresh') }}</button>
+      <button class="btn-ghost" :disabled="loading" @click="load">
+        <RefreshCw :class="spin && 'motion-safe:animate-spin'" :size="13" /> {{ t('Refresh') }}
+      </button>
       <button
         class="btn-ghost"
         @click="
@@ -76,11 +79,12 @@ function statusTag(s) {
       </button>
     </div>
   </div>
-  <div class="max-h-[calc(var(--view-h)-260px)] overflow-auto border border-line">
+  <div class="max-h-[calc(var(--view-h)-306px)] overflow-auto border border-line">
     <!-- fixed columns, one line per request: long paths end in "…" and show in the tooltip -->
     <table class="grid-t border-0 table-fixed">
       <colgroup>
-        <col class="w-32" />
+        <!-- the date and time in Verdana need about 150 px: narrower, it runs into the source -->
+        <col class="w-38" />
         <col class="w-28" />
         <col class="w-32" />
         <col class="w-16" />

@@ -1,10 +1,10 @@
 # AD Manager desktop (Rust)
 
-A second desktop client of the [ad-manager](../README.md) panel, written in Rust with
-[egui/eframe](https://github.com/emilk/egui), at feature parity with the Fyne desktop ([`desktop/`](../desktop),
-[docs/desktop.md](../docs/desktop.md)). It exists to measure whether an immediate-mode Rust GUI is faster: the
-numbers are in [docs/benchmark.md](docs/benchmark.md). The Fyne app stays the shipped desktop; this one is released
-on its own tags (`desktop-rust-vX.Y.Z`).
+The desktop client of the [ad-manager](../README.md) panel, written in Rust with
+[egui/eframe](https://github.com/emilk/egui), matching the web panel's pages, themes and rules (user guide:
+[docs/desktop.md](../docs/desktop.md)). It replaced the Fyne desktop, now archived in [`desktop/`](../desktop) as code
+only; the benchmark that compared them is in [docs/benchmark.md](docs/benchmark.md). It is released on its own tags
+(`desktop-rust-vX.Y.Z`).
 
 | Sign-in | Users |
 |---|---|
@@ -12,24 +12,29 @@ on its own tags (`desktop-rust-vX.Y.Z`).
 
 ## What it does
 
-The same as the Fyne app, against the same panel API, with the same rules (the server stays the authority):
+The web panel's pages and dialogs, laid out as the web's, against the same panel API and with the same rules (the
+server stays the authority):
 
 - **Configure**: panel URL, user, password and language; **Test connection** reads the certificate, the health and
   signs in for real. A self-signed certificate is shown (fingerprint, subject, issuer, validity) and trusted only
   when the operator clicks **Trust this certificate**; from then on only that certificate is accepted (its
   handshake signed with its key). Redirects are never followed. The password is never saved.
-- **Sign-in** like the web one, with the panel's theme, logo and domain; **Home**, **Users** (row links, Enter
-  menu, icons at 1280 px), **Groups**, **OUs**, **Computers**, **Shares**, **Backup**, **Sync** and **Logs**, with
-  the dialogs of the Fyne app (new/copy/edit/move user, password and single-use link, password policy, share form,
-  restore, schedules, sync wizard and quarantine) and its guards (built-in and own accounts, DCs, typed
-  confirmations).
+- **Sign-in** like the web one (dots, box, language switch), with the panel's theme, logo and domain; then the web's
+  shell (header with the global search, top tabs, footer) and its pages: **Home**, **Users**, **Groups**, **OUs**
+  (with GPOs), **Computers** (with DNS and SMB sessions), **Shares** (file servers, tasks, sessions, the share form
+  with the folder's permissions), **Import/export** (CSV, another AD, folders, each previewed as a plan),
+  **Backup** (schedules edited in place), **Sync** (the wizard with its preview step, runs, quarantine), **Logs**
+  (audit, HTTP, Samba) and **Settings** (language, theme, company, logo, agent token), with the web's dialogs and
+  guards (built-in and own accounts, DCs, typed confirmations).
 - It talks **only to the panel**: file servers through the panel's proxy, never with an agent token.
-- The same **`desktop.toml`** as the Fyne app (same keys and lookup: `--config`, `AD_MANAGER_DESKTOP`,
+- **`desktop.toml`** (the keys and lookup of the archived Fyne app: `--config`, `AD_MANAGER_DESKTOP`,
   `.config/desktop.toml` beside the executable, the user config folder), written `0600` and refused when looser.
 - English interface with the pt-BR catalog (`crates/core/assets/i18n/pt-BR.json`); server messages translated with
   the panel's catalog (`/api/i18n`).
-- The panel's 18 themes (`crates/core/assets/themes.json`, generated from `desktop/themes_gen.go`) in their flat
-  look: the same colors, without drawn gradients and shadows.
+- The panel's 18 themes (`crates/core/assets/themes.json`, generated from the web's CSS by
+  `desktop/internal/themegen`), drawn with their gradients, shadows, fonts and the page's pattern, or flat.
+  **Configure › Appearance** picks another theme (and flat or with depth) for this computer only, applied at once
+  and saved as `[appearance]` in desktop.toml; *Panel default* follows the panel's Settings.
 - A **crash-safe graphics start** (rustXterm's design). The app renders through wgpu. Before the window opens it
   takes a `gpu-starting` marker next to desktop.toml, and a start that dies in the graphics driver makes the next
   start try a safer backend:
@@ -37,7 +42,7 @@ The same as the Fyne app, against the same panel API, with the same rules (the s
   - Linux: Vulkan → OpenGL → software (llvmpipe);
   - macOS: Metal → OpenGL (glow).
 
-  A working fallback is saved as `[graphics]` in desktop.toml (the Fyne app keeps it) and announced under the sign-in
+  A working fallback is saved as `[graphics]` in desktop.toml and announced under the sign-in
   box. It can be changed in **Configure › Graphics › Rendering backend**, which applies at the next start. Choices:
   - Automatic;
   - **wgpu (WebGPU)**, where wgpu picks the backend and the adapter itself: on Windows it prefers DX12/Vulkan, where
@@ -68,15 +73,26 @@ use (`zeroize`).
 
 ## Build and test
 
-Everything runs in the pinned rustXterm toolchain image (Docker); the host needs no Rust:
+Everything runs in Docker (the pinned rustXterm toolchain image, and the Go image for the theme generator); the host
+needs neither Rust nor Go. From the repository root: `make desktop`, `make desktop-check`, `make desktop-shots`,
+`make desktop-themes`; here:
 
 ```bash
-make check     # fmt, clippy -D warnings, unit + UI acceptance tests, cargo deny
+make check     # fmt, clippy -D warnings, unit + UI acceptance tests, cargo deny, themes.json in step with the CSS
 make release   # target/docker/release/ad-manager-desktop-rs
 make dist      # Linux tar.gz and Windows zip in dist/
 make shots     # the docs screenshots (2x, Classic blue, domain.local)
 make mock      # a mock panel with 5,000 users (prints the URL and pin for desktop.toml)
-make bench     # the benchmark against the Fyne app
+make bench     # the benchmark against the archived Fyne app
+```
+
+Against a real domain, the all-in-one test image ([docs/docker.md](../docs/docker.md), a fictitious `domain.local`
+with its LDAPS and panel on `127.0.0.1` only) runs the ignored live test: it signs in, opens every page and tab, fails
+on any error and saves a screenshot of each. The password stays in a 0600 file outside the repository; never point it
+at a production panel.
+
+```bash
+DESKTOP_RUST_DOCKER_NET=host DESKTOP_RUST_DOCKER_ARGS="-v $HOME/.adm-live:/live:ro" scripts/cargo-docker.sh sh -c 'ADM_LIVE_URL=https://127.0.0.1:18443/ ADM_LIVE_PASSWORD_FILE=/live/password ADM_LIVE_SHOTS=/work/desktop-rust/target/live cargo test -p adm-ui --test live -- --ignored'
 ```
 
 macOS builds natively on a Mac (`rustup` reads `rust-toolchain.toml`): `cargo build --release` and

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -110,21 +111,26 @@ func (s *Server) extras(e *echo.Echo, p *echo.Group) {
 
 // dcAgent is the first registered agent whose health says dc with this panel's realm (GPO GUIDs, the default ones,
 // repeat across domains) and, when restore is set, GPO restore on (its explicit write mode).
-func (s *Server) dcAgent(ctx context.Context, restore bool) (*store.Agent, error) {
+func (s *Server) dcAgent(c *echo.Context, ctx context.Context, restore bool) (*store.Agent, error) {
 	need := ""
 	if restore {
 		need = "gpo_restore"
 	}
-	return s.dcAgentCap(ctx, need)
+	return s.dcAgentCap(c, ctx, need)
 }
 
 // dcAgentCap is the first registered agent on a domain controller of this panel's realm that has the named
-// capability on (its dedicated write mode): "gpo_restore", "password_migration", or "" for any DC.
-func (s *Server) dcAgentCap(ctx context.Context, need string) (*store.Agent, error) {
+// capability on (its dedicated write mode): "gpo_restore", "password_migration", or "" for any DC. Health is
+// self-reported and these requests carry secrets (the import credential, a source's password), so the agent must
+// also be on this host (loopback: it already holds the key) or on a host that is a domain controller in the
+// directory, read through the operator's connection (by its DNS name or an address that name resolves to).
+func (s *Server) dcAgentCap(c *echo.Context, ctx context.Context, need string) (*store.Agent, error) {
 	list, err := s.store.Agents()
 	if err != nil {
 		return nil, err
 	}
+	var dcs []ad.Computer
+	read := false
 	for i := range list {
 		a := &list[i]
 		st, out, err := agentDo(ctx, a, http.MethodGet, a.URL+"/api/health", nil)
@@ -144,6 +150,22 @@ func (s *Server) dcAgentCap(ctx context.Context, need string) (*store.Agent, err
 			}
 		case "password_migration":
 			if !h.PasswordMigration {
+				continue
+			}
+		}
+		host := ""
+		if x, err := url.Parse(a.URL); err == nil {
+			host = x.Hostname()
+		}
+		if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			if !read {
+				read = true
+				if d, err := s.dial(&s.cfg.AD, sess(c).user, sess(c).pass); err == nil {
+					dcs, _ = d.Computers("")
+					d.Close()
+				}
+			}
+			if !dcHost(ctx, host, dcs) {
 				continue
 			}
 		}
@@ -201,7 +223,7 @@ func (s *Server) importADPasswords(c *echo.Context) error {
 }
 
 // errNoPwAgent is returned when no DC agent of this domain has the password-migration write mode on.
-var errNoPwAgent = errors.New("no agent on a domain controller of this domain with the password migration mode on (password_migration_user)")
+var errNoPwAgent = errors.New("no agent on a domain controller of this domain with the password migration mode on (import_modes)")
 
 // runPasswordMigration finds the DC agent of this domain with the password-migration write mode on and runs the
 // plan (apply=false) or apply there over a sealed read-only DRSUAPI. The source replication password travels to the
@@ -214,7 +236,7 @@ func (s *Server) runPasswordMigration(c *echo.Context, ctx context.Context, host
 		audit.Log(sess(c).user, c.RealIP(), "password.migrate", host, err)
 		return nil, err
 	}
-	a, err := s.dcAgentCap(ctx, "password_migration")
+	a, err := s.dcAgentCap(c, ctx, "password_migration")
 	if err == nil && a == nil {
 		err = errNoPwAgent
 	}
@@ -261,7 +283,7 @@ func (s *Server) gpoBackup(c *echo.Context) error {
 	}
 	guid := c.Param("guid")
 	ctx := c.Request().Context()
-	a, err := s.dcAgent(ctx, false)
+	a, err := s.dcAgent(c, ctx, false)
 	if err != nil {
 		return fail(c, err)
 	}
@@ -338,16 +360,17 @@ func (s *Server) gpoRestore(c *echo.Context) error {
 		return refuse(http.StatusConflict, errors.New("a GPO with this name already exists"))
 	}
 	ctx := c.Request().Context()
-	a, err := s.dcAgent(ctx, true)
+	a, err := s.dcAgent(c, ctx, true)
 	if err != nil {
 		audit.Log(sess(c).user, c.RealIP(), "gpo.restore", target, err)
 		return fail(c, err)
 	}
 	if a == nil {
-		return refuse(http.StatusServiceUnavailable, errors.New("no agent on a domain controller of this domain with GPO restore on (gpo_restore_user)"))
+		return refuse(http.StatusServiceUnavailable, errors.New("no agent on a domain controller of this domain with GPO restore on (import_modes)"))
 	}
 	target = a.Name + ":" + in.Name
-	body, _ := json.Marshal(in)
+	// the panel's sealed import credential with the task (an agent with the former password file does without)
+	body, _ := json.Marshal(map[string]any{"name": in.Name, "archive": in.Archive, "admin": s.importAdmin()})
 	rctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	st, out, err := agentDo(rctx, a, http.MethodPost, a.URL+"/api/dc/gpos/restore", body)
@@ -559,6 +582,7 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 			Password  string `json:"password"`
 			Insecure  bool   `json:"insecure"`
 			SaveAs    string `json:"save_as"`
+			Profile   int64  `json:"profile"` // a saved profile: its kept password when the password is empty
 			Objects   *bool  `json:"objects"` // default true
 			GPOs      bool   `json:"gpos"`
 			DNS       bool   `json:"dns"`
@@ -571,7 +595,13 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 				Map   string `json:"map"`   // E:\=/srv/shares
 			} `json:"shares"`
 		}
-		if err := c.Bind(&in); err != nil || in.URL == "" || in.Domain == "" || in.User == "" || in.Password == "" {
+		if err := c.Bind(&in); err != nil {
+			return c.JSON(http.StatusBadRequest, msg("enter the source AD URL, domain, user and password"))
+		}
+		if in.Password == "" {
+			in.Password = s.keptSourcePassword(in.Profile, in.URL, in.Domain, in.User)
+		}
+		if in.URL == "" || in.Domain == "" || in.User == "" || in.Password == "" {
 			return c.JSON(http.StatusBadRequest, msg("enter the source AD URL, domain, user and password"))
 		}
 		objects := in.Objects == nil || *in.Objects
@@ -597,8 +627,11 @@ func (s *Server) importAD(apply bool) echo.HandlerFunc {
 			return c.JSON(http.StatusBadGateway, msg("source AD: "+err.Error()))
 		}
 		defer src.Close()
-		if in.SaveAs != "" && s.store != nil { // profile without the password
-			_ = s.store.SaveSource(&store.Source{Name: in.SaveAs, URL: in.URL, Domain: in.Domain, User: in.User, Insecure: in.Insecure})
+		if in.SaveAs != "" && s.store != nil { // the profile, its password sealed (never returned)
+			x := &store.Source{Name: in.SaveAs, URL: in.URL, Domain: in.Domain, User: in.User, Insecure: in.Insecure}
+			if err := s.store.SaveSource(x); err == nil {
+				_ = s.keepSourcePassword(x, in.Password)
+			}
 		}
 		counts := map[string]int{}
 		var data ad.ImportData
@@ -836,15 +869,16 @@ func (s *Server) applyGPOs(c *echo.Context, plan []ad.Action, host, user, passwo
 	}
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 16*time.Minute)
 	defer cancel()
-	a, err := s.dcAgent(ctx, true)
+	a, err := s.dcAgent(c, ctx, true)
 	if err == nil && a == nil {
-		err = errors.New("no agent on a domain controller of this domain with GPO restore on (gpo_restore_user)")
+		err = errors.New("no agent on a domain controller of this domain with GPO restore on (import_modes)")
 	}
 	if err != nil {
 		fail(err)
 		return
 	}
-	body, _ := json.Marshal(map[string]any{"source": map[string]string{"host": host, "user": user, "password": password}, "gpos": items})
+	body, _ := json.Marshal(map[string]any{"source": map[string]string{"host": host, "user": user, "password": password},
+		"gpos": items, "admin": s.importAdmin()})
 	st, out, err := agentDo(ctx, a, http.MethodPost, a.URL+"/api/dc/gpos/import", body)
 	var res []struct {
 		GUID    string `json:"guid"`
