@@ -228,6 +228,7 @@ impl Home {
                 ha = panel(ui, &look, t("Reset password / unlock"), r0, |ui| {
                     egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0; // the web's gap-2
                             quick = widgets::button(ui, &look, crate::icons::KEY, t("Open"), Kind::Primary).clicked();
                             // the logins as suggestions with their names (the web's quick box)
                             let options: Vec<(String, String)> = self
@@ -308,6 +309,9 @@ impl Home {
                             }
                             egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
                                 ui.set_width(ui.available_width());
+                                // the web's li: px-3 py-2 around a 12 px line, gap-2 between its parts
+                                ui.spacing_mut().interact_size.y = 0.0;
+                                ui.spacing_mut().item_spacing.x = 8.0;
                                 ui.horizontal(|ui| {
                                     widgets::tag(ui, &look, &a.tag, a.tone);
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -345,8 +349,11 @@ impl Home {
                     systems.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
                     let max = systems.iter().map(|x| x.1).max().unwrap_or(1).max(1);
                     egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                        ui.spacing_mut().item_spacing.y = 4.0;
+                        // space-y-1 between 18 px rows, gap-2 inside, as the web's list
+                        ui.spacing_mut().item_spacing = egui::vec2(8.0, 4.0);
+                        ui.spacing_mut().interact_size.y = 0.0;
                         ui.set_width(ui.available_width());
+                        let row_w = ui.available_width();
                         for (os, n) in systems {
                             ui.horizontal(|ui| {
                                 let name = if os.is_empty() { t("not reported").to_string() } else { os.clone() };
@@ -356,7 +363,8 @@ impl Home {
                                         .on_hover_text(&name);
                                 });
                                 let old = ["XP", "2003", "2008 Standard"].iter().any(|k| os.contains(k));
-                                let bw = (ui.available_width() - 40.0).max(0.0) * 0.6 * n as f32 / max as f32;
+                                // the web's bar: n/max of 60% of the row
+                                let bw = row_w * 0.6 * n as f32 / max as f32;
                                 let (r, _) =
                                     ui.allocate_exact_size(egui::vec2(bw.max(1.0), 12.0), egui::Sense::hover());
                                 ui.painter().rect_filled(

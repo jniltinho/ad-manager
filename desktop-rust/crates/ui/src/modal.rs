@@ -43,6 +43,8 @@ pub fn web_width(requested: f32, window: f32) -> f32 {
 
 /// The body's padding, as the web's .pnl-body (px 16, py 12).
 pub const BODY: (f32, f32) = (16.0, 12.0);
+/// The footer band's padding above and under its buttons.
+const FOOT_PAD: f32 = 8.0;
 
 /// Draws a dialog in its frame (title bar, bar, body).
 pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
@@ -66,13 +68,16 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
             })
             .show(ui, |ui| {
                 ui.set_width(w - 2.0 * (pad_x + line_w));
+                ui.spacing_mut().interact_size.y = 0.0; // the title's line, not a control's height
                 ui.horizontal(|ui| {
                     let size = look.px("dialog-head-size", 13.0);
                     ui.label(crate::style::semibold(d.title(), size).color(look.c("on-dialog-head")));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let close = ui.add(
-                            egui::Button::new(RichText::new(crate::icons::X).color(look.c("on-dialog-head")))
-                                .frame(false),
+                            egui::Button::new(
+                                RichText::new(crate::icons::X).size(15.0).color(look.c("on-dialog-head")),
+                            )
+                            .frame(false),
                         );
                         if close.on_hover_text(t("Close")).clicked() {
                             flow = Flow::Close;
@@ -102,7 +107,8 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
                 left: (BODY.0 + line_w) as i8,
                 right: (BODY.0 + line_w) as i8,
                 top: BODY.1 as i8,
-                bottom: (BODY.1 + line_w) as i8,
+                // the footer's own 8 under its buttons (the web's .pnl-foot py-2)
+                bottom: (FOOT_PAD + line_w) as i8,
             })
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 6.0;
@@ -200,8 +206,9 @@ fn draw_footer(ui: &mut Ui, look: &crate::style::Look, req: &FootReq) -> Footer 
     let under = ui.painter().add(egui::Shape::Noop);
     let r = ui
         .horizontal(|ui| {
-            ui.set_min_height(crate::style::control_h() + 16.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match &req.ok {
+            // 8 above the buttons here, 8 under them in the body's bottom margin: the web's 44-point band
+            ui.set_min_height(crate::style::control_h() + FOOT_PAD);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| match &req.ok {
                 Some(label) => {
                     // right to left: Cancel at the right end, the primary action before it
                     f.cancel = widgets::button(ui, look, "", t("Cancel"), Kind::Secondary).clicked();
@@ -217,7 +224,7 @@ fn draw_footer(ui: &mut Ui, look: &crate::style::Look, req: &FootReq) -> Footer 
         })
         .response;
     // the band reaches the dialog's sides and bottom: past the body's padding
-    let band = r.rect.expand2(egui::vec2(BODY.0, 0.0)).with_max_y(r.rect.max.y + BODY.1);
+    let band = r.rect.expand2(egui::vec2(BODY.0, 0.0)).with_max_y(r.rect.max.y + FOOT_PAD);
     let mut shapes = crate::depth::box_shapes(band, look.gradient("dialog-foot"), look.c("surface-2"), &[]);
     shapes.push(egui::Shape::hline(band.x_range(), band.top() + 0.5, egui::Stroke::new(1.0, look.c("line"))));
     let clip = ui.clip_rect().expand2(egui::vec2(BODY.0, BODY.1));

@@ -152,8 +152,9 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
         .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top: 6, bottom: 6 })
         .show(ui, |ui| {
             ui.set_width(w - 24.0 - bar);
+            // the head's line, not a control's 28 points (a row starts at this height: set before it opens)
+            ui.spacing_mut().interact_size.y = 0.0;
             ui.horizontal(|ui| {
-                ui.spacing_mut().interact_size.y = 0.0; // the head's line, not a control's 28 points
                 ui.label(rich);
                 if !note.is_empty() {
                     ui.add_space(6.0);
@@ -225,9 +226,9 @@ pub fn side_item<R>(
             .inner_margin(Margin::symmetric(12, 8))
             .show(ui, |ui| {
                 ui.set_width(w - 24.0);
+                ui.spacing_mut().interact_size.y = 0.0; // the web's 35-point item, not a control's height
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
-                    ui.spacing_mut().interact_size.y = 0.0; // the web's 35-point item, not a control's height
                     add(ui, ink)
                 })
                 .inner
