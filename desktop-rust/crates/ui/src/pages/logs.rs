@@ -152,15 +152,17 @@ impl Audit {
             });
         });
         ui.add_space(look.px("toolbar-mb", 12.0));
+        let (all, vis) = (&self.all, &self.visible);
+        // the web's auto layout: the result as narrow as its "ok" tags, wider once an error shows
+        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 64.0 } else { 240.0 };
         let cols = [
             Column::new(t("Date"), 150.0),
             Column::new(t("Operator"), 130.0),
             Column::new(t("Source"), 110.0),
             Column::new(t("Action"), 150.0),
             Column::new(t("Target"), 240.0).fill(),
-            Column::new(t("Result"), 200.0),
+            Column::new(t("Result"), result_w),
         ];
-        let (all, vis) = (&self.all, &self.visible);
         let mut hover = None;
         let out = table::Table { id: "audit", cols: &cols, rows: vis.len(), keys, row_h: 0.0, frame: true }.show::<()>(
             ui,

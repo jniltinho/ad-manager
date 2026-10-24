@@ -59,13 +59,24 @@ pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> 
         let r = ui.add(egui::Button::new(rich).frame(false));
         return r.on_hover_cursor(egui::CursorIcon::PointingHand);
     }
+    boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0)
+}
+
+/// A button `w` wide with its label at the left and `icon` at the right (the web's export buttons).
+pub fn button_end(ui: &mut Ui, look: &Look, label: &str, icon: &str, kind: Kind, w: f32) -> Response {
+    let (fill, ink, line) = colors(look, kind);
+    let size = look.px("control-text", 12.0);
+    let b = egui::Button::new(RichText::new(label).size(size).color(ink))
+        .right_text(RichText::new(icon).size(size).color(ink));
+    boxed(ui, look, b, kind, line, fill, w)
+}
+
+/// Draws `b` framed as the theme's button of `kind` (its fill, gradient and shadow under it), at least `w` wide.
+fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color32, fill: Color32, w: f32) -> Response {
     // the box is painted under the label: a placeholder taken before the button, filled once its rect is known
     let under = ui.painter().add(egui::Shape::Noop);
     let r = ui.add(
-        egui::Button::new(rich)
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::new(1.0, line))
-            .min_size(egui::vec2(0.0, crate::style::control_h())),
+        b.fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0, line)).min_size(egui::vec2(w, crate::style::control_h())),
     );
     let (bg, shadow) = parts(kind, r.hovered());
     let mut shapes = crate::depth::box_shapes(r.rect, look.gradient(bg), fill, look.shadows(shadow));
@@ -696,7 +707,8 @@ pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: u
     // the line under the strip; the current tab covers it by its overlap
     let y = r.rect.bottom() + line_w / 2.0;
     ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(line_w, look.c("subtab-line")));
-    ui.add_space(line_w + 12.0);
+    // the web's 12 px under the line, egui's item spacing included
+    ui.add_space((line_w + 12.0 - 2.0 * ui.spacing().item_spacing.y).max(line_w));
     out
 }
 

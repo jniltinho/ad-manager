@@ -362,9 +362,7 @@ impl ImportExport {
                     for pair in EXPORTS.chunks(2) {
                         ui.horizontal(|ui| {
                             for (f, label) in pair {
-                                let r = ui.add_sized([w, crate::style::control_h()], |ui: &mut Ui| {
-                                    widgets::button(ui, &look, "⬇", t(label), Kind::Secondary)
-                                });
+                                let r = widgets::button_end(ui, &look, t(label), "⬇", Kind::Secondary, w);
                                 if r.on_hover_text(format!("{f}.csv")).clicked() {
                                     let path = format!("/api/export/{f}");
                                     crate::files::save_download(
@@ -381,11 +379,9 @@ impl ImportExport {
                         });
                     }
                     if !self.servers.is_empty() {
-                        let y = ui.cursor().top();
-                        ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 4.0;
+                            ui.spacing_mut().item_spacing.x = 8.0;
                             let names: Vec<String> = self.servers.iter().map(|a| a.name.clone()).collect();
                             widgets::select(
                                 ui,
@@ -393,9 +389,16 @@ impl ImportExport {
                                 t("File server"),
                                 &mut self.server,
                                 &names,
-                                ui.available_width() - 132.0,
+                                ui.available_width() - 128.0,
                             );
-                            let r = widgets::button(ui, &look, "📂", t("Folders"), Kind::Secondary);
+                            let r = widgets::button_end(
+                                ui,
+                                &look,
+                                &format!("📂  {}", t("Folders")),
+                                "⬇",
+                                Kind::Secondary,
+                                120.0,
+                            );
                             if r.on_hover_text(t("Folders and permissions (no files)")).clicked()
                                 && let Some(a) = self.servers.get(self.server)
                             {
@@ -415,7 +418,7 @@ impl ImportExport {
                     let muted = look.c("fg-muted");
                     let mut job = egui::text::LayoutJob::default();
                     let text = egui::TextFormat::simple(egui::FontId::proportional(12.0), muted);
-                    let code = egui::TextFormat::simple(egui::FontId::monospace(11.0), look.c("fg-strong"));
+                    let code = egui::TextFormat::simple(egui::FontId::monospace(11.0), muted);
                     for (s, f) in [
                         (format!("{} ", t("No passwords or files. From the CLI:")), &text),
                         (format!("ad-manager export -d {}", t("folder")), &code),
