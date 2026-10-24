@@ -79,5 +79,5 @@
 - [x] 7.5 CSV of the rows on screen; Backup schedules edited in place and auto refresh.
 - [x] 7.6 Sync wizard step 5; quarantine, run details and run log dialogs; per-subfolder size.
 - [x] 7.7 Suggestions fields; share form roots, ACL history restore, write lists without full control.
-- [ ] 7.8 UI parity QA pass (independent reviewer over web and desktop captures) and its fixes.
-- [ ] 7.9 Codex review of the branch and its fixes.
+- [x] 7.8 UI parity QA pass (independent reviewer over web and desktop captures) and its fixes.
+- [x] 7.9 Codex review of the branch and its fixes.

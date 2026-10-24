@@ -324,3 +324,47 @@ The visual parity work SHALL NOT change which mouse cursor any control shows.
 #### Scenario: Cursors
 - **WHEN** the pointer is over a button, a navigation tab, a page tab, a table link or a text field
 - **THEN** it shows the same cursor as before this change
+
+### Requirement: Dialog actions reach their own dialog
+A footer click SHALL act only on the dialog it was drawn in, and a reply SHALL reach only the dialog and the session
+that asked for it.
+
+#### Scenario: Confirmation over a form
+- **WHEN** Restore of an earlier permission is confirmed over the open share form
+- **THEN** an `acl:restore` task is queued and no `share:create` task
+
+#### Scenario: Late reply after sign-out
+- **WHEN** a Settings save or an import answers after the operator signed out and another signed in
+- **THEN** the reply changes nothing in the new session
+
+#### Scenario: Run now after a preview
+- **WHEN** Run now is clicked on the wizard's preview step after the job id field was edited
+- **THEN** the run is asked for the previewed job
+
+### Requirement: Secrets on this computer
+Files the app downloads SHALL be readable by their owner only, and passwords and tokens SHALL NOT outlive their use in
+plain buffers or in the toolkit's text state.
+
+#### Scenario: Private downloads
+- **WHEN** a backup or a CSV export is saved on Unix, also over an existing file
+- **THEN** the file's mode is 0600
+
+#### Scenario: Secret request bodies
+- **WHEN** the sync wizard, the own-password change or a file server registration sends a password or token
+- **THEN** the JSON body is built straight into a buffer wiped on drop, with the secret as its last member
+
+#### Scenario: Secret fields forgotten at sign-out
+- **WHEN** the operator signs out after typing the source AD's password or generating an agent token
+- **THEN** egui keeps no text state (and no undo history) for those fields
+
+### Requirement: Footer panes and focused fields as the web's
+The footer SHALL draw the theme's status-bar panes and line when the theme defines them, and a focused text field
+SHALL show the theme's field-focus border and ring.
+
+#### Scenario: Classic gray footer
+- **WHEN** the Classic gray theme is on
+- **THEN** each footer item sits in a sunken pane 3 px from the next, under a white line
+
+#### Scenario: Focused field
+- **WHEN** the new-user dialog opens with the login field focused
+- **THEN** the field shows a 1 px border in the field-focus color with its 2 px ring outside

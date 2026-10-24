@@ -44,6 +44,20 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 - The header's global search opened nothing; it now opens Users filtered by the term.
 - A session that ended went back to sign-in only from some calls; any call that hears it now does.
 - A click on the text of a side list item, a log file or a wizard card did not pick it.
+- A confirmation over a dialog ran the dialog's own action (Restore of earlier permissions queued a share save).
+- Run now after a preview could run another job than the one previewed; a second save could start meanwhile.
+- Import previews failed on the server's empty password map; a computer's SMB sessions never loaded; the quarantine
+  opened empty.
+- Imports from another AD stopped after 20 seconds; the server allows them up to 33 minutes.
+- A focused text field lost its border; truncated table cells were clipped instead of ending in an ellipsis; a
+  scrolling dialog's title bar was narrower than the dialog.
+
+### Security
+
+- Downloads (DC backups, CSV exports with generated passwords) are created readable by their owner only.
+- Passwords and tokens sent to the panel go straight into buffers wiped after use; the source AD's password and the
+  agent token leave no text in egui's state after sign-out.
+- A reply that arrives after sign-out no longer updates the next session (Settings, imports).
 
 ## [0.1.0] - 2026-10-23
 

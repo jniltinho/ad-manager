@@ -54,8 +54,8 @@ deny: ## cargo deny (licenses, advisories, sources) with the pinned, SHA-256 che
 check: fmt-check clippy test deny ## What CI runs
 
 shots: ## The docs screenshots (2x, Classic blue, domain.local) into ../docs/screenshots
-	DESKTOP_RUST_DOCKER_ARGS="--add-host panel.domain.local:127.0.0.1" ADM_SHOTS=/work/docs/screenshots ADM_SHOTS_HOST=panel.domain.local \
-		$(CARGO) test -p adm-ui --test ui --locked shots -- --ignored
+	DESKTOP_RUST_DOCKER_ARGS="--add-host panel.domain.local:127.0.0.1 -v /usr/share/fonts:/usr/share/fonts:ro" ADM_SHOTS=/work/docs/screenshots ADM_SHOTS_HOST=panel.domain.local \
+		$(CARGO) test -p adm-ui --test ui --locked shots -- --ignored --exact
 
 mock: ## A mock panel with 5,000 users on https://127.0.0.1:8443 (prints the URL and pin)
 	DESKTOP_RUST_DOCKER_ARGS="-p 127.0.0.1:8443:8443" $(CARGO) run -p adm-core --example mock_panel --features testkit --locked -- --users 5000 --port 8443
