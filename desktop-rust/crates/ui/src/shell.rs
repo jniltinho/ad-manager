@@ -7,7 +7,7 @@ use adm_core::i18n::t;
 use egui::{Frame, Margin, RichText, Ui};
 
 use crate::app::{Cx, Go};
-use crate::pages::{backup, computers, groups, home, logs, ous, settings, shares, sync, users};
+use crate::pages::{backup, computers, groups, home, import_export, logs, ous, settings, shares, sync, users};
 use crate::widgets::{self, Kind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,11 +21,12 @@ pub enum Page {
     Backup,
     Sync,
     Logs,
+    ImportExport,
     Settings,
 }
 
 impl Page {
-    pub const ALL: [Page; 10] = [
+    pub const ALL: [Page; 11] = [
         Self::Home,
         Self::Users,
         Self::Groups,
@@ -35,6 +36,7 @@ impl Page {
         Self::Backup,
         Self::Sync,
         Self::Logs,
+        Self::ImportExport,
         Self::Settings,
     ];
 
@@ -49,6 +51,7 @@ impl Page {
             Self::Backup => t("Backup"),
             Self::Sync => t("Sync"),
             Self::Logs => t("Logs"),
+            Self::ImportExport => t("Import/export"),
             Self::Settings => t("Settings"),
         }
     }
@@ -64,6 +67,7 @@ impl Page {
             Self::Backup => "🕘",
             Self::Sync => "🔄",
             Self::Logs => "📄",
+            Self::ImportExport => "↔",
             Self::Settings => "⚙",
         }
     }
@@ -85,7 +89,7 @@ pub struct Shell {
     page: Page,
     /// The header's global search.
     search: String,
-    opened: [bool; 10],
+    opened: [bool; 11],
     pub home: home::Home,
     pub users: users::Users,
     pub groups: groups::Groups,
@@ -96,6 +100,7 @@ pub struct Shell {
     pub sync: sync::Sync,
     pub logs: logs::Logs,
     pub settings: settings::Settings,
+    pub import: import_export::ImportExport,
 }
 
 impl Shell {
@@ -103,7 +108,7 @@ impl Shell {
         let mut s = Self {
             page: Page::Home,
             search: String::new(),
-            opened: [false; 10],
+            opened: [false; 11],
             home: home::Home::default(),
             users: users::Users::default(),
             groups: groups::Groups::default(),
@@ -114,6 +119,7 @@ impl Shell {
             sync: sync::Sync::default(),
             logs: logs::Logs::default(),
             settings: settings::Settings::default(),
+            import: import_export::ImportExport::default(),
         };
         s.go_to(cx, Page::Home);
         s
@@ -141,6 +147,7 @@ impl Shell {
             Page::Sync => self.sync.load(cx),
             Page::Logs => self.logs.load(cx),
             Page::Settings => self.settings.load(cx),
+            Page::ImportExport => self.import.load(cx),
         }
     }
 
@@ -245,6 +252,10 @@ impl Shell {
             }
             Page::Settings => {
                 self.settings.ui(ui, cx);
+                None
+            }
+            Page::ImportExport => {
+                self.import.ui(ui, cx);
                 None
             }
         }
@@ -372,20 +383,9 @@ impl Shell {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = look.px("tab-gap", 0.0);
-                    for tab in TABS {
-                        let clicked = match tab {
-                            Tab::Page(p) => top_tab(ui, &look, p.icon(), p.label(), p == current, "")
-                                .clicked()
-                                .then_some(Nav::To(p)),
-                            Tab::Web(icon, label, path) => {
-                                if top_tab(ui, &look, icon, t(label), false, t("Opens in the browser")).clicked() {
-                                    ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}{path}")));
-                                }
-                                None
-                            }
-                        };
-                        if clicked.is_some() {
-                            nav = clicked;
+                    for p in TABS {
+                        if top_tab(ui, &look, p.icon(), p.label(), p == current, "").clicked() {
+                            nav = Some(Nav::To(p));
                         }
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
@@ -491,24 +491,18 @@ const SUPPORT_ICON: &str = "❓";
 /// The project's support page (the web's default).
 const SUPPORT: &str = "https://github.com/jniltinho/ad-manager/wiki";
 
-/// A tab of the strip: a page, or a panel page opened in the browser (icon, English label, path).
-enum Tab {
-    Page(Page),
-    Web(&'static str, &'static str, &'static str),
-}
-
-/// The web's tab order (App.vue): Import/export and Settings are the panel's own pages.
-const TABS: [Tab; 10] = [
-    Tab::Page(Page::Home),
-    Tab::Page(Page::Users),
-    Tab::Page(Page::Groups),
-    Tab::Page(Page::Ous),
-    Tab::Page(Page::Computers),
-    Tab::Page(Page::Shares),
-    Tab::Web("↔", "Import/export", "/import-export"),
-    Tab::Page(Page::Backup),
-    Tab::Page(Page::Logs),
-    Tab::Page(Page::Settings),
+/// The web's tab order (App.vue); Sync opens from Backup's subtabs.
+const TABS: [Page; 10] = [
+    Page::Home,
+    Page::Users,
+    Page::Groups,
+    Page::Ous,
+    Page::Computers,
+    Page::Shares,
+    Page::ImportExport,
+    Page::Backup,
+    Page::Logs,
+    Page::Settings,
 ];
 
 /// A top tab as the web's: px 16 py 8, a 15 point icon and the 12 point semibold label; the current one in the

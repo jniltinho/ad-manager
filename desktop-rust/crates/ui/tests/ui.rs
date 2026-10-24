@@ -505,6 +505,9 @@ fn shots() {
     e.wait("the schedules", |_, m| !m.sent("GET", "/api/agents/1/backup-schedules").is_empty());
     e.h.run_steps(4);
     save(&mut e, "25-backup-agent");
+    page(&mut e, "Import/export");
+    e.h.run_steps(3);
+    save(&mut e, "26-import-export");
 }
 
 #[test]
@@ -651,4 +654,35 @@ fn home_quick_box_suggests_logins_and_warns_on_unknown_ones() {
     e.key(egui::Key::Enter);
     e.h.run_steps(2);
     assert_eq!(e.app().cx.status, "Login not found.");
+}
+
+#[test]
+fn import_from_another_ad_previews_then_writes() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Import/export").click();
+    e.wait("the profiles", |_, m| !m.sent("GET", "/api/ad-sources").is_empty());
+    e.h.run_steps(3);
+    e.h.get_by_label("From another AD").click();
+    e.h.run_steps(3);
+    e.h.get_by_label("legacy-2008").click(); // a saved profile fills the source, never the password
+    e.h.run_steps(2);
+    e.h.get_by_label("Password").click();
+    e.h.step();
+    e.type_text("Old#Pass1");
+    e.h.get_by_label_contains("Connect and preview").click_accesskit();
+    e.wait("the plan", |_, m| !m.sent("POST", "/api/import/ad/plan").is_empty());
+    let body = &e.sent("POST", "/api/import/ad/plan")[0].json();
+    assert_eq!(
+        (body["domain"].as_str(), body["user"].as_str(), body["password"].as_str()),
+        (Some("old.local"), Some("migrator"), Some("Old#Pass1"))
+    );
+    e.h.run_steps(4);
+    assert!(e.h.query_by_label_contains("4 actions, 3 change(s)").is_some(), "the plan's head");
+    e.h.get_by_label_contains("Write to the domain").click_accesskit();
+    e.h.run_steps(3);
+    e.click("✔  Apply");
+    e.wait("the write", |_, m| !m.sent("POST", "/api/import/ad/apply").is_empty());
+    e.h.run_steps(4);
+    assert!(e.h.query_by_label_contains("Finished: 3 action(s).").is_some(), "the log dialog");
 }

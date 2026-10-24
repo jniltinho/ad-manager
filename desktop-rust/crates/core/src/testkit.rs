@@ -188,6 +188,14 @@ pub fn demo(users: usize) -> Arc<Route> {
                     json!({"token": "Tk-EXAMPLE-0001", "hash": "h", "command": "echo h | sudo tee /opt/ad-manager/agent.token"}),
                 ),
                 "/api/agents/1/tasks" => ok(json!({"id": "t1", "state": "pending"})),
+                "/api/import/ad/plan" | "/api/import/ad/apply" | "/api/import/plan" | "/api/import/apply" => {
+                    ok(json!({"plan":[
+                    {"kind":"ou.create","target":"OU=Sales,DC=domain,DC=local","detail":"","result":"created","ok":true},
+                    {"kind":"user.create","target":"ana.souza","detail":"Ana Souza → OU=Sales","result":"created","ok":true},
+                    {"kind":"member.add","target":"Sales","detail":"ana.souza","result":"added","ok":true},
+                    {"kind":"skip","target":"Administrator","detail":"protected account","result":"","ok":true}],
+                    "passwords":{"ana.souza":"Gen-Pass-0001"},"counts":{"users":24,"groups":12,"ous":5,"computers":8}}))
+                }
                 "/api/agents/1/syncs/public/preview" => {
                     ok(json!({"id": "p1", "job": "public", "preview": true, "status": "running"}))
                 }
@@ -244,6 +252,9 @@ pub fn demo(users: usize) -> Arc<Route> {
             ])),
             // a session that ended, for the tests of the 401 handling
             "/api/expired-probe" => (401, json!({"error": "session expired"}).to_string()),
+            "/api/ad-sources" => ok(
+                json!([{"id":1,"name":"legacy-2008","url":"ldap://old-dc.old.local","domain":"old.local","user":"migrator","insecure":true}]),
+            ),
             "/api/settings" => ok(json!({"stored": true, "logo": false,
                 "settings": {"lang":"en","session_minutes":30,"inactive_days":90,"password_length":14,"default_ou":"",
                     "company":"Example Company Ltd","support_url":"","swagger":false,"theme":"classic-blue","flat":false},

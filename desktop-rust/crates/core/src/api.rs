@@ -308,15 +308,32 @@ impl Api {
     /// PUT `path` with one file as the multipart field `field` (the panel's logo); `name` is the file's name, its
     /// content type taken from the extension.
     pub async fn put_file(&self, path: &str, field: &str, name: &str, bytes: Vec<u8>) -> ApiResult<()> {
+        self.multipart(Method::PUT, path, vec![(field.to_string(), name.to_string(), bytes)]).await.map(|_| ())
+    }
+
+    /// POST `path` with files as multipart fields (field, file name, bytes) and decodes the answer (the CSV import).
+    pub async fn post_files<T: DeserializeOwned + Default>(
+        &self,
+        path: &str,
+        files: Vec<(String, String, Vec<u8>)>,
+    ) -> ApiResult<T> {
+        decode(&self.multipart(Method::POST, path, files).await?)
+    }
+
+    async fn multipart(&self, method: Method, path: &str, files: Vec<(String, String, Vec<u8>)>) -> ApiResult<Vec<u8>> {
         let (url, path) = self.url(path);
         let mut r = [0u8; 16];
         getrandom::fill(&mut r).map_err(|e| ApiError::msg(e.to_string()))?;
         let boundary = format!("adm-{}", r.iter().map(|b| format!("{b:02x}")).collect::<String>());
-        let mut body = multipart_head(&boundary, field, name);
-        body.extend_from_slice(&bytes);
-        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        let mut body = Vec::new();
+        for (field, name, bytes) in files {
+            body.extend_from_slice(&multipart_head(&boundary, &field, &name));
+            body.extend_from_slice(&bytes);
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
         let resp = self
-            .request(Method::PUT, &url, None)
+            .request(method, &url, Some(Duration::from_secs(600)))
             .header("Content-Type", format!("multipart/form-data; boundary={boundary}"))
             .body(body)
             .send()
@@ -324,7 +341,8 @@ impl Api {
             .map_err(|e| transport(&e))?;
         let status = resp.status();
         let data = read_capped(resp).await?;
-        self.check(status, &path, &data)
+        self.check(status, &path, &data)?;
+        Ok(data)
     }
 
     pub async fn upload<T: DeserializeOwned + Default>(&self, path: &str, from: &Path) -> ApiResult<T> {
@@ -352,6 +370,7 @@ fn multipart_head(boundary: &str, field: &str, name: &str) -> Vec<u8> {
     let ext = name.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
     let kind = match ext.as_str() {
         "png" => "image/png",
+        "csv" => "text/csv",
         "jpg" | "jpeg" => "image/jpeg",
         "svg" => "image/svg+xml",
         _ => "application/octet-stream",

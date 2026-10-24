@@ -9,6 +9,7 @@ pub mod file_servers;
 pub mod gpos;
 pub mod groups;
 pub mod home;
+pub mod import_export;
 pub mod logs;
 pub mod ous;
 pub mod policy;

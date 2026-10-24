@@ -164,7 +164,10 @@ pub fn panel<R>(
         .show(ui, |ui| {
             ui.set_min_height((min_h - 2.0).max(0.0));
             ui.spacing_mut().item_spacing.y = 0.0;
-            card_head_note(ui, look, head.0, head.1, right);
+            // a card without a title (its own tabs on top)
+            if !head.0.is_empty() {
+                card_head_note(ui, look, head.0, head.1, right);
+            }
             add(ui)
         })
         .inner
@@ -222,6 +225,11 @@ pub fn side_item<R>(
 /// left. Returns the tab clicked.
 pub fn cardtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize) -> Option<usize> {
     let (bx, by) = crate::modal::BODY;
+    cardtabs_at(ui, look, id, tabs, sel, bx, by)
+}
+
+/// The cardtabs band reaching `bx` past the sides and `by` above (a dialog's body padding; 0 at a card's top).
+pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize, bx: f32, by: f32) -> Option<usize> {
     let h = 34.0;
     let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
     let band =
@@ -275,7 +283,9 @@ pub fn cardtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize) -
         x += w + look.px("cardtabs-gap", 0.0);
     }
     painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
-    ui.add_space(12.0);
+    if by > 0.0 {
+        ui.add_space(12.0); // a dialog's body goes on under the band
+    }
     out
 }
 
