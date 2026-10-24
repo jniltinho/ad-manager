@@ -1,6 +1,7 @@
 # Screen-by-screen audit: web vs egui
 
-Measured on the docs screenshots (both 2×, Classic blue, `domain.local`) with PIL color-run and bounding-box scans.
+Measured on the docs screenshots (both 2×, Classic blue, `domain.local`) with PIL color-run and bounding-box scans
+(the scripts are kept with the change: `audit-tools/runs.py`, `audit-tools/bbox.py`).
 All sizes are logical px. The web window is 1600×900 and its app box starts at 16; the egui window is 1280×800. So
 sizes, paddings, gaps and alignment are compared, and positions are given relative to their container. Some value
 differences are only demo data (counts, LOCKED vs DEACTIVATED, OU paths), not layout.
@@ -10,6 +11,9 @@ differences are only demo data (counts, LOCKED vs DEACTIVATED, OU paths), not la
 | # | Part | Web | egui today | Fix |
 |---|---|---|---|---|
 | A1 | Single-line text fields | 28 (login 25) | **19** | 28 border box (login 25); same height as the buttons beside them |
+
+Measurements count the painted border box; a button's drawn depth (gradient edge, shadow) is noted apart where it
+changes the number (the web login button is 26 in CSS and paints 28 with its depth).
 | A2 | Buttons, selects | 28; primary gradient, **bold** | 26; flat; regular | 28; gradient outside flat; primary and secondary semibold, ghost regular |
 | A3 | Selects | White fill, small 10×6 arrow | Grey `#dcdbd6`, large arrow | Field look of the web select |
 | A4 | Table header | One continuous band 29–31, 2 px bottom rule, **bold** | 26 cells with 4 px gaps, regular, 6 px gap before row 1 | One band, bold, no gaps, no gap before row 1; a header over every column, including "Actions" |
@@ -26,7 +30,7 @@ differences are only demo data (counts, LOCKED vs DEACTIVATED, OU paths), not la
 | A15 | Footer | 35 = 3 px green top line + 32 gradient; company (bold), Support, domain, user, session, version with icons | 25 flat; company, status, version | Web footer; the status line stays as an extra item |
 | A16 | App box | 16 px margins on a page color; at QHD ×1.25 and capped at 2300 (1840 × 1.25) | Edge to edge | App box and zoom |
 | A17 | Toolbar alignment | Right group flush with the table's right edge; toolbar → table 12 | Right group short of the edge; 6 | Right-align to the content edge; gap 12 |
-| A18 | Selection | Light tint `#e8eefc` | Solid `#316ac5` with white text | Web tint |
+| A18 | Row hover vs selection | Hover: light tint `#e8eefc`; text selection `#316ac5` with white text | Solid `#316ac5` on a selected row | Web hover tint on rows; keep `#316ac5` for text selection |
 
 ## Parity gaps found (features, not only looks)
 
@@ -250,7 +254,7 @@ Captures still needed on the egui side: the Samba logs tab and the Set password 
 | Cell text | Operator bold dark blue, action monospace | Operator regular link blue, action proportional | egui drops bold and monospace |
 | Result badge | "OK" pill 29×17, pale `#e5eee5`, dark-green text | "ok" 64×18 solid `#2a702a`, white text | egui badge is fixed-width and solid |
 | Samba tab | Files panel 260 wide, search 360×28, "last 500" select 200×28, level check, Refresh right, monospace messages | Not captured | Recapture the egui Samba tab |
-| Footer | 3 px green top line + 32 tall blue gradient; company, Support, domain left; user, session, version right | 25 tall flat `#194299`, no line; company, status, version | 7 px shorter, no green line, fewer items |
+| Footer | 3 px green top line + 32 tall blue gradient; company, Support, domain left; user, session, version right | 25 tall flat `#194299`, no line; company, status, version | 10 px shorter, no green line, fewer items |
 
 ## Backup — `29-backup` ↔ `desktop-rs-14-backup`
 

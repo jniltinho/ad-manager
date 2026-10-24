@@ -73,36 +73,66 @@ alignment from the theme's tokens and recipe (`audit.md` A4–A15).
 #### Scenario: Table header and rows as the web
 - **WHEN** the Users, Groups, Computers, Logs or Backup table is drawn in the Default theme
 - **THEN** its header is one continuous band with bold labels and a label over every column (an "Actions" header over
-  the action columns), with no gap before the first row, and the rows have a 29 px pitch with a full-width divider,
-  the first row unstriped, numbers and sizes right-aligned
+  the action columns), with no gap before the first row, and its row pitch, dividers and striping match the web
+  fixture of that same table within 1 px, with numbers and sizes right-aligned where the web aligns them so
 
 #### Scenario: Badges as the web
-- **WHEN** a status or system badge is drawn
-- **THEN** its text is bold uppercase at 10 px on the tone's pale fill, centered, 17 px tall, as wide as its text
+- **WHEN** the Users status badges (active, locked, deactivated, system) and the Home alert badges are drawn
+- **THEN** each has the web's variant: bold uppercase 10 px text centered, 17 px tall; the Users status badge 104 px
+  wide with a pale fill for active and solid fills for locked, deactivated and system, as `Users.vue`; the alert badges
+  as wide as their text
 
 #### Scenario: Dialog layout
 - **WHEN** the new-user, password-policy or reset-password dialog is open in the Default theme
-- **THEN** its title is bold and left-aligned with no notch in its bar, labels are above their fields, every field of
-  a column starts at the same x, the footer is a full-width band, and the primary action (Create, Save policy,
-  Generate link) comes before Cancel
+- **THEN** its title is bold and left-aligned with no notch in its bar, the footer is a full-width band, the primary
+  action (Create, Save policy, Generate link) comes before Cancel, and the fields follow the web dialog: labels above
+  fields with every field of a column at the same x in the new-user and reset dialogs, and label | input | unit columns
+  in the password-policy dialog
 
 #### Scenario: Header and footer
 - **WHEN** the shell is shown in the Default theme at 1280×800
 - **THEN** the header is 64 px tall with the logo about 114 px wide and a bold, vertically centered title, and the
   footer is 35 px tall with its 3 px top line and the web's items
 
+### Requirement: Web features found missing
+The Rust desktop SHALL offer the web features the audit found missing: Home's Domain controllers and Operating systems
+panels, Groups' filter, type select, count, Export CSV and Scope column with members in a detail dialog, the Shares
+File servers list with add, edit and remove, Tasks and Sessions, Logs' action filter, Export CSV and HTTP tab, Sync's
+Last run, Quarantine and Size columns, OUs' GPOs, Computers' DNS, and the sign-in screen's language switch.
+
+#### Scenario: Home panels
+- **WHEN** Home is shown
+- **THEN** it has the Domain controllers and the Operating systems panels, laid out as the web's
+
+#### Scenario: Shares servers
+- **WHEN** the Shares page is shown
+- **THEN** its left column lists the panel's file servers with add, edit and remove, and a Tasks card, as the web's
+
+#### Scenario: Logs HTTP tab
+- **WHEN** the Logs page is shown
+- **THEN** its page tabs include the panel's HTTP log, and the audit tab has the action filter and Export CSV
+
+#### Scenario: Conditional tabs
+- **WHEN** the panel's Swagger setting is off and its queue monitor is off
+- **THEN** the API and Queues tabs are not shown, and they are when the settings are on
+
 ### Requirement: Web typography
-The Rust desktop SHALL draw its text in the active theme's font family and sizes as the web resolves them, with Inter
-400/600 as the baseline, monospace text kept monospace, ghost buttons in regular weight, and the Classic themes' Tahoma
-stack mapped to an embedded open fallback.
+The Rust desktop SHALL resolve the active theme's font stack as a browser does: the first family of the stack installed
+on the system, with its regular and bold files; the embedded Inter 4.001 for the Inter stacks and as the last resort of
+sans stacks, egui's monospace as the last resort of monospace stacks; ghost buttons in regular weight.
 
 #### Scenario: Default typeface
 - **WHEN** a page is drawn in the Default theme
 - **THEN** body text uses Inter regular, headings and primary buttons Inter semibold, and ghost buttons Inter regular
 
 #### Scenario: Theme typeface
-- **WHEN** a page is drawn in Matrix or in a Classic theme
-- **THEN** it uses that theme's family and base size (monospace 12 for Matrix, the Classic fallback family at 11)
+- **WHEN** a page is drawn in a Classic theme on Windows, and in Matrix on any OS
+- **THEN** the Classic theme uses Tahoma (from the system's fonts) at base 11, and Matrix the first installed family
+  of its monospace stack at base 12
+
+#### Scenario: Missing font
+- **WHEN** a Classic theme runs on a Linux system without Tahoma, Verdana or Segoe UI
+- **THEN** the text uses the next family of the stack that is installed, or Inter, and nothing fails
 
 ### Requirement: Theme recipes for geometry
 The Default theme's numbers SHALL be the baseline, and a theme's own recipe (case, bars, frames, title sizes, line
@@ -180,9 +210,20 @@ draw none.
   captured
 - **THEN** each has a top pixel different from its bottom pixel, as the web's gradient, and the dialog has a shadow
 
-#### Scenario: Flat look
-- **WHEN** the flat look is chosen, or High Contrast is active
-- **THEN** those parts are single-colored and there is no shadow pixel outside them
+#### Scenario: Flat look clears decoration only
+- **WHEN** the flat look is chosen
+- **THEN** the parts `style.css` lists in its flat override (header, tabs, buttons, card and table heads, dialog head
+  and foot, footer, app box, login box, fields) are single-colored without shadows, while the dialog and popup shadows,
+  the current tab's mark, the focus ring and an invalid field's mark are still drawn
+
+#### Scenario: Depthless theme
+- **WHEN** High Contrast is active
+- **THEN** the decorative gradients and shadows are not drawn and the state marks are
+
+#### Scenario: Gradient direction and interpolation
+- **WHEN** the Classic blue header and the Default dialog title are drawn outside the flat look
+- **THEN** their gradients run horizontally, with colors matching the web's (Oklab where the CSS says so) within 2 per
+  channel at the start, middle and end
 
 ### Requirement: Screen-reader names
 Every field, select and icon-only control SHALL carry an AccessKit name taken from its visible label or its action.
