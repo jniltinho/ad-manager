@@ -204,33 +204,30 @@ fn draw_footer(ui: &mut Ui, look: &crate::style::Look, req: &FootReq) -> Footer 
     let mut f = Footer::default();
     ui.add_space(BODY.1);
     let under = ui.painter().add(egui::Shape::Noop);
-    let r = ui
-        .horizontal(|ui| {
-            // 8 above the buttons here, 8 under them in the body's bottom margin: the web's 44-point band
-            ui.set_min_height(crate::style::control_h() + FOOT_PAD);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
-                // the web's footer padding (px-3) is 4 less than the body's
-                ui.add_space(12.0 - BODY.0);
-                match &req.ok {
-                    Some(label) => {
-                        // right to left: Cancel at the right end, the primary action before it
-                        f.cancel = widgets::button(ui, look, "", t("Cancel"), Kind::Secondary).clicked();
-                        let kind = if req.danger { Kind::Danger } else { Kind::Primary };
-                        f.ok = ui
-                            .add_enabled_ui(req.enabled, |ui| {
-                                widgets::button(ui, look, crate::icons::CHECK, label, kind)
-                            })
-                            .inner
-                            .clicked();
-                    }
-                    // only a way out: the web's ghost button
-                    None => f.ok = widgets::button(ui, look, "", &req.close, Kind::Secondary).clicked(),
-                }
-            });
-        })
-        .response;
+    // 8 above the buttons here, 8 under them in the body's bottom margin: the web's 44-point band
+    let h = crate::style::control_h() + FOOT_PAD;
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h), egui::Sense::hover());
+    // the buttons 12 from the dialog's edge (the web's px-3, 4 less than the body's padding): drawn in a child
+    // reaching past the body's right margin, which does not widen the dialog
+    let row = egui::Rect::from_min_max(r.min, egui::pos2(r.right() + BODY.0 - 12.0, r.bottom()));
+    let mut buttons =
+        ui.new_child(egui::UiBuilder::new().max_rect(row).layout(egui::Layout::right_to_left(egui::Align::Max)));
+    buttons.set_clip_rect(ui.clip_rect().expand2(egui::vec2(BODY.0, 0.0)));
+    match &req.ok {
+        Some(label) => {
+            // right to left: Cancel at the right end, the primary action before it
+            f.cancel = widgets::button(&mut buttons, look, "", t("Cancel"), Kind::Secondary).clicked();
+            let kind = if req.danger { Kind::Danger } else { Kind::Primary };
+            f.ok = buttons
+                .add_enabled_ui(req.enabled, |ui| widgets::button(ui, look, crate::icons::CHECK, label, kind))
+                .inner
+                .clicked();
+        }
+        // only a way out: the web's ghost button
+        None => f.ok = widgets::button(&mut buttons, look, "", &req.close, Kind::Secondary).clicked(),
+    }
     // the band reaches the dialog's sides and bottom: past the body's padding
-    let band = r.rect.expand2(egui::vec2(BODY.0, 0.0)).with_max_y(r.rect.max.y + FOOT_PAD);
+    let band = r.expand2(egui::vec2(BODY.0, 0.0)).with_max_y(r.max.y + FOOT_PAD);
     let mut shapes = crate::depth::box_shapes(band, look.gradient("dialog-foot"), look.c("surface-2"), &[]);
     shapes.push(egui::Shape::hline(band.x_range(), band.top() + 0.5, egui::Stroke::new(1.0, look.c("line"))));
     let clip = ui.clip_rect().expand2(egui::vec2(BODY.0, BODY.1));
