@@ -134,7 +134,7 @@ impl Sync {
                                 // the web's two lines, 16 points apart
                                 ui.spacing_mut().item_spacing.y = 4.0;
                                 ui.label(crate::style::semibold(&a.name, 12.0).color(ink));
-                                ui.label(RichText::new(a.host()).size(11.0).color(ink));
+                                ui.label(RichText::new(a.place()).size(11.0).color(ink));
                             });
                         });
                         if r.response.clicked() && !on {

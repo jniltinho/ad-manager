@@ -436,7 +436,7 @@ impl Settings {
                     .fold(0.0, f32::max);
                 ui.spacing_mut().item_spacing.y = 0.0;
                 for (i, (k, v)) in rows.iter().enumerate() {
-                    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 25.0), egui::Sense::hover());
+                    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 27.0), egui::Sense::hover());
                     if i % 2 == 1 {
                         ui.painter().rect_filled(r, 0.0, look.c("row-alt"));
                     }

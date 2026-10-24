@@ -548,7 +548,7 @@ impl Backup {
                                         .font(egui::TextStyle::Monospace)
                                         .desired_width(fw(widths[2]) - 26.0),
                                 );
-                                egui::ComboBox::from_id_salt(("sched-preset", r)).width(0.0).selected_text("").show_ui(
+                                crate::widgets::combo(("sched-preset", r)).width(0.0).selected_text("").show_ui(
                                     ui,
                                     |ui| {
                                         for (c, label) in CRON_PRESETS {

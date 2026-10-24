@@ -57,14 +57,10 @@ fn panel(ui: &mut Ui, look: &crate::style::Look, title: &str, min_h: f32, add: i
             }
         })
         .response;
-    let mut shapes = crate::depth::box_shapes(r.rect, None, look.c("surface"), look.shadows("card"));
-    shapes.push(egui::Shape::rect_stroke(
-        r.rect,
-        0.0,
-        egui::Stroke::new(1.0, look.c("line")),
-        egui::StrokeKind::Inside,
-    ));
+    let shapes = crate::depth::box_shapes(r.rect, None, look.c("surface"), look.shadows("card"));
     ui.painter().set(under, egui::Shape::Vec(shapes));
+    // the card's border over its head too (the web's .card border frames the title: High contrast shows it)
+    ui.painter().rect_stroke(r.rect, 0.0, egui::Stroke::new(1.0, look.c("line")), egui::StrokeKind::Inside);
     natural
 }
 

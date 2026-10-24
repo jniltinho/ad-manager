@@ -101,6 +101,9 @@ func decls(body string, into map[string]string) {
 }
 
 // Load reads the theme sources under the repository root.
+// arrowFill finds the color of the select arrow's data-URL SVG.
+var arrowFill = regexp.MustCompile(`fill='%23([0-9a-fA-F]{6})'`)
+
 func Load(root string) ([]Theme, error) {
 	read := func(p string) (string, error) {
 		b, err := os.ReadFile(filepath.Join(root, p))
@@ -176,6 +179,30 @@ func Load(root string) ([]Theme, error) {
 			}
 			t.Colors[r] = c
 		}
+		// the placeholder: the theme's --placeholder-color, or the browser's (the field's ink at 50% over the field)
+		ph, field := t.Colors["on-field"], t.Colors["field"]
+		if v, err := resolve(vals, "--placeholder-color", 0); err == nil {
+			if c, err := parseColor(v); err == nil {
+				ph, field = c, c
+			}
+		}
+		for i := 0; i < 3; i++ {
+			ph[i] = uint8((int(ph[i]) + int(field[i])) / 2)
+		}
+		if ph[3] == 0 {
+			ph[3] = 255
+		}
+		t.Colors["placeholder"] = ph
+		// the select's arrow: the fill of the theme's --bg-select-arrow SVG (the field's ink when it has none)
+		arrow := t.Colors["on-field"]
+		if v, err := resolve(vals, "--bg-select-arrow", 0); err == nil {
+			if m := arrowFill.FindStringSubmatch(v); m != nil {
+				if c, err := parseColor("#" + m[1]); err == nil {
+					arrow = c
+				}
+			}
+		}
+		t.Colors["select-arrow"] = arrow
 		if v, err := resolve(vals, "--shadow-login-box", 0); err == nil {
 			t.LoginShadow = outerShadow(v)
 			t.LoginRelief = insetShadows(v)

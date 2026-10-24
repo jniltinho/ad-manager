@@ -61,7 +61,7 @@ impl OuPicker {
     /// The select, named `name` for screen readers (its label above names it visually).
     pub fn ui(&mut self, ui: &mut Ui, id: &str, name: &str, width: f32) {
         let shown = self.sel.and_then(|i| self.labels.get(i).cloned()).unwrap_or_default();
-        let r = egui::ComboBox::from_id_salt(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+        let r = crate::widgets::combo(id).width(width).selected_text(shown).show_ui(ui, |ui| {
             for (i, l) in self.labels.iter().enumerate() {
                 if ui.selectable_label(self.sel == Some(i), l).clicked() {
                     self.sel = Some(i);

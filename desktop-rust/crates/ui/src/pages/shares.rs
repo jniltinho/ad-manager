@@ -312,7 +312,7 @@ impl Shares {
                             ui.interact(r, ui.id().with(("dot", a.id)), egui::Sense::hover()).on_hover_text(tip);
                         }
                         ui.label(crate::style::semibold(&a.name, 12.0).color(ink));
-                        ui.add(egui::Label::new(RichText::new(a.host()).size(11.0).color(ink)).truncate());
+                        ui.add(egui::Label::new(RichText::new(a.place()).size(11.0).color(ink)).truncate());
                         if matches!(health, Some(Ok(h)) if h.dc) {
                             widgets::tag(ui, &look, "DC", Tone::Normal);
                         }
@@ -439,12 +439,13 @@ impl Shares {
         widgets::panel(ui, &look, (&title, &note), right, h, |ui| {
             let w = ui.available_width();
             let cols = [
-                Column::new(t("Name"), (w * 0.14).floor()),
+                // the web's auto layout with real lists: the access lists wide, the comment what is left
+                Column::new(t("Name"), (w * 0.16).floor()),
                 Column::new(t("Path"), (w * 0.19).floor()),
                 Column::new(t("Size"), 80.0).right(),
-                Column::new(t("Write access"), (w * 0.20).floor()),
-                Column::new(t("Read access"), (w * 0.16).floor()),
-                Column::new(t("Comment"), 120.0).fill(),
+                Column::new(t("Write access"), (w * 0.22).floor()),
+                Column::new(t("Read access"), (w * 0.15).floor()),
+                Column::new(t("Comment"), 90.0).fill(),
                 Column::new(t("Actions"), 144.0).right(),
             ];
             let mut hover = None;

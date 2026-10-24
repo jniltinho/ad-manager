@@ -43,7 +43,16 @@ fn parts(kind: Kind, hovered: bool) -> (&'static str, &'static str) {
 /// A button with an optional icon glyph before its label, as the web's buttons: a 28 px border box with the theme's
 /// gradient and shadow (none in the flat look), semibold except the secondary (ghost) one.
 pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> Response {
+    // disabled: the web's opacity-50 on the whole button (a group: the label keeps its contrast on the paler fill),
+    // so the colors are mixed with the surface and drawn at full opacity, not each shape faded by egui
+    let disabled = !ui.is_enabled() && kind != Kind::Link;
     let (fill, ink, line) = colors(look, kind);
+    let (fill, ink, line) = if disabled {
+        let s = look.c("surface");
+        (fill.lerp_to_gamma(s, 0.5), ink.lerp_to_gamma(s, 0.5), line.lerp_to_gamma(s, 0.5))
+    } else {
+        (fill, ink, line)
+    };
     let text = match (icon.is_empty(), label.is_empty()) {
         (true, _) => label.to_string(),
         (false, true) => icon.to_string(),
@@ -62,7 +71,15 @@ pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> 
         }
         return r.on_hover_cursor(egui::CursorIcon::PointingHand);
     }
-    let r = boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0);
+    let r = if disabled {
+        ui.scope(|ui| {
+            ui.set_opacity(1.0);
+            boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0)
+        })
+        .inner
+    } else {
+        boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0)
+    };
     // named by its label: the icon is a private-use glyph a screen reader cannot read
     if !label.is_empty() {
         let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
@@ -94,8 +111,9 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
         b.fill(Color32::TRANSPARENT).stroke(Stroke::new(1.0, line)).min_size(egui::vec2(w, crate::style::control_h())),
     );
     let (bg, shadow) = parts(kind, r.hovered());
-    // a disabled ui's painter already draws at half opacity (the web's disabled:opacity-50)
-    let shapes = crate::depth::box_shapes(r.rect, look.gradient(bg), fill, look.shadows(shadow));
+    // a disabled button's colors come mixed (see button): its flat fill, no gradient
+    let gradient = if ui.is_enabled() { look.gradient(bg) } else { None };
+    let shapes = crate::depth::box_shapes(r.rect, gradient, fill, look.shadows(shadow));
     ui.painter().set(under, egui::Shape::Vec(shapes));
     r
 }
@@ -218,6 +236,8 @@ pub fn panel<R>(
     let outer: Vec<_> = look.shadows("card").iter().filter(|l| !l.inset).cloned().collect();
     ui.painter()
         .set(under, egui::Shape::Vec(crate::depth::box_shapes(r.response.rect, None, Color32::TRANSPARENT, &outer)));
+    // the border over the head too (the head's fill covered the frame's stroke; High contrast shows it)
+    ui.painter().rect_stroke(r.response.rect, 0.0, Stroke::new(1.0, look.c("line")), egui::StrokeKind::Inside);
     r.inner
 }
 
@@ -297,24 +317,21 @@ pub fn cardtabs_at(
     let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
     let (pad, gap) = (look.px("cardtabs-pad", 0.0), look.px("cardtabs-gap", 0.0));
     let n = tabs.len().max(1) as f32;
-    // not fit: the web's flex: 1 buttons, equal widths, a label too long for its share wrapping over two lines (all
-    // tabs then as tall, align-items: stretch); fit: as wide as their labels
+    // not fit: the web's flex: 1 buttons on one line, as the browser lays them out: equal shares, a label wider
+    // than its share keeping its own width (min-width: auto) and the others sharing what is left; fit: as wide as
+    // their labels
     let room = ui.available_width() + 2.0 * bx - 2.0 * pad - gap * (n - 1.0);
-    let equal = (room / n).floor();
     let galleys: Vec<_> = tabs
         .iter()
         .enumerate()
         .map(|(i, l)| {
             let text = if upper { l.to_uppercase() } else { l.to_string() };
             let ink = if i == sel { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
-            let wrap = if fit { f32::INFINITY } else { (equal - 24.0).max(10.0) };
-            let mut job = egui::text::LayoutJob::simple(text, font.clone(), ink, wrap);
-            if !fit {
-                job.halign = egui::Align::Center;
-            }
-            ui.painter().layout_job(job)
+            ui.painter().layout_no_wrap(text, font.clone(), ink)
         })
         .collect();
+    let natural: Vec<f32> = galleys.iter().map(|g| g.size().x + 24.0).collect();
+    let widths = flex_widths(&natural, room);
     let line = galleys.iter().map(|g| g.rows.first().map_or(15.0, |r| r.height())).fold(0.0, f32::max);
     let tallest = galleys.iter().map(|g| g.size().y).fold(0.0, f32::max);
     let h = 34.0 + pad + (tallest - line).max(0.0);
@@ -342,7 +359,7 @@ pub fn cardtabs_at(
     for (i, (label, g)) in tabs.iter().zip(galleys).enumerate() {
         let on = i == sel;
         let ink = if on { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
-        let w = if fit { g.size().x + 24.0 + if on { bar } else { 0.0 } } else { equal };
+        let w = if fit { g.size().x + 24.0 + if on { bar } else { 0.0 } } else { widths[i] };
         // the band's padding on top (the web's --cardtabs-pad), the inactive tabs lower by their inset, the current
         // one over the band's line by its overlap
         let top = band.top() + pad + if on { 0.0 } else { look.px("cardtab-inset-top", 0.0) };
@@ -367,11 +384,10 @@ pub fn cardtabs_at(
                 look.c("cardtab-bar"),
             );
         }
-        // a centered job is laid out around x = 0: its galley starts at the middle of the tab
         let left = if fit {
             tab.left() + 12.0 + if on { bar } else { 0.0 }
         } else {
-            tab.center().x + if on { bar / 2.0 } else { 0.0 }
+            tab.center().x - g.size().x / 2.0 + if on { bar / 2.0 } else { 0.0 }
         };
         painter.galley(egui::pos2(left, tab.center().y - g.size().y / 2.0), g, ink);
         let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
@@ -1097,6 +1113,43 @@ pub fn status_square(ui: &mut Ui) -> (egui::Rect, Response) {
     (egui::Rect::from_center_size(cell.center(), egui::vec2(8.0, 8.0)), resp)
 }
 
+/// CSS flex: 1 1 0 widths with min-width: auto: equal shares of `room`, an item whose content is wider than its
+/// share frozen at its content width and the rest shared again among the others.
+fn flex_widths(natural: &[f32], room: f32) -> Vec<f32> {
+    let mut frozen = vec![false; natural.len()];
+    loop {
+        let left = room - natural.iter().zip(&frozen).filter(|(_, f)| **f).map(|(w, _)| w).sum::<f32>();
+        let free = frozen.iter().filter(|f| !**f).count().max(1) as f32;
+        let share = (left / free).max(0.0);
+        let mut changed = false;
+        for (i, w) in natural.iter().enumerate() {
+            if !frozen[i] && *w > share {
+                frozen[i] = true;
+                changed = true;
+            }
+        }
+        if !changed || frozen.iter().all(|f| *f) {
+            return natural.iter().zip(&frozen).map(|(w, f)| if *f { *w } else { share.floor() }).collect();
+        }
+    }
+}
+
+/// A select (combo box) with the web's arrow: the 10 x 6 triangle of the theme's --bg-select-arrow, in its color.
+pub fn combo(id_salt: impl egui::AsIdSalt) -> egui::ComboBox {
+    egui::ComboBox::from_id_salt(id_salt).icon(|ui, rect, _, _| {
+        let ink = ui.ctx().data(|d| d.get_temp::<Color32>(egui::Id::new(SELECT_ARROW))).unwrap_or(Color32::GRAY);
+        let r = egui::Rect::from_center_size(rect.center(), egui::vec2(10.0, 6.0));
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![r.left_top(), r.right_top(), r.center_bottom()],
+            ink,
+            Stroke::NONE,
+        ));
+    })
+}
+
+/// The memory key of the select arrow's color (set by the look).
+pub const SELECT_ARROW: &str = "adm-select-arrow";
+
 /// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).
 pub const LEADING: f32 = 1.5;
 
@@ -1139,7 +1192,7 @@ pub fn select(
 ) -> bool {
     let before = *sel;
     let shown = options.get(*sel).cloned().unwrap_or_default();
-    let r = egui::ComboBox::from_id_salt(id).width(width).selected_text(shown).show_ui(ui, |ui| {
+    let r = combo(id).width(width).selected_text(shown).show_ui(ui, |ui| {
         for (i, o) in options.iter().enumerate() {
             ui.selectable_value(sel, i, o);
         }
@@ -1165,7 +1218,7 @@ pub fn labeled_select(
         ui.spacing_mut().item_spacing.y = 4.0;
         let l = lbl(ui, look, label);
         let shown = options.get(*sel).cloned().unwrap_or_default();
-        egui::ComboBox::from_id_salt(id)
+        combo(id)
             .width(width)
             .selected_text(shown)
             .show_ui(ui, |ui| {
@@ -1274,5 +1327,14 @@ mod share_tests {
         // all fit: shared in proportion
         let f = super::share_widths(&[100.0, 100.0], &[0.0, 0.0], false, 400.0);
         assert_eq!(f, vec![200.0, 200.0]);
+    }
+}
+
+#[cfg(test)]
+mod flex_tests {
+    #[test]
+    fn a_wide_label_keeps_its_width() {
+        assert_eq!(super::flex_widths(&[90.0, 140.0, 70.0], 342.0), vec![101.0, 140.0, 101.0]);
+        assert_eq!(super::flex_widths(&[90.0, 100.0, 70.0], 360.0), vec![120.0, 120.0, 120.0]);
     }
 }

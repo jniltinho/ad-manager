@@ -277,6 +277,11 @@ impl Agent {
         h == "127.0.0.1" || h == "localhost" || h == "::1"
     }
 
+    /// Where the agent answers as the web shows it: "This server" for the panel's own machine, else its host.
+    pub fn place(&self) -> String {
+        if self.local() { crate::i18n::t("This server").to_string() } else { self.host() }
+    }
+
     /// Tells apart servers with look-alike names: where each agent answers.
     pub fn label(&self) -> String {
         if self.local() {

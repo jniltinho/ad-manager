@@ -59,7 +59,7 @@ impl Page {
     pub fn icon(self) -> &'static str {
         match self {
             Self::Home => crate::icons::HOME,
-            Self::Users => crate::icons::USER,
+            Self::Users => crate::icons::USERS, // the web's Users icon
             Self::Groups => crate::icons::USERS_ROUND,
             Self::Ous => crate::icons::FOLDER_TREE,
             Self::Computers => crate::icons::MONITOR,
@@ -396,12 +396,11 @@ impl Shell {
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
                         if cx.me.asynqmon
-                            && top_tab(
+                            && aux_tab(
                                 ui,
                                 &look,
                                 crate::icons::CHECKS,
                                 t("Queues"),
-                                false,
                                 t("Agent queue monitor (opens in a new tab)"),
                             )
                             .clicked()
@@ -409,12 +408,11 @@ impl Shell {
                             ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}/asynqmon")));
                         }
                         if cx.me.settings.swagger
-                            && top_tab(
+                            && aux_tab(
                                 ui,
                                 &look,
                                 crate::icons::BOOK,
                                 "API",
-                                false,
                                 t("API documentation (opens in a new tab)"),
                             )
                             .clicked()
@@ -543,6 +541,26 @@ const TABS: [Page; 10] = [
 
 /// A top tab as the web's: px 16 py 8, a 15 point icon and the 12 point semibold label; the current one in the
 /// theme's tab-on recipe (fill or gradient, its inset marks), the others lower by the theme's inset.
+/// The web's .tab-aux (API, Queues at the right of the tabs): a plain link, px-4 py-2, semibold 12 px in the
+/// on-tab-aux ink, the tab-aux-hover tint on hover; no tab box.
+fn aux_tab(ui: &mut Ui, look: &crate::style::Look, icon: &str, label: &str, hint: &str) -> egui::Response {
+    let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let g = ui.painter().layout_no_wrap(format!("{icon} {label}"), font, egui::Color32::PLACEHOLDER);
+    let size = egui::vec2(g.size().x + 32.0, g.size().y + 16.0);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    let hovered = resp.hovered();
+    if hovered {
+        ui.painter().rect_filled(rect, 0.0, look.c("tab-aux-hover"));
+    }
+    let ink = if hovered { look.c("on-tab-aux-hover") } else { look.c("on-tab-aux") };
+    ui.painter().galley(rect.center() - g.size() / 2.0, g, ink);
+    let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
+        n.set_role(egui::accesskit::Role::Link);
+        n.set_label(label.to_string());
+    });
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(hint)
+}
+
 fn top_tab(
     ui: &mut Ui,
     look: &crate::style::Look,

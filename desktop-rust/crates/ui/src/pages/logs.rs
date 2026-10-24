@@ -32,8 +32,8 @@ impl Logs {
         cx.spawn(async move { api.get::<Vec<Agent>>("/api/agents").await }, |app, r| {
             let Ok(agents) = r else { return };
             app.with_shell(|s, cx| {
-                for a in agents.iter().filter(|a| !a.local()) {
-                    // the agent beside the panel reads the same logs as "this server"
+                // every registered server, the panel's own too (as the web's: its own tab through its agent)
+                for a in &agents {
                     s.logs.samba.push(SambaView::new(tf!("Samba — %s", a.name), cx.panel.via(a.id)));
                 }
             });
@@ -162,9 +162,9 @@ impl Audit {
         widgets::toolbar_gap(ui, &look);
         let (all, vis) = (&self.all, &self.visible);
         // the web's auto layout: the result as narrow as its "ok" tags, wider once an error shows
-        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 64.0 } else { 240.0 };
+        let result_w = if vis.iter().all(|&i| all[i].result == "ok") { 90.0 } else { 240.0 };
         let cols = [
-            Column::new(t("Date"), 150.0),
+            Column::new(t("Date"), 180.0), // the web's auto layout gives the date more room
             Column::new(t("Operator"), 130.0),
             Column::new(t("Source"), 110.0),
             Column::new(t("Action"), 150.0),
@@ -574,11 +574,8 @@ impl SambaView {
                     let labels: Vec<String> = LINES.iter().map(|n| tf!("last %d", n)).collect();
                     reload |= widgets::select(ui, ("samba-lines", i), t("Entries"), &mut self.lines, &labels, 160.0);
                     crate::widgets::check(ui, &mut self.errors, RichText::new(t("level 0 only (errors)")).size(12.0));
-                    let count = if self.current.is_empty() || self.count == t("Loading…") {
-                        self.count.clone()
-                    } else {
-                        tf!("%d entries (newest first)", shown.len())
-                    };
+                    // the web's counter: the entries shown, also before a file is chosen or while it loads
+                    let count = tf!("%d entries (newest first)", shown.len());
                     ui.label(RichText::new(count).size(12.0).color(muted));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
@@ -591,14 +588,10 @@ impl SambaView {
                 });
                 widgets::toolbar_gap(ui, &look);
                 let room = ui.available_height() - 24.0;
+                let empty = if self.current.is_empty() { t("Choose a file.") } else { t("No entries.") };
                 ui.allocate_ui(egui::vec2(ui.available_width(), room), |ui| {
-                    samba_entries(ui, &look, &self.entries, &shown, i, &mut self.rows);
+                    samba_entries(ui, &look, &self.entries, &shown, i, &mut self.rows, empty);
                 });
-                if shown.is_empty() {
-                    ui.add_space(16.0);
-                    let msg = if self.current.is_empty() { t("Choose a file.") } else { t("No entries.") };
-                    ui.vertical_centered(|ui| ui.label(RichText::new(msg).size(12.0).color(muted)));
-                }
                 ui.add_space(8.0);
                 ui.label(
                     RichText::new(t(
@@ -626,9 +619,18 @@ fn samba_entries(
     shown: &[usize],
     id: usize,
     rows: &mut RowHeights,
+    empty: &str,
 ) {
     let (th_px, td_py) = (look.px("th-px", 8.0), look.px("td-py", 4.0));
-    let (date_w, level_w) = (160.0, 56.0);
+    // the web's w-px columns: as wide as their content (the date's mono text, the level's tag)
+    let width_of = |s: &str, font: egui::FontId| {
+        ui.painter().layout_no_wrap(s.to_string(), font, egui::Color32::PLACEHOLDER).size().x
+    };
+    let head_font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
+    let time = shown.iter().map(|&k| entries[k].time.as_str()).find(|t| !t.is_empty()).unwrap_or("");
+    let date_w =
+        width_of(t("Date"), head_font.clone()).max(width_of(time, egui::FontId::monospace(11.0))) + 2.0 * th_px;
+    let level_w = width_of(t("Level"), head_font).max(24.0) + 2.0 * th_px;
     let frame = egui::Frame::new().stroke(egui::Stroke::new(1.0, look.c("line")));
     frame.show(ui, |ui| {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
@@ -652,6 +654,14 @@ fn samba_entries(
                 g,
                 look.c("on-table-head"),
             );
+        }
+        if shown.is_empty() {
+            // the web's empty body: a row of the table, its text centered
+            let (row, _) = ui.allocate_exact_size(egui::vec2(w, 50.0), egui::Sense::hover());
+            let g =
+                ui.painter().layout_no_wrap(empty.to_string(), egui::FontId::proportional(12.0), look.c("fg-muted"));
+            ui.painter().galley(row.center() - g.size() / 2.0, g, look.c("fg-muted"));
+            return;
         }
         let msg_w = (w - date_w - level_w - 2.0 * th_px).max(80.0);
         // the rows' heights, estimated then measured once drawn: only the rows on screen are laid out. A new list

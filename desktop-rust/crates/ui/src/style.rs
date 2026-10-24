@@ -32,7 +32,9 @@ impl Look {
     /// Theme `id` in the full or the flat look.
     pub fn with_flat(id: &str, flat: bool) -> Option<Self> {
         let (id, p) = theme::palette(id)?;
-        Some(Self { id, p, flat: flat || p.depthless })
+        // a depthless theme's own recipes already have no depth (High contrast's window line is a frame): the flat
+        // look only when asked, as the web's data-flat
+        Some(Self { id, p, flat })
     }
 
     /// A size token in points (the web's px at zoom 1).
@@ -88,6 +90,8 @@ impl Look {
         v.window_stroke = Stroke::new(1.0, self.c("line"));
         v.extreme_bg_color = self.c("field");
         v.text_edit_bg_color = Some(self.c("field"));
+        // placeholders in the theme's --placeholder-color (the browser's field ink at 50% when it gives none)
+        v.weak_text_color = Some(self.c("placeholder"));
         v.faint_bg_color = self.c("row-alt");
         v.code_bg_color = self.c("surface-2");
         v.hyperlink_color = self.c("link");
@@ -139,6 +143,7 @@ impl Look {
             ink: fg,
         };
         ctx.data_mut(|d| d.insert_temp(Id::new("adm-check-colors"), check));
+        ctx.data_mut(|d| d.insert_temp(Id::new(crate::widgets::SELECT_ARROW), self.c("select-arrow")));
         let (defs, _family) = crate::fonts::definitions(&self.p.fonts.sans, &self.p.fonts.mono);
         ctx.set_fonts(defs);
         let control = self.px("control-h", 28.0);

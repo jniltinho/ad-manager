@@ -143,7 +143,8 @@ impl Groups {
         });
         widgets::toolbar_gap(ui, &look);
         let cols = [
-            Column::new(t("Group"), 230.0),
+            // wide enough for the built-in groups' names, as the web's auto layout gives them
+            Column::new(t("Group"), 300.0),
             Column::new("", 80.0).badge(),
             Column::new(t("Group type"), 95.0),
             Column::new(t("Scope"), 100.0),

@@ -4,17 +4,14 @@
 
 use adm_core::api::esc;
 use adm_core::i18n::t;
-use adm_core::logic::{Tone, computer_inactive, legacy_os, os_label, ou_path, parent_dn};
+use adm_core::logic::{Tone, computer_inactive, legacy_os, os_label};
 use adm_core::model::{Computer, is_set};
 use adm_core::tf;
 use chrono::Utc;
 use egui::{RichText, Ui};
 use reqwest::Method;
-use serde_json::json;
 
-use super::OuPicker;
 use crate::app::Cx;
-use crate::modal::{Dialog, Flow, footer};
 use crate::table::{self, Cell, Column, TableState};
 use crate::widgets::{self, Kind};
 
@@ -182,14 +179,8 @@ impl Computers {
                                 (crate::icons::POWER, t("enable"), tf!("Enable %s", x.name))
                             };
                             cell = cell
+                                // the web's actions: enable/disable and delete (no move here, as the web)
                                 .and_link(label, Tone::Normal, icon, hint, (Act::Toggle, i))
-                                .and_link(
-                                    t("move"),
-                                    Tone::Normal,
-                                    crate::icons::FOLDER_INPUT,
-                                    tf!("Move %s to another OU", x.name),
-                                    (Act::Move, i),
-                                )
                                 .and_link(
                                     t("delete"),
                                     Tone::Normal,
@@ -213,16 +204,9 @@ impl Computers {
                     cx,
                     if x.dns_name.is_empty() { x.name.clone() } else { x.dns_name.clone() },
                 ),
-                // DCs are never disabled, moved or deleted here (the server refuses too)
+                // DCs are never disabled or deleted here (the server refuses too)
                 _ if x.is_dc => {}
                 Act::Toggle => toggle_computer(cx, x),
-                Act::Move => {
-                    let api = cx.panel.clone();
-                    cx.run(async move { crate::pages::users::fetch_ous(&api).await }, move |app, ous| {
-                        let cur = parent_dn(&x.dn).to_string();
-                        app.cx.push(MoveComputer { picker: OuPicker::new(&ous, &cur), x });
-                    });
-                }
                 Act::Delete => {
                     let name = x.name.clone();
                     cx.confirm_typed(
@@ -249,7 +233,6 @@ impl Computers {
 enum Act {
     Sessions,
     Toggle,
-    Move,
     Delete,
 }
 
@@ -273,36 +256,4 @@ fn toggle_computer(cx: &mut Cx, x: Computer) {
         true,
         move |cx| run(cx, "disable", "%s disabled.", x),
     );
-}
-
-struct MoveComputer {
-    x: Computer,
-    picker: OuPicker,
-}
-
-impl Dialog for MoveComputer {
-    fn title(&self) -> String {
-        tf!("Move %s", self.x.name)
-    }
-
-    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
-        let look = cx.look.clone();
-        ui.spacing_mut().item_spacing.y = 4.0;
-        widgets::lbl(ui, &look, t("Destination"));
-        self.picker.ui(ui, "move-computer-ou", t("Destination"), ui.available_width());
-        let f = footer(ui, cx, Some(t("Move")), "", false, self.picker.chosen());
-        if f.ok && self.picker.chosen() {
-            let target = self.picker.dn();
-            let api = cx.panel.clone();
-            let path = format!("/api/computers/{}/move", esc(&self.x.sam));
-            let name = self.x.name.clone();
-            let body = json!({ "ou": target });
-            cx.run(async move { api.act_with(Method::POST, &path, &body).await }, move |app, ()| {
-                app.cx.set_status(tf!("%s moved to %s.", name, ou_path(&target)));
-                app.with_shell(|s, cx| s.computers.reload(cx));
-            });
-            return Flow::Close;
-        }
-        if f.cancel { Flow::Close } else { Flow::Keep }
-    }
 }
