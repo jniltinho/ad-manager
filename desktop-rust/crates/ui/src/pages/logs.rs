@@ -71,6 +71,11 @@ impl Logs {
     pub fn samba_loaded(&self) -> Vec<bool> {
         self.samba.iter().map(|v| v.loaded).collect()
     }
+
+    /// The error each Samba tab shows inline (empty when its files loaded), for the live test.
+    pub fn samba_errors(&self) -> Vec<String> {
+        self.samba.iter().map(|v| v.list_error.clone()).collect()
+    }
 }
 
 #[derive(Default)]

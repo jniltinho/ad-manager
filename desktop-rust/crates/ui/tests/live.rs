@@ -37,8 +37,12 @@ fn every_page_against_a_real_panel() {
     let (Some(url), Some(pw)) = (std::env::var_os("ADM_LIVE_URL"), std::env::var_os("ADM_LIVE_PASSWORD_FILE")) else {
         return;
     };
-    let password = std::fs::read_to_string(pw).unwrap().trim().to_string();
+    // the file's line, its spaces kept (only the line ending goes)
+    let password = std::fs::read_to_string(pw).unwrap().trim_end_matches(['\n', '\r']).to_string();
     let shots = std::env::var_os("ADM_LIVE_SHOTS").map(PathBuf::from);
+    if let Some(d) = &shots {
+        std::fs::create_dir_all(d).unwrap();
+    }
     adm_core::i18n::set_lang("en");
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let mut config = Config::default();
@@ -100,5 +104,13 @@ fn every_page_against_a_real_panel() {
         settle(&mut h, 4000);
         no_error(&h, tab);
         save(&mut h, name);
+    }
+    // a Samba tab shows a failure inline (no dialog): its list must have loaded without one
+    match &h.state().screen {
+        Screen::Shell(s) => {
+            assert!(s.logs.samba_loaded().first().copied().unwrap_or(false), "the Samba files were asked for");
+            assert!(s.logs.samba_errors().iter().all(String::is_empty), "Samba: {:?}", s.logs.samba_errors());
+        }
+        _ => panic!("left the shell"),
     }
 }
