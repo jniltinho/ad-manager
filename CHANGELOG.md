@@ -11,6 +11,13 @@ All notable changes to this project are documented here. The format follows
   (tags `desktop-rust-v*`), and a benchmark against the Fyne app (`desktop-rust/docs/benchmark.md`). The Fyne app
   stays the shipped desktop.
 
+### Security
+- The import write modes keep no password on the DC: `import_modes = true` in the agent and the administrator
+  credential encrypted in the panel's database (*Settings → Import from an existing AD*, checked as a Domain Admin),
+  sent to the agent with each GPO task. The setup's **Prepare the import of GPOs and passwords** no longer writes
+  `/opt/ad-manager/import.pass` (and removes an old one). A *From another AD* profile keeps its password encrypted,
+  bound to that profile's server and user. The former `gpo_restore_*`/`password_migration_*` keys keep working.
+
 ### Changed
 - Desktop app: saving Configure keeps the `[graphics]` section of desktop.toml, where the Rust desktop stores its
   rendering backend.

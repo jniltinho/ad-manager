@@ -19,6 +19,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 | Preserve the users' passwords on a new-domain cutover | [password-migration.md](password-migration.md) |
 | Create folders and shares on the file servers | [agent.md](agent.md) |
 | Use Samba as DC and file server on the same machine | [dc-file-server.md](dc-file-server.md) |
+| Build that DC as a VM (separate XFS data disk) and move it to XCP-ng | [fileserver-vm.md](fileserver-vm.md) |
 | Bring folders over from another server (SMB) and restore files from quarantine | [sync.md](sync.md) |
 | Use the app on my machine (Linux, Windows, macOS) | [desktop.md](desktop.md) |
 | Automate from the terminal | [cli.md](cli.md) |

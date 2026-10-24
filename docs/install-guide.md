@@ -57,7 +57,6 @@ Both install methods use the same layout, so upgrades and support steps are the 
 | `/opt/ad-manager/data/` | SQLite, setup token, self-signed certificate | `0750 ad-manager` |
 | `/opt/ad-manager/logs/` | `audit.log`, `access.log` | `0750 ad-manager` |
 | `/opt/ad-manager/agent.token` | SHA-256 of the agent token (agent only) | `0600 root` |
-| `/opt/ad-manager/import.pass` | the import write modes' password, only after a prepared setup ([below](#write-modes-gates)) | `0600 root` |
 | `ad-manager.service`, `ad-manager-agent.service` | the units: `/usr/lib/systemd/system/` (`.deb`) or `/etc/systemd/system/` (binary) | `0644 root` |
 
 The panel runs as the `ad-manager` user with only `data/` and `logs/` writable; the agent runs as root (it changes
@@ -244,6 +243,7 @@ default and reported by `/api/health` (`files`, `gpo_restore`, `password_migrati
 | Key(s) | Turns on | Reference |
 |---|---|---|
 | `dc_file_server = true` | the DC changes files and shares (its own share roots) | [dc-file-server.md](dc-file-server.md) |
+| `import_modes = true` | both import modes below, with no secret on the DC (the GPO credential comes from the panel) | [installation.md](installation.md#import-from-an-existing-ad) |
 | `gpo_restore_user`, `gpo_restore_password_file` | restoring and importing GPOs (always as new GPOs) | [gpo.md](gpo.md) |
 | `password_migration_user`, `password_migration_password_file` | the password-material migration of a new-domain cutover | [password-migration.md](password-migration.md) |
 
@@ -251,9 +251,9 @@ Not a gate, but also in `[agent]`: `sync_unconfined = true` lets a sync run with
 without systemd only, [sync.md](sync.md)).
 
 The password files are regular `0600 root` files with only the password, never in `config.toml`. A new domain created
-by the setup wizard with **Prepare the import of GPOs and passwords** has both import modes pointing to
-`/opt/ad-manager/import.pass`; `sudo rm /opt/ad-manager/import.pass` turns both off on that DC
-([installation.md](installation.md#import-from-an-existing-ad)).
+by the setup wizard with **Prepare the import of GPOs and passwords** has `import_modes = true` instead, with the
+administrator credential encrypted in the panel's database (*Settings → Import from an existing AD*); remove it there and
+delete the `import_modes` line to turn both off on that DC ([installation.md](installation.md#import-from-an-existing-ad)).
 
 ### Verify
 

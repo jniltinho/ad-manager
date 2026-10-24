@@ -91,9 +91,11 @@ gpo_restore_user = "svc-gporestore"                          # account that crea
 gpo_restore_password_file = "/opt/ad-manager/gpo-restore.pass" # only the password, mode 0600 (root)
 ```
 
-- A new domain created by the setup wizard with **Prepare the import of GPOs and passwords** has this mode on for its
-  administrator (`/opt/ad-manager/import.pass`, shared with the password-migration mode), for the "From another AD"
-  import; `sudo rm /opt/ad-manager/import.pass` turns both off ([installation.md](installation.md#import-from-an-existing-ad)).
+- Or, with no password on the DC: `import_modes = true` (also the password-migration mode) and the administrator
+  credential kept encrypted in the panel's database (*Settings → Import from an existing AD*, checked as a Domain
+  Admin), sent to the agent with each GPO task and written only to a 0600 temporary file for `samba-tool`. A new
+  domain created by the setup wizard with **Prepare the import of GPOs and passwords** is set up this way; remove the
+  credential and the `import_modes` line after the import ([installation.md](installation.md#import-from-an-existing-ad)).
 - The account must be able to create GPOs in LDAP and write the folder and the ACL in SYSVOL. On Samba that means
   **Domain Admins** (the "Group Policy Creator Owners" group is not enough: Samba's `CN=Policies` does not delegate to
   it and the copy to SYSVOL writes the ACL). On a DC the agent's root is already equivalent to a domain administrator;

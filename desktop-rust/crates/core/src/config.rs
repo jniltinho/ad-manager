@@ -50,6 +50,34 @@ impl Graphics {
     }
 }
 
+/// `[appearance]`: the look this computer uses instead of the panel's (Configure › Appearance); empty = the panel's.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Appearance {
+    /// A theme id of the registry (`adm_core::theme::order`); empty = the panel's theme.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub theme: String,
+    /// "flat" or "depth"; empty = the panel's choice.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub flat: String,
+}
+
+impl Appearance {
+    pub fn is_empty(&self) -> bool {
+        self.theme.is_empty() && self.flat.is_empty()
+    }
+
+    /// The look to draw: this computer's choice over the panel's `theme` and `flat`.
+    pub fn resolve<'a>(&'a self, theme: &'a str, flat: bool) -> (&'a str, bool) {
+        let id = if self.theme.is_empty() { theme } else { &self.theme };
+        let flat = match self.flat.as_str() {
+            "flat" => true,
+            "depth" => false,
+            _ => flat,
+        };
+        (id, flat)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
@@ -60,6 +88,9 @@ pub struct Config {
     /// `[graphics]`: the rendering backend (the Fyne app keeps it when it rewrites the file).
     #[serde(default, skip_serializing_if = "Graphics::is_empty")]
     pub graphics: Graphics,
+    /// `[appearance]`: this computer's theme and flat look over the panel's.
+    #[serde(default, skip_serializing_if = "Appearance::is_empty")]
+    pub appearance: Appearance,
     /// The file still listed file servers (`[[agents]]` with tokens, no longer used).
     #[serde(skip)]
     pub had_agents: bool,
@@ -252,6 +283,23 @@ pub fn save(platform: &dyn Platform, path: &Path, c: &Config) -> Result<(), Conf
 
 fn nanos() -> u128 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())
+}
+
+#[cfg(test)]
+mod appearance_tests {
+    use super::*;
+
+    #[test]
+    fn this_computer_over_the_panel() {
+        let none = Appearance::default();
+        assert_eq!(none.resolve("breeze", true), ("breeze", true));
+        let mine = Appearance { theme: "matrix".into(), flat: "depth".into() };
+        assert_eq!(mine.resolve("breeze", true), ("matrix", false));
+        let c = Config { appearance: mine, ..Default::default() };
+        let text = toml::to_string(&c).unwrap();
+        assert!(text.contains("[appearance]") && text.contains("theme = \"matrix\""), "{text}");
+        assert!(!toml::to_string(&Config::default()).unwrap().contains("appearance"), "nothing written when unset");
+    }
 }
 
 #[cfg(test)]

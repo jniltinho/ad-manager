@@ -56,12 +56,15 @@ user and password typed in that form (nothing of the source is kept by the setup
 
 Objects and DNS need nothing else. **GPOs and passwords** go through this DC's agent in its two write modes
 ([gpo.md](gpo.md), [password-migration.md](password-migration.md)): tick **Prepare the import of GPOs and passwords**
-in *Details* (shown with *This DC also serves files*) and the setup turns both on, with the administrator password in
-`/opt/ad-manager/import.pass` (0600, root only). The agent restarts with them a few seconds after the end of the setup.
-When the import is done, turn them off:
+in *Details* (shown with *This DC also serves files*) and the setup turns both on (`import_modes = true` in the
+agent's `[agent]`, no secret on the DC) and keeps the administrator credential **encrypted in the panel's database**
+(*Settings → Import from an existing AD*, where you can change or remove it); the panel sends it to the agent with each
+GPO task. The agent restarts with them a few seconds after the end of the setup. A source profile saved in *From
+another AD* keeps its password encrypted too, so using the profile again needs no password. When the import is done,
+remove the credential in Settings and turn the modes off:
 
 ```bash
-sudo rm /opt/ad-manager/import.pass
+sudo sed -i '/^import_modes *=/d' /opt/ad-manager/config.toml && sudo systemctl restart ad-manager-agent
 ```
 
 Prefer doing it by hand? Every component from the `.deb` or the binary, with upgrade and removal, is in the

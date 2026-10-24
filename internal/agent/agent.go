@@ -142,11 +142,14 @@ var errReadOnlyDC = fmt.Errorf("%w: the agent is read only on a domain controlle
 // (fileMode), or a role that is not known.
 func (a *Agent) readOnly() bool { return !a.files }
 
-// gpoRestoreReady tells whether the explicit write mode is set up: an account and its password file, a regular
-// file not readable by group or others.
+// gpoRestoreReady tells whether the explicit write mode is set up: import_modes (the credential comes with each
+// task from the panel), or the former account and its password file, a regular file not readable by group or others.
 func (a *Agent) gpoRestoreReady() error {
+	if a.cfg.ImportModes {
+		return nil
+	}
 	if a.cfg.GPORestoreUser == "" || a.cfg.GPORestorePasswordFile == "" {
-		return errors.New("GPO restore is off on this agent (gpo_restore_user and gpo_restore_password_file)")
+		return errors.New("GPO restore is off on this agent (import_modes)")
 	}
 	fi, err := os.Stat(a.cfg.GPORestorePasswordFile)
 	if err != nil {
@@ -162,8 +165,11 @@ func (a *Agent) gpoRestoreReady() error {
 // account and its password file, a regular file not readable by group or others. It is a separate gate from the GPO
 // restore: having GPO restore on does not enable this, and vice versa.
 func (a *Agent) passwordMigrationReady() error {
+	if a.cfg.ImportModes { // the switch alone: the former password file only gated it, it never was used
+		return nil
+	}
 	if a.cfg.PasswordMigrationUser == "" || a.cfg.PasswordMigrationPasswordFile == "" {
-		return errors.New("password migration is off on this agent (password_migration_user and password_migration_password_file)")
+		return errors.New("password migration is off on this agent (import_modes)")
 	}
 	fi, err := os.Stat(a.cfg.PasswordMigrationPasswordFile)
 	if err != nil {
@@ -173,6 +179,36 @@ func (a *Agent) passwordMigrationReady() error {
 		return errors.New("password migration: the password file must be a regular file with mode 0600")
 	}
 	return nil
+}
+
+// adminCred is the panel's import credential, sent with a GPO task (never logged).
+type adminCred struct {
+	User     string `json:"user"`
+	Password string `json:"password"`
+}
+
+// gpoAdmin is the account and the PASSWD_FILE samba-tool writes GPOs as: the panel's import credential sent with the
+// task (in a 0600 file under a private temporary folder; done removes it), else the former configured file.
+func (a *Agent) gpoAdmin(user, password string) (account, passFile string, done func(), err error) {
+	if user != "" && password != "" {
+		if strings.ContainsAny(password, "\r\n") || strings.ContainsAny(user, "\r\n%\\ ") {
+			return "", "", nil, errors.New("invalid administrator credential")
+		}
+		dir, err := os.MkdirTemp("", "ad-manager-admin-*")
+		if err != nil {
+			return "", "", nil, err
+		}
+		f := filepath.Join(dir, "pass")
+		if err := os.WriteFile(f, []byte(password), 0o600); err != nil {
+			os.RemoveAll(dir)
+			return "", "", nil, err
+		}
+		return user, f, func() { os.RemoveAll(dir) }, nil
+	}
+	if a.cfg.GPORestoreUser != "" && a.cfg.GPORestorePasswordFile != "" {
+		return a.cfg.GPORestoreUser, a.cfg.GPORestorePasswordFile, func() {}, nil
+	}
+	return "", "", nil, errors.New("the import credential is not set in the panel (Settings → Import from an existing AD)")
 }
 
 // testparm reads one smb.conf parameter from testparm's standard output (its notices go to stderr).
@@ -678,24 +714,30 @@ func (a *Agent) Routes() *echo.Echo {
 		}
 		return c.Blob(http.StatusOK, "application/gzip", b)
 	}, dcOnly)
-	// the one change an agent makes on a DC, in its explicit write mode (gpo_restore_user): a GPO restored from a
+	// the one change an agent makes on a DC, in its explicit write mode (import_modes): a GPO restored from a
 	// backup as a new GPO ({name, archive: base64 of the .tar.gz}); the panel audits who asked
 	api.POST("/dc/gpos/restore", func(c *echo.Context) error {
 		if err := a.gpoRestoreReady(); err != nil {
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 		}
 		var in struct {
-			Name    string `json:"name"`
-			Archive []byte `json:"archive"`
+			Name    string    `json:"name"`
+			Archive []byte    `json:"archive"`
+			Admin   adminCred `json:"admin"`
 		}
 		if err := json.NewDecoder(io.LimitReader(c.Request().Body, sambadc.MaxBackup*2)).Decode(&in); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		}
+		account, passFile, done, err := a.gpoAdmin(in.Admin.User, in.Admin.Password)
+		if err != nil {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		defer done()
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Minute)
 		defer cancel()
 		self := strings.ToLower(testparm(ctx, "netbios name") + "." + a.realm)
-		run := sambadc.WithEnv("PASSWD_FILE=" + a.cfg.GPORestorePasswordFile)
-		guid, err := sambadc.RestoreGPO(ctx, run, self, a.cfg.GPORestoreUser, in.Name, in.Archive)
+		run := sambadc.WithEnv("PASSWD_FILE=" + passFile)
+		guid, err := sambadc.RestoreGPO(ctx, run, self, account, in.Name, in.Archive)
 		switch {
 		case errors.Is(err, sambadc.ErrInvalidGPOName), errors.Is(err, sambadc.ErrInvalidBackup):
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -722,11 +764,17 @@ func (a *Agent) Routes() *echo.Echo {
 				GUID string `json:"guid"`
 				Name string `json:"name"`
 			} `json:"gpos"`
+			Admin adminCred `json:"admin"`
 		}
 		if err := json.NewDecoder(io.LimitReader(c.Request().Body, 1<<20)).Decode(&in); err != nil || len(in.GPOs) == 0 || len(in.GPOs) > 500 ||
 			in.Source.Password == "" || strings.ContainsAny(in.Source.Password, "\r\n") {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		}
+		account, adminPass, done, err := a.gpoAdmin(in.Admin.User, in.Admin.Password)
+		if err != nil {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+		}
+		defer done()
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 15*time.Minute)
 		defer cancel()
 		dir, err := os.MkdirTemp("", "ad-manager-srcpass-*")
@@ -740,7 +788,7 @@ func (a *Agent) Routes() *echo.Echo {
 		}
 		self := strings.ToLower(testparm(ctx, "netbios name") + "." + a.realm)
 		runSrc := sambadc.WithEnv("PASSWD_FILE=" + pass)
-		runDst := sambadc.WithEnv("PASSWD_FILE=" + a.cfg.GPORestorePasswordFile)
+		runDst := sambadc.WithEnv("PASSWD_FILE=" + adminPass)
 		type result struct {
 			GUID    string `json:"guid"`
 			Name    string `json:"name"`
@@ -751,7 +799,7 @@ func (a *Agent) Routes() *echo.Echo {
 		for _, g := range in.GPOs {
 			r := result{GUID: g.GUID, Name: g.Name}
 			var err error
-			if r.NewGUID, err = sambadc.ImportGPO(ctx, runSrc, runDst, self, in.Source.Host, in.Source.User, a.cfg.GPORestoreUser, g.GUID, g.Name); err != nil {
+			if r.NewGUID, err = sambadc.ImportGPO(ctx, runSrc, runDst, self, in.Source.Host, in.Source.User, account, g.GUID, g.Name); err != nil {
 				r.Error = err.Error()
 			} else {
 				slog.Info("GPO imported", "source", in.Source.Host, "guid", g.GUID, "name", g.Name, "new_guid", r.NewGUID)

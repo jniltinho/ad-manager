@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for Secret {
 
 /// Go's zero time ("0001-01-01T00:00:00Z") and a missing value are both "unset".
 /// A Go `null` (nil slice or map) decodes as the empty value.
-fn nd<'de, D: serde::Deserializer<'de>, T: Default + Deserialize<'de>>(d: D) -> Result<T, D::Error> {
+pub fn nd<'de, D: serde::Deserializer<'de>, T: Default + Deserialize<'de>>(d: D) -> Result<T, D::Error> {
     Option::<T>::deserialize(d).map(Option::unwrap_or_default)
 }
 
@@ -150,6 +150,12 @@ pub struct MeSettings {
     pub inactive_days: i64,
     pub password_length: i64,
     pub default_ou: String,
+    /// Idle minutes before the session ends (the footer says it).
+    pub session_minutes: i64,
+    /// The API documentation is served (the API tab).
+    pub swagger: bool,
+    /// The company's support link (the footer's Support; the project's when empty).
+    pub support_url: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -159,8 +165,52 @@ pub struct Me {
     pub domain: String,
     pub netbios: String,
     pub version: String,
+    /// The agent queue monitor is served (the Queues tab).
+    pub asynqmon: bool,
     pub brand: Brand,
     pub settings: MeSettings,
+}
+
+/// A Group Policy Object and where it is linked (`GET /api/gpos`).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Gpo {
+    pub guid: String,
+    pub dn: String,
+    pub name: String,
+    pub user_enabled: bool,
+    pub machine_enabled: bool,
+    pub user_version: i64,
+    pub machine_version: i64,
+    #[serde(deserialize_with = "nd")]
+    pub extensions: Vec<String>,
+    #[serde(deserialize_with = "nd")]
+    pub links: Vec<GpoLink>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct GpoLink {
+    pub target: String,
+    pub enforced: bool,
+    pub disabled: bool,
+    pub order: i64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct GpoContainer {
+    pub dn: String,
+    pub block_inheritance: bool,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Gpos {
+    #[serde(deserialize_with = "nd")]
+    pub gpos: Vec<Gpo>,
+    #[serde(deserialize_with = "nd")]
+    pub containers: Vec<GpoContainer>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -178,6 +228,14 @@ pub struct Summary {
     pub groups: i64,
     pub computers: i64,
     pub policy: PolicySummary,
+    /// The LDAP URL the panel talks to.
+    pub server: String,
+    /// The domain controllers (Home's panel).
+    #[serde(deserialize_with = "nd")]
+    pub dcs: Vec<Computer>,
+    /// Computers per operating system (Home's panel).
+    #[serde(deserialize_with = "nd")]
+    pub os: HashMap<String, i64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -200,10 +258,12 @@ pub struct Agent {
     pub id: i64,
     pub name: String,
     pub url: String,
+    /// The panel accepts the agent's self-signed certificate.
+    pub insecure: bool,
 }
 
 impl Agent {
-    fn host(&self) -> String {
+    pub fn host(&self) -> String {
         url::Url::parse(&self.url)
             .ok()
             .and_then(|u| u.host_str().map(str::to_string))
@@ -215,6 +275,11 @@ impl Agent {
         let h = self.host();
         let h = h.trim_start_matches('[').trim_end_matches(']');
         h == "127.0.0.1" || h == "localhost" || h == "::1"
+    }
+
+    /// Where the agent answers as the web shows it: "This server" for the panel's own machine, else its host.
+    pub fn place(&self) -> String {
+        if self.local() { crate::i18n::t("This server").to_string() } else { self.host() }
     }
 
     /// Tells apart servers with look-alike names: where each agent answers.
@@ -452,12 +517,20 @@ pub struct SyncPlan {
 pub struct SyncProgress {
     pub transfers: i64,
     pub bytes: i64,
+    /// What a running run does now: preparing, copying, acl or finalizing.
+    pub phase: String,
+    /// The files to copy (copying), and the items whose permissions were applied (acl).
+    pub total: i64,
+    pub acl_items: i64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct SyncResult {
     pub plan: SyncPlan,
+    /// The files this run put in its quarantine.
+    #[serde(deserialize_with = "nd")]
+    pub quarantined: Vec<String>,
     pub transfers: i64,
     pub bytes: i64,
     pub deleted: i64,
@@ -545,6 +618,7 @@ pub struct QuarantineFile {
     pub path: String,
     pub size: i64,
     pub in_dest: bool,
+    pub modified: Time,
 }
 
 #[cfg(test)]
@@ -571,9 +645,9 @@ mod tests {
     #[test]
     fn agent_labels() {
         let _g = crate::i18n::tests::english();
-        let a = Agent { id: 1, name: "fs".into(), url: "https://127.0.0.1:8445".into() };
+        let a = Agent { id: 1, name: "fs".into(), url: "https://127.0.0.1:8445".into(), ..Default::default() };
         assert!(a.local());
-        let b = Agent { id: 2, name: "fs".into(), url: "https://fs01.domain.local:8445".into() };
+        let b = Agent { id: 2, name: "fs".into(), url: "https://fs01.domain.local:8445".into(), ..Default::default() };
         assert_eq!(b.label(), "fs · fs01.domain.local");
         assert!(!b.local());
     }

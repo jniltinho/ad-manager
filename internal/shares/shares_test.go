@@ -298,3 +298,20 @@ func TestParseConfEmpty(t *testing.T) {
 		t.Fatalf("got %s %v, want []", b, err)
 	}
 }
+
+// On a DC only the administrative shares are reserved: a migrated server's hidden data share ("Faturamento
+// Sefaz$") is created like any other.
+func TestReservedOnDC(t *testing.T) {
+	dc := &Manager{DC: true, Reserved: []string{"profiles"}}
+	for name, want := range map[string]bool{
+		"C$": true, "e$": true, "ADMIN$": true, "IPC$": true, "print$": true, "sysvol": true, "NETLOGON": true,
+		"profiles": true, "Faturamento Sefaz$": false, "Notas Fiscais$": false, "AB$": false, "Financeiro": false,
+	} {
+		if got := dc.reserved(name); got != want {
+			t.Errorf("reserved(%q) on a DC = %v, want %v", name, got, want)
+		}
+	}
+	if (&Manager{}).reserved("C$") {
+		t.Error("a file server (not a DC) reserves nothing itself")
+	}
+}

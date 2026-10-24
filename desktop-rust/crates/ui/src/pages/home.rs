@@ -1,13 +1,15 @@
-//! Home: six tiles (enabled, disabled, locked, inactive, groups, computers), the alerts with a link to the page that
-//! solves them, and the quick password reset / unlock by login.
+//! Home as the web's: six tiles (enabled, disabled, locked, inactive, groups, computers) that open their list, the
+//! quick password reset / unlock by login, the domain controllers, the alerts (each locked account with its unlock)
+//! and the operating systems.
 
 use adm_core::api::esc;
 use adm_core::i18n::t;
-use adm_core::logic::{Tone, inactive};
+use adm_core::logic::{Tone, UserFilter, inactive};
 use adm_core::model::{Summary, User};
 use adm_core::tf;
 use chrono::Utc;
 use egui::{RichText, Ui};
+use reqwest::Method;
 
 use crate::app::Cx;
 use crate::shell::{Nav, Page};
@@ -19,14 +21,56 @@ pub struct Home {
     login: String,
     loaded: bool,
     generation: u64,
+    /// The two card rows' heights, from the last frame.
+    rows: [f32; 2],
 }
 
-/// One alert row: tag, tone role, text, link and where it goes.
+/// One alert row: tag, tone role, text, and its link with what it does.
 pub struct Alert {
     pub tag: String,
     pub tone: Tone,
     pub text: String,
-    pub link: Option<(String, Nav)>,
+    pub link: Option<(String, AlertGo)>,
+}
+
+/// What an alert's link does.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlertGo {
+    Nav(Nav),
+    /// Unlocks this account and reloads Home.
+    Unlock(String),
+}
+
+/// A panel as the web's .card with its .card-h, the content drawn by `add` without padding (each part pads itself).
+/// A card at least `min_h` high (the web's grid row stretches its cards to the tallest); returns its own height.
+fn panel(ui: &mut Ui, look: &crate::style::Look, title: &str, min_h: f32, add: impl FnOnce(&mut Ui)) -> f32 {
+    let under = ui.painter().add(egui::Shape::Noop);
+    let mut natural = 0.0;
+    let r = ui
+        .vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            widgets::card_head(ui, look, title, |_| {});
+            add(ui);
+            natural = ui.min_rect().height();
+            if natural < min_h {
+                ui.add_space(min_h - natural);
+            }
+        })
+        .response;
+    let shapes = crate::depth::box_shapes(r.rect, None, look.c("surface"), look.shadows("card"));
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+    // the card's border over its head too (the web's .card border frames the title: High contrast shows it)
+    ui.painter().rect_stroke(r.rect, 0.0, egui::Stroke::new(1.0, look.c("line")), egui::StrokeKind::Inside);
+    natural
+}
+
+/// Keeps a row's height (the taller card's, measured last frame) and asks for a frame when it changed.
+fn row_height(ui: &Ui, row: &mut f32, a: f32, b: f32) {
+    let h = a.max(b);
+    if (h - *row).abs() > 0.5 {
+        *row = h;
+        ui.ctx().request_repaint();
+    }
 }
 
 impl Home {
@@ -55,36 +99,31 @@ impl Home {
         }
     }
 
-    /// The alerts for a summary and its users (the first three locked names listed).
+    /// The alerts for a summary and its users.
     pub fn alerts(s: &Summary, users: &[User], days: i64) -> Vec<Alert> {
         let now = Utc::now();
-        let locked: Vec<String> =
-            users.iter().filter(|u| u.locked).map(|u| format!("{} ({})", u.name, u.sam)).collect();
         let idle = users.iter().filter(|u| inactive(u, days, now)).count();
         let mut rows = Vec::new();
         if !s.policy.complexity || s.policy.min_length < 8 {
             let msg = if s.policy.complexity {
-                "Password policy: minimum length of %d characters."
+                "Minimum password length of %d characters."
             } else {
-                "Password policy: minimum length of %d characters, no complexity."
+                "Minimum password length of %d characters, no complexity."
             };
             rows.push(Alert {
                 tag: t("policy").into(),
                 tone: Tone::Warn,
                 text: tf!(msg, s.policy.min_length),
-                link: Some((t("see ›").into(), Nav::Policy)),
+                link: Some((t("view").into(), AlertGo::Nav(Nav::Policy))),
             });
         }
-        if !locked.is_empty() {
-            let mut names: Vec<String> = locked.iter().take(3).cloned().collect();
-            if locked.len() > 3 {
-                names.push("…".into());
-            }
+        // one row per locked account, with its unlock, as the web
+        for u in users.iter().filter(|u| u.locked) {
             rows.push(Alert {
-                tag: t("Locked").into(),
+                tag: t("locked").into(),
                 tone: Tone::Err,
-                text: tf!("%d locked account(s): %s.", locked.len(), names.join(", ")),
-                link: Some((t("unlock ›").into(), Nav::To(Page::Users))),
+                text: format!("{} ({})", u.name, u.sam),
+                link: Some((t("unlock").into(), AlertGo::Unlock(u.sam.clone()))),
             });
         }
         if idle > 0 {
@@ -92,11 +131,8 @@ impl Home {
                 tag: t("inactive").into(),
                 tone: Tone::Muted,
                 text: tf!("%d enabled account(s) with no logon for more than %d days.", idle, days),
-                link: Some((t("review ›").into(), Nav::To(Page::Users))),
+                link: Some((t("review").into(), AlertGo::Nav(Nav::Users(UserFilter::Inactive)))),
             });
-        }
-        if rows.is_empty() {
-            rows.push(Alert { tag: "ok".into(), tone: Tone::Ok, text: t("Nothing pending.").into(), link: None });
         }
         rows
     }
@@ -113,116 +149,292 @@ impl Home {
         let n = |k: &str| s.map_or("…".to_string(), |s| s.users.get(k).copied().unwrap_or(0).to_string());
         let locked = s.map_or(0, |s| s.users.get("locked").copied().unwrap_or(0));
         let alerts = s.map(|s| Self::alerts(s, users, days));
-        let (mut quick, mut refresh) = (false, false);
-        ui.columns(6, |cols| {
-            let muted = look.c("fg-muted");
-            let tiles: [(String, String, egui::Color32, egui::Color32); 6] = [
-                (t("Enabled users").to_uppercase(), n("enabled"), look.c("ok"), look.c("decor-ok")),
-                (t("Disabled").to_uppercase(), n("disabled"), muted, look.c("decor-muted")),
-                (
-                    t("Locked").to_uppercase(),
-                    n("locked"),
-                    if locked > 0 { look.c("err") } else { muted },
-                    if locked > 0 { look.c("decor-err") } else { look.c("decor-muted") },
-                ),
-                (
-                    tf!("Inactive %d+ days", days).to_uppercase(),
-                    if s.is_some() { idle.to_string() } else { "…".into() },
-                    if idle > 0 { look.c("warn") } else { muted },
-                    if idle > 0 { look.c("decor-warn") } else { look.c("decor-muted") },
-                ),
-                (
-                    t("Groups").to_uppercase(),
-                    s.map_or("…".into(), |s| s.groups.to_string()),
-                    look.c("fg-strong"),
-                    look.c("decor-strong"),
-                ),
-                (
-                    t("Computers").to_uppercase(),
-                    s.map_or("…".into(), |s| s.computers.to_string()),
-                    look.c("fg-strong"),
-                    look.c("decor-strong"),
-                ),
-            ];
-            for (c, (label, value, ink, decor)) in cols.iter_mut().zip(tiles) {
-                widgets::stat_tile(c, &look, &label, &value, ink, decor);
+        let (mut quick, mut unlock) = (false, None);
+        let muted = look.c("fg-muted");
+        // the six tiles, 12 points apart, each opening its list
+        let tiles: [(String, String, egui::Color32, egui::Color32, &str, Nav); 6] = [
+            (
+                t("Enabled users").into(),
+                n("enabled"),
+                look.c("ok"),
+                look.c("decor-ok"),
+                crate::icons::USER_CHECK,
+                Nav::Users(UserFilter::Enabled),
+            ),
+            (
+                t("Disabled").into(),
+                n("disabled"),
+                muted,
+                look.c("decor-muted"),
+                crate::icons::USER_X,
+                Nav::Users(UserFilter::Disabled),
+            ),
+            (
+                t("Locked").into(),
+                n("locked"),
+                if locked > 0 { look.c("err") } else { muted },
+                if locked > 0 { look.c("decor-err") } else { look.c("decor-muted") },
+                crate::icons::LOCK,
+                Nav::Users(UserFilter::Locked),
+            ),
+            (
+                tf!("Inactive %d+ days", days),
+                if s.is_some() { idle.to_string() } else { "…".into() },
+                if idle > 0 { look.c("warn") } else { muted },
+                if idle > 0 { look.c("decor-warn") } else { look.c("decor-muted") },
+                crate::icons::CLOCK,
+                Nav::Users(UserFilter::Inactive),
+            ),
+            (
+                t("Groups").into(),
+                s.map_or("…".into(), |s| s.groups.to_string()),
+                look.c("fg-strong"),
+                look.c("decor-strong"),
+                crate::icons::USERS_ROUND,
+                Nav::To(Page::Groups),
+            ),
+            (
+                t("Computers").into(),
+                s.map_or("…".into(), |s| s.computers.to_string()),
+                look.c("fg-strong"),
+                look.c("decor-strong"),
+                crate::icons::MONITOR,
+                Nav::To(Page::Computers),
+            ),
+        ];
+        let w = ui.available_width();
+        let tile_w = (w - 12.0 * 5.0) / 6.0;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 12.0;
+            for (label, value, ink, decor, icon, to) in tiles {
+                if widgets::stat_tile(ui, &look, tile_w, &label, &value, ink, decor, icon).clicked() {
+                    nav = Some(to);
+                }
             }
         });
-        ui.add_space(8.0);
-        ui.columns(2, |c| {
-            widgets::card(&mut c[0], &look, t("Reset password / unlock"), |ui| {
-                ui.horizontal(|ui| {
-                    let r = ui.add(
-                        egui::TextEdit::singleline(&mut self.login)
-                            .hint_text(t("user login"))
-                            .desired_width(ui.available_width() - 110.0),
-                    );
-                    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    quick = widgets::button(ui, &look, "👤", t("Open"), Kind::Primary).clicked() || enter;
+        ui.add_space(14.0); // the web's gap-5, egui's item spacing counted in
+        // the reset box (a third) and the domain controllers (two thirds)
+        let third = (w - 20.0 * 2.0) / 3.0;
+        let [r0, r1] = self.rows;
+        let (mut ha, mut hb) = (0.0, 0.0);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 20.0;
+            ui.allocate_ui(egui::vec2(third, 0.0), |ui| {
+                ui.set_width(third);
+                ha = panel(ui, &look, t("Reset password / unlock"), r0, |ui| {
+                    egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0; // the web's gap-2
+                            quick = widgets::button(ui, &look, crate::icons::KEY, t("Open"), Kind::Primary).clicked();
+                            // the logins as suggestions with their names (the web's quick box)
+                            let options: Vec<(String, String)> = self
+                                .data
+                                .as_ref()
+                                .map(|(_, us)| us.iter().map(|u| (u.sam.clone(), u.name.clone())).collect())
+                                .unwrap_or_default();
+                            let w = ui.available_width();
+                            let id = egui::Id::new("home-quick");
+                            let sg = widgets::suggest(ui, &look, id, &mut self.login, &options, t("user login"), w);
+                            let _ = ui.ctx().accesskit_node_builder(sg.response.id, |n| n.set_label(t("Login")));
+                            quick |= sg.enter;
+                        });
+                    });
                 });
-                ui.label(
-                    RichText::new(t("Set a password, send a reset link or unlock the account."))
-                        .size(11.0)
-                        .color(look.c("fg-muted")),
-                );
             });
-            widgets::card(&mut c[1], &look, t("Alerts"), |ui| {
-                match &alerts {
+            ui.allocate_ui(egui::vec2(ui.available_width(), 0.0), |ui| {
+                ui.set_width(ui.available_width());
+                hb = panel(ui, &look, t("Domain controllers"), r0, |ui| {
+                    let rows: Vec<[RichText; 3]> = s.map_or_else(Vec::new, |s| {
+                        s.dcs
+                            .iter()
+                            .map(|d| {
+                                let os = if d.os.is_empty() {
+                                    RichText::new(t("not reported")).color(muted)
+                                } else {
+                                    RichText::new(format!("{} {}", d.os, d.os_version))
+                                };
+                                [
+                                    crate::style::semibold(&d.name, 12.0),
+                                    os,
+                                    RichText::new(adm_core::i18n::date(d.last_logon)),
+                                ]
+                            })
+                            .collect()
+                    });
+                    widgets::mini_table(ui, &look, [t("Name"), t("System"), t("Last logon")], &rows, None);
+                    egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
+                        let server = s.map_or(String::new(), |s| s.server.clone());
+                        // one text, the web's <code> runs inside it: no gap before the full stops
+                        let mut job = egui::text::LayoutJob::default();
+                        let text = egui::TextFormat::simple(egui::FontId::proportional(11.0), muted);
+                        // the web's <code> at 1em of the text around it
+                        let code = egui::TextFormat::simple(egui::FontId::monospace(11.0), muted);
+                        for (part, f) in [
+                            (format!("{} ", t("Connected to")), &text),
+                            (server, &code),
+                            (format!(". {} ", t("Replication/SYSVOL are not checked here — use")), &text),
+                            ("samba-tool drs showrepl".to_string(), &code),
+                            (".".to_string(), &text),
+                        ] {
+                            job.append(&part, 0.0, f.clone());
+                        }
+                        job.wrap.max_width = ui.available_width();
+                        ui.label(job);
+                    });
+                });
+            });
+        });
+        row_height(ui, &mut self.rows[0], ha, hb);
+        ui.add_space(14.0); // the web's gap-5, egui's item spacing counted in
+        // the alerts and the operating systems, half each
+        let half = (w - 20.0) / 2.0;
+        let (mut hc, mut hd) = (0.0, 0.0);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 20.0;
+            ui.allocate_ui(egui::vec2(half, 0.0), |ui| {
+                ui.set_width(half);
+                hc = panel(ui, &look, t("Alerts"), r1, |ui| match &alerts {
                     None => {
-                        ui.label(t("Loading…"));
+                        egui::Frame::new()
+                            .inner_margin(egui::Margin::symmetric(12, 8))
+                            .show(ui, |ui| ui.label(t("Loading…")));
                     }
-                    Some(alerts) => {
-                        // as the web: a colored tag, the text (one line, cut with "…") and a link to the page that solves it
-                        for a in alerts {
-                            ui.horizontal(|ui| {
-                                widgets::tag(ui, &look, &a.tag.to_uppercase(), a.tone);
-                                let room = (ui.available_width() - 90.0).max(40.0);
-                                ui.allocate_ui(egui::vec2(room, 20.0), |ui| {
-                                    ui.set_width(room);
-                                    ui.add(egui::Label::new(&a.text).truncate());
-                                })
-                                .response
-                                .on_hover_text(&a.text);
-                                if let Some((label, to)) = &a.link
-                                    && widgets::button(ui, &look, "", label, Kind::Link).clicked()
-                                {
-                                    nav = Some(*to);
-                                }
+                    Some(rows) if rows.is_empty() => {
+                        egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
+                            ui.label(RichText::new(t("Nothing pending.")).size(12.0).color(muted));
+                        });
+                    }
+                    Some(rows) => {
+                        for (k, a) in rows.iter().enumerate() {
+                            if k > 0 {
+                                let x = ui.max_rect().x_range();
+                                ui.painter().hline(x, ui.cursor().top(), egui::Stroke::new(1.0, look.c("line")));
+                            }
+                            egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                // the web's li: px-3 py-2 around a 12 px line, gap-2 between its parts; the row as tall
+                                // as the web's (its inline-flex link: 18.9)
+                                ui.spacing_mut().interact_size.y = 0.0;
+                                ui.spacing_mut().item_spacing.x = 8.0;
+                                ui.horizontal(|ui| {
+                                    ui.set_min_height(18.9);
+                                    widgets::tag(ui, &look, &a.tag, a.tone);
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        if let Some((label, go)) = &a.link {
+                                            // as the web's links: unlock with its icon first, the others with a
+                                            // chevron after
+                                            // the web's .act gap-0.5 between the text and its icon (a thin space)
+                                            let text = if matches!(go, AlertGo::Unlock(_)) {
+                                                format!("{}\u{2009}{label}", crate::icons::LOCK_OPEN)
+                                            } else {
+                                                format!("{label}\u{2009}{}", crate::icons::RIGHT)
+                                            };
+                                            if widgets::button(ui, &look, "", &text, Kind::Link).clicked() {
+                                                match go {
+                                                    AlertGo::Nav(n) => nav = Some(n.clone()),
+                                                    AlertGo::Unlock(sam) => unlock = Some(sam.clone()),
+                                                }
+                                            }
+                                        }
+                                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                            // wrapped, not cut, as the web's (a monospace theme makes it longer)
+                                            ui.add(egui::Label::new(RichText::new(&a.text).size(12.0)).wrap());
+                                        });
+                                    });
+                                });
                             });
                         }
                     }
-                }
-                ui.horizontal(|ui| {
-                    refresh = widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked();
+                });
+            });
+            ui.allocate_ui(egui::vec2(ui.available_width(), 0.0), |ui| {
+                ui.set_width(ui.available_width());
+                hd = panel(ui, &look, t("Operating systems"), r1, |ui| {
+                    let mut systems: Vec<(String, i64)> =
+                        s.map_or_else(Vec::new, |s| s.os.iter().map(|(k, v)| (k.clone(), *v)).collect());
+                    systems.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+                    let max = systems.iter().map(|x| x.1).max().unwrap_or(1).max(1);
+                    egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                        // space-y-1 between 18 px rows, gap-2 inside, as the web's list
+                        ui.spacing_mut().item_spacing = egui::vec2(8.0, 4.0);
+                        ui.spacing_mut().interact_size.y = 0.0;
+                        ui.set_width(ui.available_width());
+                        let row_w = ui.available_width();
+                        // one bar scale for every row: 60% of the row, or what a narrow card leaves after the name
+                        // and the widest count (so a longer bar always means a bigger count)
+                        let widest = systems
+                            .iter()
+                            .map(|(_, n)| {
+                                ui.painter()
+                                    .layout_no_wrap(
+                                        n.to_string(),
+                                        egui::FontId::proportional(12.0),
+                                        egui::Color32::PLACEHOLDER,
+                                    )
+                                    .size()
+                                    .x
+                            })
+                            .fold(0.0, f32::max);
+                        let full =
+                            (row_w * 0.6).min(row_w - 192.0 - widest - 3.0 * ui.spacing().item_spacing.x).max(1.0);
+                        for (os, n) in systems {
+                            ui.horizontal(|ui| {
+                                let name = if os.is_empty() { t("not reported").to_string() } else { os.clone() };
+                                ui.allocate_ui(egui::vec2(192.0, 18.0), |ui| {
+                                    ui.set_width(192.0);
+                                    ui.add(egui::Label::new(RichText::new(&name).size(12.0)).truncate())
+                                        .on_hover_text(&name);
+                                });
+                                let old = ["XP", "2003", "2008 Standard"].iter().any(|k| os.contains(k));
+                                let bw = full * n as f32 / max as f32;
+                                let (r, _) =
+                                    ui.allocate_exact_size(egui::vec2(bw.max(1.0), 12.0), egui::Sense::hover());
+                                ui.painter().rect_filled(
+                                    r,
+                                    0.0,
+                                    if old { look.c("err-fill") } else { look.c("chart-1") },
+                                );
+                                ui.label(RichText::new(n.to_string()).size(12.0).color(muted));
+                            });
+                        }
+                    });
                 });
             });
         });
+        row_height(ui, &mut self.rows[1], hc, hd);
         if quick {
             self.quick(cx);
         }
-        if refresh {
-            self.load(cx);
+        if let Some(sam) = unlock {
+            let api = cx.panel.clone();
+            let path = format!("/api/users/{}/unlock", esc(&sam));
+            cx.run(async move { api.act(Method::POST, &path).await }, move |app, ()| {
+                app.cx.set_status(tf!("%s unlocked.", sam));
+                app.with_shell(|s, cx| s.home.load(cx));
+            });
         }
         nav
     }
 
     /// Opens the password dialog of the typed login.
+    /// Opens the password dialog of the login typed, found in the list (an unknown one only warns, as the web's).
     fn quick(&mut self, cx: &mut Cx) {
-        let login = self.login.trim().to_string();
+        let login = self.login.trim().to_lowercase();
         if login.is_empty() {
             return;
         }
-        let api = cx.panel.clone();
-        let path = format!("/api/users/{}", esc(&login));
-        cx.run(async move { api.get::<User>(&path).await }, |app, x| {
-            let d = crate::pages::users::PasswordDialog::new(&app.cx, x).after(|app| {
-                app.with_shell(|s, cx| {
-                    s.home.login.clear();
-                    s.home.load(cx);
-                });
+        let Some(x) = self.data.as_ref().and_then(|(_, us)| us.iter().find(|u| u.sam.to_lowercase() == login)).cloned()
+        else {
+            cx.set_status(t("Login not found."));
+            return;
+        };
+        let d = crate::pages::users::PasswordDialog::new(cx, x).after(|app| {
+            app.with_shell(|s, cx| {
+                s.home.login.clear();
+                s.home.load(cx);
             });
-            app.cx.push(d);
         });
+        cx.push(d);
     }
 }
 
@@ -234,11 +446,11 @@ mod tests {
     #[test]
     fn alerts() {
         let s = Summary { policy: PolicySummary { complexity: false, min_length: 7 }, ..Default::default() };
-        let mut users: Vec<User> = (0..5)
+        let mut users: Vec<User> = (0..2)
             .map(|i| User {
                 sam: format!("u{i}"),
                 name: format!("U{i}"),
-                locked: i < 4,
+                locked: true,
                 enabled: true,
                 last_logon: Some(Utc::now()),
                 ..Default::default()
@@ -246,11 +458,14 @@ mod tests {
             .collect();
         users.push(User { sam: "idle".into(), enabled: true, ..Default::default() });
         let a = Home::alerts(&s, &users, 90);
-        assert_eq!(a.len(), 3);
-        assert_eq!(a[0].link.as_ref().map(|l| l.1), Some(Nav::Policy));
-        assert!(a[1].text.starts_with("4 locked account(s): U0 (u0), U1 (u1), U2 (u2), …"), "{}", a[1].text);
-        assert_eq!(a[2].link.as_ref().map(|l| l.1), Some(Nav::To(Page::Users)));
+        assert_eq!(a.len(), 4, "policy, one row per locked account, inactive");
+        assert_eq!(a[0].link.as_ref().map(|l| l.1.clone()), Some(AlertGo::Nav(Nav::Policy)));
+        assert_eq!(
+            (a[1].text.as_str(), a[1].link.as_ref().map(|l| l.1.clone())),
+            ("U0 (u0)", Some(AlertGo::Unlock("u0".into())))
+        );
+        assert_eq!(a[3].link.as_ref().map(|l| l.1.clone()), Some(AlertGo::Nav(Nav::Users(UserFilter::Inactive))));
         let ok = Summary { policy: PolicySummary { complexity: true, min_length: 8 }, ..Default::default() };
-        assert_eq!(Home::alerts(&ok, &[], 90)[0].text, "Nothing pending.");
+        assert!(Home::alerts(&ok, &[], 90).is_empty(), "nothing pending: the panel says so");
     }
 }

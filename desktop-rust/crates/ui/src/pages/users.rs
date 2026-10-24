@@ -8,9 +8,9 @@ use adm_core::api::{Api, esc};
 use adm_core::forms::{USER_FIELDS, UserFields, template_groups};
 use adm_core::i18n::{date, t};
 use adm_core::logic::{
-    self, Tone, UserAction, UserFilter, editable, inactive, ou_path, parent_dn, user_actions, user_status,
+    self, Tone, UserAction, UserFilter, editable, inactive, ou_name, parent_dn, user_actions, user_status,
 };
-use adm_core::model::{Group, OrgUnit, User, is_set};
+use adm_core::model::{Group, OrgUnit, User};
 use adm_core::tf;
 use chrono::{DateTime, Utc};
 use egui::{RichText, Ui};
@@ -35,6 +35,8 @@ const COMPACT: f32 = 34.0;
 
 #[derive(Default)]
 pub struct Users {
+    /// A refresh asked by the toolbar's button, in flight (it says what it read when done).
+    refreshing: bool,
     all: Vec<User>,
     visible: Vec<usize>,
     search: String,
@@ -66,8 +68,65 @@ impl Users {
                 s.users.all = r;
                 s.users.loaded = true;
                 s.users.apply(cx);
+                if std::mem::take(&mut s.users.refreshing) {
+                    cx.set_status(tf!("%d users read from the domain.", s.users.all.len()));
+                }
             });
         });
+    }
+
+    /// The rows on screen (search and filter) as the web's CSV.
+    fn export_csv(&self, cx: &Cx) {
+        let yes = |v: bool| if v { t("yes") } else { t("no") }.to_string();
+        let mut rows = vec![
+            [
+                t("Login"),
+                t("Name"),
+                t("E-mail"),
+                t("Department"),
+                t("Job title"),
+                t("Active"),
+                t("Locked out"),
+                t("Last logon"),
+                t("OU"),
+                t("Groups"),
+            ]
+            .map(String::from)
+            .to_vec(),
+        ];
+        rows.extend(self.visible().map(|u| {
+            vec![
+                u.sam.clone(),
+                u.name.clone(),
+                u.mail.clone(),
+                u.department.clone(),
+                u.title.clone(),
+                yes(u.enabled),
+                yes(u.locked),
+                date(u.last_logon),
+                ou_name(&u.dn),
+                u.groups.join(", "),
+            ]
+        }));
+        crate::files::save_csv(cx, t("users.csv"), rows);
+    }
+
+    /// Shows the accounts of one status (Home's tiles and alerts).
+    pub fn show_filter(&mut self, cx: &Cx, f: UserFilter) {
+        self.filter = f;
+        self.search.clear();
+        if self.loaded {
+            self.apply(cx);
+        }
+    }
+
+    /// Shows the accounts matching the header's global search.
+    pub fn search_for(&mut self, cx: &Cx, term: &str) {
+        self.search = term.to_string();
+        self.filter = UserFilter::All; // the web's search shows every status
+        if self.loaded {
+            self.apply(cx);
+        }
     }
 
     /// Filters the list again (search, filter) and forgets the selection.
@@ -95,17 +154,26 @@ impl Users {
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
         let days = cx.inactive_days();
-        widgets::card(ui, &look, t("Domain users"), |ui| {
+        {
+            // as the web's Users: the toolbar, then the table, no card around them
             self.toolbar(ui, cx, days);
+            widgets::toolbar_gap(ui, &look);
             let now = Utc::now();
             let me = cx.me.clone();
             let cols = columns();
             let mut hover = None;
             let (all, visible) = (&self.all, &self.visible);
-            let out = table::Table { id: "users", cols: &cols, rows: visible.len(), keys: keys && self.menu.is_none() }
-                .show(ui, &look, &mut self.table, &mut hover, |r, c| {
-                    cell(&all[visible[r]], visible[r], c, &me, days, now)
-                });
+            let out = table::Table {
+                id: "users",
+                cols: &cols,
+                rows: visible.len(),
+                keys: keys && self.menu.is_none(),
+                row_h: table::ROW_LINKS,
+                frame: true,
+                view_minus: 260.0, // the web's max-h-[calc(var(--view-h)-260px)]
+                heights: None,
+            }
+            .show(ui, &look, &mut self.table, &mut hover, |r, c| cell(&all[visible[r]], visible[r], c, &me, days, now));
             cx.hover = hover.or(cx.hover.take());
             self.compact = out.compact;
             if let Some((a, i)) = out.clicked
@@ -119,37 +187,40 @@ impl Users {
                 let pos = ui.min_rect().min + egui::vec2(24.0, 70.0);
                 self.menu = self.all.get(i).cloned().map(|u| (u, pos));
             }
-        });
+        }
         self.menu_ui(ui, cx);
     }
 
     fn toolbar(&mut self, ui: &mut Ui, cx: &mut Cx, days: i64) {
         let look = cx.look.clone();
-        let wide = ui.available_width() >= 1040.0;
-        ui.horizontal(|ui| {
-            let w = (ui.available_width() - 640.0).clamp(220.0, 360.0);
-            if super::search(ui, &mut self.search, t("Filter by login, name, e-mail…"), w).changed() {
+        let wide = ui.available_width() >= 1000.0;
+        widgets::toolbar_row(ui, &look, |ui| {
+            if super::search(ui, &mut self.search, t("Filter by login, name, e-mail…"), 256.0).changed() {
                 self.apply(cx);
             }
             let labels: Vec<String> = UserFilter::ALL.iter().map(|f| f.label(days)).collect();
             let mut i = UserFilter::ALL.iter().position(|f| *f == self.filter).unwrap_or(0);
-            if widgets::select(ui, "users-filter", &mut i, &labels, 170.0) {
+            if widgets::select(ui, "users-filter", t("Status"), &mut i, &labels, 176.0) {
                 self.filter = UserFilter::ALL[i];
                 self.apply(cx);
             }
-            ui.label(RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).color(look.c("fg-muted")));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(
+                RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
+            );
+            widgets::toolbar_end(ui, |ui| {
                 if wide {
-                    if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
+                    if widgets::refresh_button(ui, &look, self.refreshing) {
+                        self.refreshing = true;
                         self.reload(cx);
                     }
-                    if widgets::button(ui, &look, "➕", t("New user"), Kind::Primary).clicked() {
+                    if widgets::button(ui, &look, crate::icons::USER_PLUS, t("New user"), Kind::Primary).clicked() {
                         new_user(cx, None);
                     }
-                    if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
-                        crate::files::export(cx, "users", t("users.csv"));
+                    if widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked() {
+                        self.export_csv(cx);
                     }
-                    if widgets::button(ui, &look, "⚙", t("Password policy"), Kind::Secondary).clicked() {
+                    if widgets::button(ui, &look, crate::icons::SHIELD, t("Password policy"), Kind::Secondary).clicked()
+                    {
                         super::policy::open(cx);
                     }
                 } else {
@@ -161,7 +232,7 @@ impl Users {
                             super::policy::open(cx);
                         }
                         if ui.button(t("Export CSV")).clicked() {
-                            crate::files::export(cx, "users", t("users.csv"));
+                            self.export_csv(cx);
                         }
                         if ui.button(t("Refresh")).clicked() {
                             self.reload(cx);
@@ -211,17 +282,20 @@ impl Users {
 
 fn columns() -> Vec<Column> {
     vec![
-        Column::new(t("Login"), 130.0),
-        Column::new(t("Name"), 140.0),
-        Column::new(t("E-mail"), 160.0),
-        Column::new(t("OU"), 100.0),
-        Column::new(t("Status"), 105.0).badge(),
-        Column::new("", 130.0).badge().compact(104.0),
-        Column::new(t("Last logon"), 140.0),
-        Column::new("", 105.0).compact(COMPACT),
-        Column::new("", 90.0).compact(COMPACT),
-        Column::new("", 85.0).compact(COMPACT),
-        Column::new("", 90.0).compact(COMPACT),
+        // the web's columns at 1280 with real data (its th and td widths at 2x)
+        Column::new(t("Login"), 130.7),
+        Column::new(t("Name"), 120.6),
+        Column::new(t("E-mail"), 150.0).fill(),
+        Column::new(t("OU"), 107.9),
+        Column::new(t("Status"), 120.0).badge_w(104.0).icon_slot(),
+        Column::new("", 72.6).badge(),
+        Column::new(t("Last logon"), 165.1),
+        // the web's link widths (icon and name), so they fit at the app's 1280 px
+        // each link's width and the web's 12-point gap after it
+        Column::new(t("Actions"), 82.9).compact(COMPACT).span(4),
+        Column::new("", 54.1).compact(COMPACT).covered(),
+        Column::new("", 59.0).compact(COMPACT).covered(),
+        Column::new("", 69.0).compact(COMPACT).covered(),
     ]
 }
 
@@ -236,10 +310,11 @@ pub fn cell(
 ) -> Cell<(UserAction, usize)> {
     let ed = editable(x, me);
     match c {
-        C_LOGIN => Cell::plain(&x.sam).link("", tf!("Edit %s", x.sam), (UserAction::Edit, i)),
-        1 => Cell::plain(&x.name),
-        2 => Cell::plain(&x.mail),
-        3 => Cell::new(ou_path(parent_dn(&x.dn)), Tone::Muted),
+        C_LOGIN => Cell::plain(&x.sam).bold().link("", tf!("Edit %s", x.sam), (UserAction::Edit, i)),
+        // a deactivated account's text is in the subtle ink, as the web's row
+        1 => Cell::new(&x.name, if x.enabled { Tone::Normal } else { Tone::Muted }),
+        2 => Cell::new(&x.mail, if x.enabled { Tone::Normal } else { Tone::Muted }),
+        3 => Cell::new(ou_name(&x.dn), if x.enabled { Tone::Normal } else { Tone::Muted }),
         C_STATUS => {
             let (s, tone) = user_status(x);
             let cell = Cell::new(s, tone);
@@ -253,32 +328,46 @@ pub fn cell(
         // system and unlock are independent: a locked built-in account shows both
         C_TAG => match (x.protected, x.locked) {
             (true, true) => {
-                let mut cl =
-                    Cell::new(t("system"), Tone::Strong).link("🔓", tf!("Unlock %s", x.sam), (UserAction::Unlock, i));
+                let mut cl = Cell::new(t("system"), Tone::Strong).link(
+                    crate::icons::LOCK_OPEN,
+                    tf!("Unlock %s", x.sam),
+                    (UserAction::Unlock, i),
+                );
                 if let Some(l) = &mut cl.link {
                     l.tag = true;
                 }
                 cl
             }
             (true, false) => Cell::new(t("system"), Tone::Strong),
-            (false, true) => Cell::plain(t("unlock")).link("🔓", tf!("Unlock %s", x.sam), (UserAction::Unlock, i)),
+            (false, true) => {
+                Cell::plain(t("unlock")).link(crate::icons::LOCK_OPEN, tf!("Unlock %s", x.sam), (UserAction::Unlock, i))
+            }
             (false, false) => Cell::plain(""),
         },
-        6 => {
-            if !is_set(&x.last_logon) {
-                Cell::new(t("never"), Tone::Muted)
-            } else if inactive(x, days, now) {
-                Cell::new(date(x.last_logon), Tone::Warn)
-            } else {
-                Cell::plain(date(x.last_logon))
-            }
-        }
-        C_PASSWORD => {
-            Cell::plain(t("password")).link("🔑", tf!("Set a password for %s", x.sam), (UserAction::Password, i))
-        }
-        C_COPY => Cell::plain(t("copy")).link("📋", tf!("New user copied from %s", x.sam), (UserAction::Copy, i)),
-        C_MOVE if ed => Cell::plain(t("move")).link("📁", tf!("Move %s to another OU", x.sam), (UserAction::Move, i)),
-        C_DELETE if ed => Cell::new(t("delete"), Tone::Err).link("🗑", tf!("Delete %s", x.sam), (UserAction::Delete, i)),
+        // "—" when never logged on, in the warning ink when inactive (never counts), as the web's cell
+        // a disabled account's row in the subtle ink, its date too (the web warns only for enabled ones)
+        6 if !x.enabled => Cell::new(date(x.last_logon), Tone::Muted),
+        6 => Cell::new(date(x.last_logon), if inactive(x, days, now) { Tone::Warn } else { Tone::Normal }),
+        C_PASSWORD => Cell::plain(t("password")).link(
+            crate::icons::KEY,
+            tf!("Set a password for %s", x.sam),
+            (UserAction::Password, i),
+        ),
+        C_COPY => Cell::plain(t("copy")).link(
+            crate::icons::COPY,
+            tf!("New user copied from %s", x.sam),
+            (UserAction::Copy, i),
+        ),
+        C_MOVE if ed => Cell::plain(t("move")).link(
+            crate::icons::FOLDER_INPUT,
+            tf!("Move %s to another OU", x.sam),
+            (UserAction::Move, i),
+        ),
+        C_DELETE if ed => Cell::new(t("delete"), Tone::Normal).link(
+            crate::icons::TRASH,
+            tf!("Delete %s", x.sam),
+            (UserAction::Delete, i),
+        ),
         _ => Cell::plain(""),
     }
 }
@@ -370,36 +459,41 @@ fn new_password(cx: &Cx) -> Zeroizing<String> {
     Zeroizing::new(logic::generate_password(logic::password_length(&cx.me)).unwrap_or_default())
 }
 
-/// The password field (shown, to be read out or copied) with its generate and copy buttons; `id` is the field's own
-/// (forgotten with its undo history when the dialog closes).
-fn password_field(ui: &mut Ui, cx: &mut Cx, id: egui::Id, pw: &mut Zeroizing<String>) {
+/// The user fields as the web's 2-column grid (labels above, 16 points between columns, 12 between rows): `first`
+/// draws the cell before them (the login), then display name; first and last name; e-mail and phone; job title and
+/// department; description.
+fn fields_form(ui: &mut Ui, cx: &Cx, f: &mut UserFields, first: impl FnOnce(&mut Ui, f32)) {
     let look = cx.look.clone();
-    ui.horizontal(|ui| {
-        ui.add(egui::TextEdit::singleline(&mut **pw).id(id).font(egui::TextStyle::Monospace).desired_width(260.0));
-        if widgets::icon_button(ui, &look, "⟳", t("Generate")).clicked() {
-            *pw = new_password(cx);
+    let cw = ((ui.available_width() - 16.0) / 2.0).floor();
+    let mut first = Some(first);
+    let cells: [[Option<usize>; 2]; 5] =
+        [[None, Some(0)], [Some(1), Some(2)], [Some(3), Some(4)], [Some(5), Some(6)], [Some(7), None]];
+    for (r, row) in cells.iter().enumerate() {
+        if r > 0 {
+            ui.add_space(12.0);
         }
-        if widgets::icon_button(ui, &look, "📋", t("Copy")).clicked() {
-            ui.ctx().copy_text(pw.to_string());
-            cx.set_status(t("Password copied."));
-        }
-    });
-}
-
-/// The two columns of user fields.
-fn fields_form(ui: &mut Ui, cx: &Cx, f: &mut UserFields) {
-    let look = cx.look.clone();
-    ui.columns(2, |cols| {
-        for (side, range) in [(0usize, 0..4), (1, 4..8)] {
-            widgets::form(&mut cols[side], &format!("user-fields-{side}"), |ui| {
-                for i in range {
-                    widgets::label(ui, &look, t(USER_FIELDS[i].1));
-                    ui.add(egui::TextEdit::singleline(&mut f.0[i]).desired_width(220.0));
-                    ui.end_row();
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            for (c, cell) in row.iter().enumerate() {
+                match cell {
+                    Some(i) => {
+                        widgets::above(ui, &look, t(USER_FIELDS[*i].1), cw, |ui, _| {
+                            ui.add(crate::widgets::line(&mut f.0[*i]).desired_width(cw))
+                        });
+                    }
+                    None if r == 0 && c == 0 => {
+                        if let Some(add) = first.take() {
+                            ui.vertical(|ui| {
+                                ui.set_width(cw);
+                                add(ui, cw);
+                            });
+                        }
+                    }
+                    None => {}
                 }
-            });
-        }
-    });
+            }
+        });
+    }
 }
 
 /// A list of groups with remove buttons and a picker to add one. Returns the group added or removed.
@@ -414,45 +508,48 @@ fn group_list(
     id: &str,
     names: &[String],
     groups: &[String],
-    pick: &mut usize,
+    pick: &mut String,
 ) -> Option<GroupEvent> {
     let look = cx.look.clone();
     let mut ev = None;
-    let rest: Vec<String> = names.iter().filter(|n| !groups.contains(n)).cloned().collect();
+    // the web's: a field with the other groups as suggestions and Add, then the table of groups with remove
+    let rest: Vec<(String, String)> =
+        names.iter().filter(|n| !groups.contains(n)).map(|n| (n.clone(), String::new())).collect();
     ui.horizontal(|ui| {
-        let mut opts = vec![t("Add to a group…").to_string()];
-        opts.extend(rest.iter().cloned());
-        widgets::select(ui, (id, "pick"), pick, &opts, 300.0);
-        if widgets::button(ui, &look, "➕", t("Add"), Kind::Secondary).clicked()
-            && *pick > 0
-            && let Some(g) = rest.get(*pick - 1)
-        {
-            ev = Some(GroupEvent::Add(g.clone()));
-            *pick = 0;
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let w = ui.available_width() - 72.0;
+        let sg = widgets::suggest(ui, &look, egui::Id::new((id, "pick")), pick, &rest, t("Add to a group…"), w);
+        let _ = ui.ctx().accesskit_node_builder(sg.response.id, |n| n.set_label(t("Group")));
+        let ready = !pick.trim().is_empty();
+        let add =
+            ui.add_enabled_ui(ready, |ui| widgets::button(ui, &look, "", t("Add"), Kind::Primary)).inner.clicked();
+        if (add || sg.enter) && ready {
+            // the group as the directory names it, when it is one of the list
+            let typed = pick.trim().to_string();
+            let g = names.iter().find(|n| n.eq_ignore_ascii_case(&typed)).cloned().unwrap_or(typed);
+            ev = Some(GroupEvent::Add(g));
+            pick.clear();
         }
     });
-    egui::ScrollArea::vertical().id_salt((id, "list")).max_height(150.0).min_scrolled_height(130.0).show(ui, |ui| {
-        if groups.is_empty() {
-            ui.label(t("Only the primary group (Domain Users)."));
+    ui.add_space(12.0);
+    let rows: Vec<[RichText; 2]> = groups.iter().map(|g| [RichText::new(g), RichText::new("")]).collect();
+    let mut cell = |ui: &mut Ui, r: usize| {
+        if widgets::act(ui, &look, crate::icons::TRASH, t("remove"), None, 12.0).clicked() {
+            ev = Some(GroupEvent::Remove(groups[r].clone()));
         }
-        for g in groups {
-            ui.horizontal(|ui| {
-                ui.label(g);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::button(ui, &look, "🗑", t("remove"), Kind::Link).clicked() {
-                        ev = Some(GroupEvent::Remove(g.clone()));
-                    }
-                });
-            });
-        }
-    });
+    };
+    widgets::mini_table(ui, &look, [t("Group"), t("Action")], &rows, Some(&mut cell));
+    if groups.is_empty() {
+        ui.add_space(6.0);
+        ui.label(RichText::new(t("Only the primary group (Domain Users).")).size(12.0).color(look.c("fg-muted")));
+    }
     ev
 }
 
 /// Opens the new-user dialog (a copy of `tpl`: OU, job title, department, description and groups).
 pub fn new_user(cx: &mut Cx, tpl: Option<User>) {
     let api = cx.panel.clone();
-    cx.run(async move { Ok((fetch_ous(&api).await?, group_names(&api).await?)) }, move |app, (ous, names)| {
+    cx.run(async move { fetch_ous(&api).await }, move |app, ous| {
         let cx = &mut app.cx;
         let mut ou = cx.me.settings.default_ou.clone();
         if ou.is_empty() {
@@ -474,9 +571,7 @@ pub fn new_user(cx: &mut Cx, tpl: Option<User>) {
             ou: OuPicker::new(&ous, &ou),
             pw,
             must_change: true,
-            names,
             groups,
-            pick: 0,
             busy: false,
             done: false,
             focus: true,
@@ -492,9 +587,8 @@ pub struct NewUser {
     pw: Zeroizing<String>,
     pw_id: egui::Id,
     must_change: bool,
-    names: Vec<String>,
+    /// The template's groups, added after the account is created.
     groups: Vec<String>,
-    pick: usize,
     busy: bool,
     done: bool,
     focus: bool,
@@ -585,34 +679,59 @@ impl Dialog for NewUser {
             return Flow::Close;
         }
         let look = cx.look.clone();
-        widgets::form(ui, "new-user-top", |ui| {
-            let r = widgets::labeled_field(ui, &look, t("Login (sAMAccountName)"), &mut self.sam, "", 300.0);
-            if std::mem::take(&mut self.focus) {
+        let (sam, focus) = (&mut self.sam, &mut self.focus);
+        fields_form(ui, cx, &mut self.fields, |ui, w| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, t("Login (sAMAccountName)"));
+            let r = ui.add(crate::widgets::line(sam).char_limit(20).desired_width(w)).labelled_by(l.id);
+            if std::mem::take(focus) {
                 r.request_focus();
             }
-            ui.end_row();
-            widgets::label(ui, &look, t("OU"));
-            self.ou.ui(ui, "new-user-ou", 400.0);
-            ui.end_row();
         });
-        fields_form(ui, cx, &mut self.fields);
-        widgets::form(ui, "new-user-pw", |ui| {
-            widgets::label(ui, &look, t("Initial password"));
-            password_field(ui, cx, self.pw_id, &mut self.pw);
-            ui.end_row();
-            ui.label("");
-            ui.checkbox(&mut self.must_change, t("Require change at next logon"));
-            ui.end_row();
+        ui.add_space(12.0);
+        let w = ui.available_width();
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            widgets::lbl(ui, &look, t("OU"));
+            self.ou.ui(ui, "new-user-ou", t("OU"), w);
         });
-        widgets::label(ui, &look, t("Groups"));
-        // the new user's groups are only collected here; they are added after the account is created
-        match group_list(ui, cx, "new-user-groups", &self.names, &self.groups, &mut self.pick) {
-            Some(GroupEvent::Add(g)) => {
-                self.groups.push(g);
-                self.groups.sort();
+        ui.add_space(12.0);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, t("Initial password"));
+            // the field takes what the button leaves, the button flush at the right (the web's flex row)
+            ui.allocate_ui_with_layout(
+                egui::vec2(w, crate::style::control_h()),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    if widgets::button(ui, &look, "", t("generate"), Kind::Secondary).clicked() {
+                        self.pw = new_password(cx);
+                    }
+                    let edit = crate::widgets::line(&mut *self.pw).id(self.pw_id).font(egui::TextStyle::Monospace);
+                    ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
+                },
+            );
+            ui.add_space(4.0);
+            crate::widgets::check(ui, &mut self.must_change, t("Require change at next logon"));
+        });
+        // the template's groups, added after the account is created
+        if !self.groups.is_empty() {
+            ui.add_space(12.0);
+            widgets::lbl(ui, &look, t("Groups (from the template)"));
+            ui.add_space(4.0);
+            let mut drop = None;
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+                for g in &self.groups {
+                    if widgets::chip(ui, &look, g) {
+                        drop = Some(g.clone());
+                    }
+                }
+            });
+            if let Some(g) = drop {
+                self.groups.retain(|x| *x != g);
             }
-            Some(GroupEvent::Remove(g)) => self.groups.retain(|x| *x != g),
-            None => {}
         }
         let f = footer(ui, cx, Some(t("Create")), "", false, !self.busy);
         if f.ok && !self.busy {
@@ -634,7 +753,7 @@ pub fn edit_user(cx: &mut Cx, sam: String) {
             user: x,
             names,
             groups,
-            pick: 0,
+            pick: String::new(),
             tab: 0,
             busy: false,
             done: false,
@@ -647,7 +766,8 @@ pub struct EditUser {
     fields: UserFields,
     names: Vec<String>,
     groups: Vec<String>,
-    pick: usize,
+    /// The group being typed in the Groups tab.
+    pick: String,
     tab: usize,
     busy: bool,
     done: bool,
@@ -704,26 +824,32 @@ impl Dialog for EditUser {
             return Flow::Close;
         }
         let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, 0, format!("👤 {}", t("Account")));
-            ui.selectable_value(&mut self.tab, 1, format!("☰ {}", Self::groups_label(self.groups.len())));
-        });
-        ui.separator();
+        let groups = Self::groups_label(self.groups.len());
+        if let Some(i) = widgets::cardtabs(ui, &look, "edit-user-tabs", &[t("Account"), &groups], self.tab) {
+            self.tab = i;
+        }
         if self.tab == 0 {
-            widgets::form(ui, "edit-user-login", |ui| {
-                widgets::label(ui, &look, t("Login"));
-                ui.label(format!("{} · {}", self.user.sam, self.user.upn));
-                ui.end_row();
+            let login = format!("{} · {}", self.user.sam, self.user.upn);
+            fields_form(ui, cx, &mut self.fields, |ui, _| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                widgets::lbl(ui, &look, t("Login"));
+                ui.add_space(4.0);
+                ui.label(RichText::new(login).monospace().size(12.0));
             });
-            fields_form(ui, cx, &mut self.fields);
-            ui.separator();
+            ui.add_space(12.0);
+            let y = ui.cursor().top();
+            ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+            ui.add_space(12.0);
+            let muted = look.c("fg-muted");
             ui.columns(3, |c| {
-                let small = |s: String| RichText::new(s).size(11.0);
+                let small = |s: String| RichText::new(s).size(12.0).color(muted);
                 c[0].label(small(tf!("Created: %s", date(self.user.created))));
                 c[1].label(small(tf!("Last logon: %s", date(self.user.last_logon))));
                 c[2].label(small(tf!("Password changed: %s", date(self.user.pwd_last_set))));
             });
-            ui.add(egui::Label::new(RichText::new(format!("{} · {}", self.user.dn, self.user.sid)).size(11.0)).wrap());
+            ui.add_space(4.0);
+            let ids = format!("{} · {}", self.user.dn, self.user.sid);
+            ui.add(egui::Label::new(RichText::new(ids).monospace().size(11.0).color(muted)).wrap());
         } else {
             match group_list(ui, cx, "edit-user-groups", &self.names, &self.groups, &mut self.pick) {
                 Some(GroupEvent::Add(g)) => self.member(cx, g, true),
@@ -774,17 +900,11 @@ impl Dialog for MoveUser {
         tf!("Move %s", self.user.sam)
     }
 
-    fn width(&self) -> f32 {
-        560.0
-    }
-
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        widgets::form(ui, "move-user", |ui| {
-            widgets::label(ui, &look, t("Destination"));
-            self.picker.ui(ui, "move-user-ou", 400.0);
-            ui.end_row();
-        });
+        ui.spacing_mut().item_spacing.y = 4.0;
+        widgets::lbl(ui, &look, t("Destination"));
+        self.picker.ui(ui, "move-user-ou", t("Destination"), ui.available_width());
         let f = footer(ui, cx, Some(t("Move")), "", false, self.picker.chosen());
         if f.ok && self.picker.chosen() {
             let api = cx.panel.clone();
@@ -812,6 +932,10 @@ pub struct PasswordDialog {
     unlock: bool,
     tab: usize,
     hours: usize,
+    visible: bool,
+    busy: bool,
+    /// The link generated: shown here with copy, the dialog then only closes.
+    link: Option<(String, Option<DateTime<Utc>>)>,
     after: Option<crate::app::Job>,
 }
 
@@ -826,6 +950,9 @@ impl PasswordDialog {
             unlock,
             tab: 0,
             hours: 1,
+            visible: true,
+            busy: false,
+            link: None,
             after: None,
         }
     }
@@ -846,38 +973,82 @@ impl Dialog for PasswordDialog {
         widgets::forget_field(ctx, self.pw_id);
     }
 
-    fn width(&self) -> f32 {
-        600.0
-    }
-
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, 0, format!("👤 {}", t("Set password")));
-            ui.selectable_value(&mut self.tab, 1, format!("✉ {}", t("Send link to the user")));
-        });
-        ui.separator();
-        if self.tab == 0 {
-            widgets::form(ui, "password-set", |ui| {
-                widgets::label(ui, &look, t("New password"));
-                password_field(ui, cx, self.pw_id, &mut self.pw);
-                ui.end_row();
-                ui.label("");
-                ui.checkbox(&mut self.must_change, t("Require change at next logon"));
-                ui.end_row();
-                ui.label("");
-                ui.checkbox(&mut self.unlock, t("Unlock the account too"));
-                ui.end_row();
+        let tabs = [t("Set password"), t("Send link to the user")];
+        // once the link exists the tabs are disabled and drawn so, as the web's
+        let done = self.link.is_some();
+        let picked =
+            ui.add_enabled_ui(!done, |ui| widgets::cardtabs(ui, &look, "password-tabs", &tabs, self.tab)).inner;
+        if let Some(i) = picked
+            && !done
+        {
+            self.tab = i;
+        }
+        let w = ui.available_width();
+        // a row of a field and the ghost buttons glued to its right (the web's flex row)
+        let glued = |ui: &mut Ui, add: &mut dyn FnMut(&mut Ui)| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(w, crate::style::control_h()),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    add(ui);
+                },
+            );
+        };
+        if let Some((url, expires)) = self.link.clone() {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, &tf!("Link for %s", self.user.sam));
+            glued(ui, &mut |ui| {
+                if widgets::button(ui, &look, "", t("copy"), Kind::Secondary).clicked() {
+                    ui.ctx().copy_text(url.clone());
+                    cx.set_status(t("Link copied."));
+                }
+                let mut v = url.clone();
+                let edit = crate::widgets::line(&mut v).font(egui::FontId::monospace(12.0));
+                ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
+            });
+            ui.add_space(8.0);
+            let note = tf!("Valid until %s. Send it to the user through a trusted channel.", date(expires));
+            widgets::para(ui, note, 12.0, look.c("fg-muted"));
+        } else if self.tab == 0 {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let l = widgets::lbl(ui, &look, t("New password"));
+            let (pw, pw_id, visible) = (&mut self.pw, self.pw_id, &mut self.visible);
+            glued(ui, &mut |ui| {
+                if widgets::button(ui, &look, "", t("copy"), Kind::Secondary).clicked() {
+                    ui.ctx().copy_text(pw.to_string());
+                    cx.set_status(t("Password copied."));
+                }
+                if widgets::button(ui, &look, "", t("generate"), Kind::Secondary).clicked() {
+                    *pw = new_password(cx);
+                }
+                let label = if *visible { t("hide") } else { t("show") };
+                if widgets::button(ui, &look, "", label, Kind::Secondary).clicked() {
+                    *visible = !*visible;
+                }
+                let edit =
+                    crate::widgets::line(&mut **pw).id(pw_id).password(!*visible).font(egui::TextStyle::Monospace);
+                ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
+            });
+            ui.add_space(12.0);
+            crate::widgets::check(ui, &mut self.must_change, t("Require change at next logon"));
+            ui.add_space(4.0);
+            // only a locked account can be unlocked
+            ui.add_enabled_ui(self.user.locked, |ui| {
+                crate::widgets::check(ui, &mut self.unlock, t("Unlock the account too"))
             });
         } else {
-            widgets::form(ui, "password-link", |ui| {
-                widgets::label(ui, &look, t("Valid for"));
-                let labels: Vec<String> = VALIDITY.iter().map(|v| t(v.0).to_string()).collect();
-                widgets::select(ui, "password-hours", &mut self.hours, &labels, 160.0);
-                ui.end_row();
-            });
-            widgets::wrapped(
+            ui.spacing_mut().item_spacing.y = 4.0;
+            widgets::lbl(ui, &look, t("Valid for"));
+            let labels: Vec<String> = VALIDITY.iter().map(|v| t(v.0).to_string()).collect();
+            widgets::select(ui, "password-hours", t("Valid for"), &mut self.hours, &labels, 160.0);
+            ui.add_space(12.0);
+            widgets::callout(
                 ui,
+                &look,
+                widgets::Note::Info,
                 &format!(
                     "{} {}",
                     t(
@@ -887,8 +1058,20 @@ impl Dialog for PasswordDialog {
                 ),
             );
         }
-        let f = footer(ui, cx, Some(t("OK")), "", false, true);
-        if f.ok {
+        let ok = if self.link.is_some() {
+            t("Close")
+        } else if self.busy {
+            t("Please wait…")
+        } else if self.tab == 1 {
+            t("Generate link")
+        } else {
+            t("Reset")
+        };
+        let f = footer(ui, cx, Some(ok), "", false, !self.busy);
+        if f.ok && self.link.is_some() {
+            return Flow::Close;
+        }
+        if f.ok && !self.busy {
             let api = cx.panel.clone();
             let x = self.user.clone();
             let after = self.after.take();
@@ -902,18 +1085,36 @@ impl Dialog for PasswordDialog {
                 }
                 let hours = VALIDITY[self.hours.min(3)].1;
                 let path = format!("/api/users/{}/password-link", esc(&x.sam));
-                cx.run(
+                let me = cx.current_dialog();
+                self.busy = true;
+                cx.spawn(
                     async move { api.send::<Link, _>(Method::POST, &path, Some(&json!({ "hours": hours }))).await },
                     move |app, r| {
-                        let url = format!("{}/password/{}", app.cx.panel.base.trim_end_matches('/'), r.token);
+                        let base = app.cx.panel.base.trim_end_matches('/').to_string();
+                        let d = app.cx.dialog_mut::<PasswordDialog>(me);
+                        let r = match r {
+                            Ok(r) => r,
+                            Err(e) => {
+                                if let Some(d) = d {
+                                    d.busy = false;
+                                }
+                                app.cx.handle_error(e);
+                                return;
+                            }
+                        };
+                        let url = format!("{base}/password/{}", r.token);
+                        if let Some(d) = d {
+                            d.busy = false;
+                            d.link = Some((url, r.expires));
+                        }
                         app.cx.set_status(tf!("Password link for %s generated.", x.sam));
-                        app.cx.push(ShowLink { sam: x.sam, url, expires: r.expires });
                         reload(app);
                         if let Some(a) = after {
                             a(app);
                         }
                     },
                 );
+                return Flow::Keep;
             } else {
                 #[derive(serde::Serialize)]
                 struct Body<'a> {
@@ -948,40 +1149,6 @@ impl Dialog for PasswordDialog {
             return Flow::Close;
         }
         if f.cancel { Flow::Close } else { Flow::Keep }
-    }
-}
-
-/// A generated password link with a copy button.
-pub struct ShowLink {
-    sam: String,
-    url: String,
-    expires: Option<DateTime<Utc>>,
-}
-
-impl Dialog for ShowLink {
-    fn title(&self) -> String {
-        tf!("Link for %s", self.sam)
-    }
-
-    fn width(&self) -> f32 {
-        640.0
-    }
-
-    fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
-        let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            let mut v = self.url.clone();
-            ui.add(egui::TextEdit::singleline(&mut v).font(egui::TextStyle::Monospace).desired_width(470.0));
-            if widgets::button(ui, &look, "📋", t("copy"), Kind::Secondary).clicked() {
-                ui.ctx().copy_text(self.url.clone());
-                cx.set_status(t("Link copied."));
-            }
-        });
-        widgets::wrapped(
-            ui,
-            &tf!("Valid until %s. Send it to the user through a trusted channel.", date(self.expires)),
-        );
-        if footer(ui, cx, None, t("Close"), false, true).ok { Flow::Close } else { Flow::Keep }
     }
 }
 

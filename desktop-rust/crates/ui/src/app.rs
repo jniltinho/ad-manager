@@ -55,6 +55,8 @@ pub struct Cx {
     pub panel: Api,
     pub me: Me,
     pub look: Look,
+    /// The panel's own theme and flat look (its brand), under this computer's Appearance choice.
+    pub panel_theme: (String, bool),
     /// The status line, and the hint of the link under the pointer (shown instead while it is there).
     pub status: String,
     pub hover: Option<String>,
@@ -229,9 +231,24 @@ impl Cx {
         self.push(modal::ConfirmTyped::new(title, msg, expected, action));
     }
 
-    pub fn set_look(&mut self, id: &str) {
-        if let Some(l) = Look::new(id)
-            && l.id != self.look.id
+    /// Draws with the panel's look (`theme`, `flat`) or, when Configure › Appearance chose one, this computer's.
+    pub fn panel_look(&mut self, theme: &str, flat: bool) {
+        self.panel_theme = (theme.to_string(), flat);
+        self.refresh_look();
+    }
+
+    /// Applies the look again after Configure › Appearance changed (or the panel's arrived).
+    pub fn refresh_look(&mut self) {
+        let (theme, flat) = self.panel_theme.clone();
+        let theme = if theme.is_empty() { "default".to_string() } else { theme };
+        let (id, flat) = self.cfg.appearance.resolve(&theme, flat);
+        let (id, flat) = (id.to_string(), flat);
+        self.set_look(&id, flat);
+    }
+
+    pub fn set_look(&mut self, id: &str, flat: bool) {
+        if let Some(l) = Look::with_flat(id, flat)
+            && (l.id != self.look.id || l.flat != self.look.flat)
         {
             l.apply(&self.ctx);
             self.look = l;
@@ -272,6 +289,8 @@ pub struct App {
     heights: Vec<f32>,
     /// The graphics start until it counts as working.
     gpu: Option<GpuStart>,
+    /// The client width last seen (points before zoom) and since when, for the web's zoom steps.
+    zoom_seen: (f32, std::time::Instant),
     _rt: Option<tokio::runtime::Runtime>,
 }
 
@@ -326,6 +345,7 @@ impl App {
             panel,
             me: Me::default(),
             look,
+            panel_theme: (String::new(), false),
             status: String::new(),
             hover: None,
             dialogs: Vec::new(),
@@ -347,6 +367,7 @@ impl App {
             kept: None,
             heights: Vec::new(),
             gpu: None,
+            zoom_seen: (0.0, std::time::Instant::now()),
             _rt: own,
         };
         if let Some(g) = start.gpu {
@@ -364,6 +385,25 @@ impl App {
             None => Screen::Login(Box::new(login::Login::new(&mut app.cx))),
         };
         Ok(app)
+    }
+
+    /// The web's zoom steps (design D6): from the client width before zoom — the content rect in points times the
+    /// current zoom, never the monitor — 1.6 from 3200, 1.25 from 2400, else 1; applied once the size has stayed for
+    /// 300 ms, so a resize does not relayout at every step of the drag.
+    fn zoom(&mut self, ctx: &Context) {
+        let w = ctx.content_rect().width() * ctx.zoom_factor();
+        let now = std::time::Instant::now();
+        if (w - self.zoom_seen.0).abs() > 0.5 {
+            self.zoom_seen = (w, now);
+            ctx.request_repaint_after(std::time::Duration::from_millis(320));
+            return;
+        }
+        let z = zoom_step(w);
+        if now.duration_since(self.zoom_seen.1) >= std::time::Duration::from_millis(300)
+            && (ctx.zoom_factor() - z).abs() > 1e-3
+        {
+            ctx.set_zoom_factor(z);
+        }
     }
 
     /// Once [`adm_core::gpu::START_FRAMES`] frames completed (and eframe painted them: a frame's extra layout passes
@@ -427,7 +467,12 @@ impl App {
 
     /// One frame.
     pub fn frame(&mut self, ui: &mut Ui) {
+        self.zoom(ui.ctx());
         self.pump();
+        // any call of this session heard that it ended: back to sign-in (as the web's 401 handling)
+        if matches!(self.screen, Screen::Shell(_)) && self.cx.panel.expired() && self.cx.go.is_none() {
+            self.cx.go = Some(Go::Login);
+        }
         self.cx.hover = None;
         let modal_open = !self.cx.dialogs.is_empty();
         match &mut self.screen {
@@ -455,7 +500,8 @@ impl App {
             let top = i == self.cx.dialogs.len();
             let last_h = self.heights.get(i).copied().unwrap_or(0.0);
             let y = (screen.height() * 0.1).min(screen.height() - last_h).max(0.0);
-            let id = egui::Id::new(("adm-dialog", i));
+            // each dialog its own area: another one's remembered size would bound this one's body
+            let id = egui::Id::new(("adm-dialog", did));
             let area = egui::Modal::default_area(id).anchor(Align2::CENTER_TOP, egui::vec2(0.0, y));
             let mut flow = Flow::Keep;
             let r = egui::Modal::new(id)
@@ -490,6 +536,10 @@ impl App {
         match &mut self.screen {
             Screen::Login(l) => l.forget(&self.cx.ctx),
             Screen::Setup(s) => s.forget(&self.cx.ctx),
+            Screen::Shell(s) => {
+                s.settings.forget(&self.cx.ctx);
+                s.import.forget(&self.cx.ctx);
+            }
             _ => {}
         }
         match go {
@@ -534,7 +584,7 @@ impl App {
             i18n::set_lang(&self.cx.me.settings.lang);
         }
         let theme = self.cx.me.brand.theme.clone();
-        self.cx.set_look(&theme);
+        self.cx.panel_look(&theme, self.cx.me.brand.flat);
         for (_, d) in self.cx.dialogs.drain(..) {
             d.closed(&self.cx.ctx);
         }
@@ -571,6 +621,17 @@ impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &Context, raw: &mut egui::RawInput) {
         let line = ctx.options(|o| o.input_options.line_scroll_speed);
         immediate_wheel(&mut raw.events, line);
+    }
+}
+
+/// The web's zoom for a client width in points before zoom (style.css: 1.25 from 2400 px, 1.6 from 3200 px).
+pub fn zoom_step(w: f32) -> f32 {
+    if w >= 3200.0 {
+        1.6
+    } else if w >= 2400.0 {
+        1.25
+    } else {
+        1.0
     }
 }
 
@@ -618,6 +679,13 @@ fn failed(ui: &mut Ui, look: &Look, msg: &str) {
 mod tests {
     use super::immediate_wheel;
     use egui::{Event, Modifiers, MouseWheelUnit, TouchPhase, vec2};
+
+    #[test]
+    fn zoom_steps_at_the_web_boundaries() {
+        use super::zoom_step;
+        assert_eq!((zoom_step(1920.0), zoom_step(2399.0), zoom_step(2400.0)), (1.0, 1.0, 1.25));
+        assert_eq!((zoom_step(3199.0), zoom_step(3200.0), zoom_step(3840.0)), (1.25, 1.6, 1.6));
+    }
 
     #[test]
     fn a_notch_becomes_small_steps_of_the_same_total() {

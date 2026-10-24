@@ -55,6 +55,10 @@ type Agent struct {
 	Queue      string   `toml:"queue"`
 	ShareRoots []string `toml:"share_roots"`
 	SelfSigned bool     `toml:"self_signed"` // without cert_file: generate and reuse a self-signed one
+	// the import write modes of an agent on a domain controller (GPO restore/import and the password migration),
+	// switched on without any secret on disk: the administrator credential comes from the panel's database with
+	// each GPO task (docs/password-migration.md). The two pairs of keys below are the former way, still accepted.
+	ImportModes bool `toml:"import_modes"`
 	// explicit write mode of an agent on a domain controller (otherwise read only): restoring a GPO from a backup,
 	// always as a new GPO, as this account (it creates GPOs: Domain Admins on Samba) with its password in a file
 	// that only root reads (never in the configuration)

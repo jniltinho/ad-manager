@@ -76,11 +76,12 @@ function statusTag(s) {
       </button>
     </div>
   </div>
-  <div class="max-h-[calc(var(--view-h)-260px)] overflow-auto border border-line">
+  <div class="max-h-[calc(var(--view-h)-306px)] overflow-auto border border-line">
     <!-- fixed columns, one line per request: long paths end in "…" and show in the tooltip -->
     <table class="grid-t border-0 table-fixed">
       <colgroup>
-        <col class="w-32" />
+        <!-- the date and time in Verdana need about 150 px: narrower, it runs into the source -->
+        <col class="w-38" />
         <col class="w-28" />
         <col class="w-32" />
         <col class="w-16" />

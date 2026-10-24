@@ -192,9 +192,31 @@ its flat look.
 |---|---|
 | ![Logs](desktop-rs-09-logs.png) | ![Link](desktop-rs-10-password-link.png) |
 
-| Link generated |  |
+| Link generated | DNS records |
 |---|---|
-| ![Link generated](desktop-rs-11-link-generated.png) |  |
+| ![Link generated](desktop-rs-11-link-generated.png) | ![DNS](desktop-rs-16-dns.png) |
+
+| SMB sessions of a computer | Sessions and open files of a file server |
+|---|---|
+| ![SMB sessions](desktop-rs-17-smb-sessions.png) | ![Share sessions](desktop-rs-18-share-sessions.png) |
+
+| Samba log | HTTP log |
+|---|---|
+| ![Samba log](desktop-rs-19-logs-samba.png) | ![HTTP log](desktop-rs-20-logs-http.png) |
+
+| Edit share | Restore a backup |
+|---|---|
+| ![Edit share](desktop-rs-21-edit-share.png) | ![Restore](desktop-rs-22-restore.png) |
+
+| Sync wizard | Settings |
+|---|---|
+| ![Sync wizard](desktop-rs-23-sync-wizard.png) | ![Settings](desktop-rs-24-settings.png) |
+
+| Backups of a file server | Import/export |
+|---|---|
+| ![Backup agent](desktop-rs-25-backup-agent.png) | ![Import/export](desktop-rs-26-import-export.png) |
+
+The Rust app's are retaken with `make -C desktop-rust shots` (a mock panel, no domain needed).
 
 ## How to retake them
 

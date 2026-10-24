@@ -99,7 +99,7 @@ const visible = computed(() => {
         </button>
       </div>
     </div>
-    <div class="max-h-[calc(var(--view-h)-260px)] overflow-auto border border-line">
+    <div class="max-h-[calc(var(--view-h)-306px)] overflow-auto border border-line">
       <table class="grid-t border-0">
         <thead>
           <tr>

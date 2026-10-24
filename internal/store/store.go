@@ -1,6 +1,7 @@
 // Package store is the panel's local SQLite database: file server agents,
-// source AD profiles for imports and runtime settings. AD passwords are never
-// stored.
+// source AD profiles for imports and runtime settings. AD passwords are only ever
+// stored sealed (the server's secret box): sync and source-profile passwords and the
+// import credential.
 package store
 
 import (
@@ -28,14 +29,15 @@ type Agent struct {
 	Created  time.Time `json:"created"`
 }
 
-// Source is a saved source AD profile (without password).
+// Source is a saved source AD profile; its password, when kept, is in source_secrets (sealed) and only reported.
 type Source struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	URL      string `json:"url"`
-	Domain   string `json:"domain"`
-	User     string `json:"user"`
-	Insecure bool   `json:"insecure"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	Domain      string `json:"domain"`
+	User        string `json:"user"`
+	Insecure    bool   `json:"insecure"`
+	HasPassword bool   `json:"has_password"`
 }
 
 // PasswordLink is a pending self-service password change. ID is a hash of the
@@ -62,6 +64,7 @@ CREATE TABLE IF NOT EXISTS ad_sources (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, url TEXT NOT NULL, domain TEXT NOT NULL,
   user TEXT NOT NULL DEFAULT '', insecure INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value BLOB NOT NULL);
+CREATE TABLE IF NOT EXISTS source_secrets (source INTEGER PRIMARY KEY, secret BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS sync_secrets (
   agent INTEGER NOT NULL, job TEXT NOT NULL, secret BLOB NOT NULL, PRIMARY KEY (agent, job));
 CREATE TABLE IF NOT EXISTS password_links (
@@ -267,7 +270,8 @@ func (s *Store) DeleteAgent(id int64) error {
 
 // Sources lists the source AD profiles.
 func (s *Store) Sources() ([]Source, error) {
-	rows, err := s.db.Query(`SELECT id, name, url, domain, user, insecure FROM ad_sources ORDER BY name`)
+	rows, err := s.db.Query(`SELECT a.id, a.name, a.url, a.domain, a.user, a.insecure, x.source IS NOT NULL
+		FROM ad_sources a LEFT JOIN source_secrets x ON x.source = a.id ORDER BY a.name`)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +279,7 @@ func (s *Store) Sources() ([]Source, error) {
 	out := []Source{}
 	for rows.Next() {
 		var x Source
-		if err := rows.Scan(&x.ID, &x.Name, &x.URL, &x.Domain, &x.User, &x.Insecure); err != nil {
+		if err := rows.Scan(&x.ID, &x.Name, &x.URL, &x.Domain, &x.User, &x.Insecure, &x.HasPassword); err != nil {
 			return nil, err
 		}
 		out = append(out, x)
@@ -283,18 +287,57 @@ func (s *Store) Sources() ([]Source, error) {
 	return out, rows.Err()
 }
 
-// SaveSource saves a source profile, replacing any profile with the same name.
+// SaveSource saves a source profile, replacing any profile with the same name (it keeps its id), and sets x.ID.
 func (s *Store) SaveSource(x *Source) error {
 	_, err := s.db.Exec(`INSERT INTO ad_sources (name, url, domain, user, insecure) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET url = excluded.url, domain = excluded.domain, user = excluded.user, insecure = excluded.insecure`,
 		x.Name, x.URL, x.Domain, x.User, x.Insecure)
+	if err != nil {
+		return err
+	}
+	return s.db.QueryRow(`SELECT id FROM ad_sources WHERE name = ?`, x.Name).Scan(&x.ID)
+}
+
+// Source reads one profile (ErrNotFound when it does not exist).
+func (s *Store) Source(id int64) (*Source, error) {
+	var x Source
+	err := s.db.QueryRow(`SELECT a.id, a.name, a.url, a.domain, a.user, a.insecure, x.source IS NOT NULL
+		FROM ad_sources a LEFT JOIN source_secrets x ON x.source = a.id WHERE a.id = ?`, id).
+		Scan(&x.ID, &x.Name, &x.URL, &x.Domain, &x.User, &x.Insecure, &x.HasPassword)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &x, err
+}
+
+// DeleteSource removes a profile and its kept password.
+func (s *Store) DeleteSource(id int64) error {
+	if _, err := s.db.Exec(`DELETE FROM source_secrets WHERE source = ?`, id); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM ad_sources WHERE id = ?`, id)
 	return err
 }
 
-// DeleteSource removes a profile.
-func (s *Store) DeleteSource(id int64) error {
-	_, err := s.db.Exec(`DELETE FROM ad_sources WHERE id = ?`, id)
+// SetSourceSecret keeps a profile's sealed password; nil deletes it.
+func (s *Store) SetSourceSecret(id int64, sealed []byte) error {
+	if sealed == nil {
+		_, err := s.db.Exec(`DELETE FROM source_secrets WHERE source = ?`, id)
+		return err
+	}
+	_, err := s.db.Exec(`INSERT INTO source_secrets (source, secret) VALUES (?, ?)
+		ON CONFLICT(source) DO UPDATE SET secret = excluded.secret`, id, sealed)
 	return err
+}
+
+// SourceSecret reads a profile's sealed password (nil when none is kept).
+func (s *Store) SourceSecret(id int64) ([]byte, error) {
+	var v []byte
+	err := s.db.QueryRow(`SELECT secret FROM source_secrets WHERE source = ?`, id).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return v, err
 }
 
 // Setting reads a setting (ErrNotFound if it was never saved).

@@ -20,23 +20,29 @@ import (
 // Roles are the color roles the desktop uses (without the --color- prefix).
 var Roles = []string{
 	"fg", "fg-strong", "fg-muted", "fg-subtle", "link", "page", "surface", "surface-2", "row-alt", "row-hover", "line",
-	"field", "on-field", "field-line", "focus", "selection", "on-selection", "accent",
+	"field", "on-field", "field-line", "focus", "selection", "on-selection", "accent", "pop-line", "line-soft",
 	"ok", "err", "warn", "ok-fill", "err-fill", "warn-fill", "on-ok-fill", "on-err-fill", "on-warn-fill",
 	"neutral-fill", "on-neutral-fill", "strong-fill", "on-strong-fill",
 	"action-top", "action", "action-line", "on-action", "action-2-top", "action-2", "action-2-line", "on-action-2",
 	"danger-top", "danger", "danger-line", "on-danger", "brand-action-top", "brand-action", "brand-action-hover", "on-brand-action",
 	"dialog-head-top", "dialog-head", "on-dialog-head", "dialog-line", "footer", "on-footer", "footer-strong",
-	"header-top", "header", "on-header", "on-header-muted", "header-bar", "logo-plate", "nav-on", "on-nav-on",
+	"header-top", "header", "on-header", "on-header-muted", "header-bar", "logo-plate", "nav-on", "on-nav-on", "nav-on-line", "on-login-box-strong", "on-login-box-faint", "login-field-line", "login-focus", "err-soft", "on-err-soft", "toast-err", "warn-soft", "on-warn-soft", "cardtabs", "cardtabs-line", "cardtab", "on-cardtab", "cardtab-hover", "cardtab-on", "on-cardtab-on", "cardtab-bar", "check-line",
 	"table-head-top", "table-head", "on-table-head", "card-head-top", "card-head", "on-card-head", "card-head-bar",
 	"subtab-line", "subtab", "on-subtab", "subtab-hover", "subtab-on", "on-subtab-on",
 	"tabs-top", "tabs", "tab", "on-tab", "tab-hover", "on-tab-hover", "tab-on-top", "tab-on", "on-tab-on", "tab-on-icon",
 	"dialog-head-bar", "decor-ok", "decor-err", "decor-warn", "decor-muted", "decor-strong",
 	"login-page", "login-box", "login-box-line", "login-box-bar", "on-login-box", "on-login-box-muted", "login-title", "backdrop",
+	// the Rust desktop's web parity: soft status tags, the third surface, link and field hovers, header links, footer,
+	// and the right-hand top tabs (API, Queues)
+	"ok-soft", "on-ok-soft", "surface-3", "link-hover", "field-focus", "header-link", "header-link-hover",
+	"on-header-subtle", "footer-bar", "footer-top", "on-tab-aux", "tab-aux-hover", "on-tab-aux-hover",
+	"chart-1", "card-hover-line",
 }
 
 // Theme is one registered theme with its resolved colors and its login box shadow.
 type Theme struct {
 	ID, Scheme  string
+	Label       string              // the registry's name ("Classic blue (XP)"), translated by the catalogs
 	Colors      map[string][4]uint8 // role → RGBA
 	LoginShadow Shadow              // outer layer of --shadow-login-box (zero: none, e.g. only a relief)
 	LoginRelief []Shadow            // inset layers of --shadow-login-box (the 98 relief), first on top
@@ -51,6 +57,8 @@ type Theme struct {
 	SubtabOn    []Shadow            // the same of the current inner tab (--shadow-subtab-on: its bar or relief)
 	TabOn       []Shadow            // the same of the current top tab (--shadow-tab-on: the mark of the sidebar)
 	Depthless   bool                // no shadow on buttons, cards or the login box (High contrast): always the flat look
+
+	vals map[string]string // every variable of the theme (the contract's, then the theme's), unresolved
 }
 
 // Shadow is one outer box-shadow layer: offsets and blur in px, and its color.
@@ -65,7 +73,7 @@ var (
 	reThemeAt  = regexp.MustCompile(`@theme(?:\s+static)?\s*\{`)
 	reRootAt   = regexp.MustCompile(`(?m)^:root\s*\{`) // the contract's parameters (shadows, backgrounds…)
 	reBlock    = regexp.MustCompile(`:root\[data-theme='([a-z0-9-]+)'\]\s*\{([^}]*)\}`)
-	reRegistry = regexp.MustCompile(`\{ID: (?:"([^"]+)"|(theme\w+)), Label: "[^"]+", Scheme: "(\w+)"\}`)
+	reRegistry = regexp.MustCompile(`\{ID: (?:"([^"]+)"|(theme\w+)), Label: "([^"]+)", Scheme: "(\w+)"\}`)
 	reConst    = regexp.MustCompile(`(theme\w+)\s*=\s*"([^"]+)"`)
 	reVar      = regexp.MustCompile(`var\((--[a-z0-9-]+)\)`)
 )
@@ -93,6 +101,9 @@ func decls(body string, into map[string]string) {
 }
 
 // Load reads the theme sources under the repository root.
+// arrowFill finds the color of the select arrow's data-URL SVG.
+var arrowFill = regexp.MustCompile(`fill='%23([0-9a-fA-F]{6})'`)
+
 func Load(root string) ([]Theme, error) {
 	read := func(p string) (string, error) {
 		b, err := os.ReadFile(filepath.Join(root, p))
@@ -156,7 +167,7 @@ func Load(root string) ([]Theme, error) {
 		for k, v := range blocks[id] {
 			vals[k] = v
 		}
-		t := Theme{ID: id, Scheme: m[3], Colors: map[string][4]uint8{}}
+		t := Theme{ID: id, Label: m[3], Scheme: m[4], Colors: map[string][4]uint8{}, vals: vals}
 		for _, r := range Roles {
 			v, err := resolve(vals, "--color-"+r, 0)
 			if err != nil {
@@ -168,6 +179,30 @@ func Load(root string) ([]Theme, error) {
 			}
 			t.Colors[r] = c
 		}
+		// the placeholder: the theme's --placeholder-color, or the browser's (the field's ink at 50% over the field)
+		ph, field := t.Colors["on-field"], t.Colors["field"]
+		if v, err := resolve(vals, "--placeholder-color", 0); err == nil {
+			if c, err := parseColor(v); err == nil {
+				ph, field = c, c
+			}
+		}
+		for i := 0; i < 3; i++ {
+			ph[i] = uint8((int(ph[i]) + int(field[i])) / 2)
+		}
+		if ph[3] == 0 {
+			ph[3] = 255
+		}
+		t.Colors["placeholder"] = ph
+		// the select's arrow: the fill of the theme's --bg-select-arrow SVG (the field's ink when it has none)
+		arrow := t.Colors["on-field"]
+		if v, err := resolve(vals, "--bg-select-arrow", 0); err == nil {
+			if m := arrowFill.FindStringSubmatch(v); m != nil {
+				if c, err := parseColor("#" + m[1]); err == nil {
+					arrow = c
+				}
+			}
+		}
+		t.Colors["select-arrow"] = arrow
 		if v, err := resolve(vals, "--shadow-login-box", 0); err == nil {
 			t.LoginShadow = outerShadow(v)
 			t.LoginRelief = insetShadows(v)
