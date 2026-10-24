@@ -147,11 +147,11 @@ impl Login {
                     let fallback =
                         if adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("login-box").to_srgba_unmultiplied()))
                         {
-                            logo::product_white()
+                            logo::product_white(ui, egui::vec2(195.0, 65.0))
                         } else {
-                            logo::product_navy()
+                            logo::product_navy(ui, egui::vec2(195.0, 65.0))
                         };
-                    let img = cx.brand.logo.as_ref().map_or(fallback, Logo::image);
+                    let img = cx.brand.logo.as_ref().map_or(fallback, |l| l.image(ui, egui::vec2(195.0, 65.0)));
                     ui.add(img.fit_to_exact_size(egui::vec2(195.0, 65.0)));
                     ui.with_layout(egui::Layout::bottom_up(egui::Align::Max), |ui| {
                         ui.add_space(6.0);

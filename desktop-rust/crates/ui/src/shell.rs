@@ -282,11 +282,11 @@ impl Shell {
         let inner = egui::Rect::from_min_size(rect.min + egui::vec2(20.0, 12.0), egui::vec2(rect.width() - 40.0, 40.0));
         // logo, 40 high (at most 256 wide)
         let logo = match &cx.brand.logo {
-            Some(l) if cx.me.brand.logo => l.image(),
+            Some(l) if cx.me.brand.logo => l.image(ui, egui::vec2(256.0, 40.0)),
             _ if adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("header").to_srgba_unmultiplied())) => {
-                crate::logo::product_white()
+                crate::logo::product_white(ui, egui::vec2(256.0, 40.0))
             }
-            _ => crate::logo::product_navy(),
+            _ => crate::logo::product_navy(ui, egui::vec2(256.0, 40.0)),
         };
         // painted, not allocated (the header's rect is already taken), left-aligned at its own aspect
         let size = logo.load_and_calc_size(ui, egui::vec2(256.0, 40.0)).unwrap_or(egui::vec2(160.0, 40.0));
@@ -585,11 +585,11 @@ pub fn app_frame(ui: &mut Ui, cx: &Cx, subtitle: &str, tab: (&str, &str), note: 
     crate::depth::paint_box(&p, head, look.gradient("header"), look.c("header"), &[]);
     let inner = head.shrink2(egui::vec2(20.0, 12.0));
     let logo = match &cx.brand.logo {
-        Some(l) => l.image(),
+        Some(l) => l.image(ui, egui::vec2(256.0, 40.0)),
         None if adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("header").to_srgba_unmultiplied())) => {
-            crate::logo::product_white()
+            crate::logo::product_white(ui, egui::vec2(256.0, 40.0))
         }
-        None => crate::logo::product_navy(),
+        None => crate::logo::product_navy(ui, egui::vec2(256.0, 40.0)),
     };
     let size = logo.load_and_calc_size(ui, egui::vec2(256.0, 40.0)).unwrap_or(egui::vec2(160.0, 40.0));
     let size = size * (40.0 / size.y.max(1.0)).min(256.0 / size.x.max(1.0));
@@ -646,21 +646,47 @@ pub fn app_frame(ui: &mut Ui, cx: &Cx, subtitle: &str, tab: (&str, &str), note: 
     );
     let company_w = company.size().x;
     p.galley(egui::pos2(body.left() + 20.0, body.center().y - company.size().y / 2.0), company, strong);
-    if !note.is_empty() {
-        // red that reads on the footer: the error ink on a light footer, its soft tint on a dark one
-        let dark = adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("footer").to_srgba_unmultiplied()));
-        let red = if dark { look.c("err").lerp_to_gamma(egui::Color32::WHITE, 0.35) } else { look.c("err") };
-        let g = p.layout_no_wrap(note.to_string(), egui::FontId::proportional(11.0), red);
-        p.galley(egui::pos2(body.left() + 20.0 + company_w + 20.0, body.center().y - g.size().y / 2.0), g, red);
-    }
     let version =
         p.layout_no_wrap(format!("ad-manager desktop-rs {}", cx.version), egui::FontId::proportional(11.0), strong);
-    p.galley(
-        egui::pos2(body.right() - 20.0 - version.size().x, body.center().y - version.size().y / 2.0),
-        version,
-        strong,
-    );
+    let version_x = body.right() - 20.0 - version.size().x;
+    p.galley(egui::pos2(version_x, body.center().y - version.size().y / 2.0), version, strong);
+    let note_x = body.left() + 20.0 + company_w + 20.0;
+    if !note.is_empty() && version_x - 20.0 > note_x {
+        // the error ink made readable on the footer's color at mid-height, right under the text; one row, cut with …
+        // before the version on a narrow window
+        let under = look.gradient("footer").map_or(look.c("footer"), |g| {
+            let c = crate::depth::color_at(g, 0.5).0;
+            egui::Color32::from_rgb(c[0], c[1], c[2])
+        });
+        let red = footer_red(look.c("err"), under);
+        let mut job = egui::text::LayoutJob::simple_singleline(note.to_string(), egui::FontId::proportional(11.0), red);
+        job.wrap = egui::text::TextWrapping::truncate_at_width(version_x - 20.0 - note_x);
+        let g = p.layout_job(job);
+        p.galley(egui::pos2(note_x, body.center().y - g.size().y / 2.0), g, red);
+    }
     egui::Rect::from_min_max(egui::pos2(rect.left(), band.bottom()), egui::pos2(rect.right(), foot.top())).shrink(20.0)
+}
+
+/// The error ink mixed toward white (dark footer) or black (light one) until it reads on the footer at 4.5:1.
+fn footer_red(err: egui::Color32, footer: egui::Color32) -> egui::Color32 {
+    use adm_core::theme::{Rgba, contrast, is_dark};
+    let bg = Rgba(footer.to_srgba_unmultiplied());
+    let to = if is_dark(bg) { egui::Color32::WHITE } else { egui::Color32::BLACK };
+    (0..=40)
+        .map(|i| err.lerp_to_gamma(to, i as f32 / 40.0))
+        .find(|c| contrast(Rgba(c.to_srgba_unmultiplied()), bg) >= 4.5)
+        .unwrap_or(to)
+}
+
+#[test]
+fn footer_red_reads_on_any_footer() {
+    let err = egui::Color32::from_rgb(204, 0, 0);
+    for f in [egui::Color32::from_rgb(30, 79, 184), egui::Color32::from_rgb(240, 240, 240), egui::Color32::BLACK] {
+        let r = footer_red(err, f);
+        let c = |x: egui::Color32| adm_core::theme::Rgba(x.to_srgba_unmultiplied());
+        assert!(adm_core::theme::contrast(c(r), c(f)) >= 4.5, "{f:?}");
+        assert!(r.r() > r.g(), "still red on {f:?}");
+    }
 }
 
 /// The web's .tab-aux (API, Queues at the right of the tabs): a plain link, px-4 py-2, semibold 12 px in the

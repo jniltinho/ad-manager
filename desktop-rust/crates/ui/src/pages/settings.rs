@@ -330,8 +330,8 @@ impl Settings {
                                     .show(ui, |ui| {
                                         let (r, _) = ui.allocate_exact_size(egui::vec2(208.0, 48.0), egui::Sense::hover());
                                         let img = match &cx.brand.logo {
-                                            Some(l) if loaded.logo => l.image(),
-                                            _ => crate::logo::product_navy(),
+                                            Some(l) if loaded.logo => l.image(ui, r.size()),
+                                            _ => crate::logo::product_navy(ui, r.size()),
                                         };
                                         img.fit_to_exact_size(r.size()).paint_at(ui, r);
                                     });
