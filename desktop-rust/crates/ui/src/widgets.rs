@@ -118,6 +118,13 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
     r
 }
 
+/// A toolbar's refresh button: disabled while `busy` (a reload in flight), so a click shows it is working.
+pub fn refresh_button(ui: &mut Ui, look: &Look, busy: bool) -> bool {
+    ui.add_enabled_ui(!busy, |ui| icon_button(ui, look, crate::icons::REFRESH, adm_core::i18n::t("Refresh")))
+        .inner
+        .clicked()
+}
+
 /// An icon-only button with its name as tooltip.
 pub fn icon_button(ui: &mut Ui, look: &Look, icon: &str, name: &str) -> Response {
     let r = button(ui, look, icon, "", Kind::Secondary);
@@ -1211,8 +1218,15 @@ pub fn option(ui: &mut Ui, chosen: bool, text: &str, index: usize) -> Response {
     ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, c.line));
     ui.painter().galley(egui::pos2(rect.left() + 8.0, rect.center().y - g.size().y / 2.0), g, ink);
     resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, chosen, text));
-    if chosen && ui.memory(|m| m.focused().is_none()) {
-        resp.scroll_to_me(None);
+    // the chosen option scrolled into view when the list opens, not on every frame (the wheel must move it)
+    if chosen {
+        let key = ui.id().with("adm-option-opened");
+        let pass = ui.ctx().cumulative_pass_nr();
+        let last = ui.ctx().data(|d| d.get_temp::<u64>(key));
+        if last.is_none_or(|l| l + 1 < pass) {
+            resp.scroll_to_me(Some(egui::Align::Center));
+        }
+        ui.ctx().data_mut(|d| d.insert_temp(key, pass));
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

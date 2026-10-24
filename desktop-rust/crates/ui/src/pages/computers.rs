@@ -17,6 +17,8 @@ use crate::widgets::{self, Kind};
 
 #[derive(Default)]
 pub struct Computers {
+    /// A refresh asked by the toolbar's button, in flight (it says what it read when done).
+    refreshing: bool,
     all: Vec<Computer>,
     visible: Vec<usize>,
     search: String,
@@ -56,6 +58,9 @@ impl Computers {
                 p.system = chosen.and_then(|c| systems.iter().position(|s| *s == c)).unwrap_or(0);
                 p.systems = systems;
                 p.all = r;
+                if std::mem::take(&mut p.refreshing) {
+                    cx.set_status(tf!("%d computers read from the domain.", p.all.len()));
+                }
                 p.apply(cx);
             });
         });
@@ -98,7 +103,8 @@ impl Computers {
                 RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
             );
             widgets::toolbar_end(ui, |ui| {
-                if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
+                if widgets::refresh_button(ui, &look, self.refreshing) {
+                    self.refreshing = true;
                     self.reload(cx);
                 }
                 if widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked() {

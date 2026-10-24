@@ -35,6 +35,8 @@ const COMPACT: f32 = 34.0;
 
 #[derive(Default)]
 pub struct Users {
+    /// A refresh asked by the toolbar's button, in flight (it says what it read when done).
+    refreshing: bool,
     all: Vec<User>,
     visible: Vec<usize>,
     search: String,
@@ -66,6 +68,9 @@ impl Users {
                 s.users.all = r;
                 s.users.loaded = true;
                 s.users.apply(cx);
+                if std::mem::take(&mut s.users.refreshing) {
+                    cx.set_status(tf!("%d users read from the domain.", s.users.all.len()));
+                }
             });
         });
     }
@@ -202,7 +207,8 @@ impl Users {
             );
             widgets::toolbar_end(ui, |ui| {
                 if wide {
-                    if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
+                    if widgets::refresh_button(ui, &look, self.refreshing) {
+                        self.refreshing = true;
                         self.reload(cx);
                     }
                     if widgets::button(ui, &look, crate::icons::USER_PLUS, t("New user"), Kind::Primary).clicked() {

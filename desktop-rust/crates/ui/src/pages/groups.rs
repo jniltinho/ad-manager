@@ -19,6 +19,8 @@ use crate::widgets::{self, Kind};
 
 #[derive(Default)]
 pub struct Groups {
+    /// A refresh asked by the toolbar's button, in flight (it says what it read when done).
+    refreshing: bool,
     groups: Vec<Group>,
     /// The logins and names of the users (the detail dialog's suggestions and names).
     logins: Vec<(String, String)>,
@@ -63,7 +65,7 @@ impl Groups {
         cx.run(
             async move { Ok((api.get::<Vec<Group>>("/api/groups").await?, api.get::<Vec<User>>("/api/users").await?)) },
             move |app, (mut r, users)| {
-                app.with_shell(|s, _| {
+                app.with_shell(|s, cx| {
                     let p = &mut s.groups;
                     if p.generation != g {
                         return;
@@ -72,6 +74,9 @@ impl Groups {
                     p.groups = r;
                     p.logins = users.into_iter().map(|u| (u.sam, u.name)).collect();
                     p.apply();
+                    if std::mem::take(&mut p.refreshing) {
+                        cx.set_status(tf!("%d groups read from the domain.", p.groups.len()));
+                    }
                 });
             },
         );
@@ -115,7 +120,8 @@ impl Groups {
                     .color(look.c("fg-muted")),
             );
             widgets::toolbar_end(ui, |ui| {
-                if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
+                if widgets::refresh_button(ui, &look, self.refreshing) {
+                    self.refreshing = true;
                     self.reload(cx);
                 }
                 if widgets::button(ui, &look, crate::icons::PLUS, t("New group"), Kind::Primary).clicked() {

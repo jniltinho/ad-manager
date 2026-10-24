@@ -429,6 +429,19 @@ fn show<A>(
             });
         });
     });
+    // the header band over the scroll bar's column too (the web's sticky head spans the wrapper)
+    if !fits {
+        let rect = framed.response.rect;
+        let used: f32 = widths.iter().sum();
+        let gutter = egui::Rect::from_min_max(
+            egui::pos2((rect.left() + used).min(rect.right()), rect.top()),
+            egui::pos2(rect.right(), rect.top() + head_h),
+        );
+        if gutter.width() > 0.0 {
+            crate::depth::paint_box(ui.painter(), gutter, head_grad, head_fill, head_shadow);
+            ui.painter().hline(gutter.x_range(), gutter.bottom() - 0.5, egui::Stroke::new(1.0, line));
+        }
+    }
     // the table's 1 px frame, as the web's wrapper
     if t.frame {
         ui.painter().rect_stroke(framed.response.rect, 0.0, egui::Stroke::new(1.0, line), egui::StrokeKind::Inside);

@@ -879,3 +879,17 @@ fn many_samba_tabs_wrap_and_stay_reachable() {
     };
     assert!(opened, "the last server's Samba tab opened (its files asked for)");
 }
+
+/// The toolbars' refresh button reads the list again and says so in the status line.
+#[test]
+fn refresh_reads_the_list_again_and_says_so() {
+    let mut e = env();
+    e.users_page();
+    let before = e.sent("GET", "/api/users").iter().filter(|r| r.path == "/api/users").count();
+    e.h.get_by_label("Refresh").click();
+    e.wait("the reload", move |_, m| {
+        m.sent("GET", "/api/users").iter().filter(|r| r.path == "/api/users").count() > before
+    });
+    e.h.run_steps(3);
+    assert!(e.app().cx.status.contains("60"), "the status says what was read: {}", e.app().cx.status);
+}

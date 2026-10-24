@@ -19,6 +19,8 @@ use crate::widgets::{self, Kind};
 
 #[derive(Default)]
 pub struct Ous {
+    /// A refresh asked by the toolbar's button, in flight (it says what it read when done).
+    refreshing: bool,
     ous: Vec<OrgUnit>,
     /// The tree order: index in `ous` and level.
     tree: Vec<(usize, usize)>,
@@ -55,11 +57,14 @@ impl Ous {
         let g = self.generation;
         let api = cx.panel.clone();
         cx.run(async move { crate::pages::users::fetch_ous(&api).await }, move |app, r| {
-            app.with_shell(|s, _| {
+            app.with_shell(|s, cx| {
                 if s.ous.generation == g {
                     s.ous.tree = tree(&r);
                     s.ous.ous = r;
                     s.ous.table.clear();
+                    if std::mem::take(&mut s.ous.refreshing) {
+                        cx.set_status(tf!("%d OUs and containers read from the domain.", s.ous.ous.len()));
+                    }
                 }
             });
         });
@@ -79,7 +84,8 @@ impl Ous {
             ui.label(crate::style::semibold(&cx.me.domain, 12.0).color(muted));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
-                if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
+                if widgets::refresh_button(ui, &look, self.refreshing) {
+                    self.refreshing = true;
                     self.reload(cx);
                 }
                 if widgets::button(ui, &look, crate::icons::FOLDER_PLUS, t("New OU"), Kind::Primary).clicked() {
