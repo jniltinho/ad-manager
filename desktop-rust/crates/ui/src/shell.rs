@@ -268,9 +268,18 @@ impl Shell {
         let look = cx.look.clone();
         let (on, muted) = (look.c("on-header"), look.c("on-header-muted"));
         let mut nav = None;
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 64.0), egui::Sense::hover());
+        // the web's header is flex-wrap with gap-4: when logo, title, search and the operator block do not fit on one
+        // row the operator block goes on a second one (its width and the title's right end are last frame's)
+        let wrap_id = egui::Id::new("adm-header-wrap");
+        let (title_right, user_w) = ui.ctx().data(|d| d.get_temp::<(f32, f32)>(wrap_id)).unwrap_or((0.0, 0.0));
+        let width = ui.available_width();
+        let wrapped = title_right > 0.0 && title_right + 16.0 + 288.0 + 16.0 + user_w > width - 20.0;
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(width, if wrapped { 64.0 + 16.0 + 30.0 } else { 64.0 }),
+            egui::Sense::hover(),
+        );
         crate::depth::paint_box(ui.painter(), rect, look.gradient("header"), look.c("header"), &[]);
-        let inner = rect.shrink2(egui::vec2(20.0, 12.0));
+        let inner = egui::Rect::from_min_size(rect.min + egui::vec2(20.0, 12.0), egui::vec2(rect.width() - 40.0, 40.0));
         // logo, 40 high (at most 256 wide)
         let logo = match &cx.brand.logo {
             Some(l) if cx.me.brand.logo => l.image(),
@@ -294,6 +303,7 @@ impl Shell {
         );
         let dom = ui.painter().layout_no_wrap(cx.me.domain.clone(), egui::FontId::proportional(11.0), muted);
         let block_h = title.size().y + dom.size().y;
+        let (title_w, dom_w) = (title.size().x, dom.size().x);
         let top = inner.center().y - block_h / 2.0;
         ui.painter().rect_filled(
             egui::Rect::from_min_size(egui::pos2(x, top), egui::vec2(2.0, block_h)),
@@ -302,15 +312,28 @@ impl Shell {
         );
         ui.painter().galley(egui::pos2(x + 14.0, top), title, on);
         ui.painter().galley(egui::pos2(x + 14.0, top + block_h - dom.size().y), dom, muted);
-        // the operator block, right-aligned
-        let ur = egui::Rect::from_min_max(egui::pos2(inner.right() - 360.0, inner.top()), inner.max);
+        let title_end = x + 14.0 + title_w.max(dom_w);
+        // the operator block, right-aligned on the row; wrapped, on the second row at the left (its text right-aligned)
+        let ur = if wrapped {
+            egui::Rect::from_min_size(
+                egui::pos2(inner.left(), inner.bottom() + 16.0),
+                egui::vec2(user_w.max(1.0), 30.0),
+            )
+        } else {
+            egui::Rect::from_min_max(egui::pos2(inner.right() - 360.0, inner.top()), inner.max)
+        };
         let mut user =
             ui.new_child(egui::UiBuilder::new().max_rect(ur).layout(egui::Layout::top_down(egui::Align::Max)));
         self.user_block(&mut user, cx);
-        let user_left = user.min_rect().left();
+        let measured = user.min_rect().width();
+        let user_left = if wrapped { inner.right() } else { user.min_rect().left() };
+        if (title_end - rect.left(), measured) != (title_right, user_w) {
+            ui.ctx().data_mut(|d| d.insert_temp(wrap_id, (title_end - rect.left(), measured)));
+            ui.ctx().request_repaint();
+        }
         // the global search, 288 wide, left of the operator
         let sr = egui::Rect::from_center_size(
-            egui::pos2(user_left - 16.0 - 144.0, inner.center().y),
+            egui::pos2(user_left - if wrapped { 0.0 } else { 16.0 } - 144.0, inner.center().y),
             egui::vec2(288.0, crate::style::control_h()),
         );
         let mut search =
@@ -387,8 +410,10 @@ impl Shell {
             .inner_margin(Margin { left: pad as i8, right: pad as i8, top: pad as i8, bottom: 0 })
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
+                // flex-wrap as the web's .top-tabs: a narrow window puts the last tabs on a second row
+                ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = look.px("tab-gap", 0.0);
+                    ui.spacing_mut().item_spacing.y = 0.0;
                     for p in TABS {
                         if top_tab(ui, &look, p.icon(), p.label(), p == current, "").clicked() {
                             nav = Some(Nav::To(p));

@@ -789,8 +789,10 @@ pub fn subtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[(&str, &str)], sel: u
     let overlap = look.px("subtab-on-overlap", 0.0);
     let r = ui
         .push_id(id, |ui| {
-            ui.horizontal(|ui| {
+            // flex-wrap as the web's .subtabs: many file servers go on to a second row instead of past the window
+            ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = look.px("subtabs-gap", 0.0);
+                ui.spacing_mut().item_spacing.y = 0.0;
                 ui.add_space(look.px("subtabs-pad", 0.0));
                 for (i, (icon, label)) in tabs.iter().enumerate() {
                     let on = i == sel;
@@ -1149,6 +1151,42 @@ pub fn combo(id_salt: impl egui::AsIdSalt) -> egui::ComboBox {
 
 /// The memory key of the select arrow's color (set by the look).
 pub const SELECT_ARROW: &str = "adm-select-arrow";
+
+/// A page's toolbar as the web's `flex flex-wrap items-center gap-2`: the items wrap to further rows when the window
+/// is narrow; `toolbar_end` puts the right-hand group (the web's ml-auto) at the end of the last row.
+pub fn toolbar_row<R>(ui: &mut Ui, look: &Look, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.horizontal_wrapped(|ui| {
+        let gap = look.px("toolbar-gap", 8.0);
+        ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
+        add(ui)
+    })
+    .inner
+}
+
+/// The right-hand group of a `toolbar_row`, right-aligned; on a row of its own when it does not fit after the items
+/// (its width is last frame's).
+pub fn toolbar_end<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let id = ui.id().with("toolbar-end");
+    let w = ui.ctx().data(|d| d.get_temp::<f32>(id)).unwrap_or(0.0);
+    if w > ui.available_size_before_wrap().x {
+        ui.end_row();
+    }
+    let room = ui.available_size_before_wrap().x;
+    let r = ui.allocate_ui_with_layout(
+        egui::vec2(room, crate::style::control_h()),
+        egui::Layout::right_to_left(egui::Align::Center),
+        |ui| {
+            let inner = add(ui);
+            (inner, ui.min_rect().width())
+        },
+    );
+    let (inner, used) = r.inner;
+    if (used - w).abs() > 0.5 {
+        ui.ctx().data_mut(|d| d.insert_temp(id, used));
+        ui.ctx().request_repaint();
+    }
+    inner
+}
 
 /// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).
 pub const LEADING: f32 = 1.5;

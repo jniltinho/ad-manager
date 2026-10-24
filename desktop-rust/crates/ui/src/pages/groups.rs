@@ -101,8 +101,7 @@ impl Groups {
 
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+        widgets::toolbar_row(ui, &look, |ui| {
             if super::search(ui, &mut self.search, t("Filter by name or description…"), 256.0).changed() {
                 self.apply();
             }
@@ -115,7 +114,7 @@ impl Groups {
                     .size(12.0)
                     .color(look.c("fg-muted")),
             );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            widgets::toolbar_end(ui, |ui| {
                 if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
                     self.reload(cx);
                 }

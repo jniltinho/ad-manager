@@ -72,6 +72,11 @@ impl Logs {
         self.samba.iter().map(|v| v.loaded).collect()
     }
 
+    /// Adds a Samba tab (tests: many file servers).
+    pub fn add_samba_tab_for_test(&mut self, label: String, api: adm_core::api::Api) {
+        self.samba.push(SambaView::new(label, api));
+    }
+
     /// The error each Samba tab shows inline (empty when its files loaded), for the live test.
     pub fn samba_errors(&self) -> Vec<String> {
         self.samba.iter().map(|v| v.list_error.clone()).collect()
@@ -130,8 +135,7 @@ impl Audit {
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
         let mut export = false;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+        widgets::toolbar_row(ui, &look, |ui| {
             let mut changed =
                 super::search(ui, &mut self.search, t("Filter by operator, target, IP…"), 256.0).changed();
             if self.actions.is_empty() {
@@ -145,7 +149,7 @@ impl Audit {
             }
             let n = tf!("%d of %d (newest first)", self.visible.len(), self.all.len());
             ui.label(RichText::new(n).size(12.0).color(look.c("fg-muted")));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            widgets::toolbar_end(ui, |ui| {
                 export = widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked();
                 if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
                     self.reload(cx);
@@ -278,8 +282,7 @@ impl Http {
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
         let mut export = false;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+        widgets::toolbar_row(ui, &look, |ui| {
             let mut changed = super::search(ui, &mut self.search, t("Filter by path, operator, IP…"), 256.0).changed();
             let codes = [t("All codes").to_string(), "2xx".into(), "3xx".into(), "4xx".into(), "5xx".into()];
             changed |= widgets::select(ui, "http-code", t("Code"), &mut self.class, &codes, 160.0);
@@ -290,7 +293,7 @@ impl Http {
             }
             let n = tf!("%d of %d (newest first)", self.visible.len(), self.all.len());
             ui.label(RichText::new(n).size(12.0).color(look.c("fg-muted")));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            widgets::toolbar_end(ui, |ui| {
                 export = widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked();
                 if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
                     self.reload(cx);
@@ -567,8 +570,7 @@ impl SambaView {
                 ui.set_width(ui.available_width());
                 let shown: Vec<usize> =
                     (0..self.entries.len()).filter(|&k| !self.errors || self.entries[k].level == 0).collect();
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+                widgets::toolbar_row(ui, &look, |ui| {
                     let r = super::search(ui, &mut self.search, t("Search in the messages…"), 288.0);
                     let mut reload = r.lost_focus() && ui.input(|x| x.key_pressed(egui::Key::Enter));
                     let labels: Vec<String> = LINES.iter().map(|n| tf!("last %d", n)).collect();
@@ -577,7 +579,7 @@ impl SambaView {
                     // the web's counter: the entries shown, also before a file is chosen or while it loads
                     let count = tf!("%d entries (newest first)", shown.len());
                     ui.label(RichText::new(count).size(12.0).color(muted));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    widgets::toolbar_end(ui, |ui| {
                         if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
                             self.load(cx, i);
                         }

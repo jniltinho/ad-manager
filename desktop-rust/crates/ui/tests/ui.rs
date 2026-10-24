@@ -834,3 +834,30 @@ fn the_theme_survives_a_system_theme_switch() {
         assert_eq!(e.h.ctx.style_of(theme).visuals.text_edit_bg_color, Some(field), "{theme:?}");
     }
 }
+
+/// Many file servers: the Logs tabs wrap to a second row, every tab stays on screen and clickable (as the web's
+/// flex-wrap).
+#[test]
+fn many_samba_tabs_wrap_and_stay_reachable() {
+    let mut e = env_sized(10, 800.0);
+    e.sign_in();
+    // the top tabs wrap at 800 points too: Logs is on screen
+    let logs = e.h.get_by_label("Logs").rect();
+    assert!(logs.right() <= 800.0, "the Logs tab on screen: {logs:?}");
+    e.h.get_by_label("Logs").click();
+    e.h.run_steps(6);
+    for n in 0..6 {
+        let label = format!("Samba — file-server-with-a-long-name-{n}");
+        let api = e.app().cx.panel.clone();
+        if let Screen::Shell(s) = &mut e.h.state_mut().screen {
+            s.logs.add_samba_tab_for_test(label, api);
+        }
+    }
+    e.h.run_steps(4);
+    if let Some(d) = std::env::var_os("ADM_SHOTS") {
+        e.h.render().unwrap().save(PathBuf::from(d).join("narrow-logs.png")).unwrap();
+    }
+    let node = e.h.get_by_label("Samba — file-server-with-a-long-name-5");
+    let r = node.rect();
+    assert!(r.right() <= 800.0 && r.bottom() <= 800.0, "the last tab on screen: {r:?}");
+}

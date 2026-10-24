@@ -79,8 +79,7 @@ impl Computers {
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
         let days = cx.inactive_days();
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+        widgets::toolbar_row(ui, &look, |ui| {
             let mut changed = super::search(ui, &mut self.search, t("Filter by name…"), 224.0).changed();
             if self.systems.is_empty() {
                 self.systems.push(t("All systems").into());
@@ -98,7 +97,7 @@ impl Computers {
             ui.label(
                 RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
             );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            widgets::toolbar_end(ui, |ui| {
                 if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
                     self.reload(cx);
                 }

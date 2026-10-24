@@ -187,8 +187,7 @@ impl Users {
     fn toolbar(&mut self, ui: &mut Ui, cx: &mut Cx, days: i64) {
         let look = cx.look.clone();
         let wide = ui.available_width() >= 1000.0;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+        widgets::toolbar_row(ui, &look, |ui| {
             if super::search(ui, &mut self.search, t("Filter by login, name, e-mail…"), 256.0).changed() {
                 self.apply(cx);
             }
@@ -201,7 +200,7 @@ impl Users {
             ui.label(
                 RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
             );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            widgets::toolbar_end(ui, |ui| {
                 if wide {
                     if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
                         self.reload(cx);
