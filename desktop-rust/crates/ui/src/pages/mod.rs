@@ -20,7 +20,6 @@ pub mod sync;
 pub mod sync_wizard;
 pub mod users;
 
-use adm_core::logic::ou_path;
 use adm_core::model::OrgUnit;
 use egui::Ui;
 
@@ -36,7 +35,7 @@ impl OuPicker {
     /// OUs (sorted by path) with `current` selected (case-insensitive DN), none when absent.
     pub fn new(ous: &[OrgUnit], current: &str) -> Self {
         Self {
-            labels: ous.iter().map(|o| ou_path(&o.dn)).collect(),
+            labels: ous.iter().map(|o| o.dn.clone()).collect(), // the DN, as the web's selects
             dns: ous.iter().map(|o| o.dn.clone()).collect(),
             sel: ous.iter().position(|o| o.dn.eq_ignore_ascii_case(current)),
         }

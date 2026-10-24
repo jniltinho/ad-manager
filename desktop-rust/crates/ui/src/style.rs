@@ -189,13 +189,31 @@ pub fn focus_ring(ctx: &Context, look: &Look) {
     if ctx.data(|d| d.get_temp::<Id>(Id::new(OWN_RING))) == Some(focused) {
         return;
     }
-    // a text field shows focus with its own border (the web's .inp:focus), not the focus-visible ring
+    let Some(rect) = ctx.read_response(focused).map(|r| r.rect) else { return };
+    let painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("adm-focus-ring")));
+    // a text field shows focus as the web's .inp:focus: its border in the field-focus color and that shadow, not the
+    // focus-visible ring (egui would draw the border in the selection's ink)
     if egui::text_edit::TextEditState::load(ctx, focused).is_some() {
+        // the shadow's spread as a ring outside (drawn above the field: a filled shadow would tint it)
+        let mut shapes: Vec<egui::Shape> = look
+            .shadows("field-focus")
+            .iter()
+            .filter(|l| !l.inset && l.spread > 0.0)
+            .map(|l| {
+                let r = rect.translate(egui::vec2(l.dx, l.dy)).expand(l.spread / 2.0);
+                egui::Shape::rect_stroke(r, CornerRadius::ZERO, Stroke::new(l.spread, c32(l.color)), StrokeKind::Middle)
+            })
+            .collect();
+        shapes.push(egui::Shape::rect_stroke(
+            rect,
+            CornerRadius::ZERO,
+            Stroke::new(1.0, look.c("field-focus")),
+            StrokeKind::Inside,
+        ));
+        painter.extend(shapes);
         return;
     }
-    let Some(rect) = ctx.read_response(focused).map(|r| r.rect) else { return };
     let w = look.p.focus_ring;
-    let painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("adm-focus-ring")));
     painter.rect_stroke(
         rect.expand(w / 2.0 + 1.0),
         CornerRadius::ZERO,
