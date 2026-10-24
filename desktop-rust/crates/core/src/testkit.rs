@@ -271,13 +271,13 @@ pub fn demo(users: usize) -> Arc<Route> {
             "/api/dns/records" => ok(json!({"records": [
                 {"name":"@","type":"SOA","ttl":3600,"data":"dc01.domain.local. hostmaster.domain.local."},
                 {"name":"@","type":"NS","ttl":900,"data":"dc01.domain.local."},
-                {"name":"dc01","type":"A","ttl":900,"data":"192.168.10.10"},
-                {"name":"fs01","type":"A","ttl":1200,"data":"192.168.10.20"},
+                {"name":"dc01","type":"A","ttl":900,"data":"192.0.2.10"},
+                {"name":"fs01","type":"A","ttl":1200,"data":"192.0.2.20"},
                 {"name":"intranet","type":"CNAME","ttl":3600,"data":"fs01.domain.local."}],
                 "nodes": [{"name":"_sites","children":1},{"name":"_tcp","children":4},{"name":"DomainDnsZones","children":2}]})),
             "/api/computers/sessions" => ok(json!({"host":"ws01.domain.local","sessions":[
-                {"user":"DOMAIN\\bruno.silva","client":"192.168.10.51","open_files":3,"active_seconds":7500,"idle_seconds":40},
-                {"user":"DOMAIN\\ana.souza","client":"192.168.10.62","open_files":0,"active_seconds":180,"idle_seconds":180}]})),
+                {"user":"DOMAIN\\bruno.silva","client":"192.0.2.51","open_files":3,"active_seconds":7500,"idle_seconds":40},
+                {"user":"DOMAIN\\ana.souza","client":"192.0.2.62","open_files":0,"active_seconds":180,"idle_seconds":180}]})),
             "/api/agents" => ok(json!([{"id":1,"name":"FS01","url":"https://fs01.domain.local:8445"}])),
             "/api/policy" => ok(
                 json!({"complexity":true,"min_length":7,"history":24,"min_age_days":1,"max_age_days":42,"lockout_threshold":10,"lockout_minutes":30,"lockout_window_minutes":30}),
@@ -334,13 +334,13 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"path":"/srv/shares/finance","time":"2026-10-01T09:00:00Z","before":""}])),
             "/api/agents/1/health" => ok(json!({"status":"ok","dc":false,"files":true,"samba":true})),
             "/api/agents/1/sessions" => ok(json!({"sessions":[
-                {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],
-                "open_files":[{"path":"/srv/shares/finance/budget-2026.xlsx","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","access":"RW","opened_at":"2026-10-22T09:12:00Z"}]})),
+                {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.0.2.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],
+                "open_files":[{"path":"/srv/shares/finance/budget-2026.xlsx","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.0.2.51","access":"RW","opened_at":"2026-10-22T09:12:00Z"}]})),
             "/api/agents/1/sizes" => ok(json!({"sizes":{"finance":12884901888_i64,"public":734003200,"it$":52428800}})),
             p if p.starts_with("/api/samba/logs/") || p.starts_with("/api/agents/1/samba/logs/") => ok(json!([
                 {"time":"2026/10/22 09:12:04","level":0,"source":"../../source3/smbd/server.c:1745(main)","message":"smbd version 4.23.2 started.\nCopyright Andrew Tridgell and the Samba Team 1992-2025"},
                 {"time":"2026/10/22 08:40:11","level":2,"source":"../../source3/auth/auth.c:327(auth_check_ntlm_password)","message":"check_ntlm_password: Authentication for user [bruno.silva] -> [bruno.silva] FAILED with error NT_STATUS_WRONG_PASSWORD"},
-                {"time":"2026/10/22 08:05:59","level":3,"source":"../../source3/smbd/service.c:1109(make_connection_snum)","message":"192.168.10.51 (ipv4:192.168.10.51:50122) connect to service finance initially as user DOMAIN\\bruno.silva"}])),
+                {"time":"2026/10/22 08:05:59","level":3,"source":"../../source3/smbd/service.c:1109(make_connection_snum)","message":"192.0.2.51 (ipv4:192.0.2.51:50122) connect to service finance initially as user DOMAIN\\bruno.silva"}])),
             p if p.starts_with("/api/agents/1/tasks/") => ok(json!({"id":"t1","state":"completed"})),
             p if p.starts_with("/api/users/") => {
                 let sam = p.trim_start_matches("/api/users/");
