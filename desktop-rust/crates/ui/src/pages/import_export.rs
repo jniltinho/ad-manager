@@ -193,8 +193,9 @@ impl ImportExport {
     /// Reads the plan (or writes it, `apply`) of the mode on screen.
     fn send(&mut self, cx: &mut Cx, apply: bool) {
         self.busy = true;
-        // the server lets an import with passwords run up to 33 minutes (and GPOs, DNS for 15)
-        let api = cx.panel.with_timeout(std::time::Duration::from_secs(35 * 60));
+        // no total timeout: the server bounds each stage itself (GPOs and DNS up to 15 minutes, then the passwords
+        // up to 33), as the web's request has none
+        let api = cx.panel.without_timeout();
         let mode = self.mode;
         if apply {
             let (title, phase) = match mode {

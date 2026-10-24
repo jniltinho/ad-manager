@@ -677,6 +677,27 @@ fn restore_confirmed_over_the_share_form_restores() {
     assert_eq!(t["payload"]["path"], "/srv/shares/finance");
 }
 
+/// A file server's registration saved with a reply body (the panel answers the agent) reloads the list, no error.
+#[test]
+fn file_server_save_reloads_the_list() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Shares").click();
+    e.wait("the shares", |_, m| !m.sent("GET", "/api/agents/1/shares").is_empty());
+    e.h.run_steps(2);
+    let before = e.sent("GET", "/api/agents").iter().filter(|r| r.path == "/api/agents").count();
+    e.h.query_all_by_label("edit").next().expect("the server's edit link").click_accesskit();
+    e.h.run_steps(3);
+    e.click("✔  Save");
+    e.wait("the save", |_, m| !m.sent("PUT", "/api/agents/1").is_empty());
+    e.wait("the reload", move |_, m| {
+        m.sent("GET", "/api/agents").iter().filter(|r| r.path == "/api/agents").count() > before
+    });
+    let body = &e.sent("PUT", "/api/agents/1")[0].json();
+    assert_eq!(body["name"], "FS01");
+    assert_eq!(body["token"], "", "editing keeps the stored token");
+}
+
 /// The SMB sessions of a computer come in the server's envelope ({"host", "sessions"}).
 #[test]
 fn smb_sessions_read_the_envelope() {

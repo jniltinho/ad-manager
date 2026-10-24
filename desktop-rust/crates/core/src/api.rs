@@ -140,6 +140,13 @@ impl Api {
         c
     }
 
+    /// A copy whose requests have no total timeout (an operation the server bounds itself in stages).
+    pub fn without_timeout(&self) -> Self {
+        let mut c = self.clone();
+        c.timeout = None;
+        c
+    }
+
     fn url(&self, path: &str) -> (String, String) {
         let path = match path.strip_prefix("/api") {
             Some(rest) if !self.prefix.is_empty() && rest.starts_with('/') => format!("{}{rest}", self.prefix),
@@ -215,6 +222,11 @@ impl Api {
         let raw: &serde_json::value::RawValue =
             serde_json::from_slice(body).map_err(|e| ApiError::Other(e.to_string()))?;
         self.send(method, path, Some(&raw)).await
+    }
+
+    /// `send_bytes` with no answer of interest (whatever body the server sends back is dropped, as `act_with`).
+    pub async fn act_bytes(&self, method: Method, path: &str, body: &[u8]) -> ApiResult<()> {
+        self.send_bytes::<serde::de::IgnoredAny>(method, path, body).await.map(|_| ())
     }
 
     /// Signs in (`POST /api/login`) and reads the session (`GET /api/me`). The body that carries the password is
@@ -519,6 +531,8 @@ pub fn json_with_secret(v: &serde_json::Value, key: &str, secret: &str) -> Zeroi
 pub async fn create_private_file(to: &Path) -> std::io::Result<tokio::fs::File> {
     let mut o = tokio::fs::OpenOptions::new();
     o.write(true).create(true).truncate(true);
+    // shortcut: on Windows the file keeps the folder's DACL (as a browser download, and as adm-platform-windows does
+    // for the config); set an owner-only ACL if the app is ever used from shared folders.
     #[cfg(unix)]
     o.mode(0o600);
     let f = o.open(to).await?;

@@ -55,7 +55,7 @@ impl OwnPassword {
         let api = cx.panel.clone();
         let session = cx.panel.id;
         let me = cx.current_dialog();
-        cx.spawn(async move { api.send_bytes::<()>(Method::POST, "/api/me/password", &body).await }, move |app, r| {
+        cx.spawn(async move { api.act_bytes(Method::POST, "/api/me/password", &body).await }, move |app, r| {
             if app.cx.panel.id != session {
                 return;
             }

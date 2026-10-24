@@ -116,7 +116,7 @@ impl Dialog for FileServer {
             };
             let api = cx.panel.clone();
             let name = self.a.name.trim().to_string();
-            cx.run(async move { api.send_bytes::<()>(method, &path, &body).await }, move |app, ()| {
+            cx.run(async move { api.act_bytes(method, &path, &body).await }, move |app, ()| {
                 app.cx.set_status(tf!("Server %s saved.", name));
                 app.with_shell(|s, cx| s.shares.load(cx));
             });

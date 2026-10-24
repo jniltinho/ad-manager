@@ -796,7 +796,7 @@ impl SyncWizard {
         Self::nav(
             ui,
             &look,
-            |ui| test = widgets::button(ui, &look, "", t("Test connection"), Kind::Secondary).clicked(),
+            |ui| test = widgets::button(ui, &look, "🔌", t("Test connection"), Kind::Secondary).clicked(),
             |ui| next = widgets::button(ui, &look, "", &format!("{} ›", t("Next")), Kind::Primary).clicked(),
         );
         if test {
