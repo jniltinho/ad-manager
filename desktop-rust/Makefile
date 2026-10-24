@@ -63,8 +63,8 @@ mock: ## A mock panel with 5,000 users on https://127.0.0.1:8443 (prints the URL
 bench: ## Benchmark against the Fyne app (bench/run.sh; needs both release binaries)
 	bench/run.sh
 
-themes: ## Regenerate assets/themes.json from desktop/themes_gen.go
-	python3 scripts/gen-themes.py
+themes: ## Regenerate assets/themes.json from the web's theme CSS (the same source as desktop/themes_gen.go)
+	cd ../desktop && go run ./internal/themegen/rustgen
 
 catalog: ## Pull new pt-BR entries from desktop/i18n_pt_*.go
 	python3 scripts/gen-catalog.py

@@ -1,10 +1,10 @@
 ## 1. Groundwork
 
-- [ ] 1.1 `frontend/src/style.css`: named size tokens used by the existing classes; before/after computed-size check.
+- [x] 1.1 `frontend/src/style.css`: named size tokens used by the existing classes; before/after computed-size check.
 - [x] 1.2a Element-by-element audit of 14 screen pairs (`audit.md`): sizes, alignment, spacing, cross-screen fixes
       A1–A18, feature gaps.
 - [ ] 1.2b Capture and audit the egui Samba logs tab and the Set password tab; empty/loading/error states.
-- [ ] 1.3 `desktop/internal/themegen` → `themes.json`: size tokens, recipe parameters, depth recipe, font family and
+- [x] 1.3 `desktop/internal/themegen` → `themes.json`: size tokens, recipe parameters, depth recipe, font family and
       base size per theme; `adm_core::theme::Palette` reads them; tests per theme.
 - [ ] 1.4 Playwright web fixture `crates/ui/tests/web-geometry.json` over every key of D9 (theme, flat, locale,
       viewport, state), against the desktop tests' mock data.

@@ -13,6 +13,9 @@ on:
       - ".github/workflows/desktop-rust-release.yml"
       - "desktop/themes_gen.go"
       - "desktop/i18n_pt_*.go"
+      - "desktop/internal/themegen/**"
+      - "frontend/src/style.css"
+      - "frontend/src/themes/**"
   pull_request:
     paths:
       - "desktop-rust/**"
@@ -20,6 +23,9 @@ on:
       - ".github/workflows/desktop-rust-release.yml"
       - "desktop/themes_gen.go"
       - "desktop/i18n_pt_*.go"
+      - "desktop/internal/themegen/**"
+      - "frontend/src/style.css"
+      - "frontend/src/themes/**"
   workflow_dispatch:
   workflow_call:
 

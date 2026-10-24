@@ -1,6 +1,7 @@
-//! The panel's 18 themes as color roles (`assets/themes.json`, generated from `desktop/themes_gen.go`, which is
-//! generated from the web panel's CSS). The UI crate turns a palette into egui visuals; this module only holds data
-//! and the contrast arithmetic, so it can be tested without a GUI.
+//! The panel's 18 themes (`assets/themes.json`, generated from the web panel's theme CSS by
+//! `desktop/internal/themegen/rustgen`, the same source as the Fyne app's `themes_gen.go`): the color roles, the named
+//! size tokens, each part's gradient and shadow layers, the font stacks and the parts the flat look clears. The UI
+//! crate draws with it; this module only holds data and the contrast arithmetic, so it can be tested without a GUI.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -27,6 +28,46 @@ fn parse_hex(s: &str) -> Option<Rgba> {
     Some(Rgba([b(0)?, b(2)?, b(4)?, b(6)?]))
 }
 
+/// A CSS linear-gradient: direction, interpolation space and stops.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Gradient {
+    /// "to bottom", "to right", "to top", "to left" or "<n>deg".
+    pub dir: String,
+    /// "oklab" or "srgb".
+    pub space: String,
+    pub stops: Vec<Stop>,
+}
+
+/// A gradient stop at `pos` (0–1).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Stop {
+    pub color: Rgba,
+    pub pos: f32,
+}
+
+/// One box-shadow layer, in CSS order (the first listed is on top).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Layer {
+    #[serde(default)]
+    pub inset: bool,
+    pub dx: f32,
+    pub dy: f32,
+    #[serde(default)]
+    pub blur: f32,
+    #[serde(default)]
+    pub spread: f32,
+    pub color: Rgba,
+}
+
+/// The theme's font stacks, in the web's order.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Fonts {
+    #[serde(default)]
+    pub sans: Vec<String>,
+    #[serde(default)]
+    pub mono: Vec<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Palette {
     pub scheme: String,
@@ -42,6 +83,20 @@ pub struct Palette {
     pub tab_mark: Option<Rgba>,
     #[serde(rename = "c")]
     roles: HashMap<String, Rgba>,
+    /// Named sizes in px (`control-h`, `th-py`, `card-head-size`…).
+    #[serde(default)]
+    tokens: HashMap<String, f32>,
+    /// Keyword parameters (`card-head-transform`, `dialog-head-pad`…).
+    #[serde(default)]
+    text: HashMap<String, String>,
+    /// Each part's background: a gradient, or none.
+    #[serde(default)]
+    bg: HashMap<String, Option<Gradient>>,
+    /// Each part's shadow layers.
+    #[serde(default)]
+    shadow: HashMap<String, Vec<Layer>>,
+    #[serde(default)]
+    pub fonts: Fonts,
 }
 
 impl Palette {
@@ -53,11 +108,45 @@ impl Palette {
     pub fn dark(&self) -> bool {
         self.scheme == "dark"
     }
+
+    /// A size token in px, or `default` when the theme has none.
+    pub fn px(&self, token: &str, default: f32) -> f32 {
+        self.tokens.get(token).copied().unwrap_or(default)
+    }
+
+    /// A keyword parameter, or "".
+    pub fn text(&self, name: &str) -> &str {
+        self.text.get(name).map_or("", String::as_str)
+    }
+
+    /// A part's background gradient (`header`, `action`, `card-head`…); none when the part has a plain fill, or in the
+    /// flat look when the flat override clears it.
+    pub fn gradient(&self, part: &str, flat: bool) -> Option<&Gradient> {
+        if flat && flat_clears(&format!("--bg-{part}")) {
+            return None;
+        }
+        self.bg.get(part).and_then(Option::as_ref)
+    }
+
+    /// A part's shadow layers (`btn`, `card`, `dialog`…), empty in the flat look when the flat override clears them.
+    pub fn shadows(&self, part: &str, flat: bool) -> &[Layer] {
+        if flat && flat_clears(&format!("--shadow-{part}")) {
+            return &[];
+        }
+        self.shadow.get(part).map_or(&[], Vec::as_slice)
+    }
+}
+
+/// The flat look clears this variable (`style.css`'s flat override list).
+pub fn flat_clears(var: &str) -> bool {
+    all().flat.iter().any(|v| v == var)
 }
 
 #[derive(Debug, Deserialize)]
 struct Themes {
     order: Vec<String>,
+    #[serde(default)]
+    flat: Vec<String>,
     themes: HashMap<String, Palette>,
 }
 
@@ -65,7 +154,7 @@ fn all() -> &'static Themes {
     static T: OnceLock<Themes> = OnceLock::new();
     T.get_or_init(|| {
         serde_json::from_str(include_str!("../assets/themes.json"))
-            .unwrap_or_else(|_| Themes { order: Vec::new(), themes: HashMap::new() })
+            .unwrap_or_else(|_| Themes { order: Vec::new(), flat: Vec::new(), themes: HashMap::new() })
     })
 }
 
@@ -134,6 +223,21 @@ mod tests {
         assert!(hc.depthless && hc.min_text == 7.0 && hc.focus_ring == 3.0);
     }
 
+    /// The recipe data the egui app draws with: tokens, gradients (direction, space), shadow layers in CSS order,
+    /// fonts and the flat override.
+    #[test]
+    fn recipes_from_the_web_css() {
+        let p = palette("classic-blue").unwrap().1;
+        assert_eq!((p.px("control-h", 0.0), p.px("th-py", 0.0), p.px("tag-size", 0.0)), (28.0, 6.0, 10.0));
+        let h = p.gradient("header", false).expect("Classic blue header gradient");
+        assert_eq!((h.dir.as_str(), h.space.as_str(), h.stops.len()), ("to right", "oklab", 2));
+        assert!(p.gradient("header", true).is_none(), "the flat look clears the header gradient");
+        assert!(!p.shadows("btn", false).is_empty() && p.shadows("btn", true).is_empty());
+        assert!(p.shadows("tab-on", true).iter().any(|l| l.inset), "the current tab's mark stays in the flat look");
+        assert_eq!(p.fonts.sans.first().map(String::as_str), Some("Tahoma"));
+        assert!(flat_clears("--shadow-card") && !flat_clears("--shadow-dialog"), "dialog shadows stay flat");
+    }
+
     /// assets/themes.json has the same themes and role colors as the Fyne app's generated palettes (when the
     /// monorepo is there): a theme change in the web panel shows up here once `go generate` ran in desktop/.
     #[test]
@@ -158,7 +262,7 @@ mod tests {
                 assert_eq!(p.col(&c[1]), Rgba([hex(2), hex(3), hex(4), hex(5)]), "{id} {}", &c[1]);
                 n += 1;
             }
-            assert_eq!(n, p.roles.len(), "{id}: number of roles (run scripts/gen-themes.py)");
+            assert_eq!(n, p.roles.len(), "{id}: number of roles (run make themes)");
         }
     }
 

@@ -51,6 +51,8 @@ type Theme struct {
 	SubtabOn    []Shadow            // the same of the current inner tab (--shadow-subtab-on: its bar or relief)
 	TabOn       []Shadow            // the same of the current top tab (--shadow-tab-on: the mark of the sidebar)
 	Depthless   bool                // no shadow on buttons, cards or the login box (High contrast): always the flat look
+
+	vals map[string]string // every variable of the theme (the contract's, then the theme's), unresolved
 }
 
 // Shadow is one outer box-shadow layer: offsets and blur in px, and its color.
@@ -156,7 +158,7 @@ func Load(root string) ([]Theme, error) {
 		for k, v := range blocks[id] {
 			vals[k] = v
 		}
-		t := Theme{ID: id, Scheme: m[3], Colors: map[string][4]uint8{}}
+		t := Theme{ID: id, Scheme: m[3], Colors: map[string][4]uint8{}, vals: vals}
 		for _, r := range Roles {
 			v, err := resolve(vals, "--color-"+r, 0)
 			if err != nil {
