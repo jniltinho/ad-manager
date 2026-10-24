@@ -542,11 +542,19 @@ impl Settings {
                         let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
                         ui.label(RichText::new(tf!("Kept for %s.", self.import.user)).font(font).color(look.c("ok")));
                     }
-                    // user, password and the buttons on one line (the web's)
-                    ui.horizontal(|ui| {
+                    // user, password and the buttons on one line (the web's): the buttons at their own width at the
+                    // right, the two fields sharing what is left
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
-                        let bw = if self.import.set { 180.0 } else { 80.0 };
-                        let cw = ((ui.available_width() - bw - 16.0) / 2.0).floor();
+                        if self.import.set {
+                            remove = widgets::button(ui, &look, crate::icons::TRASH, t("Remove"), Kind::Secondary).clicked();
+                        }
+                        let can = !self.import_busy && !self.import_user.trim().is_empty() && !self.import_pw.is_empty();
+                        save = ui
+                            .add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::KEY, t("Save"), Kind::Secondary))
+                            .inner
+                            .clicked();
+                        let cw = ((ui.available_width() - 8.0) / 2.0).floor();
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Max), |ui| {
                             widgets::above(ui, &look, t("User"), cw, |ui, _| {
                                 ui.add(widgets::line(&mut self.import_user).desired_width(cw))
@@ -555,14 +563,6 @@ impl Settings {
                             widgets::above(ui, &look, t("Password"), cw, |ui, _| {
                                 widgets::secret_field(ui, import_pw_field(), pw, "", cw)
                             });
-                            let can = !self.import_busy && !self.import_user.trim().is_empty() && !self.import_pw.is_empty();
-                            save = ui
-                                .add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::KEY, t("Save"), Kind::Secondary))
-                                .inner
-                                .clicked();
-                            if self.import.set {
-                                remove = widgets::button(ui, &look, crate::icons::TRASH, t("Remove"), Kind::Secondary).clicked();
-                            }
                         });
                     });
                 });
