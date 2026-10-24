@@ -151,23 +151,6 @@ func TestParseConf(t *testing.T) {
 	}
 }
 
-func TestSizes(t *testing.T) {
-	t.Parallel()
-	m := &Manager{Roots: []string{"/srv/shares"}, Run: func(_ context.Context, name string, args ...string) (string, error) {
-		switch {
-		case name == "net":
-			return "[Financeiro]\n\tpath = /srv/shares/Financeiro\n[Sumiu]\n\tpath = /srv/shares/Sumiu\n", nil
-		case args[len(args)-1] == "/srv/shares/Financeiro":
-			return "1536\t/srv/shares/Financeiro\n", nil
-		}
-		return "", errors.New("du: não existe")
-	}}
-	got, err := m.Sizes(context.Background())
-	if err != nil || len(got) != 1 || got["Financeiro"] != 1536 {
-		t.Fatalf("Sizes = %v, %v", got, err)
-	}
-}
-
 // A newline in the path would inject parameters into the smb.conf import.
 func TestSafePathRejectsControlCharacters(t *testing.T) {
 	m := &Manager{Roots: []string{"/srv/shares"}}

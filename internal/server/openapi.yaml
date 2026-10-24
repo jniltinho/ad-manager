@@ -725,8 +725,49 @@ paths:
       description: "Cached 10 min (refresh=1 reruns; dbcheck can take minutes, one run at a time). at, ok and checks: name, ok, objects, errors, output (last lines). ntacl sysvolcheck is not run (it may write secrets.tdb). On a DC, or when the server role cannot be read, the agent refuses every change (tasks, disconnect); health tells dc and read_only."
       responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
   /api/agents/{id}/sizes:
-    parameters: [{ $ref: "#/components/parameters/id" }, { name: refresh, in: query, schema: { type: integer, enum: [1] } }]
-    get: { tags: [File servers], summary: Folder size of each share (cached 5 min), responses: { "200": { description: OK } } }
+    parameters:
+      - { $ref: "#/components/parameters/id" }
+      - { name: refresh, in: query, description: "1: start a full scan in the background (nothing when one is running); the answer never waits for du", schema: { type: integer, enum: [1] } }
+    get:
+      tags: [File servers]
+      summary: Folder size of each share (cached; measured in the background every 4 h)
+      description: "Answered at once from the agent's cache (memory and <state dir>/share-sizes.json): one share at a time at idle priority (du -s -b -P on the symlink-resolved path, 30 min per share), every 4 h ± 10% from the end of the previous full scan, and right after a share:create task for that share. A du that fails after printing a total gives partial_bytes (a lower bound) and error; the last complete bytes/measured_at are kept. total counts nested and aliased shares once (by real_path). sizes/at are kept for older clients (at: end of the last full scan). An older agent measures inside the request instead (answers sizes and at only)."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sizes: { type: object, additionalProperties: { type: integer, format: int64 }, description: "shares with a complete value" }
+                  at: { type: string, format: date-time }
+                  shares:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        path: { type: string }
+                        real_path: { type: string }
+                        bytes: { type: integer, format: int64 }
+                        measured_at: { type: string, format: date-time }
+                        partial_bytes: { type: integer, format: int64 }
+                        attempted_at: { type: string, format: date-time }
+                        error: { type: string }
+                  total: { type: integer, format: int64 }
+                  total_complete: { type: boolean }
+                  oldest_at: { type: string, format: date-time, nullable: true }
+                  scanning:
+                    type: object
+                    nullable: true
+                    properties:
+                      kind: { type: string, enum: [full, short, manual] }
+                      started_at: { type: string, format: date-time }
+                      done: { type: integer }
+                      count: { type: integer }
+                      current: { type: string }
+                  next_at: { type: string, format: date-time }
+                  error: { type: string, description: "the last scan could not list the shares" }
   /api/agents/{id}/tasks:
     parameters: [{ $ref: "#/components/parameters/id" }]
     post:

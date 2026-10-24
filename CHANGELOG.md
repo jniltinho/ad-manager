@@ -11,6 +11,15 @@ All notable changes to this project are documented here. The format follows
   (tags `desktop-rust-v*`), and a benchmark against the Fyne app (`desktop-rust/docs/benchmark.md`). The Fyne app
   stays the shipped desktop.
 
+### Changed
+- Shares: folder sizes are measured by the agent in the background (every 4 h with jitter, one share at a time at
+  idle CPU and I/O priority, 30 min per share, right after a share is created or changed from the panel) and cached
+  in memory and in `share-sizes.json` in its state folder, so the page shows them at once with the time of the last
+  scan. A share whose measure fails keeps its last complete value, shown muted with the reason; a partial measure
+  shows "≥ N"; nested shares count once in the total; Refresh starts a scan without blocking the page, which follows
+  it ("measuring N/M…"). Older web or desktop builds against a new agent get the cached values at once, but their
+  Refresh shows the new values only after a reload.
+
 ### Security
 - The import write modes keep no password on the DC: `import_modes = true` in the agent and the administrator
   credential encrypted in the panel's database (*Settings → Import from an existing AD*, checked as a Domain Admin),

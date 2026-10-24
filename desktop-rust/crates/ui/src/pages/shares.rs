@@ -11,8 +11,9 @@ use adm_core::api::{Api, ApiError, esc};
 use adm_core::forms::ShareForm;
 use adm_core::i18n::{server_text, t};
 use adm_core::logic::{Tone, human_bytes};
-use adm_core::model::{Agent, Share, Task};
+use adm_core::model::{Agent, Share, Task, Time};
 use adm_core::tf;
+use chrono::{Datelike, Utc};
 use egui::{RichText, Ui};
 use reqwest::Method;
 use serde_json::{Value, json};
@@ -41,8 +42,12 @@ pub struct Shares {
     key: u64,
     shares: Vec<Share>,
     loading: bool,
-    sizes: Option<HashMap<String, i64>>,
+    sizes: Option<Sizes>,
     measuring: bool,
+    /// The size reads: each one replaces the previous chain (a late answer schedules nothing), and whether one is
+    /// on its way (a scan shown with none, after leaving the page, starts reading again).
+    size_gen: u64,
+    size_reading: bool,
     table: TableState,
     pub tasks: Vec<TaskItem>,
     dc: DcHealth,
@@ -51,6 +56,67 @@ pub struct Shares {
     /// The form's suggestions: the domain's security groups and users as NETBIOS\name.
     ad_groups: Vec<String>,
     ad_users: Vec<String>,
+}
+
+/// One share's measure in the agent's cache: the last complete value kept apart from a later partial or failed one.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct SizeEntry {
+    path: String,
+    bytes: Option<i64>,
+    measured_at: Time,
+    partial_bytes: Option<i64>,
+    error: String,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct Scan {
+    done: i64,
+    count: i64,
+}
+
+/// `GET /api/sizes`: the agent's cache (measured in the background); an older agent answers only `sizes` and `at`.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct Sizes {
+    sizes: HashMap<String, i64>,
+    at: Time,
+    shares: Option<HashMap<String, SizeEntry>>,
+    total: i64,
+    total_complete: bool,
+    oldest_at: Time,
+    scanning: Option<Scan>,
+}
+
+/// 4 h between scans plus 2 h of slack: an older value is shown muted.
+const STALE_H: i64 = 6;
+
+fn stale(at: Time) -> bool {
+    at.is_some_and(|d| Utc::now() - d > chrono::Duration::hours(STALE_H))
+}
+
+/// A time before now as the web's (Intl.RelativeTimeFormat, numeric auto).
+fn ago(d: chrono::DateTime<Utc>) -> String {
+    let s = (Utc::now() - d).num_seconds() as f64;
+    let n = |div: f64| (s / div).round() as i64;
+    if s < 3600.0 {
+        match n(60.0) {
+            0 => t("this minute").into(),
+            1 => t("1 minute ago").into(),
+            m => tf!("%d minutes ago", m),
+        }
+    } else if s < 86400.0 {
+        match n(3600.0) {
+            1 => t("1 hour ago").into(),
+            h => tf!("%d hours ago", h),
+        }
+    } else {
+        match n(86400.0) {
+            1 => t("yesterday").into(),
+            d => tf!("%d days ago", d),
+        }
+    }
 }
 
 /// What a click on the page asks for, done after drawing.
@@ -208,34 +274,95 @@ impl Shares {
         });
     }
 
-    /// The folder sizes (du, cached 5 minutes by the agent; refresh forces a new measure).
+    /// The folder sizes from the agent's cache (refresh starts a scan in the background); read again every 5 s while
+    /// a scan runs, as long as this server and this page are on screen.
     fn load_sizes(&mut self, cx: &Cx, api: Api, refresh: bool) {
+        self.fetch_sizes(cx, api, refresh, Duration::ZERO);
+    }
+
+    fn fetch_sizes(&mut self, cx: &Cx, api: Api, refresh: bool, after: Duration) {
         self.measuring = true;
-        let key = self.key;
+        self.size_gen += 1;
+        self.size_reading = true;
+        let (key, seq) = (self.key, self.size_gen);
         let path = if refresh { "/api/sizes?refresh=1" } else { "/api/sizes" };
-        #[derive(serde::Deserialize, Default)]
-        struct Sizes {
-            #[serde(default)]
-            sizes: HashMap<String, i64>,
-        }
-        // du of large folders: the panel waits 2 minutes
+        // an older agent measures inside the request: the panel waits 2 minutes
+        let again = api.clone();
         let api = api.with_timeout(Duration::from_secs(150));
         let session = cx.panel.id;
-        cx.spawn(async move { api.get::<Sizes>(path).await }, move |app, r| {
-            if app.cx.panel.id != session {
-                return;
-            }
-            if r.as_ref().is_err_and(|e| *e == ApiError::SessionExpired) {
-                app.cx.handle_error(ApiError::SessionExpired);
-                return;
-            }
-            app.with_shell(|s, _| {
-                if s.shares.key == key {
-                    s.shares.measuring = false;
-                    s.shares.sizes = r.ok().map(|x| x.sizes);
+        cx.spawn(
+            async move {
+                tokio::time::sleep(after).await;
+                api.get::<Sizes>(path).await
+            },
+            move |app, r| {
+                if app.cx.panel.id != session {
+                    return;
                 }
-            });
-        });
+                if r.as_ref().is_err_and(|e| *e == ApiError::SessionExpired) {
+                    app.cx.handle_error(ApiError::SessionExpired);
+                    return;
+                }
+                app.with_shell(|s, cx| {
+                    let on = s.on_shares();
+                    let p = &mut s.shares;
+                    if p.key == key && p.size_gen == seq {
+                        p.measuring = false;
+                        p.size_reading = false;
+                        p.sizes = r.ok();
+                        if on && p.sizes.as_ref().is_some_and(|x| x.scanning.is_some()) {
+                            p.fetch_sizes(cx, again, false, Duration::from_secs(5));
+                        }
+                    }
+                });
+            },
+        );
+    }
+
+    /// The agent's measure of share s, when it is of the same folder.
+    fn entry(&self, s: &Share) -> Option<&SizeEntry> {
+        self.sizes.as_ref()?.shares.as_ref()?.get(&s.name).filter(|e| e.path == s.path)
+    }
+
+    /// The header: the total, the last full scan, the warning (missing, partial or old sizes) and the scan's progress.
+    fn size_head(&self) -> (String, String, String, String) {
+        let Some(sz) = &self.sizes else {
+            return (
+                tf!("total %s", if self.measuring { "…".into() } else { human_bytes(0) }),
+                String::new(),
+                String::new(),
+                String::new(),
+            );
+        };
+        let Some(entries) = &sz.shares else {
+            let total = if self.measuring { "…".into() } else { human_bytes(sz.sizes.values().sum()) };
+            return (
+                tf!("total %s", total),
+                String::new(),
+                t("Sum of the folders (nested ones count again)").into(),
+                String::new(),
+            );
+        };
+        let mut text = tf!("total %s", human_bytes(sz.total));
+        let mut tip = String::new();
+        if let Some(at) = sz.at.filter(|d| d.year() > 2000) {
+            text = format!("{text} · {}", tf!("scanned %s", ago(at)));
+            tip = tf!(
+                "Sum of the folders; nested shares count once. Last full scan: %s.",
+                adm_core::i18n::date(Some(at))
+            );
+        }
+        let listed: Vec<&Share> = self.shares.iter().filter(|s| !s.path.is_empty()).collect();
+        let agree = listed.iter().all(|s| self.entry(s).is_some())
+            && entries.iter().all(|(n, e)| listed.iter().any(|s| &s.name == n && s.path == e.path));
+        let warn = if !sz.total_complete || !agree || stale(sz.oldest_at) {
+            tf!("Some sizes are missing, partial or older than %s.", adm_core::i18n::date(sz.oldest_at))
+        } else {
+            String::new()
+        };
+        let scan =
+            sz.scanning.as_ref().map(|x| tf!("measuring %s…", format!("{}/{}", x.done, x.count))).unwrap_or_default();
+        (text, warn, tip, scan)
     }
 
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
@@ -423,8 +550,15 @@ impl Shares {
         };
         let down = self.server.as_ref().is_some_and(|(a, _)| matches!(self.health.get(&a.id), Some(Err(()))));
         let on = self.server.is_some();
-        let total: i64 = self.sizes.as_ref().map_or(0, |s| s.values().sum());
-        let total = if self.measuring { tf!("total %s", "…") } else { tf!("total %s", human_bytes(total)) };
+        // back on the page during a scan whose reading stopped while away: read the cache again
+        if !self.size_reading
+            && self.sizes.as_ref().is_some_and(|x| x.scanning.is_some())
+            && let Some((_, api)) = self.server.clone()
+        {
+            self.load_sizes(cx, api, false);
+        }
+        let (total, warn, total_tip, scan) = self.size_head();
+        let scanning = self.sizes.as_ref().is_some_and(|s| s.scanning.is_some());
         let has = !self.shares.is_empty();
         let mut head = None;
         let right = |ui: &mut Ui| {
@@ -441,7 +575,13 @@ impl Shares {
             {
                 head = Some(Act::NewShare);
             }
-            if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
+            if ui
+                .add_enabled_ui(!scanning, |ui| {
+                    widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary)
+                })
+                .inner
+                .clicked()
+            {
                 head = Some(Act::Refresh);
             }
             if ui
@@ -454,8 +594,29 @@ impl Shares {
                 head = Some(Act::Sessions);
             }
             if has {
-                ui.label(RichText::new(&total).size(12.0).color(look.c("fg-muted")))
-                    .on_hover_text(t("Sum of the folders (nested ones count again)"));
+                // right to left: the progress, the warning mark, then the total
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let muted = look.c("fg-muted");
+                if !scan.is_empty() {
+                    ui.label(RichText::new(format!("· {scan}")).size(12.0).color(muted));
+                }
+                if !warn.is_empty() {
+                    // drawn in a hover area: its accessible name and tooltip are the warning
+                    let (rect, r) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
+                    let font = egui::FontId::proportional(13.0);
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        crate::icons::ALERT,
+                        font,
+                        look.c("warn"),
+                    );
+                    let _ = widgets::named(ui, r, &warn);
+                }
+                let r = ui.label(RichText::new(&total).size(12.0).color(muted));
+                if !total_tip.is_empty() {
+                    let _ = r.on_hover_text(&total_tip);
+                }
             }
         };
         widgets::panel(ui, &look, (&title, &note), right, h, |ui| {
@@ -472,7 +633,8 @@ impl Shares {
                 Column::new(t("Actions"), 96.0).right(), // only remove: the name is the edit link (the web's w-24)
             ];
             let mut hover = None;
-            let (shares, sizes, measuring) = (&self.shares, &self.sizes, self.measuring);
+            let cells: Vec<Cell<(bool, usize)>> = self.shares.iter().map(|s| self.size_cell(s)).collect();
+            let shares = &self.shares;
             let out = table::Table {
                 id: "shares",
                 cols: &cols,
@@ -493,7 +655,10 @@ impl Shares {
                         if s.browseable { cell } else { cell.with_tag(t("hidden"), Tone::Normal) }
                     }
                     1 => Cell::plain(&s.path).mono(),
-                    2 => Cell::plain(size_text(sizes.as_ref(), measuring, &s.name)),
+                    2 => {
+                        let c = &cells[r];
+                        Cell::new(&c.text, c.tone).tip(&c.tip)
+                    }
                     3 => Cell::plain(access(s, true)),
                     4 => Cell::plain(access(s, false)),
                     5 => Cell::new(&s.comment, Tone::Muted),
@@ -628,12 +793,32 @@ fn access(s: &Share, write: bool) -> String {
     v.join(", ")
 }
 
-/// A share's size: measured, being measured ("…") or unknown ("—").
-fn size_text(sizes: Option<&HashMap<String, i64>>, measuring: bool, name: &str) -> String {
-    match sizes.and_then(|s| s.get(name)) {
-        Some(n) => human_bytes(*n),
-        None if measuring => "…".into(),
-        None => "—".into(),
+impl Shares {
+    /// A share's size cell: the complete value; "≥ N" for a partial one; muted with a tooltip when stale, partial or
+    /// failed; "…" while measuring and "—" when unknown. An older agent: its plain sizes.
+    fn size_cell(&self, s: &Share) -> Cell<(bool, usize)> {
+        let dash =
+            || if self.measuring || self.sizes.as_ref().is_some_and(|x| x.scanning.is_some()) { "…" } else { "—" };
+        let Some(sz) = &self.sizes else { return Cell::plain(dash()) };
+        if sz.shares.is_none() {
+            return Cell::plain(sz.sizes.get(&s.name).map_or_else(|| dash().into(), |n| human_bytes(*n)));
+        }
+        let Some(e) = self.entry(s).filter(|e| e.bytes.is_some() || e.partial_bytes.is_some()) else {
+            let tip = self.entry(s).map_or("", |e| e.error.as_str());
+            return Cell::new(dash(), Tone::Muted).tip(if tip.is_empty() { t("not measured yet") } else { tip });
+        };
+        let Some(n) = e.bytes else {
+            let p = human_bytes(e.partial_bytes.unwrap_or_default());
+            return Cell::new(format!("≥ {p}"), Tone::Muted).tip(tf!("partial (a lower bound): %s", e.error));
+        };
+        let tip = tf!("measured %s", adm_core::i18n::date(e.measured_at));
+        if !e.error.is_empty() {
+            Cell::new(human_bytes(n), Tone::Muted).tip(format!("{tip}; {}", tf!("latest attempt: %s", e.error)))
+        } else if stale(e.measured_at) {
+            Cell::new(human_bytes(n), Tone::Muted).tip(tip)
+        } else {
+            Cell::plain(human_bytes(n)).tip(tip)
+        }
     }
 }
 
@@ -1051,5 +1236,40 @@ impl Dialog for ShareDialog {
             return Flow::Close;
         }
         if foot.cancel { Flow::Close } else { Flow::Keep }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn page(sizes: Sizes) -> Shares {
+        let share = |n: &str| Share { name: n.into(), path: format!("/srv/shares/{n}"), ..Default::default() };
+        Shares { shares: vec![share("a"), share("b")], sizes: Some(sizes), ..Default::default() }
+    }
+
+    /// An older agent answers only sizes: its values as they are, its sum as the total, nothing muted.
+    #[test]
+    fn older_agent_sizes() {
+        let p = page(Sizes { sizes: HashMap::from([("a".into(), 2048)]), ..Default::default() });
+        let (a, b) = (p.size_cell(&p.shares[0]), p.size_cell(&p.shares[1]));
+        assert_eq!((a.text.as_str(), a.tone, b.text.as_str()), ("2 KB", Tone::Normal, "—"));
+        let (total, warn, _, scan) = p.size_head();
+        assert_eq!((total.as_str(), warn.as_str(), scan.as_str()), ("total 2 KB", "", ""));
+    }
+
+    /// An entry of another folder (the share moved since) is not this share's size, and the header warns.
+    #[test]
+    fn entry_of_another_folder() {
+        let e =
+            SizeEntry { path: "/old/a".into(), bytes: Some(1), measured_at: Some(Utc::now()), ..Default::default() };
+        let p = page(Sizes {
+            shares: Some(HashMap::from([("a".into(), e)])),
+            total_complete: true,
+            at: Some(Utc::now()),
+            ..Default::default()
+        });
+        assert_eq!(p.size_cell(&p.shares[0]).text, "—");
+        assert!(!p.size_head().1.is_empty(), "the list and the cache disagree");
     }
 }

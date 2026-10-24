@@ -337,7 +337,21 @@ pub fn demo(users: usize) -> Arc<Route> {
             "/api/agents/1/sessions" => ok(json!({"sessions":[
                 {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.0.2.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],
                 "open_files":[{"path":"/srv/shares/finance/budget-2026.xlsx","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.0.2.51","access":"RW","opened_at":"2026-10-22T09:12:00Z"}]})),
-            "/api/agents/1/sizes" => ok(json!({"sizes":{"finance":12884901888_i64,"public":734003200,"it$":52428800}})),
+            // the agent's cache: one fresh, one older than 6 h, one partial; refresh=1 answers with a scan running
+            "/api/agents/1/sizes" => {
+                let ago = |m: i64| (chrono::Utc::now() - chrono::Duration::minutes(m)).to_rfc3339();
+                let scanning = if r.path.contains("refresh=1") {
+                    json!({"kind":"manual","started_at":ago(0),"done":1,"count":3,"current":"public"})
+                } else {
+                    json!(null)
+                };
+                ok(json!({"sizes":{"finance":12884901888_i64,"public":734003200},"at":ago(10),
+                    "shares":{
+                        "finance":{"path":"/srv/shares/finance","real_path":"/srv/shares/finance","bytes":12884901888_i64,"measured_at":ago(10),"attempted_at":ago(10),"error":""},
+                        "public":{"path":"/srv/shares/public","real_path":"/srv/shares/public","bytes":734003200,"measured_at":ago(420),"attempted_at":ago(420),"error":""},
+                        "it$":{"path":"/srv/shares/it","real_path":"/srv/shares/it","partial_bytes":52428800,"attempted_at":ago(10),"error":"du: cannot read directory '/srv/shares/it/old': Permission denied"}},
+                    "total":13671333888_i64,"total_complete":false,"oldest_at":ago(420),"scanning":scanning,"next_at":ago(-230)}))
+            }
             p if p.starts_with("/api/samba/logs/") || p.starts_with("/api/agents/1/samba/logs/") => ok(json!([
                 {"time":"2026/10/22 09:12:04","level":0,"source":"../../source3/smbd/server.c:1745(main)","message":"smbd version 4.23.2 started.\nCopyright Andrew Tridgell and the Samba Team 1992-2025"},
                 {"time":"2026/10/22 08:40:11","level":2,"source":"../../source3/auth/auth.c:327(auth_check_ntlm_password)","message":"check_ntlm_password: Authentication for user [bruno.silva] -> [bruno.silva] FAILED with error NT_STATUS_WRONG_PASSWORD"},

@@ -105,11 +105,7 @@ type Agent struct {
 	insp   *asynq.Inspector
 	hash   []byte
 
-	// ponytail: 5-minute cache of `du` (large folders are slow); switch to an
-	// incremental walk or filesystem quotas if this becomes too heavy.
-	muSize  sync.Mutex
-	sizes   map[string]int64
-	sizesAt time.Time
+	sizes *sizeJob // the share folder sizes, measured in the background (sizes.go)
 
 	// server role of smb.conf: anything but a file server role (or "" when unreadable) makes the agent read only
 	role string
@@ -308,6 +304,8 @@ func Run(ctx context.Context, cfg *config.Config, insecureDev bool) error {
 	if a.why != "" {
 		slog.Info("files off on this server", "why", a.why)
 	}
+	a.sizes = newSizeJob(filepath.Join(cfg.StateDir(), "share-sizes.json"), a.mgr)
+	go a.sizes.run(ctx)
 	// the backup schedules live on the agent (they run with the panel off): registered from the saved file
 	// schedules in the server's own time zone ("0 1 * * *" is 01:00 here, not 01:00 UTC)
 	a.scheduler = asynq.NewScheduler(ro, &asynq.SchedulerOpts{Logger: slogAdapter{}, Location: time.Local})
@@ -410,7 +408,11 @@ func (a *Agent) mux() *asynq.ServeMux {
 		if err := json.Unmarshal(p, &r); err != nil {
 			return fmt.Errorf("%w: %v", shares.ErrInvalid, err)
 		}
-		return a.mgr.CreateShare(ctx, r)
+		err := a.mgr.CreateShare(ctx, r)
+		if err == nil && a.sizes != nil {
+			a.sizes.measureShare(r.Name) // its size within seconds, not at the next full scan
+		}
+		return err
 	})
 	handle(TypeACLRestore, func(ctx context.Context, p []byte) error {
 		var r shares.RestoreReq
@@ -577,19 +579,15 @@ func (a *Agent) Routes() *echo.Echo {
 		a.markFullControl(c.Request().Context(), list)
 		return c.JSON(http.StatusOK, list)
 	})
+	// from the cache at once: refresh=1 only starts a background scan (none while one runs)
 	api.GET("/sizes", func(c *echo.Context) error {
-		a.muSize.Lock()
-		defer a.muSize.Unlock()
-		if a.sizes == nil || time.Since(a.sizesAt) > 5*time.Minute || c.QueryParam("refresh") == "1" {
-			ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Minute)
-			defer cancel()
-			sz, err := a.mgr.Sizes(ctx)
-			if err != nil {
-				return c.JSON(http.StatusBadGateway, map[string]string{"error": err.Error()})
-			}
-			a.sizes, a.sizesAt = sz, time.Now()
+		if a.sizes == nil {
+			return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "folder sizes are not measured on this agent"})
 		}
-		return c.JSON(http.StatusOK, map[string]any{"sizes": a.sizes, "at": a.sizesAt})
+		if c.QueryParam("refresh") == "1" {
+			a.sizes.refresh()
+		}
+		return c.JSON(http.StatusOK, a.sizes.snapshot())
 	})
 	// Windows ACL of a folder (read through Samba by the embedded helper)
 	api.GET("/acl", func(c *echo.Context) error {

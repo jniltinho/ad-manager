@@ -184,6 +184,8 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
     let under = ui.painter().add(egui::Shape::Noop);
     let row_id = ui.id().with(("card-head-row", key.as_str()));
     let prev = ui.ctx().data(|d| d.get_temp::<f32>(row_id)).unwrap_or(0.0);
+    let w_id = row_id.with("right-w");
+    let prev_w = ui.ctx().data(|d| d.get_temp::<f32>(w_id)).unwrap_or(0.0);
     // py-1.5 around the web's 18-point line (egui's line is 15: 7 and 8 here); around buttons, the plain py-1.5
     let (top, bottom) = if prev >= 24.0 { (6, 6) } else { (7, 8) };
     let r = Frame::new()
@@ -197,21 +199,29 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
                 ui.set_min_height(prev);
                 ui.label(rich);
                 if !note.is_empty() {
-                    // the web's gap-3 between the title and its note
+                    // the web's gap-3 between the title and its note; the note gives way to what sits at the right
+                    // (as wide as last frame's), truncated rather than drawn under it
                     ui.add_space(12.0 - ui.spacing().item_spacing.x);
-                    ui.add(egui::Label::new(RichText::new(note).size(size).color(look.c("fg-muted"))).truncate());
+                    let room = (ui.available_width() - prev_w - 12.0).max(0.0);
+                    ui.scope(|ui| {
+                        ui.set_max_width(room);
+                        ui.add(egui::Label::new(RichText::new(note).size(size).color(look.c("fg-muted"))).truncate());
+                    });
                 }
-                let right_h = ui
+                let (right_h, right_w) = ui
                     .with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // what sits in the head is semibold as the head (the web's .card-h buttons inherit it)
                         ui.style_mut().override_font_id =
                             Some(egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())));
                         right(ui);
-                        ui.min_rect().height()
+                        (ui.min_rect().height(), ui.min_rect().width())
                     })
                     .inner;
-                if (right_h - prev).abs() > 0.5 {
-                    ui.ctx().data_mut(|d| d.insert_temp(row_id, right_h));
+                if (right_h - prev).abs() > 0.5 || (right_w - prev_w).abs() > 0.5 {
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(row_id, right_h);
+                        d.insert_temp(w_id, right_w);
+                    });
                     ui.ctx().request_repaint();
                 }
             });

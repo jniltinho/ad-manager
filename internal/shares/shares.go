@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -50,7 +49,9 @@ type ACLBridge interface {
 type Manager struct {
 	Roots []string
 	Run   Runner
-	Chown func(path string, uid, gid int) error // nil means fchown on the opened folder (tests replace it)
+	// SizeRun runs du for Size; nil means ExecSize (tests replace it).
+	SizeRun SizeRunner
+	Chown   func(path string, uid, gid int) error // nil means fchown on the opened folder (tests replace it)
 	// ACL writes Windows ACLs when NTACL is true (python3-samba present and
 	// vfs objects = acl_xattr); otherwise folders get POSIX ACLs (setfacl).
 	ACL   ACLBridge
@@ -589,29 +590,4 @@ func FromCSV(m map[string]string) ShareReq {
 		Recycle: yes("recycle_bin"), ABE: yes("abe"), Audit: yes("audit"),
 		RW: l("write_groups"), RO: l("read_groups"), RWUsers: l("write_users"), ROUsers: l("read_users"),
 		Full: l("full_control_groups"), FullUsers: l("full_control_users"), CreatePath: true}
-}
-
-// Sizes returns the total size (bytes) of each share's folder, via `du -sb`.
-// Shares whose folder fails (gone, no access) are left out.
-func (m *Manager) Sizes(ctx context.Context) (map[string]int64, error) {
-	list, err := m.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]int64{}
-	for _, s := range list {
-		if s.Path == "" {
-			continue
-		}
-		o, err := m.Run(ctx, "du", "-sb", "--", s.Path)
-		if err != nil {
-			continue
-		}
-		if f := strings.Fields(o); len(f) > 0 {
-			if n, err := strconv.ParseInt(f[0], 10, 64); err == nil {
-				out[s.Name] = n
-			}
-		}
-	}
-	return out, nil
 }

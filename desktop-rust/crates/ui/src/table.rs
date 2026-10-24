@@ -137,6 +137,8 @@ pub struct Cell<A> {
     pub tag: Option<(String, Tone)>,
     /// More links after the first, packed in the same cell (the web's Actions cell).
     pub more: Vec<(String, Tone, Link<A>)>,
+    /// A tooltip of a plain cell (the web's title).
+    pub tip: String,
 }
 
 impl<A> Cell<A> {
@@ -151,7 +153,13 @@ impl<A> Cell<A> {
             marker: "",
             tag: None,
             more: Vec::new(),
+            tip: String::new(),
         }
+    }
+
+    pub fn tip(mut self, tip: impl Into<String>) -> Self {
+        self.tip = tip.into();
+        self
     }
 
     pub fn tree(mut self, level: usize) -> Self {
@@ -631,7 +639,10 @@ fn draw_cell<A>(
                 ui.add_space(4.0);
             }
             let t = rich(cl.text.clone(), ink);
-            ui.add(egui::Label::new(t).truncate().selectable(false));
+            let r = ui.add(egui::Label::new(t).truncate().selectable(false));
+            if !cl.tip.is_empty() {
+                let _ = r.on_hover_text(&cl.tip);
+            }
             if let Some((text, tone)) = &cl.tag {
                 // after a text the web's tag is an inline element: one space of the cell's font from it
                 ui.add_space(ui.ctx().fonts_mut(|f| f.glyph_width(&egui::FontId::proportional(size), ' ')));

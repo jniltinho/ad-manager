@@ -9,6 +9,13 @@ export function formatDate(iso) {
   return d.toLocaleDateString(locale()) + ' ' + d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })
 }
 
+// timeAgo is a time relative to now in the interface language ("10 minutes ago").
+export function timeAgo(iso, now = Date.now()) {
+  const s = (new Date(iso) - now) / 1000
+  const [n, unit] = Math.abs(s) < 3600 ? [s / 60, 'minute'] : Math.abs(s) < 86400 ? [s / 3600, 'hour'] : [s / 86400, 'day']
+  return new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' }).format(Math.round(n), unit)
+}
+
 // daysSince counts whole days since iso (Infinity when there is no date).
 export function daysSince(iso) {
   return iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : Infinity

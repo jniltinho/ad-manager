@@ -1,13 +1,13 @@
 <script setup>
 // Folders and shares on the file servers (ad-manager agent).
 // Every change becomes a task in the server's queue; the page follows it until done.
-import { FolderPlus, Plus, RefreshCw, Trash2, Users } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { FolderPlus, Plus, RefreshCw, Trash2, TriangleAlert, Users } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { auth, get, post, del, enc } from '../api'
 import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
 import { confirmTyped } from '../dialogs'
-import { agentHost, formatDate } from '../util'
+import { agentHost, formatDate, timeAgo } from '../util'
 import ShareSessionsDialog from '../components/dialogs/ShareSessionsDialog.vue'
 import FileServerDialog from '../components/dialogs/FileServerDialog.vue'
 import ShareFormDialog from '../components/dialogs/ShareFormDialog.vue'
@@ -63,6 +63,8 @@ async function loadShares() {
   const target = current.value.id // a reply from another server (quick switch) is dropped
   loading.value = true
   shares.value = []
+  sizes.value = {}
+  sizeInfo.value = null
   try {
     const r = await Promise.all([get(`/agents/${target}/shares`), get(`/agents/${target}/dirs`).then((r) => r.roots)])
     if (target !== current.value?.id) return
@@ -75,19 +77,79 @@ async function loadShares() {
   loadSizes(target)
 }
 
-// total size of each folder (du on the server, cached for 5 min); arrives after the list
+// folder sizes: the agent's cache, measured in the background (an older agent measures in the request and answers
+// only sizes); read again every 5 s while a scan runs
 const sizes = ref({})
+const sizeInfo = ref(null) // shares, total, total_complete, oldest_at, scanning, at — null from an older agent
 const measuring = ref(false)
+const STALE = 6 * 3600e3 // 4 h between scans plus 2 h of slack
+let poll = 0
+let gen = 0 // each read replaces the previous chain: a late answer (other server, page left) schedules nothing
+let gone = false
 async function loadSizes(target, refresh = false) {
+  if (gone || target !== current.value?.id) return // a late caller of another server leaves this one's chain alone
+  clearTimeout(poll)
+  const mine = ++gen
   measuring.value = true
   try {
     const r = await get(`/agents/${target}/sizes${refresh ? '?refresh=1' : ''}`)
-    if (target === current.value?.id) sizes.value = r.sizes || {}
+    if (gone || mine !== gen || target !== current.value?.id) return
+    sizes.value = r.sizes || {}
+    sizeInfo.value = r.shares ? r : null
+    if (r.scanning) poll = setTimeout(() => loadSizes(target), 5000)
   } catch {
+    if (gone || mine !== gen || target !== current.value?.id) return
     sizes.value = {}
+    sizeInfo.value = null
   }
   measuring.value = false
 }
+// the clock of "scanned … ago" and of the 6-hour staleness, also while nothing is polled
+const now = ref(Date.now())
+const clock = setInterval(() => (now.value = Date.now()), 60000)
+onBeforeUnmount(() => {
+  gone = true
+  clearTimeout(poll)
+  clearInterval(clock)
+})
+const stale = (iso) => !!iso && now.value - new Date(iso) > STALE
+// entry is the agent's measure of share s, when it is of the same folder
+const entry = (s) => {
+  const e = sizeInfo.value?.shares?.[s.name]
+  return e && e.path === s.path ? e : null
+}
+// sizeCell: the text, whether it is muted and its tooltip
+function sizeCell(s) {
+  if (!sizeInfo.value) return { text: bytes(sizes.value[s.name]) }
+  const e = entry(s)
+  if (!e || (e.bytes == null && e.partial_bytes == null))
+    return { text: sizeInfo.value.scanning ? '…' : '—', muted: true, title: e?.error || t('not measured yet') }
+  if (e.bytes == null)
+    return { text: `≥ ${bytes(e.partial_bytes)}`, muted: true, title: t('partial (a lower bound): {error}', { error: e.error }) }
+  const title = t('measured {time}', { time: formatDate(e.measured_at) })
+  if (e.error || stale(e.measured_at))
+    return { text: bytes(e.bytes), muted: true, title: e.error ? `${title}; ${t('latest attempt: {error}', { error: e.error })}` : title }
+  return { text: bytes(e.bytes), title }
+}
+// the header: total, last full scan, the warning when some sizes are missing, partial or old, the scan's progress
+const sizeHead = computed(() => {
+  const r = sizeInfo.value
+  if (!r) return { size: measuring.value ? '…' : bytes(total.value), title: t('Sum of the folders (nested ones count again)') }
+  const listed = shares.value.filter((s) => s.path)
+  const agree =
+    listed.every((s) => entry(s)) && Object.entries(r.shares).every(([n, e]) => listed.some((s) => s.name === n && s.path === e.path))
+  const scanned = r.at && new Date(r.at).getFullYear() > 2000 ? r.at : ''
+  return {
+    size: bytes(r.total),
+    scanned: scanned && timeAgo(scanned, now.value),
+    title: scanned ? t('Sum of the folders; nested shares count once. Last full scan: {time}.', { time: formatDate(scanned) }) : '',
+    warn:
+      !r.total_complete || !agree || stale(r.oldest_at)
+        ? t('Some sizes are missing, partial or older than {time}.', { time: formatDate(r.oldest_at) })
+        : '',
+    scanning: r.scanning ? `${r.scanning.done}/${r.scanning.count}` : '',
+  }
+})
 function bytes(n) {
   if (n == null) return measuring.value ? '…' : '—'
   const u = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -104,7 +166,7 @@ async function refresh() {
   await loadShares()
   if (current.value) loadSizes(current.value.id, true)
 }
-const total = computed(() => Object.values(sizes.value).reduce((a, b) => a + b, 0))
+const total = computed(() => Object.values(sizes.value).reduce((a, b) => a + b, 0)) // an older agent's sum
 watch(current, loadShares)
 
 // ── domain controller health (agent on a DC): replication and consistency checks, read only
@@ -360,13 +422,18 @@ const stateNames = {
         <span>{{ current ? t('Shares on {server}', { server: current.name }) : t('Shares') }}</span>
         <span v-if="current" class="font-normal normal-case text-fg-muted">{{ current.url }}</span>
         <div v-if="current" class="ml-auto flex items-center gap-2 normal-case">
-          <span v-if="shares.length" class="text-[12px] text-fg-muted" :title="t('Sum of the folders (nested ones count again)')">{{
-            t('total {size}', { size: measuring ? '…' : bytes(total) })
-          }}</span>
+          <span v-if="shares.length" class="flex items-center gap-1 text-[12px] text-fg-muted" :title="sizeHead.title">
+            {{ t('total {size}', { size: sizeHead.size }) }}
+            <template v-if="sizeHead.scanned"> · {{ t('scanned {time}', { time: sizeHead.scanned }) }}</template>
+            <span v-if="sizeHead.warn" class="inline-flex text-warn" role="img" :aria-label="sizeHead.warn" :title="sizeHead.warn"
+              ><TriangleAlert :size="13"
+            /></span>
+            <template v-if="sizeHead.scanning"> · {{ t('measuring {n}…', { n: sizeHead.scanning }) }}</template>
+          </span>
           <button class="btn-ghost" :disabled="status[current.id] === 'down'" @click="sessions = true">
             <Users :size="13" /> {{ t('Sessions') }}
           </button>
-          <button class="btn-ghost" @click="refresh"><RefreshCw :size="13" /> {{ t('Refresh') }}</button>
+          <button class="btn-ghost" :disabled="!!sizeInfo?.scanning" @click="refresh"><RefreshCw :size="13" /> {{ t('Refresh') }}</button>
           <button class="btn" :disabled="status[current.id] === 'down'" @click="openNew">
             <FolderPlus :size="13" /> {{ t('New share') }}
           </button>
@@ -413,7 +480,13 @@ const stateNames = {
                 </div>
               </td>
               <td class="truncate font-mono text-[11px]" :title="s.path">{{ s.path }}</td>
-              <td class="text-right whitespace-nowrap tabular-nums">{{ bytes(sizes[s.name]) }}</td>
+              <td
+                class="text-right whitespace-nowrap tabular-nums"
+                :class="sizeCell(s).muted && 'text-fg-muted'"
+                :title="sizeCell(s).title"
+              >
+                {{ sizeCell(s).text }}
+              </td>
               <td class="truncate" :title="access(s, 'rw')">{{ access(s, 'rw') }}</td>
               <td class="truncate" :title="access(s, 'ro')">{{ access(s, 'ro') }}</td>
               <td class="truncate text-fg-muted" :title="s.comment">{{ s.comment }}</td>

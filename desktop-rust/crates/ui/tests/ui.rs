@@ -325,6 +325,27 @@ fn configure_test_abandoned_by_an_edit_is_signed_out() {
     assert!(save.accesskit_node().is_disabled(), "Save stays disabled after an edit");
 }
 
+/// The sizes come from the agent's cache: a fresh value, an old one and a partial one ("≥"), the total with the last
+/// scan and the warning; Refresh starts a scan without waiting and is off while it runs.
+#[test]
+fn share_sizes_from_the_cache() {
+    let mut e = env();
+    e.sign_in();
+    e.h.get_by_label("Shares").click();
+    e.wait("the sizes", |_, m| !m.sent("GET", "/api/agents/1/sizes").is_empty());
+    e.h.run_steps(4);
+    assert!(e.h.query_by_label("12 GB").is_some(), "the fresh value");
+    assert!(e.h.query_by_label("700 MB").is_some(), "the old value, still shown");
+    assert!(e.h.query_by_label("≥ 50 MB").is_some(), "the partial value");
+    assert!(e.h.query_by_label_contains("total 12.7 GB · scanned 10 minutes ago").is_some(), "the total and the scan");
+    assert!(e.h.query_by_label_contains("Some sizes are missing, partial or older than").is_some(), "the warning");
+    e.click("Refresh");
+    e.wait("the scan", |_, m| m.requests().iter().any(|r| r.path == "/api/agents/1/sizes?refresh=1"));
+    e.h.run_steps(4);
+    assert!(e.h.query_by_label_contains("measuring 1/3…").is_some(), "the scan's progress");
+    assert!(e.h.get_by_label("Refresh").accesskit_node().is_disabled(), "no second scan while one runs");
+}
+
 #[test]
 fn share_edit_sends_the_same_name_and_the_lists() {
     let mut e = env();

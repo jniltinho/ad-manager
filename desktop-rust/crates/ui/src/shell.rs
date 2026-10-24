@@ -104,6 +104,11 @@ pub struct Shell {
 }
 
 impl Shell {
+    /// The Shares page is on screen (its size polling stops when it is not).
+    pub fn on_shares(&self) -> bool {
+        self.page == Page::Shares
+    }
+
     pub fn new(cx: &mut Cx) -> Self {
         let mut s = Self {
             page: Page::Home,
