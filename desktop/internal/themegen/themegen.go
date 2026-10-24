@@ -26,7 +26,7 @@ var Roles = []string{
 	"action-top", "action", "action-line", "on-action", "action-2-top", "action-2", "action-2-line", "on-action-2",
 	"danger-top", "danger", "danger-line", "on-danger", "brand-action-top", "brand-action", "brand-action-hover", "on-brand-action",
 	"dialog-head-top", "dialog-head", "on-dialog-head", "dialog-line", "footer", "on-footer", "footer-strong",
-	"header-top", "header", "on-header", "on-header-muted", "header-bar", "logo-plate", "nav-on", "on-nav-on",
+	"header-top", "header", "on-header", "on-header-muted", "header-bar", "logo-plate", "nav-on", "on-nav-on", "nav-on-line",
 	"table-head-top", "table-head", "on-table-head", "card-head-top", "card-head", "on-card-head", "card-head-bar",
 	"subtab-line", "subtab", "on-subtab", "subtab-hover", "subtab-on", "on-subtab-on",
 	"tabs-top", "tabs", "tab", "on-tab", "tab-hover", "on-tab-hover", "tab-on-top", "tab-on", "on-tab-on", "tab-on-icon",

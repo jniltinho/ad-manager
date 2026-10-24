@@ -105,7 +105,7 @@ impl Ous {
         ];
         let (ous, tr) = (&self.ous, &self.tree);
         let mut hover = None;
-        let out = table::Table { id: "ous", cols: &cols, rows: tr.len(), keys, row_h: 0.0 }.show(
+        let out = table::Table { id: "ous", cols: &cols, rows: tr.len(), keys, row_h: 0.0, frame: true }.show(
             ui,
             &look,
             &mut self.table,

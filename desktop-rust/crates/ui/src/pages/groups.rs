@@ -140,7 +140,7 @@ impl Groups {
         ];
         let (gs, vis) = (&self.groups, &self.visible);
         let mut hover = None;
-        let out = table::Table { id: "groups", cols: &cols, rows: vis.len(), keys, row_h: 29.0 }.show(
+        let out = table::Table { id: "groups", cols: &cols, rows: vis.len(), keys, row_h: 29.0, frame: true }.show(
             ui,
             &look,
             &mut self.table,

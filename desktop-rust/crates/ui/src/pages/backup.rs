@@ -230,7 +230,7 @@ impl Backup {
         let empty = Vec::new();
         let rows = self.cur.and_then(|i| self.servers.get(i)).map_or(&empty, |c| &c.backups);
         let mut hover = None;
-        table::Table { id: "backups", cols: &cols, rows: rows.len(), keys, row_h: 0.0 }.show::<()>(
+        table::Table { id: "backups", cols: &cols, rows: rows.len(), keys, row_h: 0.0, frame: true }.show::<()>(
             ui,
             &look,
             &mut self.table,
@@ -313,12 +313,8 @@ impl Backup {
         ];
         let list = &self.schedules;
         let mut hover = None;
-        table::Table { id: "schedules", cols: &cols, rows: list.len(), keys: false, row_h: 0.0 }.show::<()>(
-            ui,
-            &look,
-            &mut self.sched,
-            &mut hover,
-            |r, c| {
+        table::Table { id: "schedules", cols: &cols, rows: list.len(), keys: false, row_h: 0.0, frame: true }
+            .show::<()>(ui, &look, &mut self.sched, &mut hover, |r, c| {
                 let x = &list[r];
                 match c {
                     0 => Cell::new(&x.id, Tone::Strong),
@@ -329,8 +325,7 @@ impl Backup {
                     _ if x.enabled => Cell::new(t("yes"), Tone::Ok),
                     _ => Cell::new(t("no"), Tone::Muted),
                 }
-            },
-        );
+            });
         ui.label(RichText::new(t("Retention deletes whole chains only (a full backup and its incrementals), never the backup just made; 0 = no limit.")).size(11.0).color(look.c("fg-muted")));
     }
 }

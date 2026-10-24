@@ -105,6 +105,11 @@ pub fn card<R>(ui: &mut Ui, look: &Look, title: &str, add: impl FnOnce(&mut Ui) 
 
 /// The web's .card-h: the head of a card or a panel, with `right` drawn at its right end (a link, a count).
 pub fn card_head(ui: &mut Ui, look: &Look, title: &str, right: impl FnOnce(&mut Ui)) {
+    card_head_note(ui, look, title, "", right);
+}
+
+/// A card head with a muted note after its title (the web's "Shares on fs01" and the server's URL).
+pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: impl FnOnce(&mut Ui)) {
     let w = ui.available_width();
     let bar = look.px("card-head-bar-w", 4.0);
     let size = look.px("card-head-size", 12.0);
@@ -123,6 +128,10 @@ pub fn card_head(ui: &mut Ui, look: &Look, title: &str, right: impl FnOnce(&mut 
             ui.set_width(w - 24.0 - bar);
             ui.horizontal(|ui| {
                 ui.label(rich);
+                if !note.is_empty() {
+                    ui.add_space(6.0);
+                    ui.add(egui::Label::new(RichText::new(note).size(size).color(look.c("fg-muted"))).truncate());
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
             });
         })
@@ -137,6 +146,81 @@ pub fn card_head(ui: &mut Ui, look: &Look, title: &str, right: impl FnOnce(&mut 
     }
     shapes.push(egui::Shape::hline(r.rect.x_range(), r.rect.bottom() - 0.5, Stroke::new(1.0, look.c("line"))));
     ui.painter().set(under, egui::Shape::Vec(shapes));
+}
+
+/// The web's .card with a head (title, muted note, `right` at its right end) and a body without padding (a list or
+/// a table edge to edge), at least `min_h` high: a card that fills its column.
+pub fn panel<R>(
+    ui: &mut Ui,
+    look: &Look,
+    head: (&str, &str),
+    right: impl FnOnce(&mut Ui),
+    min_h: f32,
+    add: impl FnOnce(&mut Ui) -> R,
+) -> R {
+    Frame::new()
+        .fill(look.c("surface"))
+        .stroke(Stroke::new(1.0, look.c("line")))
+        .show(ui, |ui| {
+            ui.set_min_height((min_h - 2.0).max(0.0));
+            ui.spacing_mut().item_spacing.y = 0.0;
+            card_head_note(ui, look, head.0, head.1, right);
+            add(ui)
+        })
+        .inner
+}
+
+/// An item of a side list (the web's .side-nav li: px 12, py 8, 12 px text): the current one in the theme's nav-on
+/// colors and shadow, the others tinted on hover, a divider between items. `add` gets the ink to draw with; the
+/// response is the item's click (registered before its content, so links inside it keep their own clicks).
+pub fn side_item<R>(
+    ui: &mut Ui,
+    look: &Look,
+    on: bool,
+    first: bool,
+    add: impl FnOnce(&mut Ui, Color32) -> R,
+) -> egui::InnerResponse<R> {
+    let under = ui.painter().add(egui::Shape::Noop);
+    let ink = if on { look.c("on-nav-on") } else { look.c("fg") };
+    let w = ui.available_width();
+    let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
+        Frame::new()
+            .inner_margin(Margin::symmetric(12, 8))
+            .show(ui, |ui| {
+                ui.set_width(w - 24.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    add(ui, ink)
+                })
+                .inner
+            })
+            .inner
+    });
+    let rect = r.response.rect;
+    let mut shapes = if on {
+        crate::depth::box_shapes(rect, None, look.c("nav-on"), look.shadows("nav-on"))
+    } else if r.response.hovered() {
+        vec![egui::Shape::rect_filled(rect, 0.0, look.c("row-hover"))]
+    } else {
+        Vec::new()
+    };
+    if !first {
+        shapes.push(egui::Shape::hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, look.c("line"))));
+    }
+    if on {
+        shapes.push(egui::Shape::hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, look.c("nav-on-line"))));
+    }
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+    let resp = r.response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    egui::InnerResponse::new(r.inner, resp)
+}
+
+/// A small link inside a list item or a card head (the web's .act): `ink` when given (the current item's text color),
+/// else the link color.
+pub fn act(ui: &mut Ui, look: &Look, icon: &str, label: &str, ink: Option<Color32>, size: f32) -> Response {
+    let text = if icon.is_empty() { label.to_string() } else { format!("{icon} {label}") };
+    ui.add(egui::Button::new(RichText::new(text).size(size).color(ink.unwrap_or(look.c("link")))).frame(false))
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 /// The fill and ink of a tag tone, as the web's tag classes: soft green for ok (`bg-ok-soft`), solid for errors,

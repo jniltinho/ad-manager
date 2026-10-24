@@ -220,6 +220,8 @@ pub struct Table<'a> {
     pub rows: usize,
     pub keys: bool,
     pub row_h: f32,
+    /// The 1 px frame of the web's table wrapper (none inside a card, as the web's `border-0`).
+    pub frame: bool,
 }
 
 impl Table<'_> {
@@ -272,7 +274,9 @@ fn show<A>(
         (look.px("th-px", 8.0), look.px("th-py", 6.0), look.px("td-px", 8.0), look.px("td-py", 4.0));
     let row_h = if t.row_h > 0.0 { t.row_h } else { (text * 1.5 + 2.0 * td_py + 1.0).round() };
     let head_h = (text * 1.5 + 2.0 * th_py + 1.0).round();
-    let avail = ui.available_width() - 14.0; // the scroll bar's room
+    // the scroll bar's room only when the rows do not fit
+    let fits = head_h + rows as f32 * row_h <= ui.available_height();
+    let avail = ui.available_width() - if fits { 0.0 } else { 14.0 };
     let full: f32 = cols.iter().map(|c| c.width).sum();
     let compact = avail < full;
     out.compact = compact;
@@ -297,7 +301,8 @@ fn show<A>(
             // a wheel step moves at once: an animation would redraw the whole window for every frame of it
             .animate_scrolling(false)
             // as the web's wrapper: as tall as its rows, at most the room left
-            .auto_shrink([false, true]);
+            .auto_shrink([false, true])
+            .vscroll(!fits);
         if let Some(r) = state.scroll_to.take() {
             tb = tb.scroll_to_row(r, None);
         }
@@ -374,7 +379,9 @@ fn show<A>(
         });
     });
     // the table's 1 px frame, as the web's wrapper
-    ui.painter().rect_stroke(framed.response.rect, 0.0, egui::Stroke::new(1.0, line), egui::StrokeKind::Inside);
+    if t.frame {
+        ui.painter().rect_stroke(framed.response.rect, 0.0, egui::Stroke::new(1.0, line), egui::StrokeKind::Inside);
+    }
     out
 }
 
@@ -529,7 +536,7 @@ mod ui_tests {
                 }
                 let cols = [Column::new("Name", 200.0), Column::new("", 100.0)];
                 let mut hover = None;
-                let out = Table { id: "t", cols: &cols, rows: 3, keys: true, row_h: 0.0 }.show(
+                let out = Table { id: "t", cols: &cols, rows: 3, keys: true, row_h: 0.0, frame: true }.show(
                     ui,
                     &look,
                     &mut st.0,

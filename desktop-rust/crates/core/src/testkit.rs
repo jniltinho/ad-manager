@@ -281,6 +281,10 @@ pub fn demo(users: usize) -> Arc<Route> {
                 {"name":"public","path":"/srv/shares/public","comment":"Everyone","rw_groups":["DOMAIN\\Domain Users"],"ro_groups":[],"browseable":true},
                 {"name":"it$","path":"/srv/shares/it","comment":"IT tools","rw_groups":["DOMAIN\\IT"],"ro_groups":[],"browseable":false},
             ])),
+            "/api/agents/1/health" => ok(json!({"status":"ok","dc":false,"files":true,"samba":true})),
+            "/api/agents/1/sessions" => ok(json!({"sessions":[
+                {"id":"3c1","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","dialect":"SMB3_11","encryption":"-","signing":"partial(AES-128-GMAC)","since":"2026-10-22T08:05:00Z","shares":["finance","public"]}],
+                "open_files":[{"path":"/srv/shares/finance/budget-2026.xlsx","pid":4021,"user":"DOMAIN\\bruno.silva","machine":"192.168.10.51","access":"RW","opened_at":"2026-10-22T09:12:00Z"}]})),
             "/api/agents/1/sizes" => ok(json!({"sizes":{"finance":12884901888_i64,"public":734003200,"it$":52428800}})),
             p if p.starts_with("/api/agents/1/tasks/") => ok(json!({"id":"t1","state":"completed"})),
             p if p.starts_with("/api/users/") => {

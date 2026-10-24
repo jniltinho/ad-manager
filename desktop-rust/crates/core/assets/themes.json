@@ -114,6 +114,7 @@
     "login-title": "#94cf65ff",
     "logo-plate": "#00000000",
     "nav-on": "#ffffffff",
+    "nav-on-line": "#e6e6e6ff",
     "neutral-fill": "#767676ff",
     "ok": "#2b7206ff",
     "ok-fill": "#3e8522ff",
@@ -533,6 +534,14 @@
       "color": "#0000002e"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#74bc49ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -677,6 +686,7 @@
     "login-title": "#5a32e6ff",
     "logo-plate": "#00000000",
     "nav-on": "#f0f0ffff",
+    "nav-on-line": "#e7e7eeff",
     "neutral-fill": "#62626fff",
     "ok": "#047857ff",
     "ok-fill": "#047857ff",
@@ -1090,6 +1100,14 @@
       "color": "#07060f2e"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#6d45f9ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -1252,6 +1270,7 @@
     "login-title": "#967affff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#1d1c2aff",
+    "nav-on-line": "#272735ff",
     "neutral-fill": "#9a9aa8ff",
     "ok": "#5ee9b5ff",
     "ok-fill": "#5ee9b5ff",
@@ -1670,6 +1689,14 @@
       "color": "#ffffff26"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#967affff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -1832,6 +1859,7 @@
     "login-title": "#1f6fa3ff",
     "logo-plate": "#00000000",
     "nav-on": "#3daee9ff",
+    "nav-on-line": "#bdc3c7ff",
     "neutral-fill": "#5f6b77ff",
     "ok": "#19703eff",
     "ok-fill": "#19703eff",
@@ -2245,6 +2273,14 @@
       "color": "#00000040"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#3daee9ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -2408,6 +2444,7 @@
     "login-title": "#3daee9ff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#275066ff",
+    "nav-on-line": "#4d5257ff",
     "neutral-fill": "#a1a9b1ff",
     "ok": "#27ae60ff",
     "ok-fill": "#27ae60ff",
@@ -2826,6 +2863,14 @@
       "color": "#ffffff26"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#3daee9ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -2989,6 +3034,7 @@
     "login-title": "#0050a0ff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#316ac5ff",
+    "nav-on-line": "#d6d2c2ff",
     "neutral-fill": "#5a5a5aff",
     "ok": "#2a702aff",
     "ok-fill": "#2a702aff",
@@ -3414,6 +3460,14 @@
       "color": "#00000059"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#3c9a3cff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -3576,6 +3630,7 @@
     "login-title": "#000080ff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#1060a8ff",
+    "nav-on-line": "#808080ff",
     "neutral-fill": "#5a5a5aff",
     "ok": "#005000ff",
     "ok-fill": "#005000ff",
@@ -4071,6 +4126,14 @@
       "color": "#dfdfdfff"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#000080ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -4251,6 +4314,7 @@
     "login-title": "#ff8800ff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#3a2a14ff",
+    "nav-on-line": "#303030ff",
     "neutral-fill": "#a0a0a0ff",
     "ok": "#4caf50ff",
     "ok-fill": "#4caf50ff",
@@ -4669,6 +4733,14 @@
       "color": "#ffffff26"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#ff8800ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -4831,6 +4903,7 @@
     "login-title": "#0054bbff",
     "logo-plate": "#00000000",
     "nav-on": "#d6e4faff",
+    "nav-on-line": "#0000001a",
     "neutral-fill": "#57575cff",
     "ok": "#00591bff",
     "ok-fill": "#0b6729ff",
@@ -5252,6 +5325,14 @@
       "color": "#00000038"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#0064e1ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -5411,6 +5492,7 @@
     "login-title": "#5aaeffff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#1f3550ff",
+    "nav-on-line": "#ffffff1a",
     "neutral-fill": "#98989dff",
     "ok": "#34d45bff",
     "ok-fill": "#30d158ff",
@@ -5831,6 +5913,14 @@
       "color": "#ffffff26"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#4ea2ffff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -5984,6 +6074,7 @@
     "login-title": "#f58322ff",
     "logo-plate": "#00000000",
     "nav-on": "#113058ff",
+    "nav-on-line": "#b9c9dcff",
     "neutral-fill": "#697789ff",
     "ok": "#007624ff",
     "ok-fill": "#018938ff",
@@ -6418,6 +6509,7 @@
       "color": "#0000002e"
      }
     ],
+    "nav-on": [],
     "subtab": [
      {
       "inset": true,
@@ -6560,6 +6652,7 @@
     "login-title": "#ff8833ff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#2d3b55ff",
+    "nav-on-line": "#ccccdc1f",
     "neutral-fill": "#5c5f66ff",
     "ok": "#6ccf8eff",
     "ok-fill": "#1a7f4bff",
@@ -6972,6 +7065,14 @@
       "color": "#ffffff26"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#ff8833ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -7134,6 +7235,7 @@
     "login-title": "#ffff00ff",
     "logo-plate": "#ffffffff",
     "nav-on": "#000000ff",
+    "nav-on-line": "#bfbfbfff",
     "neutral-fill": "#e6e6e6ff",
     "ok": "#5cff5cff",
     "ok-fill": "#5cff5cff",
@@ -7329,6 +7431,14 @@
      }
     ],
     "login-box": [],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#ffff00ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -7491,6 +7601,7 @@
     "login-title": "#00ff41ff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#0f3d1cff",
+    "nav-on-line": "#1c4a28ff",
     "neutral-fill": "#5fc777ff",
     "ok": "#6dff8fff",
     "ok-fill": "#00e03aff",
@@ -7955,6 +8066,14 @@
       "color": "#00ff412e"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#00ff41ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -8119,6 +8238,7 @@
     "login-title": "#f6b6d0ff",
     "logo-plate": "#fdf0f6ff",
     "nav-on": "#f6d3e2ff",
+    "nav-on-line": "#ecd3deff",
     "neutral-fill": "#6e5562ff",
     "ok": "#23703dff",
     "ok-fill": "#23703dff",
@@ -8545,6 +8665,14 @@
       "color": "#2e18284d"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#e98bb2ff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -8707,6 +8835,7 @@
     "login-title": "#6f2ad9ff",
     "logo-plate": "#00000000",
     "nav-on": "#f1efffff",
+    "nav-on-line": "#e2e3ebff",
     "neutral-fill": "#606878ff",
     "ok": "#007a65ff",
     "ok-fill": "#007a65ff",
@@ -9120,6 +9249,14 @@
       "color": "#151b262e"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#894ffbff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -9282,6 +9419,7 @@
     "login-title": "#b886ffff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#2c2546ff",
+    "nav-on-line": "#2a2a37ff",
     "neutral-fill": "#9696a7ff",
     "ok": "#46bfa4ff",
     "ok-fill": "#46bfa4ff",
@@ -9700,6 +9838,14 @@
       "color": "#ffffff26"
      }
     ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#a36effff"
+     }
+    ],
     "subtab": [
      {
       "inset": true,
@@ -9862,6 +10008,7 @@
     "login-title": "#2cf02cff",
     "logo-plate": "#f4f5f5ff",
     "nav-on": "#1f2fa8ff",
+    "nav-on-line": "#3a3c4fff",
     "neutral-fill": "#b6b8caff",
     "ok": "#2cf02cff",
     "ok-fill": "#2cf02cff",
@@ -10390,6 +10537,14 @@
       "dy": 8,
       "blur": 28,
       "color": "#000000b3"
+     }
+    ],
+    "nav-on": [
+     {
+      "inset": true,
+      "dx": 3,
+      "dy": 0,
+      "color": "#f4a51cff"
      }
     ],
     "subtab": [

@@ -258,10 +258,12 @@ pub struct Agent {
     pub id: i64,
     pub name: String,
     pub url: String,
+    /// The panel accepts the agent's self-signed certificate.
+    pub insecure: bool,
 }
 
 impl Agent {
-    fn host(&self) -> String {
+    pub fn host(&self) -> String {
         url::Url::parse(&self.url)
             .ok()
             .and_then(|u| u.host_str().map(str::to_string))
@@ -629,9 +631,9 @@ mod tests {
     #[test]
     fn agent_labels() {
         let _g = crate::i18n::tests::english();
-        let a = Agent { id: 1, name: "fs".into(), url: "https://127.0.0.1:8445".into() };
+        let a = Agent { id: 1, name: "fs".into(), url: "https://127.0.0.1:8445".into(), ..Default::default() };
         assert!(a.local());
-        let b = Agent { id: 2, name: "fs".into(), url: "https://fs01.domain.local:8445".into() };
+        let b = Agent { id: 2, name: "fs".into(), url: "https://fs01.domain.local:8445".into(), ..Default::default() };
         assert_eq!(b.label(), "fs · fs01.domain.local");
         assert!(!b.local());
     }

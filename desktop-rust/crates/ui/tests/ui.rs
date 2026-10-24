@@ -326,9 +326,7 @@ fn share_edit_sends_the_same_name_and_the_lists() {
     e.wait("the shares", |_, m| !m.sent("GET", "/api/agents/1/shares").is_empty());
     e.wait("the list", |a, _| matches!(&a.screen, Screen::Shell(_)));
     e.h.step();
-    e.h.get_by_label("finance").click();
-    e.h.step();
-    e.click("✏  Edit");
+    e.click("Edit finance"); // the row's edit link
     assert!(e.h.query_by_label_contains("Edit share finance").is_some());
     e.click("✔  Save");
     e.wait("the task", |_, m| !m.sent("POST", "/api/agents/1/tasks").is_empty());
@@ -465,4 +463,9 @@ fn shots() {
     e.h.get_by_label("SMB sessions on DC01").click();
     e.wait("the sessions", |_, m| !m.sent("GET", "/api/computers/sessions").is_empty());
     save(&mut e, "17-smb-sessions");
+    e.key(egui::Key::Escape);
+    page(&mut e, "Shares");
+    e.click("👥  Sessions");
+    e.wait("the sessions", |_, m| !m.sent("GET", "/api/agents/1/sessions").is_empty());
+    save(&mut e, "18-share-sessions");
 }

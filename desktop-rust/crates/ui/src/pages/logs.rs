@@ -132,12 +132,8 @@ impl Audit {
             ];
             let (all, vis) = (&self.all, &self.visible);
             let mut hover = None;
-            let out = table::Table { id: "audit", cols: &cols, rows: vis.len(), keys, row_h: 28.0 }.show::<()>(
-                ui,
-                &look,
-                &mut self.table,
-                &mut hover,
-                |r, c| {
+            let out = table::Table { id: "audit", cols: &cols, rows: vis.len(), keys, row_h: 28.0, frame: true }
+                .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
                     let e = &all[vis[r]];
                     match c {
                         0 => Cell::plain(
@@ -152,8 +148,7 @@ impl Audit {
                         _ if e.result == "ok" => Cell::new("ok", Tone::Ok),
                         _ => Cell::new(&e.result, Tone::Err),
                     }
-                },
-            );
+                });
             // the error is usually longer than the column
             if let Some(e) = out.selected.and_then(|r| vis.get(r)).and_then(|&i| all.get(i))
                 && e.result != "ok"
@@ -309,22 +304,28 @@ impl SambaView {
                     ];
                     let entries = &self.entries;
                     let mut hover = None;
-                    let out =
-                        table::Table { id: &format!("samba-{i}"), cols: &cols, rows: entries.len(), keys, row_h: 0.0 }
-                            .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
-                                let e = &entries[r];
-                                match c {
-                                    0 if e.time.is_empty() => Cell::new("—", Tone::Muted),
-                                    0 => Cell::plain(&e.time),
-                                    1 => match e.level {
-                                        l if l < 0 => Cell::new("—", Tone::Muted),
-                                        0 => Cell::new("0", Tone::Err),
-                                        l if l <= 2 => Cell::new(l.to_string(), Tone::Warn),
-                                        l => Cell::new(l.to_string(), Tone::Strong),
-                                    },
-                                    _ => Cell::plain(e.message.replace('\n', " ⏎ ")),
-                                }
-                            });
+                    let out = table::Table {
+                        id: &format!("samba-{i}"),
+                        cols: &cols,
+                        rows: entries.len(),
+                        keys,
+                        row_h: 0.0,
+                        frame: true,
+                    }
+                    .show::<()>(ui, &look, &mut self.table, &mut hover, |r, c| {
+                        let e = &entries[r];
+                        match c {
+                            0 if e.time.is_empty() => Cell::new("—", Tone::Muted),
+                            0 => Cell::plain(&e.time),
+                            1 => match e.level {
+                                l if l < 0 => Cell::new("—", Tone::Muted),
+                                0 => Cell::new("0", Tone::Err),
+                                l if l <= 2 => Cell::new(l.to_string(), Tone::Warn),
+                                l => Cell::new(l.to_string(), Tone::Strong),
+                            },
+                            _ => Cell::plain(e.message.replace('\n', " ⏎ ")),
+                        }
+                    });
                     // the full message (cells show one truncated line)
                     if let Some(e) = out.selected.and_then(|r| entries.get(r)) {
                         cx.push(Info::new(e.time.clone(), format!("{}\n\n{}", e.source, e.message)).wide(720.0));

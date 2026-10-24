@@ -127,6 +127,7 @@ impl Users {
                 rows: visible.len(),
                 keys: keys && self.menu.is_none(),
                 row_h: 29.0,
+                frame: true,
             }
             .show(ui, &look, &mut self.table, &mut hover, |r, c| cell(&all[visible[r]], visible[r], c, &me, days, now));
             cx.hover = hover.or(cx.hover.take());

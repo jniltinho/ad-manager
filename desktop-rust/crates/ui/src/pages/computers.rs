@@ -122,7 +122,7 @@ impl Computers {
         let now = Utc::now();
         let (all, vis) = (&self.all, &self.visible);
         let mut hover = None;
-        let out = table::Table { id: "computers", cols: &cols, rows: vis.len(), keys, row_h: 0.0 }.show(
+        let out = table::Table { id: "computers", cols: &cols, rows: vis.len(), keys, row_h: 0.0, frame: true }.show(
             ui,
             &look,
             &mut self.table,
