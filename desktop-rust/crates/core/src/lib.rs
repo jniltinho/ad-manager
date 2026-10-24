@@ -18,6 +18,9 @@ pub mod tls;
 pub mod assets {
     /// The AD Manager logo in navy ink (for light backgrounds).
     pub const LOGO_NAVY: &[u8] = include_bytes!("../assets/ad-manager-logo.png");
+    /// The web's elliptic shadow under the login box (`login_shadow.png`), and its light glow for dark pages.
+    pub const LOGIN_SHADOW: &[u8] = include_bytes!("../assets/login-shadow.png");
+    pub const LOGIN_SHADOW_LIGHT: &[u8] = include_bytes!("../assets/login-shadow-light.png");
     /// The AD Manager logo in white ink (for dark backgrounds).
     pub const LOGO_WHITE: &[u8] = include_bytes!("../assets/ad-manager-logo-light.png");
     /// The window icon.

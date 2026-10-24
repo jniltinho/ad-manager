@@ -142,6 +142,7 @@ impl Shell {
         cx.title = format!("AD Manager — {} — {}", cx.me.domain, cx.me.user);
         let mut nav = None;
         egui::CentralPanel::default().frame(Frame::new().fill(look.c("page"))).show(ui, |ui| {
+            look.page_pattern(ui.painter(), ui.max_rect());
             // the web's app box: the window less 16 points around, at most 1840 wide, centered (egui's zoom scales it)
             let full = ui.max_rect();
             let w = (full.width() - 32.0).clamp(0.0, 1840.0);

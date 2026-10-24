@@ -41,6 +41,13 @@ impl Look {
     }
 
     /// A part's background gradient in this look.
+    /// Paints the page's repeated background (the dots) over `rect`, when the theme has one in this look.
+    pub fn page_pattern(&self, painter: &egui::Painter, rect: egui::Rect) {
+        if let Some(p) = self.p.pattern("page", self.flat) {
+            painter.extend(crate::depth::pattern_shapes(rect, &p));
+        }
+    }
+
     pub fn gradient(&self, part: &str) -> Option<&'static theme::Gradient> {
         self.p.gradient(part, self.flat)
     }
@@ -163,9 +170,17 @@ pub fn c32(c: Rgba) -> Color32 {
     Color32::from_rgba_unmultiplied(r, g, b, a)
 }
 
+/// The memory key of the focused widget that draws its own focus ring.
+pub const OWN_RING: &str = "adm-own-focus-ring";
+
 /// Draws the theme's focus ring outside the focused widget (fields, selects, checks, buttons), at the theme's width.
 pub fn focus_ring(ctx: &Context, look: &Look) {
-    let Some(rect) = ctx.memory(|m| m.focused()).and_then(|f| ctx.read_response(f)).map(|r| r.rect) else { return };
+    let Some(focused) = ctx.memory(|m| m.focused()) else { return };
+    // a widget that draws its own ring (the login's fields, in the login's focus color)
+    if ctx.data(|d| d.get_temp::<Id>(Id::new(OWN_RING))) == Some(focused) {
+        return;
+    }
+    let Some(rect) = ctx.read_response(focused).map(|r| r.rect) else { return };
     let w = look.p.focus_ring;
     let painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("adm-focus-ring")));
     painter.rect_stroke(
@@ -174,4 +189,30 @@ pub fn focus_ring(ctx: &Context, look: &Look) {
         Stroke::new(w, look.c("focus")),
         StrokeKind::Middle,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    /// Every color role the code asks for (`look.c("…")`) is exported by every theme: a missing one would paint
+    /// transparent without a word.
+    #[test]
+    fn every_role_used_is_exported() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let files = ["", "pages"].iter().flat_map(|d| std::fs::read_dir(src.join(d)).into_iter().flatten().flatten());
+        let text: String = files
+            .filter(|e| e.path().extension().is_some_and(|x| x == "rs"))
+            .map(|e| std::fs::read_to_string(e.path()).unwrap_or_default())
+            .collect();
+        let re = regex::Regex::new(r#"\.c\("([a-z0-9-]+)"\)"#).unwrap();
+        let mut missing = Vec::new();
+        for id in adm_core::theme::ids() {
+            let (_, p) = adm_core::theme::palette(id).unwrap();
+            for c in re.captures_iter(&text) {
+                if !p.has(&c[1]) && !missing.contains(&(id, c[1].to_string())) {
+                    missing.push((id, c[1].to_string()));
+                }
+            }
+        }
+        assert!(missing.is_empty(), "roles the themes do not export: {missing:?}");
+    }
 }

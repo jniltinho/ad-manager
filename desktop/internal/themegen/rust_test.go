@@ -42,3 +42,19 @@ func TestRustThemesUpToDate(t *testing.T) {
 		t.Fatal("desktop-rust/crates/core/assets/themes.json is stale: run make themes in desktop-rust")
 	}
 }
+
+func TestParsePattern(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want RustPattern
+	}{
+		{"radial-gradient(rgba(17, 48, 88, 0.35) 1px, transparent 1px)", RustPattern{Kind: "dots", Color: "#11305859", W: 1, H: 1}},
+		{"radial-gradient(1px 4px at 50% 50%, rgba(0, 255, 65, 0.16) 100%, transparent 100%)", RustPattern{Kind: "dots", Color: "#00ff4129", W: 1, H: 4}},
+		{"repeating-linear-gradient(\n to bottom,\n rgba(255, 255, 255, 0.025) 0px,\n rgba(255, 255, 255, 0.025) 1px,\n transparent 1px,\n transparent 2px\n )", RustPattern{Kind: "lines", Color: "#ffffff06", H: 1, Period: 2}},
+	} {
+		got, err := parsePattern(c.in)
+		if err != nil || *got != c.want {
+			t.Errorf("parsePattern(%q) = %+v, %v; want %+v", c.in, got, err, c.want)
+		}
+	}
+}

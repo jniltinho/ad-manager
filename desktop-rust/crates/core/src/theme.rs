@@ -45,6 +45,26 @@ pub struct Stop {
     pub pos: f32,
 }
 
+/// A background repeated every 22 px (the web's `background-size`): a dot (an ellipse of radii `w`, `h` at the
+/// tile's center) or horizontal lines `h` thick every `period` px.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Pattern {
+    pub kind: PatternKind,
+    pub color: Rgba,
+    #[serde(default)]
+    pub w: f32,
+    pub h: f32,
+    #[serde(default)]
+    pub period: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PatternKind {
+    Dots,
+    Lines,
+}
+
 /// One box-shadow layer, in CSS order (the first listed is on top).
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 pub struct Layer {
@@ -95,6 +115,9 @@ pub struct Palette {
     /// Each part's shadow layers.
     #[serde(default)]
     shadow: HashMap<String, Vec<Layer>>,
+    /// Each part's repeated background (the page's dots), when it is one.
+    #[serde(default)]
+    pattern: HashMap<String, Pattern>,
     #[serde(default)]
     pub fonts: Fonts,
 }
@@ -103,6 +126,11 @@ impl Palette {
     /// A role's color (transparent when the theme has none).
     pub fn col(&self, role: &str) -> Rgba {
         self.roles.get(role).copied().unwrap_or_default()
+    }
+
+    /// Whether the theme exports `role` (`col` answers transparent for one it does not).
+    pub fn has(&self, role: &str) -> bool {
+        self.roles.contains_key(role)
     }
 
     pub fn dark(&self) -> bool {
@@ -128,6 +156,14 @@ impl Palette {
         self.bg.get(part).and_then(Option::as_ref)
     }
 
+    /// A part's repeated background (`page`), none in the flat look when the flat override clears it.
+    pub fn pattern(&self, part: &str, flat: bool) -> Option<Pattern> {
+        if flat && flat_clears(&format!("--bg-{part}")) {
+            return None;
+        }
+        self.pattern.get(part).copied()
+    }
+
     /// A part's shadow layers (`btn`, `card`, `dialog`…), empty in the flat look when the flat override clears them.
     pub fn shadows(&self, part: &str, flat: bool) -> &[Layer] {
         if flat && flat_clears(&format!("--shadow-{part}")) {
@@ -148,6 +184,11 @@ struct Themes {
     #[serde(default)]
     flat: Vec<String>,
     themes: HashMap<String, Palette>,
+}
+
+/// Every theme's id.
+pub fn ids() -> impl Iterator<Item = &'static str> {
+    all().themes.keys().map(String::as_str)
 }
 
 fn all() -> &'static Themes {

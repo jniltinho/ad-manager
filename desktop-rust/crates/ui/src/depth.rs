@@ -182,6 +182,49 @@ fn inset(rect: Rect, l: &Layer, out: &mut Vec<Shape>) {
     }
 }
 
+/// The shapes of a repeated background over `rect`, its tiles of 22 px from the rect's top left as the web's
+/// `background-size: 22px 22px`: a dot at each tile's center, or lines every `period` px.
+pub fn pattern_shapes(rect: Rect, p: &adm_core::theme::Pattern) -> Vec<Shape> {
+    use adm_core::theme::PatternKind;
+    const TILE: f32 = 22.0;
+    let color = Color32::from_rgba_unmultiplied(p.color.0[0], p.color.0[1], p.color.0[2], p.color.0[3]);
+    let mut out = Vec::new();
+    match p.kind {
+        PatternKind::Dots => {
+            let mut y = rect.top() + TILE / 2.0;
+            while y < rect.bottom() {
+                let mut x = rect.left() + TILE / 2.0;
+                while x < rect.right() {
+                    let c = egui::pos2(x, y);
+                    out.push(if p.w == p.h {
+                        Shape::circle_filled(c, p.w, color)
+                    } else {
+                        Shape::rect_filled(Rect::from_center_size(c, egui::vec2(2.0 * p.w, 2.0 * p.h)), p.w, color)
+                    });
+                    x += TILE;
+                }
+                y += TILE;
+            }
+        }
+        PatternKind::Lines if p.period > 0.0 => {
+            let mut y = rect.top();
+            while y < rect.bottom() {
+                out.push(Shape::rect_filled(
+                    Rect::from_min_max(
+                        egui::pos2(rect.left(), y),
+                        egui::pos2(rect.right(), (y + p.h).min(rect.bottom())),
+                    ),
+                    0.0,
+                    color,
+                ));
+                y += p.period;
+            }
+        }
+        PatternKind::Lines => {}
+    }
+    out
+}
+
 /// The shapes of a part's box: its outer shadows, its background (the gradient, or `fill`), then its inset layers;
 /// every list back to front so the first CSS layer ends on top.
 pub fn box_shapes(rect: Rect, gradient: Option<&Gradient>, fill: Color32, shadows: &[Layer]) -> Vec<Shape> {

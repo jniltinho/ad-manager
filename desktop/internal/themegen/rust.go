@@ -51,8 +51,55 @@ type rustTheme struct {
 	Text       map[string]string        `json:"text"`
 	Bg         map[string]*RustGradient `json:"bg"`
 	BgOther    map[string]string        `json:"bg_other,omitempty"` // images other than one linear gradient (the page's dot grid), as CSS
+	Pattern    map[string]*RustPattern  `json:"pattern,omitempty"`  // the ones the egui app paints: the page's dots or lines
 	Shadow     map[string][]RustLayer   `json:"shadow"`
 	Fonts      map[string][]string      `json:"fonts"`
+}
+
+// RustPattern is a background repeated every 22 px (the web's background-size): a dot (an ellipse of radii W and H
+// at the tile's center) or horizontal lines (H thick, every Period px).
+type RustPattern struct {
+	Kind   string  `json:"kind"` // dots or lines
+	Color  string  `json:"color"`
+	W      float64 `json:"w,omitempty"`
+	H      float64 `json:"h"`
+	Period float64 `json:"period,omitempty"`
+}
+
+var (
+	reDots  = regexp.MustCompile(`^radial-gradient\(\s*(?:([\d.]+)px\s+([\d.]+)px\s+at\s+50%\s+50%\s*,\s*)?(.+?)\s+([\d.]+)(px|%)\s*,\s*transparent\s+[\d.]+(?:px|%)\s*\)$`)
+	reLines = regexp.MustCompile(`^repeating-linear-gradient\(\s*to bottom\s*,\s*(.+?)\s+0px\s*,\s*.+?\s+([\d.]+)px\s*,\s*transparent\s+[\d.]+px\s*,\s*transparent\s+([\d.]+)px\s*\)$`)
+)
+
+// parsePattern reads the page backgrounds the themes use: radial-gradient(color 1px, transparent 1px),
+// radial-gradient(1px 4px at 50% 50%, color 100%, transparent 100%) and a repeating-linear-gradient of scan lines.
+func parsePattern(v string) (*RustPattern, error) {
+	v = strings.Join(strings.Fields(v), " ")
+	if m := reDots.FindStringSubmatch(v); m != nil {
+		c, err := parseColor(m[3])
+		if err != nil {
+			return nil, err
+		}
+		p := &RustPattern{Kind: "dots", Color: hex(c)}
+		if m[1] != "" { // an ellipse filled to its edge
+			p.W, _ = strconv.ParseFloat(m[1], 64)
+			p.H, _ = strconv.ParseFloat(m[2], 64)
+		} else { // a circle as wide as the color stop
+			p.W, _ = strconv.ParseFloat(m[4], 64)
+			p.H = p.W
+		}
+		return p, nil
+	}
+	if m := reLines.FindStringSubmatch(v); m != nil {
+		c, err := parseColor(m[1])
+		if err != nil {
+			return nil, err
+		}
+		h, _ := strconv.ParseFloat(m[2], 64)
+		period, _ := strconv.ParseFloat(m[3], 64)
+		return &RustPattern{Kind: "lines", Color: hex(c), H: h, Period: period}, nil
+	}
+	return nil, fmt.Errorf("not a page pattern: %s", v)
 }
 
 // rustTokens are the size variables exported in px (rem at 16 px).
@@ -224,7 +271,7 @@ func Rust(root string) ([]byte, error) {
 		out.Order = append(out.Order, t.ID)
 		rt := rustTheme{Scheme: t.Scheme, Depthless: t.Depthless, MinText: t.MinText, FocusRing: t.FocusRing,
 			CardStripe: t.CardStripe, C: map[string]string{}, Tokens: map[string]float64{}, Text: map[string]string{},
-			Bg: map[string]*RustGradient{}, BgOther: map[string]string{}, Shadow: map[string][]RustLayer{}, Fonts: map[string][]string{}}
+			Bg: map[string]*RustGradient{}, BgOther: map[string]string{}, Pattern: map[string]*RustPattern{}, Shadow: map[string][]RustLayer{}, Fonts: map[string][]string{}}
 		for _, s := range t.TabOn { // the current sidebar item's mark: a band along a side (dx 0, dy not 0)
 			if s.DX == 0 && s.DY != 0 {
 				m := hex(s.Color)
@@ -255,11 +302,25 @@ func Rust(root string) ([]byte, error) {
 				rt.Text[n] = v
 			}
 		}
+		// the image under the login box: the dark shadow, the light glow of dark pages, or none
+		if v, ok := get("--login-shadow-img"); ok {
+			switch {
+			case v == "none":
+				rt.Text["login-shadow"] = "none"
+			case strings.Contains(v, "light"):
+				rt.Text["login-shadow"] = "light"
+			default:
+				rt.Text["login-shadow"] = "dark"
+			}
+		}
 		for _, p := range rustBg {
 			if v, ok := get("--bg-" + p); ok {
 				g, err := parseGradient(v)
 				if err != nil {
 					rt.BgOther[p] = v // drawn by its own painter (or not at all), never as a wrong gradient
+					if pt, err := parsePattern(v); err == nil {
+						rt.Pattern[p] = pt
+					}
 					continue
 				}
 				rt.Bg[p] = g

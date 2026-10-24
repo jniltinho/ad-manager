@@ -471,7 +471,7 @@ fn shots() {
     e.key(egui::Key::Escape);
     page(&mut e, "Logs");
     e.click("Samba — this server");
-    e.wait("the entries", |_, m| m.sent("GET", "/api/samba/logs/").len() > 0);
+    e.wait("the entries", |_, m| !m.sent("GET", "/api/samba/logs/").is_empty());
     save(&mut e, "19-logs-samba");
     e.click("HTTP — panel");
     e.wait("the requests", |_, m| !m.sent("GET", "/api/http-log").is_empty());
