@@ -54,6 +54,11 @@ link to the page that solves them (password policy, users).
 
 Download, install, upgrade and removal on each system: [install-guide.md](install-guide.md#3-desktop-app).
 
+**A Rust version.** [`desktop-rust/`](../desktop-rust/README.md) is the same app written in Rust with egui, built to
+measure whether it is faster (same panel API, `desktop.toml`, protections, translations and theme colors, drawn in
+the flat look); the comparison is in [desktop-rust/docs/benchmark.md](../desktop-rust/docs/benchmark.md). It is
+released on its own tags (`desktop-rust-vX.Y.Z`); this Fyne app stays the shipped desktop.
+
 ## Configure
 
 On first run the app opens the **Configure** screen: panel URL, user, password and language. **Test connection**

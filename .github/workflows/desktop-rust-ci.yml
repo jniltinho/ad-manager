@@ -1,0 +1,107 @@
+# CI of the Rust desktop (desktop-rust/) only: it runs for pull requests and pushes to main that touch desktop-rust/,
+# these workflows or the Fyne sources its asset checks read (the generated palettes and the pt-BR catalog). It never
+# calls ci.yml or release.yml, which keep their own triggers. Linux checks run in the pinned toolchain image (as
+# rustXterm's); Windows is cross-built in its image; macOS builds natively.
+name: desktop-rust-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop-rust/**"
+      - ".github/workflows/desktop-rust-ci.yml"
+      - ".github/workflows/desktop-rust-release.yml"
+      - "desktop/themes_gen.go"
+      - "desktop/i18n_pt_*.go"
+  pull_request:
+    paths:
+      - "desktop-rust/**"
+      - ".github/workflows/desktop-rust-ci.yml"
+      - ".github/workflows/desktop-rust-release.yml"
+      - "desktop/themes_gen.go"
+      - "desktop/i18n_pt_*.go"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-rust-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TOOLCHAIN_IMAGE: docker.io/jniltinho/rustxterm-toolchain:snapshot-20261001@sha256:6872535a844a568c5fe8bf05c52c7a0adfa2370fce8990be511ff056ffdb9c70
+  WINDOWS_IMAGE: docker.io/jniltinho/rustxterm-windows-toolchain:snapshot-20261001@sha256:7b9892dc2cc56819f4ee1002a2eb7381b31cebcff9166716b02e9cbd2ebbb5e0
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop-rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain image (pinned by digest)
+        run: |
+          docker pull -q "$TOOLCHAIN_IMAGE"
+          docker tag "$TOOLCHAIN_IMAGE" rustxterm-toolchain:dev
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: desktop-rust/target/cargo-home
+          key: desktop-rust-cargo-home-${{ hashFiles('desktop-rust/Cargo.lock') }}
+      - name: Format
+        run: scripts/cargo-docker.sh cargo fmt --all --check
+      - name: Clippy (warnings are errors)
+        run: scripts/cargo-docker.sh cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests (unit and UI acceptance; the Fyne palettes and catalog must be there)
+        run: ADM_REQUIRE_FYNE=1 scripts/cargo-docker.sh cargo test --workspace --locked
+      - name: Release build
+        run: scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop-rs
+      - name: cargo deny (licenses, advisories, bans, sources; deny.toml)
+        env:
+          DENY: cargo-deny-0.20.2-x86_64-unknown-linux-musl
+          DENY_SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+        run: |
+          mkdir -p target/tools
+          curl --fail --show-error --silent --location --retry 3 \
+            "https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/$DENY.tar.gz" -o "$RUNNER_TEMP/deny.tgz"
+          echo "$DENY_SHA256  $RUNNER_TEMP/deny.tgz" | sha256sum --check --strict -
+          tar -xzf "$RUNNER_TEMP/deny.tgz" -C target/tools --strip-components=1 "$DENY/cargo-deny"
+          scripts/cargo-docker.sh target/tools/cargo-deny check
+
+  windows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop-rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Windows cross toolchain image (pinned by digest)
+        run: |
+          docker pull -q "$WINDOWS_IMAGE"
+          docker tag "$WINDOWS_IMAGE" rustxterm-windows-toolchain:dev
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: desktop-rust/target/cargo-home
+          key: desktop-rust-cargo-home-win-${{ hashFiles('desktop-rust/Cargo.lock') }}
+      - name: Build (x86_64-pc-windows-gnu)
+        run: DESKTOP_RUST_TOOLCHAIN=windows scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop-rs --target x86_64-pc-windows-gnu
+
+  macos:
+    runs-on: macos-14
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop-rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain (pinned by rust-toolchain.toml)
+        run: rustup show
+      - name: Clippy and tests of the macOS platform, then a build
+        run: |
+          cargo clippy --locked -p adm-platform-macos -p adm-core --all-targets -- -D warnings
+          cargo test --locked -p adm-platform-macos -p adm-platform
+          cargo build --locked -p ad-manager-desktop-rs

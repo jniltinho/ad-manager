@@ -159,6 +159,43 @@ panel has no domain yet): `frontend/tests/visual/setup-shots.mjs`.
 |---|---|
 | ![Link generated](desktop-11-link-generated.png) |  |
 
+## Desktop app in Rust (egui)
+
+The same screens of [`desktop-rust/`](../../desktop-rust/README.md), 1280 × 800 at 2× (2560 × 1600), Classic blue in
+its flat look.
+
+| Sign in | Configure |
+|---|---|
+| ![Sign in](desktop-rs-01-login.png) | ![Configure](desktop-rs-02-configure.png) |
+
+| Home | Users |
+|---|---|
+| ![Home](desktop-rs-03-home.png) | ![Users](desktop-rs-04-users.png) |
+
+| New user | Groups and members |
+|---|---|
+| ![New user](desktop-rs-05-new-user.png) | ![Groups](desktop-rs-06-groups.png) |
+
+| OUs | Computers |
+|---|---|
+| ![OUs](desktop-rs-12-ous.png) | ![Computers](desktop-rs-07-computers.png) |
+
+| Shares | Password policy |
+|---|---|
+| ![Shares](desktop-rs-08-shares.png) | ![Policy](desktop-rs-13-password-policy.png) |
+
+| Backup | Sync |
+|---|---|
+| ![Backup](desktop-rs-14-backup.png) | ![Sync](desktop-rs-15-sync.png) |
+
+| Logs | Send a password link |
+|---|---|
+| ![Logs](desktop-rs-09-logs.png) | ![Link](desktop-rs-10-password-link.png) |
+
+| Link generated |  |
+|---|---|
+| ![Link generated](desktop-rs-11-link-generated.png) |  |
+
 ## How to retake them
 
 Everything runs locally, with passwords only in environment variables.
@@ -222,6 +259,14 @@ Everything runs locally, with passwords only in environment variables.
    (cd desktop && DOCS_SHOTS_DIR=../docs/screenshots DOCS_VERSION=$(git describe --tags --abbrev=0) go test -tags docsshots -run TestDocsFixtureShots -count=1 .)
    ```
 
-6. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`,
+6. Desktop app in Rust: the real app driven by its UI tests against the in-process mock panel (fixtures of
+   `domain.local`, Example Company Ltd, answering as `https://panel.domain.local:8443`), rendered with lavapipe in
+   the toolchain image — no panel or agent needed:
+
+   ```bash
+   (cd desktop-rust && make shots)
+   ```
+
+7. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`,
    `SCREEN_SHOTS=../.run/desk-themes go test -run TestScreensInEveryTheme` in `desktop/`, then
    `python3 scripts/theme-mosaics.py`.
