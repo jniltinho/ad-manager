@@ -5,6 +5,26 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 
 ## [Unreleased]
 
+### Added
+
+- Crash-safe graphics start, from rustXterm's design.
+  - The app renders through wgpu, with the glow renderer only on macOS for the Metal → OpenGL fallback.
+  - A `gpu-starting` marker is taken under an OS lock before the window opens. A start that died moves the next one
+    down the ladder of its OS: Windows OpenGL → DX12 → Vulkan → WARP, Linux Vulkan → OpenGL → llvmpipe, macOS Metal →
+    glow.
+  - A working hardware fallback is saved as `[graphics] gpu_backend` in desktop.toml, which the Fyne app keeps. It is
+    announced under the sign-in box and in the status line.
+  - **Configure › Graphics › Rendering backend**, as rustXterm's, saves the choice at once without a panel test. It
+    applies at the next start. The choices are Automatic, **wgpu (WebGPU)** (wgpu's own choice of backend and adapter)
+    and the OS's backends.
+  - Flags and variables: `--safe-gpu`, `--gpu-info` and `WGPU_BACKEND`.
+  - The adapter choice prefers hardware OpenGL, and the output-owning WARP adapter on GPU-less Windows VMs (vendored
+    `wgpu-hal` patch).
+  - The window's size and position are restored.
+  - A missing `libxkbcommon` is reported by name.
+- CI: a native Windows job with the WARP readback test. The release no longer marks itself as the repository's
+  latest release.
+
 ## [0.1.0] - 2026-10-23
 
 ### Added

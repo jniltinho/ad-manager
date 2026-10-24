@@ -25,6 +25,11 @@ type config struct {
 		User        string `toml:"user"`
 	} `toml:"panel"`
 	Lang string `toml:"lang,omitempty"` // "pt-BR" or "en"; empty = panel default
+	// Graphics is the Rust desktop's rendering backend (desktop-rust, Configure › Graphics): this app does not use it
+	// but keeps it when it rewrites the file
+	Graphics struct {
+		GPUBackend string `toml:"gpu_backend,omitempty"`
+	} `toml:"graphics,omitempty"`
 
 	hadAgents bool // the file still listed file servers ([[agents]] with tokens, no longer used)
 }

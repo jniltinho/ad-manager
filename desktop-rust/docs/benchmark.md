@@ -80,6 +80,44 @@ Two changes, both in the app, brought the scroll CPU below Fyne's (the first mea
    frames, every one a full redraw. The app hands a notch to egui as the small steps a touchpad sends, which egui
    applies at once; floating scroll bars (which fade in and out) and widget animations are off.
 
+## With the crash-safe graphics start (wgpu)
+
+Since the crash-safe graphics start (design D12), the app renders through **wgpu** on every OS, as rustXterm does. The
+GPU comes first (Vulkan on Linux; OpenGL, then DX12 and Vulkan on Windows; Metal on macOS), and software rendering is
+only the last fallback. glow is compiled in only for macOS's Metal → OpenGL fallback.
+
+**This benchmark measures the software fallback, not the normal GPU path.** It runs on Xvfb, where only llvmpipe
+exists, because it must not drive the operator's screen. It was rerun with the same script:
+- the wgpu build used `WGPU_BACKEND=gl`, its OpenGL backend on llvmpipe, like Fyne's GL; `--gpu-info` printed
+  `llvmpipe (Cpu, Gl)`;
+- every run had a fresh `HOME`/`XDG_*`, for both apps.
+
+Raw numbers are in [bench/wgpu-raw.txt](bench/wgpu-raw.txt) and the machine in
+[bench/wgpu-machine.txt](bench/wgpu-machine.txt). Medians of 5 runs, 5,000 users:
+
+| Metric | Fyne (Go) | egui, glow (0.1.0) | egui, wgpu (now) |
+|---|---:|---:|---:|
+| Binary size, stripped (MiB) | 25.7 | 21.0 | 26.4 |
+| Cold start to the sign-in window (ms) | 164 | 64 | 137 |
+| Idle memory at sign-in, PSS (MiB) | 198.5 | 95.2 | 128.6 |
+| Sign-in to the Users page with 5,000 users (ms) | 1467 | 853 | 854 |
+| Memory with 5,000 users on screen, PSS (MiB) | 236.8 | 111.3 | 140.3 |
+| CPU for 200 wheel steps on the table, all threads (ms) | 18810 | 19580 | 23550 |
+
+The Fyne and wgpu columns come from the same run. The glow column is the 0.1.0 run above, before fresh homes per run;
+Fyne measured 118 ms cold and 186.8 MiB idle there.
+
+**What the wgpu stack costs here.**
+- Against glow: +5.4 MiB of binary, about twice the cold start, +33 MiB idle and +29 MiB with the users, and about 20%
+  more scroll CPU. wgpu's GL backend on llvmpipe is its slowest path, and it adds wgpu's own layers on top of GL.
+- Against Fyne: still faster at every step and about 40% lighter in memory. The scroll CPU is now above Fyne's median
+  (Fyne's spread across runs is wide: 18.1 to 27.3 s).
+
+**What it buys.** wgpu reaches DirectX 12, Vulkan and WARP. That makes the per-OS fallback ladder possible, together
+with the output-owning WARP adapter on GPU-less Windows VMs, so a broken driver or VM never leaves a black or crashing
+window. On machines with a GPU the app renders on Vulkan (Linux) or OpenGL/DX12 (Windows) hardware, which this
+software-only benchmark does not measure.
+
 ## Limits
 
 - **Software rendering.** Both apps rendered with llvmpipe on Xvfb: the benchmark needs a display it can drive with

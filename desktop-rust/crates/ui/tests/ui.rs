@@ -11,7 +11,7 @@ use adm_core::config::{Config, Loaded};
 use adm_core::testkit::{MockPanel, Req, demo};
 use adm_platform::TestPlatform;
 use adm_ui::app::Screen;
-use adm_ui::{App, Start};
+use adm_ui::{App, GpuStart, Start};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
 
@@ -27,10 +27,18 @@ fn env_sized(users: usize, w: f32) -> Env {
 }
 
 fn env_scaled(users: usize, w: f32, ppp: f32) -> Env {
-    env_at(users, w, ppp, "localhost", 0, "test")
+    env_at(users, w, ppp, "localhost", 0, "test", |_| None)
 }
 
-fn env_at(users: usize, w: f32, ppp: f32, host: &str, port: u16, version: &'static str) -> Env {
+fn env_at(
+    users: usize,
+    w: f32,
+    ppp: f32,
+    host: &str,
+    port: u16,
+    version: &'static str,
+    gpu: impl FnOnce(&std::path::Path) -> Option<GpuStart>,
+) -> Env {
     adm_core::i18n::set_lang("en");
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let mock = rt.block_on(MockPanel::start_at(host, port, demo(users))).unwrap();
@@ -43,7 +51,7 @@ fn env_at(users: usize, w: f32, ppp: f32, host: &str, port: u16, version: &'stat
     std::fs::create_dir_all(&dir).unwrap();
     let loaded = Loaded { config, path: dir.join("desktop.toml"), needs_setup: false, notice: None };
     let platform = Arc::new(TestPlatform { user_config: dir.join("user.toml") });
-    let start = Start { platform, config: Ok(loaded), version };
+    let start = Start { platform, config: Ok(loaded), version, gpu: gpu(&dir) };
     let handle = rt.handle().clone();
     let h = Harness::builder()
         .with_size(egui::vec2(w, 800.0))
@@ -133,6 +141,38 @@ impl Env {
             _ => Vec::new(),
         }
     }
+}
+
+/// A start after a crash: the notice is under the sign-in box; after 3 painted frames the marker is cleared and the
+/// hardware fallback saved as `[graphics]` in desktop.toml (the rest of the file as configured); after sign-in the
+/// notice is in the status line.
+#[test]
+fn graphics_fallback_start_is_announced_and_saved_after_three_frames() {
+    use adm_core::gpu::{self, Backend, Died, Os};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let cleared = Arc::new(AtomicBool::new(false));
+    let flag = cleared.clone();
+    let mut e = env_at(5, 1280.0, 1.0, "localhost", 0, "test", |dir| {
+        // an existing desktop.toml (not a first run), rewritten with the session's configuration
+        std::fs::write(dir.join("desktop.toml"), "lang = \"en\"\n").unwrap();
+        Some(GpuStart {
+            plan: gpu::plan(Backend::Auto, Some(Died::On(Backend::Gl)), false, false, Os::Windows),
+            warning: None,
+            on_started: Box::new(move || flag.store(true, Ordering::SeqCst)),
+        })
+    });
+    let notice = "The graphics driver stopped the last start (gl); now using dx12. Change it in Configure.";
+    assert!(e.h.query_by_label(notice).is_some(), "notice under the sign-in box");
+    for _ in 0..4 {
+        e.h.step();
+    }
+    assert!(cleared.load(Ordering::SeqCst), "marker cleared after the first frames");
+    let path = e.app().cx.cfg_path.clone();
+    let saved = adm_core::config::decode(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(gpu::choice(&saved), Backend::Dx12, "the working fallback is saved in desktop.toml");
+    assert_eq!(saved.panel.url, e.mock.url, "the rest of the configuration kept");
+    e.sign_in();
+    assert_eq!(e.app().cx.status, notice, "and said again in the status line");
 }
 
 #[test]
@@ -234,6 +274,32 @@ fn samba_tabs_load_only_when_opened() {
     assert!(e.sent("GET", "/api/agents/1/samba").is_empty(), "another server's logs were not opened");
 }
 
+/// Configure › Graphics lists automatic and the OS's backends; a choice is saved at once as `[graphics]` in
+/// desktop.toml (no panel test, the rest of the file unchanged), and applies at the next start.
+#[test]
+fn configure_graphics_choice_is_saved_alone() {
+    use adm_core::gpu::{self, Backend, Os};
+    let mut e = env();
+    e.click("Configure");
+    assert!(matches!(e.app().screen, Screen::Setup(_)));
+    let path = e.app().cx.cfg_path.clone();
+    adm_core::config::save(&TestPlatform { user_config: path.with_file_name("user.toml") }, &path, &e.app().cx.cfg)
+        .unwrap();
+    e.h.get_by_label("Rendering backend").click();
+    e.h.step();
+    let pick = if Os::current() == Os::Macos { Backend::Gl } else { Backend::Cpu };
+    e.h.get_by_label(pick.label(Os::current())).click();
+    e.h.step();
+    e.h.step();
+    let saved = adm_core::config::decode(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(gpu::choice(&saved), pick, "saved at once as [graphics] in desktop.toml");
+    assert_eq!(saved.panel.url, e.mock.url, "the rest of the configuration kept");
+    assert!(
+        e.h.query_by_label("Applies at the next start. After a driver crash AD Manager picks a safer one.").is_some()
+    );
+    assert!(e.mock.sent("POST", "/api/login").is_empty(), "no panel test");
+}
+
 #[test]
 fn configure_test_abandoned_by_an_edit_is_signed_out() {
     let mut e = env();
@@ -332,7 +398,7 @@ fn shots() {
     let Some(dir) = std::env::var_os("ADM_SHOTS").map(PathBuf::from) else { return };
     let host = std::env::var("ADM_SHOTS_HOST").unwrap_or_else(|_| "localhost".into());
     let port = if host == "localhost" { 0 } else { 8443 };
-    let mut e = env_at(60, 1280.0, 2.0, &host, port, env!("CARGO_PKG_VERSION"));
+    let mut e = env_at(60, 1280.0, 2.0, &host, port, env!("CARGO_PKG_VERSION"), |_| None);
     let save = |e: &mut Env, name: &str| {
         std::thread::sleep(Duration::from_millis(300));
         e.h.run_steps(4);

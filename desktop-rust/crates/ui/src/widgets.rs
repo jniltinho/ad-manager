@@ -168,6 +168,32 @@ pub fn select(
     *sel != before
 }
 
+/// A form row: a label and a select named by it (for screen readers and tests); true when the choice changed.
+pub fn labeled_select(
+    ui: &mut Ui,
+    look: &Look,
+    label: &str,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    sel: &mut usize,
+    options: &[String],
+    width: f32,
+) -> bool {
+    let l = self::label(ui, look, label);
+    let before = *sel;
+    let shown = options.get(*sel).cloned().unwrap_or_default();
+    egui::ComboBox::from_id_salt(id)
+        .width(width)
+        .selected_text(shown)
+        .show_ui(ui, |ui| {
+            for (i, o) in options.iter().enumerate() {
+                ui.selectable_value(sel, i, o);
+            }
+        })
+        .response
+        .labelled_by(l.id);
+    *sel != before
+}
+
 /// Muted small text.
 pub fn muted(ui: &mut Ui, look: &Look, s: &str) -> Response {
     ui.add(egui::Label::new(RichText::new(s).size(12.0).color(look.c("fg-muted"))).wrap())

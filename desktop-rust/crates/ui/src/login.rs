@@ -206,6 +206,17 @@ impl Login {
                         });
                     });
                 }
+                for n in cx.gpu_notes.iter().filter(|n| matches!(n, crate::app::GpuNote::Fallback(..))) {
+                    ui.add_space(4.0);
+                    Frame::new().fill(look.c("surface")).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+                        ui.set_width(BOX_W - 20.0);
+                        ui.horizontal(|ui| {
+                            let (r, _) = ui.allocate_exact_size(egui::vec2(4.0, 18.0), egui::Sense::hover());
+                            ui.painter().rect_filled(r, 0.0, look.c("warn"));
+                            ui.add(egui::Label::new(RichText::new(n.text()).size(12.0).color(look.c("fg"))).wrap());
+                        });
+                    });
+                }
                 ui.add_space(8.0);
                 let dom = if cx.brand.domain.is_empty() { t("domain").to_string() } else { cx.brand.domain.clone() };
                 let nb = if cx.brand.netbios.is_empty() { netbios_of(&dom) } else { cx.brand.netbios.clone() };
