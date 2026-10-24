@@ -919,7 +919,7 @@ impl Dialog for ShareDialog {
                 for (v, label) in pair.iter_mut() {
                     ui.vertical(|ui| {
                         ui.set_width(cw);
-                        ui.checkbox(v, RichText::new(*label).size(12.0));
+                        crate::widgets::check(ui, v, RichText::new(*label).size(12.0));
                     });
                 }
             });

@@ -120,7 +120,7 @@ impl Ous {
                     }
                     1 => Cell::plain(&o.description),
                     2 => Cell::new(&o.dn, Tone::Muted).mono(),
-                    _ if ou_deletable(o) => Cell::new(t("delete"), Tone::Err).link("🗑", tf!("Delete %s", o.name), i),
+                    _ if ou_deletable(o) => Cell::new(t("delete"), Tone::Normal).link("🗑", tf!("Delete %s", o.name), i),
                     _ => Cell::plain(""),
                 }
             },

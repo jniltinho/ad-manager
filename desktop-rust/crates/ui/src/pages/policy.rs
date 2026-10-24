@@ -88,7 +88,7 @@ impl Dialog for PolicyDialog {
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         let look = cx.look.clone();
         let check = crate::style::semibold(t("Require complexity (uppercase, lowercase, digit/symbol)"), 12.0);
-        ui.checkbox(&mut self.complexity, check);
+        crate::widgets::check(ui, &mut self.complexity, check);
         ui.add_space(4.0);
         // the web's rows: a 150-point label column (.lbl), a 100-point field and its unit
         for (i, (label, unit, _, _)) in FIELDS.iter().enumerate() {

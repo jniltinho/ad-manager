@@ -956,8 +956,8 @@ impl SyncWizard {
 
     fn step4(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
-        ui.radio_value(&mut self.form.mirror, false, t("Copy (recommended)"));
-        ui.radio_value(&mut self.form.mirror, true, t("Mirror"));
+        crate::widgets::radio_value(ui, &mut self.form.mirror, false, t("Copy (recommended)"));
+        crate::widgets::radio_value(ui, &mut self.form.mirror, true, t("Mirror"));
         let root = self
             .data
             .roots
@@ -1079,9 +1079,14 @@ impl SyncWizard {
                 ui.end_row();
                 widgets::labeled_field(ui, &look, t("Simultaneous transfers"), &mut self.form.transfers, "", 80.0);
                 ui.end_row();
-                ui.checkbox(&mut self.form.verify, t("Compare the content after the run (reads the source again)"));
+                crate::widgets::check(
+                    ui,
+                    &mut self.form.verify,
+                    t("Compare the content after the run (reads the source again)"),
+                );
                 ui.end_row();
-                ui.checkbox(
+                crate::widgets::check(
+                    ui,
                     &mut self.form.reinherit,
                     t("Apply the destination folder's Windows permissions to what came"),
                 );

@@ -80,6 +80,7 @@
     "cardtabs": "#f9f9f9ff",
     "cardtabs-line": "#c9ced2ff",
     "chart-1": "#424f56ff",
+    "check-line": "#8695a8ff",
     "danger": "#e5242cff",
     "danger-line": "#82181aff",
     "danger-top": "#d54041ff",
@@ -601,6 +602,7 @@
       "color": "#74bc49ff"
      }
     ],
+    "tab": [],
     "tab-on": [],
     "table-head": [
      {
@@ -671,6 +673,7 @@
     "cardtabs": "#ffffffff",
     "cardtabs-line": "#e7e7eeff",
     "chart-1": "#6d45f9ff",
+    "check-line": "#8a8a99ff",
     "danger": "#861414ff",
     "danger-line": "#bf1d1dff",
     "danger-top": "#bf1d1dff",
@@ -1186,6 +1189,32 @@
       "color": "#6d45f9ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#e7e7eeff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#e7e7eeff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#e7e7eeff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#e7e7eeff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -1274,6 +1303,7 @@
     "cardtabs": "#13121fff",
     "cardtabs-line": "#272735ff",
     "chart-1": "#967affff",
+    "check-line": "#6e6d82ff",
     "danger": "#f87171ff",
     "danger-line": "#f87171ff",
     "danger-top": "#f98585ff",
@@ -1794,6 +1824,32 @@
       "color": "#967affff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#272735ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#272735ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#272735ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#272735ff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -1882,6 +1938,7 @@
     "cardtabs": "#ffffffff",
     "cardtabs-line": "#bdc3c7ff",
     "chart-1": "#1f6fa3ff",
+    "check-line": "#8c949cff",
     "danger": "#89222bff",
     "danger-line": "#c4303eff",
     "danger-top": "#c4303eff",
@@ -2397,6 +2454,32 @@
       "color": "#3daee9ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#bdc3c7ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#bdc3c7ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#bdc3c7ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#bdc3c7ff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -2486,6 +2569,7 @@
     "cardtabs": "#1b1e20ff",
     "cardtabs-line": "#4d5257ff",
     "chart-1": "#3daee9ff",
+    "check-line": "#7a8086ff",
     "danger": "#ed6a76ff",
     "danger-line": "#ed6a76ff",
     "danger-top": "#f07f89ff",
@@ -3006,6 +3090,32 @@
       "color": "#3daee9ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#4d5257ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#4d5257ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#4d5257ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#4d5257ff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -3095,6 +3205,7 @@
     "cardtabs": "#ffffffff",
     "cardtabs-line": "#919b9cff",
     "chart-1": "#0054e3ff",
+    "check-line": "#6e8ba8ff",
     "danger": "#7b0000ff",
     "danger-line": "#b00000ff",
     "danger-top": "#b00000ff",
@@ -3622,6 +3733,32 @@
       "color": "#e68b2cff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#919b9cff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#919b9cff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#919b9cff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#919b9cff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -3710,6 +3847,7 @@
     "cardtabs": "#c0c0c0ff",
     "cardtabs-line": "#ffffffff",
     "chart-1": "#000080ff",
+    "check-line": "#000000ff",
     "danger": "#800000ff",
     "danger-line": "#800000ff",
     "danger-top": "#800000ff",
@@ -4307,6 +4445,32 @@
       "color": "#808080ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 1,
+      "color": "#ffffffff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#000000ff"
+     },
+     {
+      "inset": true,
+      "dx": -2,
+      "dy": 0,
+      "color": "#808080ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#ffffffff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -4413,6 +4577,7 @@
     "cardtabs": "#212121ff",
     "cardtabs-line": "#303030ff",
     "chart-1": "#ff8800ff",
+    "check-line": "#6b6b6bff",
     "danger": "#ff6b6bff",
     "danger-line": "#ff6b6bff",
     "danger-top": "#ff8080ff",
@@ -4933,6 +5098,32 @@
       "color": "#ff8800ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#303030ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#303030ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#303030ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#303030ff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -5021,6 +5212,7 @@
     "cardtabs": "#ffffffff",
     "cardtabs-line": "#0000001a",
     "chart-1": "#0064e1ff",
+    "check-line": "#8e8e93ff",
     "danger": "#97000fff",
     "danger-line": "#d70015ff",
     "danger-top": "#b50000ff",
@@ -5539,6 +5731,32 @@
       "color": "#00000026"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#0000001a"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#0000001a"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#0000001a"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#0000001a"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -5629,6 +5847,7 @@
     "cardtabs": "#1e1e1eff",
     "cardtabs-line": "#ffffff1a",
     "chart-1": "#4ea2ffff",
+    "check-line": "#7c7c80ff",
     "danger": "#ff6961ff",
     "danger-line": "#ff6961ff",
     "danger-top": "#ff7e77ff",
@@ -6140,6 +6359,32 @@
       "color": "#ffffff1a"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#ffffff1a"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#ffffff1a"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#ffffff1a"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#ffffff1a"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -6230,6 +6475,7 @@
     "cardtabs": "#e7ecefff",
     "cardtabs-line": "#b9c9dcff",
     "chart-1": "#113058ff",
+    "check-line": "#8695a8ff",
     "danger": "#c62828ff",
     "danger-line": "#82181aff",
     "danger-top": "#d54041ff",
@@ -6767,6 +7013,26 @@
       "color": "#f58322ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#ffffff14"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#ffffff14"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#ffffff24"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -6835,6 +7101,7 @@
     "cardtabs": "#181b1fff",
     "cardtabs-line": "#ccccdc1f",
     "chart-1": "#5794f2ff",
+    "check-line": "#ccccdc80",
     "danger": "#d10e5cff",
     "danger-line": "#d10e5cff",
     "danger-top": "#d73073ff",
@@ -7349,6 +7616,32 @@
       "color": "#ff8833ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#ccccdc1f"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#ccccdc1f"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#ccccdc1f"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#ccccdc1f"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -7437,6 +7730,7 @@
     "cardtabs": "#000000ff",
     "cardtabs-line": "#ffffffff",
     "chart-1": "#ffff00ff",
+    "check-line": "#ffffffff",
     "danger": "#ff8a8aff",
     "danger-line": "#ff8a8aff",
     "danger-top": "#ff8a8aff",
@@ -7734,6 +8028,32 @@
       "color": "#ffff00ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#808080ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#808080ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#808080ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#bfbfbfff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -7822,6 +8142,7 @@
     "cardtabs": "#07130bff",
     "cardtabs-line": "#1c4a28ff",
     "chart-1": "#00ff41ff",
+    "check-line": "#3c9c55ff",
     "danger": "#ff4d4dff",
     "danger-line": "#ff4d4dff",
     "danger-top": "#ff7070ff",
@@ -8396,6 +8717,32 @@
       "color": "#00ff41ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#123019ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#123019ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#123019ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#1c4a28ff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -8486,6 +8833,7 @@
     "cardtabs": "#ffffffff",
     "cardtabs-line": "#ecd3deff",
     "chart-1": "#a52d63ff",
+    "check-line": "#b0849aff",
     "danger": "#a8201aff",
     "danger-line": "#8a1913ff",
     "danger-top": "#c0352dff",
@@ -9022,6 +9370,32 @@
       "color": "#e98bb2ff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#ecd3deff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#ecd3deff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#ecd3deff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#ecd3deff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -9110,6 +9484,7 @@
     "cardtabs": "#ffffffff",
     "cardtabs-line": "#e2e3ebff",
     "chart-1": "#894ffbff",
+    "check-line": "#8b90a0ff",
     "danger": "#861729ff",
     "danger-line": "#c0213aff",
     "danger-top": "#c0213aff",
@@ -9625,6 +10000,32 @@
       "color": "#894ffbff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#e2e3ebff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#e2e3ebff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#e2e3ebff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#e2e3ebff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -9713,6 +10114,7 @@
     "cardtabs": "#171624ff",
     "cardtabs-line": "#2a2a37ff",
     "chart-1": "#a36effff",
+    "check-line": "#6b6a80ff",
     "danger": "#f75c66ff",
     "danger-line": "#f75c66ff",
     "danger-top": "#f8737bff",
@@ -10233,6 +10635,32 @@
       "color": "#a36effff"
      }
     ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#2a2a37ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#2a2a37ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#2a2a37ff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#2a2a37ff"
+     }
+    ],
     "tab-on": [
      {
       "inset": true,
@@ -10321,6 +10749,7 @@
     "cardtabs": "#1b1c25ff",
     "cardtabs-line": "#3a3c4fff",
     "chart-1": "#2cf02cff",
+    "check-line": "#6a6d88ff",
     "danger": "#ff6b6bff",
     "danger-line": "#a12a2aff",
     "danger-top": "#ff8a8aff",
@@ -10959,6 +11388,32 @@
       "dx": 0,
       "dy": 3,
       "color": "#f4a51cff"
+     }
+    ],
+    "tab": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 0,
+      "color": "#3a3c4fff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": 0,
+      "color": "#3a3c4fff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#3a3c4fff"
+     },
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": -1,
+      "color": "#3a3c4fff"
      }
     ],
     "tab-on": [

@@ -127,6 +127,7 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
         .show(ui, |ui| {
             ui.set_width(w - 24.0 - bar);
             ui.horizontal(|ui| {
+                ui.spacing_mut().interact_size.y = 0.0; // the head's line, not a control's 28 points
                 ui.label(rich);
                 if !note.is_empty() {
                     ui.add_space(6.0);
@@ -195,6 +196,7 @@ pub fn side_item<R>(
                 ui.set_width(w - 24.0);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
+                    ui.spacing_mut().interact_size.y = 0.0; // the web's 35-point item, not a control's height
                     add(ui, ink)
                 })
                 .inner
@@ -230,12 +232,14 @@ pub fn cardtabs(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize) -
 
 /// The cardtabs band reaching `bx` past the sides and `by` above (a dialog's body padding; 0 at a card's top).
 pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize, bx: f32, by: f32) -> Option<usize> {
-    let h = 34.0;
+    let h = 34.0 + look.px("cardtabs-pad", 0.0);
     let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), h - by), egui::Sense::hover());
     let band =
         egui::Rect::from_min_max(egui::pos2(r.left() - bx, r.top() - by), egui::pos2(r.right() + bx, r.bottom()));
     let painter = ui.painter().with_clip_rect(ui.clip_rect().union(band));
     painter.rect_filled(band, 0.0, look.c("cardtabs"));
+    // the band's line under the tabs: the current tab covers it (the web's overlap)
+    painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
     let upper = look.p.text("cardtab-transform") == "uppercase";
     let bar = look.px("cardtab-bar-w", 4.0);
     let font = egui::FontId::new(12.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()));
@@ -247,8 +251,12 @@ pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize
         let ink = if on { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
         let g = ui.painter().layout_no_wrap(text, font.clone(), ink);
         let w = g.size().x + 24.0 + if on { bar } else { 0.0 };
-        let top = if on { band.top() } else { band.top() + look.px("cardtab-inset-top", 0.0) };
-        let tab = egui::Rect::from_min_max(egui::pos2(x, top), egui::pos2(x + w, band.bottom()));
+        // the band's padding on top (the web's --cardtabs-pad), the inactive tabs lower by their inset, the current
+        // one over the band's line by its overlap
+        let pad = look.px("cardtabs-pad", 0.0);
+        let top = band.top() + pad + if on { 0.0 } else { look.px("cardtab-inset-top", 0.0) };
+        let bottom = band.bottom() + if on { look.px("cardtab-on-overlap", 0.0) } else { 0.0 };
+        let tab = egui::Rect::from_min_max(egui::pos2(x, top), egui::pos2(x + w, bottom));
         let resp = ui
             .interact(tab.intersect(ui.clip_rect()), ui.id().with((id, i)), egui::Sense::click())
             .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -282,7 +290,6 @@ pub fn cardtabs_at(ui: &mut Ui, look: &Look, id: &str, tabs: &[&str], sel: usize
         }
         x += w + look.px("cardtabs-gap", 0.0);
     }
-    painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
     if by > 0.0 {
         ui.add_space(12.0); // a dialog's body goes on under the band
     }
@@ -472,6 +479,88 @@ pub fn suggest(
     let _ = ui.ctx().accesskit_node_builder(response.id, |n| n.set_role(egui::accesskit::Role::ComboBox));
     ui.data_mut(|d| d.insert_temp(id, st));
     Suggest { response, picked, enter }
+}
+
+/// The colors of the web's square check and radio, set by the look (`Look::apply`).
+#[derive(Clone, Copy, Default)]
+pub struct CheckColors {
+    pub field: Color32,
+    pub line: Color32,
+    pub on: Color32,
+    pub mark: Color32,
+    pub ink: Color32,
+}
+
+fn check_colors(ctx: &egui::Context) -> CheckColors {
+    ctx.data(|d| d.get_temp(egui::Id::new("adm-check-colors"))).unwrap_or_default()
+}
+
+/// The web's checkbox: a 14 px square on the field color with the check line, filled with the action color and a
+/// white tick when checked, its text 8 points after (also a click on the text toggles it).
+pub fn check(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>) -> Response {
+    check_or_radio(ui, on, text, false)
+}
+
+/// The web's radio (square too: a small square mark when chosen); sets `value` to `alt` when clicked.
+pub fn radio_value<T: PartialEq>(ui: &mut Ui, value: &mut T, alt: T, text: impl Into<egui::WidgetText>) -> Response {
+    let mut on = *value == alt;
+    let r = check_or_radio(ui, &mut on, text, true);
+    if r.clicked() {
+        *value = alt;
+    }
+    r
+}
+
+fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>, radio: bool) -> Response {
+    let c = check_colors(ui.ctx());
+    let text: egui::WidgetText = text.into();
+    let label = text.text().to_string();
+    let wrap_w = ui.available_width() - 22.0;
+    let galley = text.into_galley(ui, Some(egui::TextWrapMode::Wrap), wrap_w, egui::TextStyle::Body);
+    let size = egui::vec2(14.0 + if label.is_empty() { 0.0 } else { 8.0 + galley.size().x }, galley.size().y.max(18.0));
+    let (rect, mut resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    if resp.clicked() {
+        if radio {
+            *on = true;
+        } else {
+            *on = !*on;
+        }
+        resp.mark_changed();
+    }
+    let kind = if radio { egui::WidgetType::RadioButton } else { egui::WidgetType::Checkbox };
+    resp.widget_info(|| egui::WidgetInfo::selected(kind, ui.is_enabled(), *on, &label));
+    if ui.is_rect_visible(rect) {
+        let fade = |col: Color32| if ui.is_enabled() { col } else { col.gamma_multiply(0.5) };
+        let first_row = galley.rows.first().map_or(14.0, |r| r.height());
+        let b = egui::Rect::from_min_size(
+            egui::pos2(rect.left(), rect.top() + (first_row - 14.0).max(0.0) / 2.0 + 1.0),
+            egui::vec2(14.0, 14.0),
+        );
+        let p = ui.painter();
+        if *on {
+            p.rect_filled(b, 0.0, fade(c.on));
+            if radio {
+                p.rect_filled(egui::Rect::from_center_size(b.center(), egui::vec2(6.0, 6.0)), 0.0, fade(c.mark));
+            } else {
+                // the tick: the web's 8 × 5 border turned -45°
+                let s = egui::Stroke::new(2.0, fade(c.mark));
+                let pts = [
+                    egui::pos2(b.left() + 3.0, b.top() + 7.0),
+                    egui::pos2(b.left() + 6.0, b.top() + 10.0),
+                    egui::pos2(b.right() - 3.0, b.top() + 4.0),
+                ];
+                p.line_segment([pts[0], pts[1]], s);
+                p.line_segment([pts[1], pts[2]], s);
+            }
+        } else {
+            p.rect_filled(b, 0.0, fade(c.field));
+            p.rect_stroke(b, 0.0, egui::Stroke::new(1.0, fade(c.line)), egui::StrokeKind::Inside);
+        }
+        if !label.is_empty() {
+            p.galley(egui::pos2(rect.left() + 22.0, rect.top()), galley, fade(c.ink));
+        }
+    }
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 /// A small link inside a list item or a card head (the web's .act): `ink` when given (the current item's text color),

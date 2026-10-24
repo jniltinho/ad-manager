@@ -235,7 +235,8 @@ impl Backup {
                                         .desired_rows(2)
                                         .desired_width(320.0),
                                 );
-                                ui.checkbox(
+                                crate::widgets::check(
+                                    ui,
                                     &mut self.now.full,
                                     RichText::new(t("Full backup (starts a new chain)")).size(12.0),
                                 );
@@ -535,7 +536,7 @@ impl Backup {
                             ui.add_enabled(data, crate::widgets::line(&mut row.every).desired_width(64.0));
                         });
                         cell(ui, widths[6], &mut |ui| {
-                            ui.checkbox(&mut row.enabled, "").on_hover_text(t("On"));
+                            crate::widgets::check(ui, &mut row.enabled, "").on_hover_text(t("On"));
                         });
                         cell(ui, widths[7], &mut |ui| {
                             if widgets::act(ui, &look, "🗑", "", None, 12.0).on_hover_text(t("Delete")).clicked() {
@@ -783,18 +784,28 @@ impl Dialog for Restore {
                 // one folder inside them typed: the folders do not apply
                 let one = !f.sub.trim().is_empty();
                 for (name, on) in &mut f.folders {
-                    ui.add_enabled(!one, egui::Checkbox::new(on, RichText::new(name.as_str()).monospace().size(12.0)));
+                    ui.add_enabled_ui(!one, |ui| {
+                        crate::widgets::check(ui, on, RichText::new(name.as_str()).monospace().size(12.0))
+                    });
                 }
                 widgets::label(ui, &look, t("Or only one folder inside them"));
                 let hint = self.backup.folders.first().map(|x| format!("{x}/Financeiro")).unwrap_or_default();
                 widgets::field(ui, &mut f.sub, &hint, f32::INFINITY);
                 widgets::label(ui, &look, t("Where"));
-                ui.radio_value(
+                crate::widgets::radio_value(
+                    ui,
                     &mut f.original,
                     false,
                     t("In a new folder: [share root]/_restored/[date]/ (nothing current is touched)"),
                 );
-                ui.radio_value(&mut f.original, true, t("Over the original folders: they become a backup first, then go back to how this backup has them (newer files are removed)"));
+                crate::widgets::radio_value(
+                    ui,
+                    &mut f.original,
+                    true,
+                    t(
+                        "Over the original folders: they become a backup first, then go back to how this backup has them (newer files are removed)",
+                    ),
+                );
             }
             "fileserver-config" => {
                 widgets::label(ui, &look, t("What to restore (the current configuration becomes a backup first)"));
@@ -806,7 +817,7 @@ impl Dialog for Restore {
                 .iter()
                 .enumerate()
                 {
-                    ui.checkbox(&mut f.parts[i], *name);
+                    crate::widgets::check(ui, &mut f.parts[i], *name);
                 }
             }
             "samba-files" => {

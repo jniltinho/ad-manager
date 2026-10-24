@@ -123,7 +123,7 @@ var (
 		"table-head", "card-head", "dialog-head", "dialog-foot", "footer"}
 	rustShadow = []string{"btn", "btn-2", "btn-danger", "brand-action", "btn-active", "card", "card-hover", "field",
 		"field-focus", "table-head", "app", "tabs", "tab-on", "login-box", "dialog", "subtab", "subtab-on", "cardtab",
-		"cardtab-on", "popup", "toast", "nav-on"}
+		"cardtab-on", "popup", "toast", "nav-on", "tab"}
 )
 
 // The web's monospace stack (Tailwind's font-mono) when a theme does not set --font-mono.

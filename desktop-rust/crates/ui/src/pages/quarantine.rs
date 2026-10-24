@@ -252,7 +252,7 @@ impl Dialog for QuarantineDialog {
                         }
                         ui.add_space(8.0);
                         if let Some(on) = sel.get_mut(k) {
-                            let r = ui.checkbox(on, "");
+                            let r = crate::widgets::check(ui, on, "");
                             let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(files[k].path.clone()));
                         }
                     };
@@ -280,7 +280,8 @@ impl Dialog for QuarantineDialog {
                         .color(muted),
                 );
             }
-            ui.checkbox(
+            crate::widgets::check(
+                ui,
                 &mut self.replace,
                 RichText::new(t(
                     "Replace files in the destination (the current ones go into the quarantine in their place)",

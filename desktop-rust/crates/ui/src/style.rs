@@ -106,22 +106,31 @@ impl Look {
         let w = &mut v.widgets;
         for (state, fill) in [
             (&mut w.noninteractive, self.c("surface")),
-            (&mut w.inactive, self.c("action-2")),
+            // egui's own widgets left are selects and menus: the web draws a select as a field
+            (&mut w.inactive, self.c("field")),
             (&mut w.hovered, self.c("row-hover")),
             (&mut w.active, self.c("selection")),
-            (&mut w.open, self.c("action-2")),
+            (&mut w.open, self.c("field")),
         ] {
             state.corner_radius = CornerRadius::ZERO;
             state.bg_fill = fill;
             state.weak_bg_fill = fill;
             state.bg_stroke = line;
-            state.fg_stroke = Stroke::new(1.0, self.c("on-action-2"));
+            state.fg_stroke = Stroke::new(1.0, self.c("on-field"));
             state.expansion = 0.0;
         }
         w.noninteractive.bg_stroke = Stroke::new(1.0, self.c("line"));
         w.noninteractive.fg_stroke = Stroke::new(1.0, fg);
         w.hovered.bg_stroke = Stroke::new(1.0, self.c("focus"));
         ctx.set_visuals(v);
+        let check = crate::widgets::CheckColors {
+            field: self.c("field"),
+            line: self.c("check-line"),
+            on: self.c("action"),
+            mark: self.c("on-action"),
+            ink: fg,
+        };
+        ctx.data_mut(|d| d.insert_temp(Id::new("adm-check-colors"), check));
         let (defs, _family) = crate::fonts::definitions(&self.p.fonts.sans, &self.p.fonts.mono);
         ctx.set_fonts(defs);
         let control = self.px("control-h", 28.0);
@@ -178,6 +187,10 @@ pub fn focus_ring(ctx: &Context, look: &Look) {
     let Some(focused) = ctx.memory(|m| m.focused()) else { return };
     // a widget that draws its own ring (the login's fields, in the login's focus color)
     if ctx.data(|d| d.get_temp::<Id>(Id::new(OWN_RING))) == Some(focused) {
+        return;
+    }
+    // a text field shows focus with its own border (the web's .inp:focus), not the focus-visible ring
+    if egui::text_edit::TextEditState::load(ctx, focused).is_some() {
         return;
     }
     let Some(rect) = ctx.read_response(focused).map(|r| r.rect) else { return };

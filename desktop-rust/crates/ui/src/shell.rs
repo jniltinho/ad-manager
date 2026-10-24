@@ -529,9 +529,9 @@ fn top_tab(
     let (fill, ink, part, shadow) = if active {
         (look.c("tab-on"), look.c("on-tab-on"), "tab-on", "tab-on")
     } else if resp.hovered() {
-        (look.c("tab-hover"), look.c("on-tab-hover"), "", "")
+        (look.c("tab-hover"), look.c("on-tab-hover"), "", "tab")
     } else {
-        (look.c("tab"), look.c("on-tab"), "", "")
+        (look.c("tab"), look.c("on-tab"), "", "tab")
     };
     look.paint(ui.painter(), box_rect, part, shadow, fill);
     let icon_ink = if active { look.c("tab-on-icon") } else { ink };

@@ -95,7 +95,7 @@ impl Dialog for FileServer {
             ui.label(RichText::new("sudo ad-manager agent token").monospace().size(11.0).color(muted));
         });
         ui.add_space(12.0);
-        ui.checkbox(&mut self.a.insecure, t("Accept self-signed certificate"));
+        crate::widgets::check(ui, &mut self.a.insecure, t("Accept self-signed certificate"));
         let ready = !self.busy
             && !self.a.name.trim().is_empty()
             && self.a.url.trim().len() > "https://".len()

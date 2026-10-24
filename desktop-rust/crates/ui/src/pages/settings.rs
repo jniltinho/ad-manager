@@ -242,7 +242,7 @@ impl Settings {
                                         .collect();
                                     widgets::labeled_select(ui, &look, t("Theme"), "s-theme", &mut f.theme, &names, cw - 8.0);
                                     note(ui, t("Look of the panel and the login page for every operator."));
-                                    ui.checkbox(&mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(12.0));
+                                    crate::widgets::check(ui, &mut f.flat, RichText::new(t("Flat look (no gradients or shadows)")).size(12.0));
                                 });
                             });
                             ui.add_space(12.0);
@@ -251,7 +251,7 @@ impl Settings {
                             });
                             ui.add_space(12.0);
                             let label = crate::style::semibold(t("API documentation (Swagger) at /swagger"), 12.0).color(look.c("fg-strong"));
-                            ui.checkbox(&mut f.swagger, label);
+                            crate::widgets::check(ui, &mut f.swagger, label);
                             note(ui, t("Only for signed-in administrators, like the queue monitor. Keep it off in production."));
                         });
                     });

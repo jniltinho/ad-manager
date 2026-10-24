@@ -342,7 +342,9 @@ pub fn cell(
         }
         C_COPY => Cell::plain(t("copy")).link("📋", tf!("New user copied from %s", x.sam), (UserAction::Copy, i)),
         C_MOVE if ed => Cell::plain(t("move")).link("📁", tf!("Move %s to another OU", x.sam), (UserAction::Move, i)),
-        C_DELETE if ed => Cell::new(t("delete"), Tone::Err).link("🗑", tf!("Delete %s", x.sam), (UserAction::Delete, i)),
+        C_DELETE if ed => {
+            Cell::new(t("delete"), Tone::Normal).link("🗑", tf!("Delete %s", x.sam), (UserAction::Delete, i))
+        }
         _ => Cell::plain(""),
     }
 }
@@ -688,7 +690,7 @@ impl Dialog for NewUser {
                 },
             );
             ui.add_space(4.0);
-            ui.checkbox(&mut self.must_change, t("Require change at next logon"));
+            crate::widgets::check(ui, &mut self.must_change, t("Require change at next logon"));
         });
         // the template's groups, added after the account is created
         if !self.groups.is_empty() {
@@ -1004,10 +1006,12 @@ impl Dialog for PasswordDialog {
                 ui.add(edit.desired_width(ui.available_width())).labelled_by(l.id);
             });
             ui.add_space(12.0);
-            ui.checkbox(&mut self.must_change, t("Require change at next logon"));
+            crate::widgets::check(ui, &mut self.must_change, t("Require change at next logon"));
             ui.add_space(4.0);
             // only a locked account can be unlocked
-            ui.add_enabled(self.user.locked, egui::Checkbox::new(&mut self.unlock, t("Unlock the account too")));
+            ui.add_enabled_ui(self.user.locked, |ui| {
+                crate::widgets::check(ui, &mut self.unlock, t("Unlock the account too"))
+            });
         } else {
             ui.spacing_mut().item_spacing.y = 4.0;
             widgets::lbl(ui, &look, t("Valid for"));

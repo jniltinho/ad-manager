@@ -170,9 +170,11 @@ impl Groups {
                     4 => Cell::plain(g.member_count.to_string()),
                     5 => Cell::new(&g.description, Tone::Muted),
                     6 => Cell::plain(t("members")).link("👥", tf!("Members of %s", g.name), (GroupAction::Members, i)),
-                    7 if !g.protected => {
-                        Cell::new(t("delete"), Tone::Err).link("🗑", tf!("Delete %s", g.name), (GroupAction::Delete, i))
-                    }
+                    7 if !g.protected => Cell::new(t("delete"), Tone::Normal).link(
+                        "🗑",
+                        tf!("Delete %s", g.name),
+                        (GroupAction::Delete, i),
+                    ),
                     _ => Cell::plain(""),
                 }
             },

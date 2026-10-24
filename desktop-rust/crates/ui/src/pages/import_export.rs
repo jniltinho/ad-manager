@@ -578,7 +578,7 @@ impl ImportExport {
         let (pwd_id, pwd) = (s.pwd_id, &mut s.password);
         widgets::above(ui, &look, t("Password"), w, |ui, _| widgets::secret_field(ui, pwd_id, pwd, "", w));
         ui.add_space(4.0);
-        ui.checkbox(&mut s.insecure, RichText::new(t("Accept self-signed certificate")).size(12.0));
+        crate::widgets::check(ui, &mut s.insecure, RichText::new(t("Accept self-signed certificate")).size(12.0));
         ui.add_space(8.0);
         let y = ui.cursor().top();
         ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
@@ -586,11 +586,11 @@ impl ImportExport {
         widgets::lbl(ui, &look, t("Import"));
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 12.0;
-            ui.checkbox(&mut s.objects, RichText::new(t("Objects")).size(12.0));
-            ui.checkbox(&mut s.gpos, RichText::new("GPOs").size(12.0));
-            ui.checkbox(&mut s.dns, RichText::new("DNS").size(12.0));
-            ui.checkbox(&mut s.shares, RichText::new(t("Shares")).size(12.0));
-            ui.checkbox(&mut s.passwords, RichText::new(t("Passwords")).size(12.0));
+            crate::widgets::check(ui, &mut s.objects, RichText::new(t("Objects")).size(12.0));
+            crate::widgets::check(ui, &mut s.gpos, RichText::new("GPOs").size(12.0));
+            crate::widgets::check(ui, &mut s.dns, RichText::new("DNS").size(12.0));
+            crate::widgets::check(ui, &mut s.shares, RichText::new(t("Shares")).size(12.0));
+            crate::widgets::check(ui, &mut s.passwords, RichText::new(t("Passwords")).size(12.0));
         });
         if s.passwords {
             note(
@@ -611,8 +611,13 @@ impl ImportExport {
             );
         }
         if s.dns {
-            ui.checkbox(&mut s.dynamic, RichText::new(t("Also records registered by clients (dynamic)")).size(12.0));
-            ui.checkbox(
+            crate::widgets::check(
+                ui,
+                &mut s.dynamic,
+                RichText::new(t("Also records registered by clients (dynamic)")).size(12.0),
+            );
+            crate::widgets::check(
+                ui,
                 &mut s.zones,
                 RichText::new(t("Create the zones missing on this DC (primary, integrated with the directory)"))
                     .size(12.0),
