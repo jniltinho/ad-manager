@@ -122,7 +122,7 @@ impl Backup {
                         let on = self.cur == Some(i);
                         let r = widgets::side_item(ui, &look, on, i == 0, |ui, ink| {
                             let dot = if s.error.is_empty() { look.c("ok-fill") } else { look.c("err-fill") };
-                            let (r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                            let (r, _) = widgets::status_square(ui);
                             ui.painter().rect_filled(r, 0.0, dot);
                             let name = if s.id == 0 { t("This panel").to_string() } else { s.name.clone() };
                             ui.label(crate::style::semibold(name, 12.0).color(ink));
@@ -279,10 +279,8 @@ impl Backup {
                             }
                             ui.label(RichText::new(st).size(12.0).color(ink));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if widgets::act(ui, &look, crate::icons::SCROLL, "", None, 12.0)
-                                    .on_hover_text(t("Log"))
-                                    .clicked()
-                                {
+                                let log = widgets::act(ui, &look, crate::icons::SCROLL, "", None, 12.0);
+                                if widgets::named(ui, log, t("Log")).clicked() {
                                     act = Some((Act::RestoreLog, 0));
                                 }
                             });
@@ -568,10 +566,8 @@ impl Backup {
                             crate::widgets::check(ui, &mut row.enabled, "").on_hover_text(t("On"));
                         });
                         cell(ui, widths[7], &mut |ui| {
-                            if widgets::act(ui, &look, crate::icons::TRASH, "", None, 12.0)
-                                .on_hover_text(t("Delete"))
-                                .clicked()
-                            {
+                            let del = widgets::act(ui, &look, crate::icons::TRASH, "", None, 12.0);
+                            if widgets::named(ui, del, t("Delete")).clicked() {
                                 drop = Some(r);
                             }
                         });

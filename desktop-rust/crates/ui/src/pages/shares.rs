@@ -306,7 +306,7 @@ impl Shares {
                             Some(Err(())) => (look.c("err-fill"), t("unavailable")),
                             None => (look.c("neutral-fill"), ""),
                         };
-                        let (r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                        let (r, _) = widgets::status_square(ui);
                         ui.painter().rect_filled(r, 0.0, dot);
                         if !tip.is_empty() {
                             ui.interact(r, ui.id().with(("dot", a.id)), egui::Sense::hover()).on_hover_text(tip);

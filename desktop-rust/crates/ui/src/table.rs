@@ -420,6 +420,8 @@ fn draw_cell<A>(
     out: &mut TableOut<A>,
 ) {
     let size = look.px("control-text", 12.0);
+    // a link is its text alone, as the web's .act (egui's button padding made the gaps wider)
+    ui.spacing_mut().button_padding.x = 0.0;
     let mut ink = look.tone(cl.tone);
     let rich = |s: String, ink: egui::Color32| {
         let r = if cl.bold { crate::style::semibold(s, size) } else { RichText::new(s).size(size) };

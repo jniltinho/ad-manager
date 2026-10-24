@@ -283,10 +283,11 @@ fn columns() -> Vec<Column> {
         Column::new("", 84.0).badge(),
         Column::new(t("Last logon"), 160.0),
         // the web's link widths (icon and name), so they fit at the app's 1280 px
-        Column::new(t("Actions"), 84.0).compact(COMPACT).span(4),
-        Column::new("", 56.0).compact(COMPACT).covered(),
+        // each link's width and the web's 12-point gap after it
+        Column::new(t("Actions"), 88.0).compact(COMPACT).span(4),
         Column::new("", 58.0).compact(COMPACT).covered(),
-        Column::new("", 64.0).compact(COMPACT).covered(),
+        Column::new("", 62.0).compact(COMPACT).covered(),
+        Column::new("", 66.0).compact(COMPACT).covered(),
     ]
 }
 

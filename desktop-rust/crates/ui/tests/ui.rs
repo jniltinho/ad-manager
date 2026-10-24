@@ -504,7 +504,7 @@ fn shots() {
     save(&mut e, "22-restore");
     e.key(egui::Key::Escape);
     page(&mut e, "Sync");
-    e.click("+ new");
+    e.click("new");
     e.h.run_steps(20);
     save(&mut e, "23-sync-wizard");
     e.key(egui::Key::Escape);
@@ -787,6 +787,15 @@ fn every_field_has_a_name() {
                 if !d.contains("label: \"") || d.contains("label: \"\"") {
                     nameless.push(format!("{screen}: {d}"));
                 }
+            }
+        }
+        // a button is named by words, never by an icon's private-use glyph alone
+        for n in e.h.query_all_by_role(Role::Button) {
+            let d = format!("{n:?}");
+            let label = d.split("label: \"").nth(1).and_then(|r| r.split('"').next()).unwrap_or("");
+            let words = label.chars().filter(|c| !('\u{e000}'..='\u{f8ff}').contains(c)).collect::<String>();
+            if words.trim().is_empty() || label.contains("\\u{e") {
+                nameless.push(format!("{screen}: button {d}"));
             }
         }
     };

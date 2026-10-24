@@ -89,9 +89,12 @@ impl Computers {
                 self.systems.push(t("All systems").into());
             }
             changed |= widgets::select(ui, "computers-os", t("System"), &mut self.system, &self.systems.clone(), 256.0);
-            changed |= ui
-                .checkbox(&mut self.only_inactive, RichText::new(tf!("no logon for %d+ days", days)).size(12.0))
-                .changed();
+            changed |= widgets::check(
+                ui,
+                &mut self.only_inactive,
+                RichText::new(tf!("no logon for %d+ days", days)).size(12.0),
+            )
+            .changed();
             if changed {
                 self.apply(cx);
             }

@@ -97,6 +97,8 @@ impl Look {
         // egui draws selected text (and a focused field's border) in this color: the ink that reads on the
         // selection; the theme's focus color is the ring drawn outside (focus_ring)
         v.selection.stroke = Stroke::new(1.0, self.c("on-selection"));
+        // the browser's opacity-50 over white: egui's blend at 0.5 comes out darker (about 0.6 in the screenshot)
+        v.disabled_alpha = 0.4;
         v.window_corner_radius = CornerRadius::ZERO;
         v.menu_corner_radius = CornerRadius::ZERO;
         // dialogs and popups keep their shadow in the flat look too (the web's flat override leaves them)

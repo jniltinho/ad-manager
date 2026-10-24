@@ -366,12 +366,8 @@ fn field(ui: &mut Ui, look: &crate::style::Look, edit: egui::TextEdit<'_>) -> eg
     if r.has_focus() {
         ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(crate::style::OWN_RING), r.id));
         let w = look.p.focus_ring.max(1.0);
-        ui.painter().rect_stroke(
-            r.rect.expand(w / 2.0),
-            0.0,
-            egui::Stroke::new(w, look.c("login-focus")),
-            egui::StrokeKind::Outside,
-        );
+        // right outside the field's border, as the web's ring (no gap between them)
+        ui.painter().rect_stroke(r.rect, 0.0, egui::Stroke::new(w, look.c("login-focus")), egui::StrokeKind::Outside);
     }
     r
 }

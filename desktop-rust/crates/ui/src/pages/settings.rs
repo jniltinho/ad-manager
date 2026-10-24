@@ -510,7 +510,8 @@ impl Settings {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.spacing_mut().item_spacing.x = 0.0;
-                                    if widgets::button(ui, &look, crate::icons::COPY, "", Kind::Secondary).on_hover_text(t("Copy")).clicked() {
+                                    let copy = widgets::button(ui, &look, crate::icons::COPY, "", Kind::Secondary);
+                                    if widgets::named(ui, copy, t("Copy")).clicked() {
                                         ui.ctx().copy_text(value.clone());
                                         cx.set_status(done);
                                     }

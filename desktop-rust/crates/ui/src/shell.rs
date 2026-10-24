@@ -332,14 +332,14 @@ impl Shell {
     /// The operator's name, and under it Configure (desktop only), my password and sign out as the web's links.
     fn user_block(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
-        ui.spacing_mut().item_spacing.y = 2.0;
-        // the links as high as their text (a button's 28-point minimum pushed them down)
+        // the web's 14 points from the name's line to the links' (a button's 28-point minimum pushed them down)
+        ui.spacing_mut().item_spacing.y = 0.0;
         ui.spacing_mut().interact_size.y = 0.0;
         ui.add_space(2.0);
         ui.label(crate::style::semibold(&cx.me.user, 12.0).color(look.c("on-header")));
         // right to left: the last link first
         ui.allocate_ui_with_layout(
-            egui::vec2(ui.available_width(), 16.0),
+            egui::vec2(ui.available_width(), 13.0),
             egui::Layout::right_to_left(egui::Align::Center),
             |ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -348,6 +348,7 @@ impl Shell {
                         egui::Button::new(RichText::new(format!("{icon} {s}")).size(11.0).color(look.c("header-link")))
                             .frame(false),
                     );
+                    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(s.to_string()));
                     r.on_hover_cursor(egui::CursorIcon::PointingHand)
                 };
                 let dot = |ui: &mut Ui| {
@@ -487,7 +488,9 @@ impl Shell {
             cx.me.settings.support_url.clone()
         };
         if pane(&mut inner, &mut |ui| {
-            ui.add(egui::Button::new(small(format!("{} {}", SUPPORT_ICON, t("Support")), ink)).frame(false))
+            let r = ui.add(egui::Button::new(small(format!("{} {}", SUPPORT_ICON, t("Support")), ink)).frame(false));
+            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(t("Support")));
+            r
         })
         .on_hover_cursor(egui::CursorIcon::PointingHand)
         .clicked()

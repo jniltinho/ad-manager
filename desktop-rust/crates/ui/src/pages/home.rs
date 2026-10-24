@@ -216,7 +216,7 @@ impl Home {
                 }
             }
         });
-        ui.add_space(20.0);
+        ui.add_space(14.0); // the web's gap-5, egui's item spacing counted in
         // the reset box (a third) and the domain controllers (two thirds)
         let third = (w - 20.0 * 2.0) / 3.0;
         let [r0, r1] = self.rows;
@@ -288,7 +288,7 @@ impl Home {
             });
         });
         row_height(ui, &mut self.rows[0], ha, hb);
-        ui.add_space(20.0);
+        ui.add_space(14.0); // the web's gap-5, egui's item spacing counted in
         // the alerts and the operating systems, half each
         let half = (w - 20.0) / 2.0;
         let (mut hc, mut hd) = (0.0, 0.0);
@@ -369,8 +369,15 @@ impl Home {
                                         .on_hover_text(&name);
                                 });
                                 let old = ["XP", "2003", "2008 Standard"].iter().any(|k| os.contains(k));
-                                // the web's bar: n/max of 60% of the row
-                                let bw = row_w * 0.6 * n as f32 / max as f32;
+                                // the web's bar: n/max of 60% of the row, never pushing the count out of a
+                                // narrow window's card
+                                let count = ui.painter().layout_no_wrap(
+                                    n.to_string(),
+                                    egui::FontId::proportional(12.0),
+                                    egui::Color32::PLACEHOLDER,
+                                );
+                                let room = ui.available_width() - count.size().x - 2.0 * ui.spacing().item_spacing.x;
+                                let bw = (row_w * 0.6 * n as f32 / max as f32).min(room);
                                 let (r, _) =
                                     ui.allocate_exact_size(egui::vec2(bw.max(1.0), 12.0), egui::Sense::hover());
                                 ui.painter().rect_filled(

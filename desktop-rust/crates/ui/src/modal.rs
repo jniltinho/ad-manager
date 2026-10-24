@@ -79,7 +79,7 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
                             )
                             .frame(false),
                         );
-                        if close.on_hover_text(t("Close")).clicked() {
+                        if widgets::named(ui, close, t("Close")).clicked() {
                             flow = Flow::Close;
                         }
                     });

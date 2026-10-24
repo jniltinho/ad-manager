@@ -248,10 +248,8 @@ impl Dialog for QuarantineDialog {
                     let sel = &mut self.sel;
                     let files = &self.files;
                     let mut first = |ui: &mut Ui, k: usize| {
-                        if widgets::act(ui, &look, crate::icons::DOWNLOAD, "", None, 12.0)
-                            .on_hover_text(t("Download"))
-                            .clicked()
-                        {
+                        let r = widgets::act(ui, &look, crate::icons::DOWNLOAD, "", None, 12.0);
+                        if widgets::named(ui, r, t("Download")).clicked() {
                             download = Some(k);
                         }
                         ui.add_space(8.0);

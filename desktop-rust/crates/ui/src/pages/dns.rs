@@ -197,11 +197,10 @@ impl Dialog for Dns {
             let path = self.path.clone();
             let mut cell = |ui: &mut Ui, k: usize| {
                 if k < n_rec {
-                    if editable(&zone, &recs[k])
-                        && widgets::button(ui, &look, crate::icons::TRASH, "", Kind::Link)
-                            .on_hover_text(t("Delete"))
-                            .clicked()
-                    {
+                    if editable(&zone, &recs[k]) && {
+                        let r = widgets::button(ui, &look, crate::icons::TRASH, "", Kind::Link);
+                        widgets::named(ui, r, t("Delete")).clicked()
+                    } {
                         delete = Some(recs[k].clone());
                     }
                 } else if let Some(n) = nodes.get(k - n_rec)

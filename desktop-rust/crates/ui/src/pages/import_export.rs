@@ -575,7 +575,7 @@ impl ImportExport {
                                 use_profile = Some(p.clone());
                             }
                             let r = widgets::act(ui, &look, crate::icons::TRASH, "", Some(look.c("fg-muted")), 11.0);
-                            if r.on_hover_text(tf!("Delete the profile %s?", p.name)).clicked() {
+                            if widgets::named(ui, r, &tf!("Delete the profile %s?", p.name)).clicked() {
                                 drop_profile = Some(p.clone());
                             }
                         });

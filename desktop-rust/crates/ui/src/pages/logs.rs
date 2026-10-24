@@ -376,6 +376,7 @@ struct SambaView {
     lines: usize,
     /// Only the entries of level 0 (errors).
     errors: bool,
+    rows: RowHeights,
 }
 
 const LINES: [usize; 4] = [200, 500, 2000, 5000];
@@ -395,6 +396,7 @@ impl SambaView {
             search: String::new(),
             lines: 1,
             errors: false,
+            rows: RowHeights::default(),
         }
     }
 
@@ -448,6 +450,7 @@ impl SambaView {
                 }
                 v.count = tf!("%d entries (newest first)", r.len());
                 v.entries = r;
+                v.rows = RowHeights::default(); // new rows: heights measured again
             });
         });
     }
@@ -501,6 +504,8 @@ impl SambaView {
                                     ui.style_mut().interaction.selectable_labels = false; // a click on the text picks it
                                     egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
                                         ui.set_width(w - 24.0);
+                                        // the web's py-1.5 row around its line, not a control's height
+                                        ui.spacing_mut().interact_size.y = 0.0;
                                         let ink = if on {
                                             look.c("on-selection")
                                         } else if f.size == 0 {
@@ -580,7 +585,7 @@ impl SambaView {
                 widgets::toolbar_gap(ui, &look);
                 let room = ui.available_height() - 24.0;
                 ui.allocate_ui(egui::vec2(ui.available_width(), room), |ui| {
-                    samba_entries(ui, &look, &self.entries, &shown, i);
+                    samba_entries(ui, &look, &self.entries, &shown, i, &mut self.rows);
                 });
                 if shown.is_empty() {
                     ui.add_space(16.0);
@@ -607,7 +612,14 @@ fn samba_size(n: i64) -> String {
 
 /// The entries as the web's table: the date and the level (a tag) at the top of each row, the message in mono
 /// wrapped over its lines and its source under it in small muted text; rows as tall as their message.
-fn samba_entries(ui: &mut Ui, look: &crate::style::Look, entries: &[SambaEntry], shown: &[usize], id: usize) {
+fn samba_entries(
+    ui: &mut Ui,
+    look: &crate::style::Look,
+    entries: &[SambaEntry],
+    shown: &[usize],
+    id: usize,
+    rows: &mut RowHeights,
+) {
     let (th_px, td_py) = (look.px("th-px", 8.0), look.px("td-py", 4.0));
     let (date_w, level_w) = (160.0, 56.0);
     let frame = egui::Frame::new().stroke(egui::Stroke::new(1.0, look.c("line")));
@@ -634,66 +646,113 @@ fn samba_entries(ui: &mut Ui, look: &crate::style::Look, entries: &[SambaEntry],
                 look.c("on-table-head"),
             );
         }
-        egui::ScrollArea::vertical().id_salt(("samba-entries", id)).auto_shrink([false, true]).show(ui, |ui| {
-            ui.set_width(w);
-            let msg_w = (w - date_w - level_w - 2.0 * th_px).max(80.0);
-            for (n, &k) in shown.iter().enumerate() {
-                let e = &entries[k];
-                let top = ui.cursor().top();
-                let under = ui.painter().add(egui::Shape::Noop);
-                let r = ui
-                    .horizontal_top(|ui| {
-                        ui.add_space(th_px);
-                        ui.vertical(|ui| {
-                            ui.set_width(date_w - th_px);
-                            ui.add_space(td_py);
-                            let time = if e.time.is_empty() { "—" } else { &e.time };
-                            ui.label(RichText::new(time).monospace().size(11.0));
-                        });
-                        ui.vertical(|ui| {
-                            ui.set_width(level_w);
-                            ui.add_space(td_py);
-                            let (fill, ink) = match e.level {
-                                0 => (look.c("err-fill"), look.c("on-err-fill")),
-                                l if l < 0 => (look.c("surface-2"), look.c("fg-muted")),
-                                l if l <= 2 => (look.c("warn-soft"), look.c("on-warn-soft")),
-                                _ => (look.c("surface-3"), look.c("fg-strong")),
-                            };
-                            let text = if e.level < 0 { "—".to_string() } else { e.level.to_string() };
-                            widgets::tag_filled(ui, look, &text, fill, ink);
-                        });
-                        ui.vertical(|ui| {
-                            ui.set_width(msg_w);
-                            ui.add_space(td_py);
-                            ui.add(egui::Label::new(RichText::new(&e.message).monospace().size(11.0)).wrap());
-                            if !e.source.is_empty() {
-                                ui.add_space(2.0);
-                                ui.add(
-                                    egui::Label::new(RichText::new(&e.source).size(10.0).color(look.c("fg-muted")))
-                                        .truncate(),
-                                );
-                            }
-                            ui.add_space(td_py);
-                        });
-                    })
-                    .response;
-                let row = egui::Rect::from_min_max(
-                    egui::pos2(ui.max_rect().left(), top),
-                    egui::pos2(ui.max_rect().right(), r.rect.bottom()),
-                );
-                let mut shapes = Vec::new();
-                if n % 2 == 1 {
-                    shapes.push(egui::Shape::rect_filled(row, 0.0, look.c("row-alt")));
+        let msg_w = (w - date_w - level_w - 2.0 * th_px).max(80.0);
+        // the rows' heights, estimated then measured once drawn: only the rows on screen are laid out
+        let key = (w.round() as i64, shown.len(), shown.first().copied(), shown.last().copied());
+        if rows.key != key {
+            rows.key = key;
+            rows.heights = shown.iter().map(|&k| estimate(&entries[k], td_py)).collect();
+        }
+        let total: f32 = rows.heights.iter().sum();
+        egui::ScrollArea::vertical().id_salt(("samba-entries", id)).auto_shrink([false, true]).show_viewport(
+            ui,
+            |ui, view| {
+                let (area, _) = ui.allocate_exact_size(egui::vec2(w, total), egui::Sense::hover());
+                let mut y = area.top();
+                let mut changed = false;
+                for (n, &k) in shown.iter().enumerate() {
+                    let h = rows.heights[n];
+                    let (top, bottom) = (y - area.top(), y - area.top() + h);
+                    if bottom >= view.min.y && top <= view.max.y {
+                        let row = egui::Rect::from_min_size(egui::pos2(area.left(), y), egui::vec2(w, h));
+                        let drawn = samba_row(ui, look, &entries[k], n, row, (date_w, level_w, msg_w, th_px, td_py));
+                        if (drawn - h).abs() > 0.5 {
+                            rows.heights[n] = drawn;
+                            changed = true;
+                        }
+                    }
+                    y += h;
                 }
-                if n > 0 {
-                    shapes.push(egui::Shape::hline(
-                        row.x_range(),
-                        row.top() + 0.5,
-                        egui::Stroke::new(1.0, look.c("line")),
-                    ));
+                if changed {
+                    ui.ctx().request_repaint();
                 }
-                ui.painter().set(under, egui::Shape::Vec(shapes));
-            }
-        });
+            },
+        );
     });
+}
+
+/// The measured heights of the Samba rows for one width and list.
+#[derive(Default)]
+struct RowHeights {
+    key: (i64, usize, Option<usize>, Option<usize>),
+    heights: Vec<f32>,
+}
+
+/// A row's height before it is drawn: its message's lines and the source line.
+fn estimate(e: &SambaEntry, td_py: f32) -> f32 {
+    let lines = e.message.lines().count().max(1) as f32;
+    2.0 * td_py + lines * widgets::LEADING * 11.0 + if e.source.is_empty() { 0.0 } else { 15.0 }
+}
+
+/// Draws one entry in `row` (its stripe and divider first); returns the height its content took.
+fn samba_row(
+    ui: &mut Ui,
+    look: &crate::style::Look,
+    e: &SambaEntry,
+    n: usize,
+    row: egui::Rect,
+    (date_w, level_w, msg_w, th_px, td_py): (f32, f32, f32, f32, f32),
+) -> f32 {
+    let under = ui.painter().add(egui::Shape::Noop);
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(row.with_max_y(row.top() + 10_000.0))
+            .layout(egui::Layout::left_to_right(egui::Align::Min)),
+    );
+    let r = child
+        .horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            ui.add_space(th_px);
+            ui.vertical(|ui| {
+                ui.set_width(date_w - th_px);
+                ui.add_space(td_py);
+                let time = if e.time.is_empty() { "—" } else { &e.time };
+                ui.label(RichText::new(time).monospace().size(11.0));
+            });
+            ui.vertical(|ui| {
+                ui.set_width(level_w);
+                ui.add_space(td_py);
+                let (fill, ink) = match e.level {
+                    0 => (look.c("err-fill"), look.c("on-err-fill")),
+                    l if l < 0 => (look.c("surface-2"), look.c("fg-muted")),
+                    l if l <= 2 => (look.c("warn-soft"), look.c("on-warn-soft")),
+                    _ => (look.c("surface-3"), look.c("fg-strong")),
+                };
+                let text = if e.level < 0 { "—".to_string() } else { e.level.to_string() };
+                widgets::tag_filled(ui, look, &text, fill, ink);
+            });
+            ui.vertical(|ui| {
+                ui.set_width(msg_w);
+                ui.add_space(td_py);
+                let msg = RichText::new(&e.message).monospace().size(11.0).line_height(Some(widgets::LEADING * 11.0));
+                ui.add(egui::Label::new(msg).wrap());
+                if !e.source.is_empty() {
+                    ui.add_space(2.0);
+                    ui.add(egui::Label::new(RichText::new(&e.source).size(10.0).color(look.c("fg-muted"))).truncate());
+                }
+                ui.add_space(td_py);
+            });
+        })
+        .response;
+    let h = r.rect.bottom() - row.top();
+    let band = row.with_max_y(row.top() + h.max(row.height()));
+    let mut shapes = Vec::new();
+    if n % 2 == 1 {
+        shapes.push(egui::Shape::rect_filled(band, 0.0, look.c("row-alt")));
+    }
+    if n > 0 {
+        shapes.push(egui::Shape::hline(band.x_range(), band.top() + 0.5, egui::Stroke::new(1.0, look.c("line"))));
+    }
+    ui.painter().set(under, egui::Shape::Vec(shapes));
+    h
 }

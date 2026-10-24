@@ -81,7 +81,9 @@ pub fn button_end(ui: &mut Ui, look: &Look, label: &str, icon: &str, kind: Kind,
     let size = look.px("control-text", 12.0);
     let b = egui::Button::new(RichText::new(label).size(size).color(ink))
         .right_text(RichText::new(icon).size(size).color(ink));
-    boxed(ui, look, b, kind, line, fill, w)
+    let r = boxed(ui, look, b, kind, line, fill, w);
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    r
 }
 
 /// Draws `b` framed as the theme's button of `kind` (its fill, gradient and shadow under it), at least `w` wide.
@@ -145,7 +147,8 @@ pub fn card_head_note(ui: &mut Ui, look: &Look, title: &str, note: &str, right: 
     .color(look.c("on-card-head"));
     let under = ui.painter().add(egui::Shape::Noop);
     let r = Frame::new()
-        .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top: 6, bottom: 6 })
+        // py-1.5 around the web's 18-point line (egui's line is 15: 7 and 8 here)
+        .inner_margin(Margin { left: (12.0 + bar) as i8, right: 12, top: 7, bottom: 8 })
         .show(ui, |ui| {
             ui.set_width(w - 24.0 - bar);
             // the head's line, not a control's 28 points (a row starts at this height: set before it opens)
@@ -219,7 +222,8 @@ pub fn side_item<R>(
         // the item's texts are not selectable: a click on them picks the item
         ui.style_mut().interaction.selectable_labels = false;
         Frame::new()
-            .inner_margin(Margin::symmetric(12, 8))
+            // px-3 py-2 around the web's 18-point line (egui's is 15): the web's 35-point item
+            .inner_margin(Margin { left: 12, right: 12, top: 10, bottom: 9 })
             .show(ui, |ui| {
                 ui.set_width(w - 24.0);
                 ui.spacing_mut().interact_size.y = 0.0; // the web's 35-point item, not a control's height
@@ -284,6 +288,9 @@ pub fn cardtabs_at(
         .with_min_y(ui.clip_rect().top() - by)
         .intersect(band.union(ui.clip_rect()));
     let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(clip);
+    // the tabs answer clicks over the whole part drawn: a ui with the same clip
+    let mut band_ui = ui.new_child(egui::UiBuilder::new().max_rect(band));
+    band_ui.set_clip_rect(clip);
     painter.rect_filled(band, 0.0, look.c("cardtabs"));
     // the band's line under the tabs: the current tab covers it (the web's overlap)
     painter.hline(band.x_range(), band.bottom() - 0.5, Stroke::new(1.0, look.c("cardtabs-line")));
@@ -315,8 +322,8 @@ pub fn cardtabs_at(
         let top = band.top() + pad + if on { 0.0 } else { look.px("cardtab-inset-top", 0.0) };
         let bottom = band.bottom() + if on { look.px("cardtab-on-overlap", 0.0) } else { 0.0 };
         let tab = egui::Rect::from_min_max(egui::pos2(x, top), egui::pos2(x + w, bottom));
-        let resp = ui
-            .interact(tab.intersect(ui.clip_rect()), ui.id().with((id, i)), egui::Sense::click())
+        let resp = band_ui
+            .interact(tab.intersect(clip), ui.id().with((id, i)), egui::Sense::click())
             .on_hover_cursor(egui::CursorIcon::PointingHand);
         let fill = if on {
             look.c("cardtab-on")
@@ -633,8 +640,17 @@ fn check_or_radio(ui: &mut Ui, on: &mut bool, text: impl Into<egui::WidgetText>,
 /// else the link color.
 pub fn act(ui: &mut Ui, look: &Look, icon: &str, label: &str, ink: Option<Color32>, size: f32) -> Response {
     let text = if icon.is_empty() { label.to_string() } else { format!("{icon} {label}") };
-    ui.add(egui::Button::new(RichText::new(text).size(size).color(ink.unwrap_or(look.c("link")))).frame(false))
-        .on_hover_cursor(egui::CursorIcon::PointingHand)
+    let r = ui.add(egui::Button::new(RichText::new(text).size(size).color(ink.unwrap_or(look.c("link")))).frame(false));
+    if !label.is_empty() {
+        let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    }
+    r.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// An icon-only control's name: for screen readers (its glyph says nothing) and as its tooltip.
+pub fn named(ui: &Ui, r: Response, name: &str) -> Response {
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name.to_string()));
+    r.on_hover_text(name)
 }
 
 /// The fill and ink of a tag tone, as the web's tag classes: soft green for ok (`bg-ok-soft`), solid for errors,
@@ -1016,6 +1032,13 @@ pub fn readonly_look(ui: &mut Ui) {
 /// The web's margin under a page's toolbar (`--toolbar-mb`), egui's item spacing counted in.
 pub fn toolbar_gap(ui: &mut Ui, look: &Look) {
     ui.add_space((look.px("toolbar-mb", 12.0) - ui.spacing().item_spacing.y).max(0.0));
+}
+
+/// The 8-point status square of a side list item, centered on its 12-point text line (the row's items are placed
+/// before its height is known). Returns the square's rect.
+pub fn status_square(ui: &mut Ui) -> (egui::Rect, Response) {
+    let (cell, resp) = ui.allocate_exact_size(egui::vec2(8.0, 12.0 * 1.25), egui::Sense::hover());
+    (egui::Rect::from_center_size(cell.center(), egui::vec2(8.0, 8.0)), resp)
 }
 
 /// The web's line height for wrapped notes and help text (Tailwind's text-xs leading, about 1.5).
