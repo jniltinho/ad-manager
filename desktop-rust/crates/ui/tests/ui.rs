@@ -820,3 +820,17 @@ fn every_field_has_a_name() {
     check(&mut e, "import from AD");
     assert!(nameless.is_empty(), "fields without a name:\n{}", nameless.join("\n"));
 }
+
+/// The app's theme stays when the system switches light/dark (egui keeps one style per theme; a dark Windows showed
+/// egui's own visuals).
+#[test]
+fn the_theme_survives_a_system_theme_switch() {
+    let mut e = env();
+    e.sign_in();
+    let field = e.app().cx.look.c("field");
+    for theme in [egui::Theme::Dark, egui::Theme::Light] {
+        e.h.ctx.set_theme(theme);
+        e.h.step();
+        assert_eq!(e.h.ctx.style_of(theme).visuals.text_edit_bg_color, Some(field), "{theme:?}");
+    }
+}

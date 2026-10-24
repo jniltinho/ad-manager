@@ -84,6 +84,15 @@ make mock      # a mock panel with 5,000 users (prints the URL and pin for deskt
 make bench     # the benchmark against the Fyne app
 ```
 
+Against a real domain, the all-in-one test image ([docs/docker.md](../docs/docker.md), a fictitious `domain.local`
+with its LDAPS and panel on `127.0.0.1` only) runs the ignored live test: it signs in, opens every page and tab, fails
+on any error and saves a screenshot of each. The password stays in a 0600 file outside the repository; never point it
+at a production panel.
+
+```bash
+DESKTOP_RUST_DOCKER_NET=host DESKTOP_RUST_DOCKER_ARGS="-v $HOME/.adm-live:/live:ro" scripts/cargo-docker.sh sh -c 'ADM_LIVE_URL=https://127.0.0.1:18443/ ADM_LIVE_PASSWORD_FILE=/live/password ADM_LIVE_SHOTS=/work/desktop-rust/target/live cargo test -p adm-ui --test live -- --ignored'
+```
+
 macOS builds natively on a Mac (`rustup` reads `rust-toolchain.toml`): `cargo build --release` and
 `packaging/macos/bundle.sh` for the universal `.app`. CI (`.github/workflows/desktop-rust-ci.yml`) runs only for
 changes under `desktop-rust/`; the release (`desktop-rust-release.yml`) runs on `desktop-rust-v*` tags and publishes

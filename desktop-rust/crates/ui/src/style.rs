@@ -128,7 +128,9 @@ impl Look {
         // browser's bar
         w.inactive.bg_fill = self.c("field-line");
         w.hovered.bg_fill = self.c("fg-muted");
-        ctx.set_visuals(v);
+        // both of egui's styles: set_visuals changes only the current light/dark one, and eframe follows the
+        // system's theme (a dark Windows or Wine switched the app to egui's own visuals)
+        ctx.all_styles_mut(|s| s.visuals = v.clone());
         let check = crate::widgets::CheckColors {
             field: self.c("field"),
             line: self.c("check-line"),

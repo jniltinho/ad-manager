@@ -56,6 +56,8 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 
 - Card heads, list rows, dialog title bars and footers were taller than the web's; scroll bar handles were
   invisible; disabled buttons faded twice; dialog tabs lost their top edge and accent.
+- A dark system theme (Windows' dark mode, or Wine) replaced the app's theme with egui's own visuals: the theme now
+  applies to both of egui's light and dark styles.
 - The Samba log showed one line per entry; it now shows each entry over its lines, laying out only the rows on
   screen.
 

@@ -385,3 +385,15 @@ a control's accessible name SHALL NOT include the icon.
 #### Scenario: Wrapped alerts
 - **WHEN** an alert's text is longer than its row on Home (the Matrix theme's monospace face)
 - **THEN** it wraps to the next line, as the web's, instead of ending in an ellipsis
+
+### Requirement: The theme regardless of the system's
+The app SHALL keep its theme whatever light or dark theme the operating system reports, and SHALL work against a real
+domain as against the mock.
+
+#### Scenario: System theme switch
+- **WHEN** the system switches between light and dark while the app runs
+- **THEN** fields, selects and panels keep the theme's colors
+
+#### Scenario: A real test domain
+- **WHEN** the live test runs against the all-in-one test image
+- **THEN** the app signs in, opens every page and tab, and no error dialog opens
