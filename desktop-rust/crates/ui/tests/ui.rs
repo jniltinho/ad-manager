@@ -485,4 +485,14 @@ fn shots() {
     e.click("Edit finance");
     e.wait("the permissions", |_, m| !m.sent("GET", "/api/agents/1/acl").is_empty());
     save(&mut e, "21-edit-share");
+    e.key(egui::Key::Escape);
+    page(&mut e, "Backup");
+    e.h.get_by_label("Restore").click();
+    e.h.run_steps(4);
+    save(&mut e, "22-restore");
+    e.key(egui::Key::Escape);
+    page(&mut e, "Sync");
+    e.click("+ new");
+    e.h.run_steps(20);
+    save(&mut e, "23-sync-wizard");
 }

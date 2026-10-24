@@ -612,12 +612,21 @@ pub fn mini_table<const N: usize>(
 
 /// A labeled form (two columns: bold label, field) laid out by egui's grid.
 pub fn form<R>(ui: &mut Ui, id: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
-    egui::Grid::new(id).num_columns(2).spacing(Vec2::new(10.0, 6.0)).show(ui, add).inner
+    // the web's forms stack each label over its field; `end_row` does nothing outside a grid
+    ui.push_id(id, |ui| {
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            add(ui)
+        })
+        .inner
+    })
+    .inner
 }
 
-/// The label cell of a form row.
+/// The label of a form field: the web's .lbl, 8 points under the field before it.
 pub fn label(ui: &mut Ui, look: &Look, s: &str) -> Response {
-    ui.label(RichText::new(s).strong().color(look.c("fg-strong")))
+    ui.add_space(8.0);
+    lbl(ui, look, s)
 }
 
 /// A single-line text edit as the web's .inp: a 28 px border box with 8 px side padding, the text vertically centered.

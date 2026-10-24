@@ -441,30 +441,96 @@ impl SyncWizard {
         );
     }
 
+    /// The web's stepper: numbered boxes (the current one filled), a line under them, then "Step n of 4: name".
     fn header(&self, ui: &mut Ui, cx: &Cx) {
         let look = &cx.look;
+        let names = [t("Source and access"), t("What to copy"), t("Where to"), t("How and when")];
         ui.horizontal_wrapped(|ui| {
-            let names = [t("Source and access"), t("What to copy"), t("Where to"), t("How and when")];
+            ui.spacing_mut().item_spacing.x = 8.0;
             for (i, s) in names.iter().enumerate() {
-                let txt = RichText::new(format!("{}. {s}", i + 1));
-                ui.label(if i == self.step {
-                    txt.strong().color(look.c("fg-strong"))
+                let on = i == self.step;
+                let (r, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
+                if on {
+                    ui.painter().rect_filled(r, 0.0, look.c("action"));
                 } else {
-                    txt.color(look.c("fg-muted"))
-                });
-                if i < 3 {
-                    ui.label(RichText::new("›").color(look.c("fg-muted")));
+                    ui.painter().rect_stroke(r, 0.0, egui::Stroke::new(1.0, look.c("line")), egui::StrokeKind::Inside);
                 }
+                let ink = if on { look.c("on-action") } else { look.c("fg-muted") };
+                let g = ui.painter().layout_no_wrap(
+                    (i + 1).to_string(),
+                    egui::FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+                    ink,
+                );
+                ui.painter().galley(r.center() - g.size() / 2.0, g, ink);
+                let label = if on {
+                    crate::style::semibold(*s, 12.0).color(look.c("fg-strong"))
+                } else {
+                    RichText::new(*s).size(12.0).color(look.c("fg-muted"))
+                };
+                ui.label(label);
+                ui.add_space(8.0);
             }
         });
-        ui.separator();
+        ui.add_space(6.0);
+        let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 3.0), egui::Sense::hover());
+        ui.painter().rect_filled(r, 0.0, look.c("surface-2"));
+        ui.add_space(12.0);
+        let head = tf!("Step %d of %d: %s", self.step + 1, names.len(), names[self.step.min(3)]);
+        ui.label(crate::style::semibold(head, 13.0).color(look.c("fg-strong")));
+        ui.add_space(4.0);
+    }
+
+    /// The row under a step: the line, then `left` (back, test) at the left and `right` (the step's action) at the right.
+    fn nav(ui: &mut Ui, look: &crate::style::Look, left: impl FnOnce(&mut Ui), right: impl FnOnce(&mut Ui)) {
+        ui.add_space(12.0);
+        let y = ui.cursor().top();
+        ui.painter().hline(ui.max_rect().x_range(), y + 0.5, egui::Stroke::new(1.0, look.c("line")));
+        ui.add_space(12.0);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            left(ui);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+        });
+    }
+
+    /// A choice as the web's card: an icon, a semibold title and its description; the chosen one stands out.
+    fn choice(ui: &mut Ui, look: &crate::style::Look, w: f32, on: bool, icon: &str, title: &str, text: &str) -> bool {
+        let fill = if on { look.c("row-hover") } else { look.c("surface") };
+        let line = if on { look.c("fg-strong") } else { look.c("line") };
+        let r = ui.scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| {
+            egui::Frame::new()
+                .fill(fill)
+                .stroke(egui::Stroke::new(1.0, line))
+                .inner_margin(egui::Margin::symmetric(16, 12))
+                .show(ui, |ui| {
+                    ui.set_width(w - 34.0);
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                        let title = crate::style::semibold(format!("{icon}  {title}"), 12.0).color(look.c("fg-strong"));
+                        ui.label(title);
+                        ui.add(egui::Label::new(RichText::new(text).size(11.0).color(look.c("fg-muted"))).wrap());
+                    });
+                });
+        });
+        let resp = r.response.on_hover_cursor(egui::CursorIcon::PointingHand);
+        let _ = ui.ctx().accesskit_node_builder(resp.id, |n| {
+            n.set_role(egui::accesskit::Role::RadioButton);
+            n.set_label(title.to_string());
+            n.set_toggled(if on { egui::accesskit::Toggled::True } else { egui::accesskit::Toggled::False });
+        });
+        resp.clicked()
     }
 
     fn step1(&mut self, ui: &mut Ui, cx: &mut Cx) {
         let look = cx.look.clone();
-        widgets::form(ui, "sync-1", |ui| {
-            widgets::labeled_field(ui, &look, t("Source server"), &mut self.host, "old-fs.example.local", 360.0);
-            ui.end_row();
+        let w = ui.available_width();
+        widgets::above(ui, &look, t("Source server"), w, |ui, _| {
+            ui.add(
+                crate::widgets::line(&mut self.host)
+                    .hint_text("old-fs.example.local")
+                    .font(egui::TextStyle::Monospace)
+                    .desired_width(w),
+            )
         });
         let ip = self.host.trim().split('.').count() == 4
             && self
@@ -481,49 +547,77 @@ impl SyncWizard {
                 .color(look.c("warn")),
             );
         }
-        if self.data.kerberos {
-            ui.radio_value(&mut self.kerberos, true, t("This server's machine account (Kerberos)"));
-        }
-        ui.radio_value(&mut self.kerberos, false, t("User and password"));
-        if self.kerberos {
-            let machine = if self.data.machine.is_empty() { "FS01$".to_string() } else { self.data.machine.clone() };
-            ui.label(
-                RichText::new(tf!(
+        // how to sign in to the source: two cards, as the web's
+        ui.add_space(12.0);
+        let machine = if self.data.machine.is_empty() { "FS01$".to_string() } else { self.data.machine.clone() };
+        let cw = ((w - 12.0) / 2.0).floor();
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 12.0;
+            if self.data.kerberos {
+                let text = tf!(
                     "Same domain, no password kept. Give %s (or Domain Computers) read permission on the share.",
                     machine
-                ))
-                .size(11.0)
-                .color(look.c("fg-muted")),
-            );
-        } else {
-            let kept = !self.is_new && (self.job.password_set || !self.job.password_file.is_empty());
-            widgets::form(ui, "sync-ntlm", |ui| {
-                widgets::labeled_field(ui, &look, t("User"), &mut self.user, "DOMAIN\\user", 300.0);
-                ui.end_row();
-                widgets::labeled_field(ui, &look, t("Domain (or the server name)"), &mut self.domain, "", 300.0);
-                ui.end_row();
-                widgets::label(ui, &look, t("Password"));
-                let hint = if kept { t("kept (type to change)") } else { "" };
-                crate::widgets::secret_field(ui, self.pwd_id, &mut self.password, hint, 300.0);
-                ui.end_row();
-            });
-        }
-        for (line, tone) in &self.test {
-            ui.add(egui::Label::new(RichText::new(line).color(look.tone(*tone))).wrap());
-        }
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "✔", t("Test connection"), Kind::Secondary).clicked() {
-                self.run_test(cx, false);
-            }
-            if widgets::button(ui, &look, "▶", t("Next"), Kind::Primary).clicked() {
-                self.read_access();
-                if self.tested.as_ref() == Some(&self.access_key()) {
-                    self.show(cx, 1);
-                } else {
-                    self.run_test(cx, true);
+                );
+                if Self::choice(ui, &look, cw, self.kerberos, "🗄", t("This server's machine account (Kerberos)"), &text)
+                {
+                    self.kerberos = true;
                 }
             }
+            let text = t("Another domain or a standalone server; the password is kept encrypted.");
+            if Self::choice(ui, &look, cw, !self.kerberos, "🔑", t("User and password"), text) {
+                self.kerberos = false;
+            }
         });
+        if !self.kerberos {
+            let kept = !self.is_new && (self.job.password_set || !self.job.password_file.is_empty());
+            ui.add_space(12.0);
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                let fw = ((w - 16.0) / 2.0).floor();
+                widgets::above(ui, &look, t("User"), fw, |ui, _| {
+                    ui.add(crate::widgets::line(&mut self.user).hint_text("DOMAIN\\user").desired_width(fw))
+                });
+                widgets::above(ui, &look, t("Domain (or the server name)"), fw, |ui, _| {
+                    ui.add(crate::widgets::line(&mut self.domain).desired_width(fw))
+                });
+            });
+            ui.add_space(12.0);
+            let hint = if kept { t("kept (type to change)") } else { "" };
+            let (pwd_id, pwd) = (self.pwd_id, &mut self.password);
+            widgets::above(ui, &look, t("Password"), w, |ui, _| crate::widgets::secret_field(ui, pwd_id, pwd, hint, w));
+        }
+        if !self.test.is_empty() {
+            ui.add_space(12.0);
+            egui::Frame::new()
+                .stroke(egui::Stroke::new(1.0, look.c("line")))
+                .inner_margin(egui::Margin::symmetric(12, 8))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.spacing_mut().item_spacing.y = 4.0;
+                    widgets::lbl(ui, &look, t("Connection test"));
+                    for (line, tone) in &self.test {
+                        ui.add(egui::Label::new(RichText::new(line).size(12.0).color(look.tone(*tone))).wrap());
+                    }
+                });
+        }
+        let (mut test, mut next) = (false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| test = widgets::button(ui, &look, "", t("Test connection"), Kind::Secondary).clicked(),
+            |ui| next = widgets::button(ui, &look, "", &format!("{} ›", t("Next")), Kind::Primary).clicked(),
+        );
+        if test {
+            self.run_test(cx, false);
+        }
+        if next {
+            self.read_access();
+            if self.tested.as_ref() == Some(&self.access_key()) {
+                self.show(cx, 1);
+            } else {
+                self.run_test(cx, true);
+            }
+        }
     }
 
     fn step2(&mut self, ui: &mut Ui, cx: &mut Cx) {
@@ -557,16 +651,26 @@ impl SyncWizard {
             self.open_dir(cx, share, path);
         }
         ui.label(RichText::new(&self.size_label).size(11.0).color(look.c("fg-muted")));
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Back"), Kind::Secondary).clicked() {
-                self.step = 0;
-            }
-            if widgets::button(ui, &look, "ℹ", t("Size"), Kind::Secondary).clicked() {
-                self.count_size(cx);
-            }
-            if widgets::button(ui, &look, "✔", t("Copy this folder"), Kind::Primary).clicked()
-                && !self.job.source.share.is_empty()
-            {
+        let (mut back, mut size, mut copy) = (false, false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| {
+                back = widgets::button(ui, &look, "", &format!("‹ {}", t("Back")), Kind::Secondary).clicked();
+                size = widgets::button(ui, &look, "", t("Size"), Kind::Secondary).clicked();
+            },
+            |ui| {
+                copy = widgets::button(ui, &look, "", &format!("{} ›", t("Copy this folder")), Kind::Primary).clicked()
+            },
+        );
+        if back {
+            self.step = 0;
+        }
+        if size {
+            self.count_size(cx);
+        }
+        {
+            if copy && !self.job.source.share.is_empty() {
                 if self.dest.is_empty() {
                     let root = self.data.roots.first().cloned().unwrap_or_else(|| "/srv/shares".into());
                     let src = format!("/{}/{}", self.job.source.share, self.job.source.path);
@@ -575,7 +679,7 @@ impl SyncWizard {
                 }
                 self.show(cx, 2);
             }
-        });
+        }
     }
 
     fn step3(&mut self, ui: &mut Ui, cx: &mut Cx) {
@@ -637,19 +741,25 @@ impl SyncWizard {
             self.check_dest(cx, d);
         }
         ui.add(egui::Label::new(RichText::new(&self.dest_status.0).color(look.tone(self.dest_status.1))).wrap());
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Back"), Kind::Secondary).clicked() {
-                self.show(cx, 1);
-            }
-            if ui
-                .add_enabled_ui(self.dest_ok, |ui| widgets::button(ui, &look, "▶", t("Next"), Kind::Primary))
-                .inner
-                .clicked()
-            {
-                self.job.dest = self.dest.trim().into();
-                self.show(cx, 3);
-            }
-        });
+        let (mut back, mut next) = (false, false);
+        let ok = self.dest_ok;
+        Self::nav(
+            ui,
+            &look,
+            |ui| back = widgets::button(ui, &look, "", &format!("‹ {}", t("Back")), Kind::Secondary).clicked(),
+            |ui| {
+                let label = format!("{} ›", t("Next"));
+                next =
+                    ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "", &label, Kind::Primary)).inner.clicked();
+            },
+        );
+        if back {
+            self.show(cx, 1);
+        }
+        if next {
+            self.job.dest = self.dest.trim().into();
+            self.show(cx, 3);
+        }
     }
 
     fn step4(&mut self, ui: &mut Ui, cx: &mut Cx) {
@@ -715,7 +825,6 @@ impl SyncWizard {
             }
             ui.end_row();
             if self.preset >= PRESETS.len() {
-                ui.label("");
                 cron_changed |= widgets::field(ui, &mut self.form.cron, "30 22 * * 1-5", 200.0).changed();
                 ui.end_row();
             }
@@ -778,10 +887,8 @@ impl SyncWizard {
                 ui.end_row();
                 widgets::labeled_field(ui, &look, t("Simultaneous transfers"), &mut self.form.transfers, "", 80.0);
                 ui.end_row();
-                ui.label("");
                 ui.checkbox(&mut self.form.verify, t("Compare the content after the run (reads the source again)"));
                 ui.end_row();
-                ui.label("");
                 ui.checkbox(
                     &mut self.form.reinherit,
                     t("Apply the destination folder's Windows permissions to what came"),
@@ -800,17 +907,25 @@ impl SyncWizard {
             );
             widgets::field(ui, &mut self.form.confirm, "", 200.0);
         }
-        ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Back"), Kind::Secondary).clicked() {
-                self.show(cx, 2);
-            }
-            if widgets::button(ui, &look, "▶", t("Save and preview"), Kind::Primary).clicked() {
-                self.save(cx, true);
-            }
-            if widgets::button(ui, &look, "💾", t("Only save"), Kind::Secondary).clicked() {
-                self.save(cx, false);
-            }
-        });
+        let (mut back, mut preview, mut only) = (false, false, false);
+        Self::nav(
+            ui,
+            &look,
+            |ui| back = widgets::button(ui, &look, "", &format!("‹ {}", t("Back")), Kind::Secondary).clicked(),
+            |ui| {
+                preview = widgets::button(ui, &look, "", t("Save and preview"), Kind::Primary).clicked();
+                only = widgets::button(ui, &look, "", t("Only save"), Kind::Secondary).clicked();
+            },
+        );
+        if back {
+            self.show(cx, 2);
+        }
+        if preview {
+            self.save(cx, true);
+        }
+        if only {
+            self.save(cx, false);
+        }
     }
 }
 
@@ -820,7 +935,7 @@ impl Dialog for SyncWizard {
     }
 
     fn width(&self) -> f32 {
-        800.0
+        760.0
     }
 
     fn closed(&self, ctx: &egui::Context) {
@@ -832,12 +947,12 @@ impl Dialog for SyncWizard {
             return Flow::Close;
         }
         self.header(ui, cx);
-        egui::ScrollArea::vertical().id_salt("sync-wizard").max_height(520.0).show(ui, |ui| match self.step {
+        match self.step {
             0 => self.step1(ui, cx),
             1 => self.step2(ui, cx),
             2 => self.step3(ui, cx),
             _ => self.step4(ui, cx),
-        });
-        if crate::modal::footer(ui, cx, None, t("Close"), false, true).ok { Flow::Close } else { Flow::Keep }
+        }
+        Flow::Keep
     }
 }

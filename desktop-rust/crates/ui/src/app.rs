@@ -478,7 +478,8 @@ impl App {
             let top = i == self.cx.dialogs.len();
             let last_h = self.heights.get(i).copied().unwrap_or(0.0);
             let y = (screen.height() * 0.1).min(screen.height() - last_h).max(0.0);
-            let id = egui::Id::new(("adm-dialog", i));
+            // each dialog its own area: another one's remembered size would bound this one's body
+            let id = egui::Id::new(("adm-dialog", did));
             let area = egui::Modal::default_area(id).anchor(Align2::CENTER_TOP, egui::vec2(0.0, y));
             let mut flow = Flow::Keep;
             let r = egui::Modal::new(id)
