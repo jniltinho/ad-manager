@@ -134,7 +134,9 @@ fn outer(rect: Rect, l: &Layer) -> Shape {
     let clampu = |v: f32| v.round().clamp(0.0, 255.0) as u8;
     let s = egui::Shadow {
         offset: [clamp8(l.dx), clamp8(l.dy)],
-        blur: clampu(l.blur),
+        // egui feathers over its blur width centered on the edge; the browser's blur radius reaches its whole
+        // length outside: twice the value draws the same falloff
+        blur: clampu(2.0 * l.blur),
         spread: clampu(l.spread),
         color: c32(l.color),
     };

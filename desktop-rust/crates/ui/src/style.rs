@@ -150,7 +150,8 @@ impl Look {
                 (TextStyle::Body, FontId::new(base, FontFamily::Proportional)),
                 (TextStyle::Button, FontId::new(text, FontFamily::Proportional)),
                 (TextStyle::Heading, FontId::new(base + 2.0, FontFamily::Name(crate::fonts::SEMIBOLD.into()))),
-                (TextStyle::Monospace, FontId::new(base - 1.0, FontFamily::Monospace)),
+                // the web's mono fields (.inp font-mono) at the control's 12 px; table cells set their 11 themselves
+                (TextStyle::Monospace, FontId::new(text, FontFamily::Monospace)),
             ]
             .into();
             s.spacing.item_spacing = egui::vec2(self.px("toolbar-gap", 8.0), 6.0);
@@ -169,7 +170,7 @@ impl Look {
 fn egui_shadow(layers: &[theme::Layer]) -> egui::Shadow {
     layers.iter().find(|l| !l.inset).map_or(egui::Shadow::NONE, |l| egui::Shadow {
         offset: [l.dx.round().clamp(-128.0, 127.0) as i8, l.dy.round().clamp(-128.0, 127.0) as i8],
-        blur: l.blur.round().clamp(0.0, 255.0) as u8,
+        blur: (2.0 * l.blur).round().clamp(0.0, 255.0) as u8, // the browser's blur radius (see depth::outer)
         spread: l.spread.round().clamp(0.0, 255.0) as u8,
         color: c32(l.color),
     })

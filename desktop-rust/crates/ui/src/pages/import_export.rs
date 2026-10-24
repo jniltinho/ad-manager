@@ -324,19 +324,20 @@ impl ImportExport {
         let h = ui.available_height();
         let mut preview = false;
         let mut apply = false;
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = 20.0;
-            ui.vertical(|ui| {
-                ui.set_width(360.0);
-                egui::ScrollArea::vertical().id_salt("import-left").max_height(h).show(ui, |ui| {
+        // the page scrolls as a whole, as the web's (not the left column alone)
+        egui::ScrollArea::vertical().id_salt("import-page").auto_shrink([false, false]).show(ui, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 20.0;
+                ui.vertical(|ui| {
+                    ui.set_width(360.0);
                     self.export_card(ui, cx);
                     ui.add_space(20.0);
                     preview = self.import_card(ui, cx);
                 });
-            });
-            ui.vertical(|ui| {
-                ui.set_width(ui.available_width());
-                apply = self.plan_card(ui, cx, h);
+                ui.vertical(|ui| {
+                    ui.set_width(ui.available_width());
+                    apply = self.plan_card(ui, cx, h);
+                });
             });
         });
         if preview {

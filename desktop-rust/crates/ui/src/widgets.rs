@@ -309,13 +309,20 @@ pub fn cardtabs_at(
         .collect();
     let room =
         band.width() - 2.0 * look.px("cardtabs-pad", 0.0) - look.px("cardtabs-gap", 0.0) * (tabs.len() as f32 - 1.0);
+    // equal widths as the web's flex: 1, in proportion only when a label would not fit its share
+    let equal = room / tabs.len().max(1) as f32;
+    let fits = natural.iter().all(|w| *w <= equal);
     let scale = room / natural.iter().sum::<f32>().max(1.0);
     for (i, label) in tabs.iter().enumerate() {
         let on = i == sel;
         let text = if upper { label.to_uppercase() } else { label.to_string() };
         let ink = if on { look.c("on-cardtab-on") } else { look.c("on-cardtab") };
         let g = ui.painter().layout_no_wrap(text, font.clone(), ink);
-        let w = if fit { g.size().x + 24.0 + if on { bar } else { 0.0 } } else { (natural[i] * scale).floor() };
+        let w = if fit {
+            g.size().x + 24.0 + if on { bar } else { 0.0 }
+        } else {
+            if fits { equal.floor() } else { (natural[i] * scale).floor() }
+        };
         // the band's padding on top (the web's --cardtabs-pad), the inactive tabs lower by their inset, the current
         // one over the band's line by its overlap
         let pad = look.px("cardtabs-pad", 0.0);
