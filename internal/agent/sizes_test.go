@@ -237,11 +237,17 @@ func TestSizeScanVisibleWhileListing(t *testing.T) {
 	}
 	j.next = j.now() // due
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go j.run(ctx)
+	done := make(chan struct{})
+	go func() { j.run(ctx); close(done) }()
 	<-listing
 	if sc, _ := j.snapshot()["scanning"].(*sizeScan); sc == nil || sc.Kind != "full" {
 		t.Fatalf("while listing: %v", j.snapshot()["scanning"])
 	}
 	close(release)
+	// the scan ends (and writes its cache) before the test's folder goes
+	for deadline := time.Now().Add(5 * time.Second); j.snapshot()["scanning"] != nil && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
 }
