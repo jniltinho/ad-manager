@@ -335,9 +335,9 @@ impl Settings {
                                     ui.horizontal(|ui| {
                                         ui.spacing_mut().item_spacing.x = 8.0;
                                         let can = loaded.stored;
-                                        upload = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, "⬆", t("Upload logo"), Kind::Secondary)).inner.clicked();
+                                        upload = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::UPLOAD, t("Upload logo"), Kind::Secondary)).inner.clicked();
                                         if loaded.logo {
-                                            remove = widgets::button(ui, &look, "🗑", t("Use the default logo"), Kind::Secondary).clicked();
+                                            remove = widgets::button(ui, &look, crate::icons::TRASH, t("Use the default logo"), Kind::Secondary).clicked();
                                         }
                                     });
                                     note(ui, t("PNG, JPEG or SVG up to 512 KiB."));
@@ -352,8 +352,8 @@ impl Settings {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         let label = if self.busy { t("Saving…") } else { t("Save settings") };
                         let can = !self.busy && loaded.stored;
-                        save = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, "✔", label, Kind::Primary)).inner.clicked();
-                        discard = widgets::button(ui, &look, "⟲", t("Discard changes"), Kind::Secondary).clicked();
+                        save = ui.add_enabled_ui(can, |ui| widgets::button(ui, &look, crate::icons::CHECK, label, Kind::Primary)).inner.clicked();
+                        discard = widgets::button(ui, &look, crate::icons::ROTATE, t("Discard changes"), Kind::Secondary).clicked();
                     });
                     ui.add_space(20.0);
                 });
@@ -486,7 +486,7 @@ impl Settings {
                 ui.spacing_mut().item_spacing.y = 8.0;
                 let muted = look.c("fg-muted");
                 ui.add(egui::Label::new(RichText::new(t("Register the token in Shares → + new, and run the command on the file server: it keeps only the hash.")).size(12.0).color(muted)).wrap());
-                asked = widgets::button(ui, &look, "🔑", t("Generate token"), Kind::Secondary).clicked();
+                asked = widgets::button(ui, &look, crate::icons::KEY, t("Generate token"), Kind::Secondary).clicked();
                 if let Some(tk) = &self.token {
                     let w = ui.available_width();
                     for (k, (label, value, done)) in [
@@ -504,7 +504,7 @@ impl Settings {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.spacing_mut().item_spacing.x = 0.0;
-                                    if widgets::button(ui, &look, "📋", "", Kind::Secondary).on_hover_text(t("Copy")).clicked() {
+                                    if widgets::button(ui, &look, crate::icons::COPY, "", Kind::Secondary).on_hover_text(t("Copy")).clicked() {
                                         ui.ctx().copy_text(value.clone());
                                         cx.set_status(done);
                                     }

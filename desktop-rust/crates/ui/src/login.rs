@@ -342,7 +342,7 @@ impl Login {
         ui.add_space(12.0);
         ui.add(egui::Label::new(RichText::new(&cx.cfg.panel.url).size(11.0).color(muted)).truncate());
         ui.add_space(4.0);
-        if widgets::button(ui, look, "⚙", t("Configure"), Kind::Link).clicked() {
+        if widgets::button(ui, look, crate::icons::SETTINGS, t("Configure"), Kind::Link).clicked() {
             cx.go = Some(Go::Setup);
         }
     }

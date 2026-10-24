@@ -417,7 +417,11 @@ pub fn dc_ui(ui: &mut Ui, look: &Look, name: &str, dc: &DcHealth, h: f32) -> boo
     let busy = dc.loading();
     let right = |ui: &mut Ui| {
         let label = if busy { t("Checking…") } else { t("Check again") };
-        if ui.add_enabled_ui(!busy, |ui| widgets::button(ui, look, "⟳", label, Kind::Secondary)).inner.clicked() {
+        if ui
+            .add_enabled_ui(!busy, |ui| widgets::button(ui, look, crate::icons::REFRESH, label, Kind::Secondary))
+            .inner
+            .clicked()
+        {
             again = true;
         }
     };

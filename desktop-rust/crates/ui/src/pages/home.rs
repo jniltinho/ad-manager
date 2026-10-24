@@ -162,16 +162,23 @@ impl Home {
                 n("enabled"),
                 look.c("ok"),
                 look.c("decor-ok"),
-                "✔",
+                crate::icons::USER_CHECK,
                 Nav::Users(UserFilter::Enabled),
             ),
-            (t("Disabled").into(), n("disabled"), muted, look.c("decor-muted"), "🚫", Nav::Users(UserFilter::Disabled)),
+            (
+                t("Disabled").into(),
+                n("disabled"),
+                muted,
+                look.c("decor-muted"),
+                crate::icons::USER_X,
+                Nav::Users(UserFilter::Disabled),
+            ),
             (
                 t("Locked").into(),
                 n("locked"),
                 if locked > 0 { look.c("err") } else { muted },
                 if locked > 0 { look.c("decor-err") } else { look.c("decor-muted") },
-                "🔒",
+                crate::icons::LOCK,
                 Nav::Users(UserFilter::Locked),
             ),
             (
@@ -179,7 +186,7 @@ impl Home {
                 if s.is_some() { idle.to_string() } else { "…".into() },
                 if idle > 0 { look.c("warn") } else { muted },
                 if idle > 0 { look.c("decor-warn") } else { look.c("decor-muted") },
-                "🕐",
+                crate::icons::CLOCK,
                 Nav::Users(UserFilter::Inactive),
             ),
             (
@@ -187,7 +194,7 @@ impl Home {
                 s.map_or("…".into(), |s| s.groups.to_string()),
                 look.c("fg-strong"),
                 look.c("decor-strong"),
-                "👥",
+                crate::icons::USERS_ROUND,
                 Nav::To(Page::Groups),
             ),
             (
@@ -195,7 +202,7 @@ impl Home {
                 s.map_or("…".into(), |s| s.computers.to_string()),
                 look.c("fg-strong"),
                 look.c("decor-strong"),
-                "🖥",
+                crate::icons::MONITOR,
                 Nav::To(Page::Computers),
             ),
         ];
@@ -221,7 +228,7 @@ impl Home {
                 ha = panel(ui, &look, t("Reset password / unlock"), r0, |ui| {
                     egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            quick = widgets::button(ui, &look, "🔑", t("Open"), Kind::Primary).clicked();
+                            quick = widgets::button(ui, &look, crate::icons::KEY, t("Open"), Kind::Primary).clicked();
                             // the logins as suggestions with their names (the web's quick box)
                             let options: Vec<(String, String)> = self
                                 .data
@@ -305,11 +312,12 @@ impl Home {
                                     widgets::tag(ui, &look, &a.tag, a.tone);
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         if let Some((label, go)) = &a.link {
-                                            let icon = if matches!(go, AlertGo::Unlock(_)) { "🔓" } else { "›" };
-                                            let text = if icon == "›" {
-                                                format!("{label} ›")
+                                            // as the web's links: unlock with its icon first, the others with a
+                                            // chevron after
+                                            let text = if matches!(go, AlertGo::Unlock(_)) {
+                                                format!("{} {label}", crate::icons::LOCK_OPEN)
                                             } else {
-                                                format!("{icon} {label}")
+                                                format!("{label} {}", crate::icons::RIGHT)
                                             };
                                             if widgets::button(ui, &look, "", &text, Kind::Link).clicked() {
                                                 match go {
@@ -319,7 +327,8 @@ impl Home {
                                             }
                                         }
                                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                            ui.add(egui::Label::new(RichText::new(&a.text).size(12.0)).truncate());
+                                            // wrapped, not cut, as the web's (a monospace theme makes it longer)
+                                            ui.add(egui::Label::new(RichText::new(&a.text).size(12.0)).wrap());
                                         });
                                     });
                                 });

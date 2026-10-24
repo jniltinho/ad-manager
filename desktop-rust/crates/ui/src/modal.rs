@@ -70,8 +70,10 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
                     let size = look.px("dialog-head-size", 13.0);
                     ui.label(crate::style::semibold(d.title(), size).color(look.c("on-dialog-head")));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let close =
-                            ui.add(egui::Button::new(RichText::new("✖").color(look.c("on-dialog-head"))).frame(false));
+                        let close = ui.add(
+                            egui::Button::new(RichText::new(crate::icons::X).color(look.c("on-dialog-head")))
+                                .frame(false),
+                        );
                         if close.on_hover_text(t("Close")).clicked() {
                             flow = Flow::Close;
                         }
@@ -205,7 +207,7 @@ fn draw_footer(ui: &mut Ui, look: &crate::style::Look, req: &FootReq) -> Footer 
                     f.cancel = widgets::button(ui, look, "", t("Cancel"), Kind::Secondary).clicked();
                     let kind = if req.danger { Kind::Danger } else { Kind::Primary };
                     f.ok = ui
-                        .add_enabled_ui(req.enabled, |ui| widgets::button(ui, look, "✔", label, kind))
+                        .add_enabled_ui(req.enabled, |ui| widgets::button(ui, look, crate::icons::CHECK, label, kind))
                         .inner
                         .clicked();
                 }
@@ -272,7 +274,7 @@ impl Dialog for ErrorBox {
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut Cx) -> Flow {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("⚠").size(22.0).color(cx.look.c("err")));
+            ui.label(RichText::new(crate::icons::ALERT).size(22.0).color(cx.look.c("err")));
             ui.add(egui::Label::new(self.0.to_string()).wrap().selectable(true));
         });
         if footer(ui, cx, None, "OK", true, true).ok { Flow::Close } else { Flow::Keep }

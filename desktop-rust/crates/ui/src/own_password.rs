@@ -112,7 +112,7 @@ impl Dialog for OwnPassword {
             let edit = widgets::line(&mut *self.next).id(self.ids[1]).password(!self.visible).desired_width(w);
             let edit = if self.visible { edit.font(egui::TextStyle::Monospace) } else { edit };
             ui.add(edit).labelled_by(l.id);
-            if widgets::button(ui, &look, "✨", t("generate"), Kind::Secondary)
+            if widgets::button(ui, &look, crate::icons::WAND, t("generate"), Kind::Secondary)
                 .on_hover_text(t("Generate a strong password"))
                 .clicked()
                 && let Ok(p) = adm_core::logic::generate_password(cx.me.settings.password_length.max(16) as usize)
@@ -121,13 +121,14 @@ impl Dialog for OwnPassword {
                 *self.confirm = p;
                 self.visible = true;
             }
-            let (icon, label) = if self.visible { ("🙈", t("hide")) } else { ("👁", t("show")) };
+            let (icon, label) =
+                if self.visible { (crate::icons::EYE_OFF, t("hide")) } else { (crate::icons::EYE, t("show")) };
             if widgets::button(ui, &look, icon, label, Kind::Secondary).clicked() {
                 self.visible = !self.visible;
             }
             if ui
                 .add_enabled_ui(!self.next.is_empty(), |ui| {
-                    widgets::button(ui, &look, "📋", t("copy"), Kind::Secondary)
+                    widgets::button(ui, &look, crate::icons::COPY, t("copy"), Kind::Secondary)
                 })
                 .inner
                 .clicked()

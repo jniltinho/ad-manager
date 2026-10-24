@@ -41,8 +41,9 @@ impl Logs {
     }
 
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
-        let mut tabs: Vec<(&str, String)> = vec![("📄", t("Audit").into()), ("🌐", t("HTTP — panel").into())];
-        tabs.extend(self.samba.iter().map(|v| ("🗄", v.label.clone())));
+        let mut tabs: Vec<(&str, String)> =
+            vec![(crate::icons::SCROLL, t("Audit").into()), (crate::icons::GLOBE, t("HTTP — panel").into())];
+        tabs.extend(self.samba.iter().map(|v| (crate::icons::SERVER, v.label.clone())));
         let refs: Vec<(&str, &str)> = tabs.iter().map(|(i, l)| (*i, l.as_str())).collect();
         if let Some(i) = widgets::subtabs(ui, &cx.look, "logs-tabs", &refs, self.tab) {
             self.tab = i;
@@ -140,11 +141,13 @@ impl Audit {
             let n = tf!("%d of %d (newest first)", self.visible.len(), self.all.len());
             ui.label(RichText::new(n).size(12.0).color(look.c("fg-muted")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                export = widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked();
-                if widgets::button(ui, &look, "⟳", t("Refresh"), Kind::Secondary).clicked() {
+                export = widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked();
+                if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
                     self.reload(cx);
                 }
-                if cx.me.asynqmon && widgets::button(ui, &look, "↗", t("Queues (asynqmon)"), Kind::Secondary).clicked()
+                if cx.me.asynqmon
+                    && widgets::button(ui, &look, crate::icons::EXTERNAL, t("Queues (asynqmon)"), Kind::Secondary)
+                        .clicked()
                 {
                     let base = cx.cfg.panel.url.trim_end_matches('/').to_string();
                     ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}/asynqmon")));
@@ -283,8 +286,8 @@ impl Http {
             let n = tf!("%d of %d (newest first)", self.visible.len(), self.all.len());
             ui.label(RichText::new(n).size(12.0).color(look.c("fg-muted")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                export = widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked();
-                if widgets::button(ui, &look, "⟳", t("Refresh"), Kind::Secondary).clicked() {
+                export = widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked();
+                if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
                     self.reload(cx);
                 }
             });
@@ -569,7 +572,7 @@ impl SambaView {
                     };
                     ui.label(RichText::new(count).size(12.0).color(muted));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if widgets::button(ui, &look, "⟳", t("Refresh"), Kind::Secondary).clicked() {
+                        if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
                             self.load(cx, i);
                         }
                     });

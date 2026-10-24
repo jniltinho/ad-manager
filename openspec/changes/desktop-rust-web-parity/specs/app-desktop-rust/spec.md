@@ -368,3 +368,20 @@ SHALL show the theme's field-focus border and ring.
 #### Scenario: Focused field
 - **WHEN** the new-user dialog opens with the login field focused
 - **THEN** the field shows a 1 px border in the field-focus color with its 2 px ring outside
+
+### Requirement: The web's icons
+The app SHALL draw the web's Lucide icons (the version the web panel uses) wherever the web shows one, never emoji, and
+a control's accessible name SHALL NOT include the icon.
+
+#### Scenario: Users actions
+- **WHEN** the Users page is shown
+- **THEN** the password, copy, move and delete links show the key-round, copy, folder-input and trash-2 outlines, and
+  the New user button the user-plus outline
+
+#### Scenario: Names without icons
+- **WHEN** the AccessKit tree of a dialog footer is read
+- **THEN** its buttons are named "Save" or "Cancel", without the icon's character
+
+#### Scenario: Wrapped alerts
+- **WHEN** an alert's text is longer than its row on Home (the Matrix theme's monospace face)
+- **THEN** it wraps to the next line, as the web's, instead of ending in an ellipsis

@@ -116,13 +116,13 @@ impl Groups {
                     .color(look.c("fg-muted")),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
+                if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
                     self.reload(cx);
                 }
-                if widgets::button(ui, &look, "➕", t("New group"), Kind::Primary).clicked() {
+                if widgets::button(ui, &look, crate::icons::PLUS, t("New group"), Kind::Primary).clicked() {
                     new_group(cx);
                 }
-                if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
+                if widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked() {
                     let mut rows = vec![
                         [t("Group"), t("Group type"), t("Scope"), t("Members"), t("Description")]
                             .map(String::from)
@@ -169,9 +169,13 @@ impl Groups {
                     3 => Cell::plain(scope_name(&g.scope)),
                     4 => Cell::plain(g.member_count.to_string()),
                     5 => Cell::new(&g.description, Tone::Muted),
-                    6 => Cell::plain(t("members")).link("👥", tf!("Members of %s", g.name), (GroupAction::Members, i)),
+                    6 => Cell::plain(t("members")).link(
+                        crate::icons::USERS_ROUND,
+                        tf!("Members of %s", g.name),
+                        (GroupAction::Members, i),
+                    ),
                     7 if !g.protected => Cell::new(t("delete"), Tone::Normal).link(
-                        "🗑",
+                        crate::icons::TRASH,
                         tf!("Delete %s", g.name),
                         (GroupAction::Delete, i),
                     ),
@@ -327,7 +331,7 @@ impl Dialog for Detail {
         let head = tf!("Member (%d)", self.members.len());
         let members = self.members.clone();
         let mut link = |ui: &mut Ui, r: usize| {
-            if widgets::button(ui, &look, "🗑", t("remove"), Kind::Link)
+            if widgets::button(ui, &look, crate::icons::TRASH, t("remove"), Kind::Link)
                 .on_hover_text(tf!("Remove %s", members[r]))
                 .clicked()
             {

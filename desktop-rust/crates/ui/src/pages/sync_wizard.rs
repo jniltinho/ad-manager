@@ -517,11 +517,11 @@ impl SyncWizard {
         let Some(r) = self.run.clone() else { return true };
         let running = r.status == "queued" || r.status == "running";
         let (icon, text, ink) = if running {
-            ("⟳", t("Preview running: listing the source and the destination…"), look.c("fg-strong"))
+            (crate::icons::LOADER, t("Preview running: listing the source and the destination…"), look.c("fg-strong"))
         } else if r.status == "ok" {
-            ("✔", t("Preview done: nothing was written yet."), look.c("ok"))
+            (crate::icons::CIRCLE_CHECK, t("Preview done: nothing was written yet."), look.c("ok"))
         } else {
-            ("✖", t("The preview failed."), look.c("err"))
+            (crate::icons::CIRCLE_X, t("The preview failed."), look.c("err"))
         };
         ui.horizontal(|ui| {
             ui.label(RichText::new(icon).color(ink));
@@ -577,8 +577,10 @@ impl SyncWizard {
             |_| {},
             |ui| {
                 let label = t("Run now");
-                run_now =
-                    ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "▶", label, Kind::Primary)).inner.clicked();
+                run_now = ui
+                    .add_enabled_ui(ok, |ui| widgets::button(ui, &look, crate::icons::PLAY, label, Kind::Primary))
+                    .inner
+                    .clicked();
                 close = widgets::button(ui, &look, "", t("Close (the job is saved)"), Kind::Secondary).clicked();
             },
         );
@@ -752,11 +754,11 @@ impl SyncWizard {
                 t("Not available: this server is not joined to a domain.").to_string()
             };
             let title = t("This server's machine account (Kerberos)");
-            if Self::choice_if(ui, &look, cw, self.kerberos, self.data.kerberos, "🗄", title, &text) {
+            if Self::choice_if(ui, &look, cw, self.kerberos, self.data.kerberos, crate::icons::SERVER, title, &text) {
                 self.kerberos = true;
             }
             let text = t("Another domain or a standalone server; the password is kept encrypted.");
-            if Self::choice(ui, &look, cw, !self.kerberos, "🔑", t("User and password"), text) {
+            if Self::choice(ui, &look, cw, !self.kerberos, crate::icons::KEY, t("User and password"), text) {
                 self.kerberos = false;
             }
         });
@@ -796,8 +798,11 @@ impl SyncWizard {
         Self::nav(
             ui,
             &look,
-            |ui| test = widgets::button(ui, &look, "🔌", t("Test connection"), Kind::Secondary).clicked(),
-            |ui| next = widgets::button(ui, &look, "", &format!("{} ›", t("Next")), Kind::Primary).clicked(),
+            |ui| test = widgets::button(ui, &look, crate::icons::PLUG, t("Test connection"), Kind::Secondary).clicked(),
+            |ui| {
+                next = widgets::button(ui, &look, "", &format!("{} {}", t("Next"), crate::icons::RIGHT), Kind::Primary)
+                    .clicked()
+            },
         );
         if test {
             self.run_test(cx, false);
@@ -818,7 +823,7 @@ impl SyncWizard {
         let mut go: Option<(String, String)> = None;
         let mut count: Option<String> = None;
         ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Up"), Kind::Secondary).clicked() {
+            if widgets::button(ui, &look, crate::icons::LEFT, t("Up"), Kind::Secondary).clicked() {
                 let s = &self.job.source;
                 go = Some(if !s.path.is_empty() {
                     (s.share.clone(), s.path.rsplit_once('/').map(|(p, _)| p.to_string()).unwrap_or_default())
@@ -831,7 +836,7 @@ impl SyncWizard {
         egui::ScrollArea::vertical().id_salt("sync-items").max_height(300.0).show(ui, |ui| {
             for it in &self.items {
                 ui.horizontal(|ui| {
-                    if ui.selectable_label(false, format!("📁 {it}")).clicked() {
+                    if ui.selectable_label(false, format!("{}  {it}", crate::icons::FOLDER)).clicked() {
                         let s = &self.job.source;
                         go = Some(if s.share.is_empty() {
                             (it.clone(), String::new())
@@ -866,7 +871,9 @@ impl SyncWizard {
             ui,
             &look,
             |ui| {
-                back = widgets::button(ui, &look, "", &format!("‹ {}", t("Back")), Kind::Secondary).clicked();
+                back =
+                    widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                        .clicked();
                 size = widgets::button(ui, &look, "", t("Size"), Kind::Secondary).clicked();
             },
             |ui| {
@@ -901,7 +908,7 @@ impl SyncWizard {
         );
         let mut go = None;
         ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "⬅", t("Up"), Kind::Secondary).clicked()
+            if widgets::button(ui, &look, crate::icons::LEFT, t("Up"), Kind::Secondary).clicked()
                 && !self.cur_dir.is_empty()
                 && !self.in_root(&self.cur_dir)
             {
@@ -915,7 +922,7 @@ impl SyncWizard {
         egui::ScrollArea::vertical().id_salt("sync-dirs").max_height(220.0).show(ui, |ui| {
             for d in &self.dirs {
                 let name = d.rsplit('/').next().unwrap_or(d);
-                if ui.selectable_label(false, format!("📁 {name}")).clicked() {
+                if ui.selectable_label(false, format!("{}  {name}", crate::icons::FOLDER)).clicked() {
                     go = Some(d.clone());
                 }
             }
@@ -925,7 +932,7 @@ impl SyncWizard {
         }
         let mut dest_changed = false;
         ui.horizontal(|ui| {
-            if widgets::button(ui, &look, "✔", t("Use this folder"), Kind::Secondary).clicked()
+            if widgets::button(ui, &look, crate::icons::CHECK, t("Use this folder"), Kind::Secondary).clicked()
                 && !self.cur_dir.is_empty()
                 && !self.in_root(&self.cur_dir)
             {
@@ -933,7 +940,7 @@ impl SyncWizard {
                 dest_changed = true;
             }
             widgets::field(ui, &mut self.new_name, t("name of the new folder"), 220.0);
-            if widgets::button(ui, &look, "📁", t("New folder…"), Kind::Secondary).clicked() {
+            if widgets::button(ui, &look, crate::icons::FOLDER_PLUS, t("New folder…"), Kind::Secondary).clicked() {
                 let n = self.new_name.trim().trim_matches(['/', '\\']).to_string();
                 if !n.is_empty() && !self.cur_dir.is_empty() {
                     self.dest = format!("{}/{n}", self.cur_dir);
@@ -956,9 +963,12 @@ impl SyncWizard {
         Self::nav(
             ui,
             &look,
-            |ui| back = widgets::button(ui, &look, "", &format!("‹ {}", t("Back")), Kind::Secondary).clicked(),
             |ui| {
-                let label = format!("{} ›", t("Next"));
+                back = widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                    .clicked()
+            },
+            |ui| {
+                let label = format!("{} {}", t("Next"), crate::icons::RIGHT);
                 next =
                     ui.add_enabled_ui(ok, |ui| widgets::button(ui, &look, "", &label, Kind::Primary)).inner.clicked();
             },
@@ -1126,7 +1136,10 @@ impl SyncWizard {
         Self::nav(
             ui,
             &look,
-            |ui| back = widgets::button(ui, &look, "", &format!("‹ {}", t("Back")), Kind::Secondary).clicked(),
+            |ui| {
+                back = widgets::button(ui, &look, "", &format!("{} {}", crate::icons::LEFT, t("Back")), Kind::Secondary)
+                    .clicked()
+            },
             |ui| {
                 preview = widgets::button(ui, &look, "", t("Save and preview"), Kind::Primary).clicked();
                 only = widgets::button(ui, &look, "", t("Only save"), Kind::Secondary).clicked();

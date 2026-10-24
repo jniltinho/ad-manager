@@ -124,7 +124,10 @@ impl Dialog for GpoList {
                 let mut backup = None;
                 let mut cell = |ui: &mut Ui, r: usize| {
                     let hint = t("Back up this GPO (needs the agent installed on a domain controller)");
-                    if widgets::button(ui, &look, "⬇", t("backup"), Kind::Link).on_hover_text(hint).clicked() {
+                    if widgets::button(ui, &look, crate::icons::DOWNLOAD, t("backup"), Kind::Link)
+                        .on_hover_text(hint)
+                        .clicked()
+                    {
                         backup = guids.get(r).cloned();
                     }
                 };
@@ -185,7 +188,7 @@ impl Dialog for GpoList {
                 .as_ref()
                 .and_then(|p| p.file_name())
                 .map_or(t("Choose a file…").to_string(), |n| n.to_string_lossy().into());
-            if widgets::button(ui, &look, "📂", &file, Kind::Secondary).clicked() {
+            if widgets::button(ui, &look, crate::icons::FOLDER_OPEN, &file, Kind::Secondary).clicked() {
                 crate::files::pick_file_of(cx, Some((t("GPO backup"), &["gz", "tgz"])), move |app, p| {
                     if let Some(d) = app.cx.dialog_mut::<GpoList>(me) {
                         d.file = Some(p);
@@ -198,7 +201,9 @@ impl Dialog for GpoList {
             let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(t("Name of the new GPO")));
             let ready = !self.busy && self.file.is_some() && !self.name.trim().is_empty();
             if ui
-                .add_enabled_ui(ready, |ui| widgets::button(ui, &look, "⬆", t("Restore"), Kind::Primary))
+                .add_enabled_ui(ready, |ui| {
+                    widgets::button(ui, &look, crate::icons::UPLOAD, t("Restore"), Kind::Primary)
+                })
                 .inner
                 .clicked()
                 && let Some(path) = self.file.clone()

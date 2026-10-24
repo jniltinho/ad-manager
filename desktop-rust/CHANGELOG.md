@@ -20,6 +20,8 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
     and quarantine as the web's; Backup schedules edited in place, refreshed while a backup runs.
   - Suggestions while typing (Home's quick box, group members, a user's groups, share lists).
   - Export CSV of the rows on screen (Users, Groups, Computers), as the web's.
+  - The web's outline icons (Lucide, the same version, ISC license) in tabs, buttons, links and tiles instead of
+    emoji; a subset font of the icons in use (`scripts/lucide-subset.sh`).
 
 - Crash-safe graphics start, from rustXterm's design.
   - The app renders through wgpu, with the glow renderer only on macOS for the Metal → OpenGL fallback.

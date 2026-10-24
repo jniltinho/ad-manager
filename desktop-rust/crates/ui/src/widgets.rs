@@ -57,9 +57,22 @@ pub fn button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind) -> 
     .color(ink);
     if kind == Kind::Link {
         let r = ui.add(egui::Button::new(rich).frame(false));
+        if !label.is_empty() {
+            let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+        }
         return r.on_hover_cursor(egui::CursorIcon::PointingHand);
     }
-    boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0)
+    let r = boxed(ui, look, egui::Button::new(rich), kind, line, fill, 0.0);
+    // named by its label: the icon is a private-use glyph a screen reader cannot read
+    if !label.is_empty() {
+        let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
+    }
+    r
+}
+
+/// A label without its icons (private-use glyphs a screen reader cannot read), as a control's accessible name.
+pub fn spoken(label: &str) -> String {
+    label.chars().filter(|c| !('\u{e000}'..='\u{f8ff}').contains(c)).collect::<String>().trim().to_string()
 }
 
 /// A button `w` wide with its label at the left and `icon` at the right (the web's export buttons).
@@ -91,7 +104,9 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
 
 /// An icon-only button with its name as tooltip.
 pub fn icon_button(ui: &mut Ui, look: &Look, icon: &str, name: &str) -> Response {
-    button(ui, look, icon, "", Kind::Secondary).on_hover_text(name)
+    let r = button(ui, look, icon, "", Kind::Secondary);
+    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name.to_string()));
+    r.on_hover_text(name)
 }
 
 /// A card as the web's .card: a 1 px frame, the theme's head (28 px, its gradient, the bar left of the title at the

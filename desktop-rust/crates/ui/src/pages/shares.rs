@@ -346,7 +346,10 @@ impl Shares {
         ui.add_space(20.0);
         let left = h - (ui.cursor().top() - top);
         let queue = |ui: &mut Ui| {
-            if cx.me.asynqmon && widgets::act(ui, &look, "", &format!("{} ↗", t("queue")), None, 12.0).clicked() {
+            if cx.me.asynqmon
+                && widgets::act(ui, &look, "", &format!("{} {}", t("queue"), crate::icons::EXTERNAL), None, 12.0)
+                    .clicked()
+            {
                 let base = cx.cfg.panel.url.trim_end_matches('/').to_string();
                 ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}/asynqmon")));
             }
@@ -408,17 +411,21 @@ impl Shares {
             }
             ui.spacing_mut().item_spacing.x = 8.0;
             if ui
-                .add_enabled_ui(!down, |ui| widgets::button(ui, &look, "📁", t("New share"), Kind::Primary))
+                .add_enabled_ui(!down, |ui| {
+                    widgets::button(ui, &look, crate::icons::FOLDER_PLUS, t("New share"), Kind::Primary)
+                })
                 .inner
                 .clicked()
             {
                 head = Some(Act::NewShare);
             }
-            if widgets::button(ui, &look, "⟳", t("Refresh"), Kind::Secondary).clicked() {
+            if widgets::button(ui, &look, crate::icons::REFRESH, t("Refresh"), Kind::Secondary).clicked() {
                 head = Some(Act::Refresh);
             }
             if ui
-                .add_enabled_ui(!down, |ui| widgets::button(ui, &look, "👥", t("Sessions"), Kind::Secondary))
+                .add_enabled_ui(!down, |ui| {
+                    widgets::button(ui, &look, crate::icons::USERS, t("Sessions"), Kind::Secondary)
+                })
                 .inner
                 .clicked()
             {
@@ -454,8 +461,14 @@ impl Shares {
                         4 => Cell::plain(access(s, false)),
                         5 => Cell::new(&s.comment, Tone::Muted),
                         _ => Cell::plain("")
-                            .and_link(t("edit"), Tone::Normal, "✏", tf!("Edit %s", s.name), (true, r))
-                            .and_link(t("remove"), Tone::Normal, "🗑", tf!("Remove %s", s.name), (false, r)),
+                            .and_link(t("edit"), Tone::Normal, crate::icons::PENCIL, tf!("Edit %s", s.name), (true, r))
+                            .and_link(
+                                t("remove"),
+                                Tone::Normal,
+                                crate::icons::TRASH,
+                                tf!("Remove %s", s.name),
+                                (false, r),
+                            ),
                     }
                 });
             match out.clicked {

@@ -198,7 +198,9 @@ impl Dialog for Dns {
             let mut cell = |ui: &mut Ui, k: usize| {
                 if k < n_rec {
                     if editable(&zone, &recs[k])
-                        && widgets::button(ui, &look, "🗑", "", Kind::Link).on_hover_text(t("Delete")).clicked()
+                        && widgets::button(ui, &look, crate::icons::TRASH, "", Kind::Link)
+                            .on_hover_text(t("Delete"))
+                            .clicked()
                     {
                         delete = Some(recs[k].clone());
                     }

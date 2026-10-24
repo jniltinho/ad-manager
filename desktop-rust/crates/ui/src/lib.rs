@@ -5,6 +5,7 @@ pub mod app;
 pub mod depth;
 pub mod files;
 pub mod fonts;
+pub mod icons;
 pub mod login;
 pub mod logo;
 pub mod modal;

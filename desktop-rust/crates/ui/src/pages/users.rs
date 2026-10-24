@@ -203,16 +203,17 @@ impl Users {
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if wide {
-                    if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
+                    if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
                         self.reload(cx);
                     }
-                    if widgets::button(ui, &look, "➕", t("New user"), Kind::Primary).clicked() {
+                    if widgets::button(ui, &look, crate::icons::USER_PLUS, t("New user"), Kind::Primary).clicked() {
                         new_user(cx, None);
                     }
-                    if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
+                    if widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked() {
                         self.export_csv(cx);
                     }
-                    if widgets::button(ui, &look, "⚙", t("Password policy"), Kind::Secondary).clicked() {
+                    if widgets::button(ui, &look, crate::icons::SHIELD, t("Password policy"), Kind::Secondary).clicked()
+                    {
                         super::policy::open(cx);
                     }
                 } else {
@@ -318,27 +319,44 @@ pub fn cell(
         // system and unlock are independent: a locked built-in account shows both
         C_TAG => match (x.protected, x.locked) {
             (true, true) => {
-                let mut cl =
-                    Cell::new(t("system"), Tone::Strong).link("🔓", tf!("Unlock %s", x.sam), (UserAction::Unlock, i));
+                let mut cl = Cell::new(t("system"), Tone::Strong).link(
+                    crate::icons::LOCK_OPEN,
+                    tf!("Unlock %s", x.sam),
+                    (UserAction::Unlock, i),
+                );
                 if let Some(l) = &mut cl.link {
                     l.tag = true;
                 }
                 cl
             }
             (true, false) => Cell::new(t("system"), Tone::Strong),
-            (false, true) => Cell::plain(t("unlock")).link("🔓", tf!("Unlock %s", x.sam), (UserAction::Unlock, i)),
+            (false, true) => {
+                Cell::plain(t("unlock")).link(crate::icons::LOCK_OPEN, tf!("Unlock %s", x.sam), (UserAction::Unlock, i))
+            }
             (false, false) => Cell::plain(""),
         },
         // "—" when never logged on, in the warning ink when inactive (never counts), as the web's cell
         6 => Cell::new(date(x.last_logon), if inactive(x, days, now) { Tone::Warn } else { Tone::Normal }),
-        C_PASSWORD => {
-            Cell::plain(t("password")).link("🔑", tf!("Set a password for %s", x.sam), (UserAction::Password, i))
-        }
-        C_COPY => Cell::plain(t("copy")).link("📋", tf!("New user copied from %s", x.sam), (UserAction::Copy, i)),
-        C_MOVE if ed => Cell::plain(t("move")).link("📁", tf!("Move %s to another OU", x.sam), (UserAction::Move, i)),
-        C_DELETE if ed => {
-            Cell::new(t("delete"), Tone::Normal).link("🗑", tf!("Delete %s", x.sam), (UserAction::Delete, i))
-        }
+        C_PASSWORD => Cell::plain(t("password")).link(
+            crate::icons::KEY,
+            tf!("Set a password for %s", x.sam),
+            (UserAction::Password, i),
+        ),
+        C_COPY => Cell::plain(t("copy")).link(
+            crate::icons::COPY,
+            tf!("New user copied from %s", x.sam),
+            (UserAction::Copy, i),
+        ),
+        C_MOVE if ed => Cell::plain(t("move")).link(
+            crate::icons::FOLDER_INPUT,
+            tf!("Move %s to another OU", x.sam),
+            (UserAction::Move, i),
+        ),
+        C_DELETE if ed => Cell::new(t("delete"), Tone::Normal).link(
+            crate::icons::TRASH,
+            tf!("Delete %s", x.sam),
+            (UserAction::Delete, i),
+        ),
         _ => Cell::plain(""),
     }
 }
@@ -505,7 +523,7 @@ fn group_list(
     ui.add_space(12.0);
     let rows: Vec<[RichText; 2]> = groups.iter().map(|g| [RichText::new(g), RichText::new("")]).collect();
     let mut cell = |ui: &mut Ui, r: usize| {
-        if widgets::act(ui, &look, "🗑", t("remove"), None, 12.0).clicked() {
+        if widgets::act(ui, &look, crate::icons::TRASH, t("remove"), None, 12.0).clicked() {
             ev = Some(GroupEvent::Remove(groups[r].clone()));
         }
     };

@@ -58,17 +58,17 @@ impl Page {
 
     pub fn icon(self) -> &'static str {
         match self {
-            Self::Home => "🏠",
-            Self::Users => "👤",
-            Self::Groups => "👥",
-            Self::Ous => "📂",
-            Self::Computers => "🖥",
-            Self::Shares => "🗄",
-            Self::Backup => "🕘",
-            Self::Sync => "🔄",
-            Self::Logs => "📄",
-            Self::ImportExport => "↔",
-            Self::Settings => "⚙",
+            Self::Home => crate::icons::HOME,
+            Self::Users => crate::icons::USER,
+            Self::Groups => crate::icons::USERS_ROUND,
+            Self::Ous => crate::icons::FOLDER_TREE,
+            Self::Computers => crate::icons::MONITOR,
+            Self::Shares => crate::icons::FOLDER_OPEN,
+            Self::Backup => crate::icons::ARCHIVE,
+            Self::Sync => crate::icons::FOLDER_SYNC,
+            Self::Logs => crate::icons::SCROLL,
+            Self::ImportExport => crate::icons::ARROWS,
+            Self::Settings => crate::icons::SETTINGS,
         }
     }
 }
@@ -210,7 +210,7 @@ impl Shell {
     /// The current page; Backup and Sync share the Backup tab and show the web's Backup | Sync page tabs.
     fn page_ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) -> Option<Nav> {
         if matches!(self.page, Page::Backup | Page::Sync) {
-            let tabs = [("🗄", t("Backup")), ("🔄", t("Sync"))];
+            let tabs = [(crate::icons::ARCHIVE, t("Backup")), (crate::icons::FOLDER_SYNC, t("Sync"))];
             let sel = usize::from(self.page == Page::Sync);
             if let Some(i) = widgets::subtabs(ui, &cx.look, "backup-tabs", &tabs, sel) {
                 return Some(Nav::To(if i == 1 { Page::Sync } else { Page::Backup }));
@@ -316,7 +316,7 @@ impl Shell {
         let mut search =
             ui.new_child(egui::UiBuilder::new().max_rect(sr).layout(egui::Layout::right_to_left(egui::Align::Center)));
         search.spacing_mut().item_spacing.x = 0.0;
-        let go = widgets::button(&mut search, &look, "🔍", t("Search"), Kind::Primary).clicked();
+        let go = widgets::button(&mut search, &look, crate::icons::SEARCH, t("Search"), Kind::Primary).clicked();
         let w = search.available_width();
         let field =
             search.add(widgets::line(&mut self.search).hint_text(t("Search user, login or e-mail…")).desired_width(w));
@@ -351,17 +351,17 @@ impl Shell {
                 let dot = |ui: &mut Ui| {
                     ui.label(RichText::new("·").size(11.0).color(look.c("on-header-subtle")));
                 };
-                if link(ui, "↩", t("sign out")).clicked() {
+                if link(ui, crate::icons::LOG_OUT, t("sign out")).clicked() {
                     let api = cx.panel.clone();
                     cx.spawn(async move { api.logout().await }, |_, ()| {});
                     cx.go = Some(Go::Login);
                 }
                 dot(ui);
-                if link(ui, "🔑", t("my password")).clicked() {
+                if link(ui, crate::icons::KEY, t("my password")).clicked() {
                     cx.push(crate::own_password::OwnPassword::new());
                 }
                 dot(ui);
-                if link(ui, "⚙", t("Configure")).clicked() {
+                if link(ui, crate::icons::SETTINGS, t("Configure")).clicked() {
                     cx.go = Some(Go::Setup);
                 }
             },
@@ -393,7 +393,7 @@ impl Shell {
                             && top_tab(
                                 ui,
                                 &look,
-                                "☑",
+                                crate::icons::CHECKS,
                                 t("Queues"),
                                 false,
                                 t("Agent queue monitor (opens in a new tab)"),
@@ -403,8 +403,15 @@ impl Shell {
                             ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}/asynqmon")));
                         }
                         if cx.me.settings.swagger
-                            && top_tab(ui, &look, "📖", "API", false, t("API documentation (opens in a new tab)"))
-                                .clicked()
+                            && top_tab(
+                                ui,
+                                &look,
+                                crate::icons::BOOK,
+                                "API",
+                                false,
+                                t("API documentation (opens in a new tab)"),
+                            )
+                            .clicked()
                         {
                             ui.ctx().open_url(egui::OpenUrl::new_tab(format!("{base}/swagger")));
                         }
@@ -490,14 +497,14 @@ impl Shell {
         } else {
             format!("{} ({})", cx.me.domain, cx.me.netbios)
         };
-        pane(&mut inner, &mut |ui| ui.label(small(format!("🖥 {domain}"), ink)));
+        pane(&mut inner, &mut |ui| ui.label(small(format!("{} {domain}", crate::icons::SERVER), ink)));
         inner.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             pane(ui, &mut |ui| ui.label(small(format!("ad-manager desktop-rs {}", cx.version), strong)));
             if cx.me.settings.session_minutes > 0 {
                 let idle = adm_core::tf!("session expires after %d min idle", cx.me.settings.session_minutes);
-                pane(ui, &mut |ui| ui.label(small(format!("🕐 {idle}"), ink)));
+                pane(ui, &mut |ui| ui.label(small(format!("{} {idle}", crate::icons::CLOCK), ink)));
             }
-            pane(ui, &mut |ui| ui.label(small(format!("👤 {}", cx.me.user), ink)));
+            pane(ui, &mut |ui| ui.label(small(format!("{} {}", crate::icons::USER, cx.me.user), ink)));
             let s = cx.hover.clone().unwrap_or_else(|| cx.status.clone());
             if !s.is_empty() {
                 pane(ui, &mut |ui| ui.add(egui::Label::new(small(s.clone(), strong)).truncate()));
@@ -507,7 +514,7 @@ impl Shell {
 }
 
 /// The footer's Support icon (the web's life buoy has no glyph in egui's fonts).
-const SUPPORT_ICON: &str = "❓";
+const SUPPORT_ICON: &str = crate::icons::BUOY;
 
 /// The project's support page (the web's default).
 const SUPPORT: &str = "https://github.com/jniltinho/ad-manager/wiki";

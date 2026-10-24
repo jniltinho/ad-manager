@@ -248,7 +248,10 @@ impl Dialog for QuarantineDialog {
                     let sel = &mut self.sel;
                     let files = &self.files;
                     let mut first = |ui: &mut Ui, k: usize| {
-                        if widgets::act(ui, &look, "⬇", "", None, 12.0).on_hover_text(t("Download")).clicked() {
+                        if widgets::act(ui, &look, crate::icons::DOWNLOAD, "", None, 12.0)
+                            .on_hover_text(t("Download"))
+                            .clicked()
+                        {
                             download = Some(k);
                         }
                         ui.add_space(8.0);
@@ -292,17 +295,20 @@ impl Dialog for QuarantineDialog {
             ui.add_space(12.0);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
-                empty = widgets::button(ui, &look, "🗑", t("Empty the quarantine"), Kind::Danger).clicked();
+                empty =
+                    widgets::button(ui, &look, crate::icons::TRASH, t("Empty the quarantine"), Kind::Danger).clicked();
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let some = !self.files.is_empty();
                     give_all = ui
-                        .add_enabled_ui(some, |ui| widgets::button(ui, &look, "↩", t("Give back all"), Kind::Primary))
+                        .add_enabled_ui(some, |ui| {
+                            widgets::button(ui, &look, crate::icons::ROTATE, t("Give back all"), Kind::Primary)
+                        })
                         .inner
                         .clicked();
                     let picked = self.sel.iter().any(|x| *x);
                     give = ui
                         .add_enabled_ui(picked, |ui| {
-                            widgets::button(ui, &look, "↩", t("Give back selected"), Kind::Secondary)
+                            widgets::button(ui, &look, crate::icons::ROTATE, t("Give back selected"), Kind::Secondary)
                         })
                         .inner
                         .clicked();

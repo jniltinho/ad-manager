@@ -125,7 +125,7 @@ impl Sync {
             ui.spacing_mut().item_spacing.x = 20.0;
             ui.vertical(|ui| {
                 ui.set_width(260.0);
-                let right = |ui: &mut Ui| refresh = widgets::act(ui, &look, "⟳", t("refresh"), None, 12.0).clicked();
+                let right = |ui: &mut Ui| refresh = widgets::act(ui, &look, crate::icons::REFRESH, t("refresh"), None, 12.0).clicked();
                 widgets::panel(ui, &look, (t("Servers"), ""), right, 0.0, |ui| {
                     for (i, a) in self.agents.iter().enumerate() {
                         let on = self.pick == i && self.cur.is_some();
@@ -185,91 +185,125 @@ impl Sync {
             }
         };
         let mut act: Option<(JobAct, usize)> = None;
-        widgets::panel(ui, &look, (&format!("🔄  {}", t("Sync jobs")), ""), right, 0.0, |ui| {
-            for s in self.qs.space.iter().filter(|s| s.low) {
-                egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
-                    let msg = tf!("Little free space on %s: %s of %s.", s.root, size_text(s.free), size_text(s.total));
-                    ui.label(RichText::new(msg).size(12.0).color(look.c("warn")));
-                });
-            }
-            if !self.info.is_empty() {
-                egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                    ui.label(RichText::new(&self.info).size(12.0).color(look.c("fg-muted")));
-                });
-                return;
-            }
-            let cols = [
-                Column::new(t("Name"), 120.0),
-                Column::new(t("Source"), 200.0).fill(),
-                Column::new(t("Destination"), 140.0),
-                Column::new(t("Mode"), 80.0),
-                Column::new(t("When (cron)"), 110.0),
-                Column::new(t("Last run"), 170.0),
-                Column::new(t("Quarantine"), 100.0),
-                Column::new("", 110.0).right(),
-            ];
-            let me = &*self;
-            let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();
-            let (jobs, runs, qs) = (&self.data.jobs, &self.data.runs, &self.qs.quarantines);
-            let mut hover = None;
-            let out = table::Table { id: "sync-jobs", cols: &cols, rows: jobs.len(), keys, row_h: 0.0, frame: false }
-                .show(ui, &look, &mut self.jobs, &mut hover, |r, c| {
-                    let j = &jobs[r];
-                    match c {
-                        0 => Cell::plain(&names[r]).bold(),
-                        1 => {
-                            let auth = if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" };
-                            Cell::plain(sync_unc(j)).mono().with_tag(auth, Tone::Normal)
-                        }
-                        2 => Cell::plain(&j.dest).mono(),
-                        3 if j.mode == "mirror" && j.approved != j.rev => {
-                            Cell::new(format!("{} · {}", t("mirror"), t("preview needed")), Tone::Warn)
-                        }
-                        3 if j.mode == "mirror" => Cell::plain(t("mirror")),
-                        3 => Cell::plain(t("copy")),
-                        4 if j.enabled && !j.cron.is_empty() => Cell::plain(&j.cron).mono(),
-                        4 => Cell::plain("—"),
-                        5 => match runs.iter().find(|x| x.job == j.id) {
-                            None => Cell::plain("—"),
-                            Some(x) => {
-                                let (st, tone) = run_status(&x.status);
-                                let phase = phase_text(x);
-                                if x.status == "running" && !phase.is_empty() {
-                                    Cell::new(format!("{st} · {phase}"), tone)
-                                } else {
-                                    Cell::new(format!("{st} · {}", date(x.started)), tone)
+        widgets::panel(
+            ui,
+            &look,
+            (&format!("{}  {}", crate::icons::FOLDER_SYNC, t("Sync jobs")), ""),
+            right,
+            0.0,
+            |ui| {
+                for s in self.qs.space.iter().filter(|s| s.low) {
+                    egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
+                        let msg =
+                            tf!("Little free space on %s: %s of %s.", s.root, size_text(s.free), size_text(s.total));
+                        ui.label(RichText::new(msg).size(12.0).color(look.c("warn")));
+                    });
+                }
+                if !self.info.is_empty() {
+                    egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                        ui.label(RichText::new(&self.info).size(12.0).color(look.c("fg-muted")));
+                    });
+                    return;
+                }
+                let cols = [
+                    // the web's truncated name, source and destination; the last run whole (at 1280 px too)
+                    Column::new(t("Name"), 130.0),
+                    Column::new(t("Source"), 120.0).fill(),
+                    Column::new(t("Destination"), 120.0),
+                    Column::new(t("Mode"), 60.0),
+                    Column::new(t("When (cron)"), 100.0),
+                    Column::new(t("Last run"), 180.0),
+                    Column::new(t("Quarantine"), 90.0),
+                    Column::new("", 104.0).right(),
+                ];
+                let me = &*self;
+                let names: Vec<String> = me.data.jobs.iter().map(|j| me.job_name(&j.id)).collect();
+                let (jobs, runs, qs) = (&self.data.jobs, &self.data.runs, &self.qs.quarantines);
+                let mut hover = None;
+                let out =
+                    table::Table { id: "sync-jobs", cols: &cols, rows: jobs.len(), keys, row_h: 0.0, frame: false }
+                        .show(ui, &look, &mut self.jobs, &mut hover, |r, c| {
+                            let j = &jobs[r];
+                            match c {
+                                0 => Cell::plain(&names[r]).bold(),
+                                1 => {
+                                    let auth = if j.source.auth == "ntlm" { "NTLM" } else { "Kerberos" };
+                                    Cell::plain(sync_unc(j)).mono().with_tag(auth, Tone::Normal)
                                 }
+                                2 => Cell::plain(&j.dest).mono(),
+                                3 if j.mode == "mirror" && j.approved != j.rev => {
+                                    Cell::new(format!("{} · {}", t("mirror"), t("preview needed")), Tone::Warn)
+                                }
+                                3 if j.mode == "mirror" => Cell::plain(t("mirror")),
+                                3 => Cell::plain(t("copy")),
+                                4 if j.enabled && !j.cron.is_empty() => Cell::plain(&j.cron).mono(),
+                                4 => Cell::plain("—"),
+                                5 => match runs.iter().find(|x| x.job == j.id) {
+                                    None => Cell::plain("—"),
+                                    Some(x) => {
+                                        let (st, tone) = run_status(&x.status);
+                                        let phase = phase_text(x);
+                                        if x.status == "running" && !phase.is_empty() {
+                                            Cell::new(format!("{st} · {phase}"), tone)
+                                        } else {
+                                            Cell::new(format!("{st} · {}", date(x.started)), tone)
+                                        }
+                                    }
+                                },
+                                6 => {
+                                    let size: i64 = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum();
+                                    if qs.iter().any(|q| q.job == j.id) {
+                                        Cell::plain(size_text(size)).link(
+                                            crate::icons::ARCHIVE,
+                                            tf!("Quarantine of %s", names[r]),
+                                            (JobAct::Quarantine, r),
+                                        )
+                                    } else {
+                                        Cell::plain("—")
+                                    }
+                                }
+                                _ => Cell::plain("")
+                                    .and_link(
+                                        "",
+                                        Tone::Normal,
+                                        crate::icons::EYE,
+                                        t("Preview").into(),
+                                        (JobAct::Preview, r),
+                                    )
+                                    .and_link(
+                                        "",
+                                        Tone::Normal,
+                                        crate::icons::PLAY,
+                                        t("Run now").into(),
+                                        (JobAct::Run, r),
+                                    )
+                                    .and_link(
+                                        "",
+                                        Tone::Normal,
+                                        crate::icons::PENCIL,
+                                        t("Edit").into(),
+                                        (JobAct::Edit, r),
+                                    )
+                                    .and_link(
+                                        "",
+                                        Tone::Normal,
+                                        crate::icons::TRASH,
+                                        t("Delete").into(),
+                                        (JobAct::Delete, r),
+                                    ),
                             }
-                        },
-                        6 => {
-                            let size: i64 = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum();
-                            if qs.iter().any(|q| q.job == j.id) {
-                                Cell::plain(size_text(size)).link(
-                                    "🗄",
-                                    tf!("Quarantine of %s", names[r]),
-                                    (JobAct::Quarantine, r),
-                                )
-                            } else {
-                                Cell::plain("—")
-                            }
-                        }
-                        _ => Cell::plain("")
-                            .and_link("", Tone::Normal, "👁", t("Preview").into(), (JobAct::Preview, r))
-                            .and_link("", Tone::Normal, "▶", t("Run now").into(), (JobAct::Run, r))
-                            .and_link("", Tone::Normal, "✏", t("Edit").into(), (JobAct::Edit, r))
-                            .and_link("", Tone::Normal, "🗑", t("Delete").into(), (JobAct::Delete, r)),
-                    }
-                });
-            cx.hover = hover.or(cx.hover.take());
-            act = out.clicked;
-            if jobs.is_empty() && self.cur.is_some() {
-                ui.add_space(12.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new(t("No sync jobs.")).size(12.0).color(look.c("fg-muted")))
-                });
-                ui.add_space(12.0);
-            }
-        });
+                        });
+                cx.hover = hover.or(cx.hover.take());
+                act = out.clicked;
+                if jobs.is_empty() && self.cur.is_some() {
+                    ui.add_space(12.0);
+                    ui.vertical_centered(|ui| {
+                        ui.label(RichText::new(t("No sync jobs.")).size(12.0).color(look.c("fg-muted")))
+                    });
+                    ui.add_space(12.0);
+                }
+            },
+        );
         if add && let Some(id) = agent {
             super::sync_wizard::open(cx, id, self.data.clone(), None);
         }
@@ -318,14 +352,14 @@ impl Sync {
             |ui| {
                 let cols = [
                     Column::new(t("Date"), 160.0),
-                    Column::new(t("Finished"), 150.0),
+                    Column::new(t("Finished"), 130.0),
                     Column::new(t("Job"), 120.0),
-                    Column::new(t("Kind"), 80.0),
-                    Column::new(t("Status"), 200.0).fill(),
-                    Column::new(t("Files"), 70.0).right(),
-                    Column::new(t("Size"), 90.0).right(),
-                    Column::new(t("Deleted"), 70.0).right(),
-                    Column::new("", 80.0).right(),
+                    Column::new(t("Kind"), 70.0),
+                    Column::new(t("Status"), 120.0).fill(),
+                    Column::new(t("Files"), 56.0).right(),
+                    Column::new(t("Size"), 80.0).right(),
+                    Column::new(t("Deleted"), 64.0).right(),
+                    Column::new("", 64.0).right(),
                 ];
                 let me = &*self;
                 let names: Vec<String> = me.data.runs.iter().map(|r| me.job_name(&r.job)).collect();
@@ -380,11 +414,29 @@ impl Sync {
                         _ => {
                             let mut cell = Cell::plain("");
                             if x.result.is_some() {
-                                cell = cell.and_link("", Tone::Normal, "👁", t("Details").into(), (RunAct::Details, r));
+                                cell = cell.and_link(
+                                    "",
+                                    Tone::Normal,
+                                    crate::icons::EYE,
+                                    t("Details").into(),
+                                    (RunAct::Details, r),
+                                );
                             }
-                            cell = cell.and_link("", Tone::Normal, "📄", t("Log").into(), (RunAct::Log, r));
+                            cell = cell.and_link(
+                                "",
+                                Tone::Normal,
+                                crate::icons::SCROLL,
+                                t("Log").into(),
+                                (RunAct::Log, r),
+                            );
                             if x.status == "running" {
-                                cell = cell.and_link("", Tone::Normal, "⏹", t("Cancel").into(), (RunAct::Cancel, r));
+                                cell = cell.and_link(
+                                    "",
+                                    Tone::Normal,
+                                    crate::icons::SQUARE,
+                                    t("Cancel").into(),
+                                    (RunAct::Cancel, r),
+                                );
                             }
                             cell
                         }
@@ -534,7 +586,10 @@ impl crate::modal::Dialog for RunDialog {
             let quarantined = self.quarantined && !r.quarantine.is_empty();
             let rows3: Vec<[RichText; 3]> = rows.into_iter().map(|[a, b]| [a, b, RichText::new("")]).collect();
             let mut cell = |ui: &mut Ui, k: usize| {
-                if quarantined && k + 1 == n && widgets::act(ui, &look, "🗄", t("open"), None, 12.0).clicked() {
+                if quarantined
+                    && k + 1 == n
+                    && widgets::act(ui, &look, crate::icons::ARCHIVE, t("open"), None, 12.0).clicked()
+                {
                     open = true;
                 }
             };
@@ -623,7 +678,7 @@ impl crate::modal::Dialog for LogDialog {
         });
         ui.add_space(8.0);
         let label = if self.copied { t("Copied") } else { t("Copy") };
-        if widgets::button(ui, &look, "📋", label, widgets::Kind::Secondary).clicked() {
+        if widgets::button(ui, &look, crate::icons::COPY, label, widgets::Kind::Secondary).clicked() {
             ui.ctx().copy_text(self.text.clone());
             self.copied = true;
         }

@@ -345,7 +345,9 @@ impl Setup {
                         }
                         let can = self.can_save(cx);
                         if ui
-                            .add_enabled_ui(can, |ui| widgets::button(ui, &look, "✔", t("Save"), Kind::Primary))
+                            .add_enabled_ui(can, |ui| {
+                                widgets::button(ui, &look, crate::icons::CHECK, t("Save"), Kind::Primary)
+                            })
                             .inner
                             .clicked()
                         {
@@ -392,7 +394,7 @@ impl Setup {
                 "Test signs in with the account (Domain Admins). The password is used only for the test and the session; it is never saved.",
             ),
         );
-        if widgets::button(ui, &look, "🔍", t("Test connection"), Kind::Secondary).clicked() {
+        if widgets::button(ui, &look, crate::icons::SEARCH, t("Test connection"), Kind::Secondary).clicked() {
             self.test(cx);
         }
         let mut trust = None;
@@ -416,7 +418,9 @@ impl Setup {
                     ),
                 );
                 cert_details(ui, &look, c);
-                if widgets::button(ui, &look, "✔", t("Trust this certificate"), Kind::Secondary).clicked() {
+                if widgets::button(ui, &look, crate::icons::CHECK, t("Trust this certificate"), Kind::Secondary)
+                    .clicked()
+                {
                     trust = Some(c.pin.clone());
                 }
             }

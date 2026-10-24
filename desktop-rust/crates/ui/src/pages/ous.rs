@@ -79,10 +79,10 @@ impl Ous {
             ui.label(crate::style::semibold(&cx.me.domain, 12.0).color(muted));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
-                if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
+                if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
                     self.reload(cx);
                 }
-                if widgets::button(ui, &look, "📁", t("New OU"), Kind::Primary).clicked() {
+                if widgets::button(ui, &look, crate::icons::FOLDER_PLUS, t("New OU"), Kind::Primary).clicked() {
                     let parents: Vec<OrgUnit> = self.ous.iter().filter(|o| is_ou(&o.dn)).cloned().collect();
                     cx.push(NewOu {
                         name: String::new(),
@@ -91,7 +91,7 @@ impl Ous {
                         focus: true,
                     });
                 }
-                if widgets::button(ui, &look, "📄", "GPOs", Kind::Secondary).clicked() {
+                if widgets::button(ui, &look, crate::icons::FILE_COG, "GPOs", Kind::Secondary).clicked() {
                     crate::pages::gpos::open(cx);
                 }
             });
@@ -120,7 +120,9 @@ impl Ous {
                     }
                     1 => Cell::plain(&o.description),
                     2 => Cell::new(&o.dn, Tone::Muted).mono(),
-                    _ if ou_deletable(o) => Cell::new(t("delete"), Tone::Normal).link("🗑", tf!("Delete %s", o.name), i),
+                    _ if ou_deletable(o) => {
+                        Cell::new(t("delete"), Tone::Normal).link(crate::icons::TRASH, tf!("Delete %s", o.name), i)
+                    }
                     _ => Cell::plain(""),
                 }
             },

@@ -99,10 +99,10 @@ impl Computers {
                 RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
+                if widgets::icon_button(ui, &look, crate::icons::REFRESH, t("Refresh")).clicked() {
                     self.reload(cx);
                 }
-                if widgets::button(ui, &look, "⬇", t("Export CSV"), Kind::Secondary).clicked() {
+                if widgets::button(ui, &look, crate::icons::DOWNLOAD, t("Export CSV"), Kind::Secondary).clicked() {
                     let yes = |v: bool| if v { t("yes") } else { t("no") }.to_string();
                     let mut rows = vec![
                         [t("Name"), "DNS", t("System"), t("Version"), t("Active"), "DC", t("Last logon")]
@@ -122,7 +122,7 @@ impl Computers {
                     }));
                     crate::files::save_csv(cx, t("computers.csv"), rows);
                 }
-                if widgets::button(ui, &look, "🌐", "DNS", Kind::Secondary).clicked() {
+                if widgets::button(ui, &look, crate::icons::GLOBE, "DNS", Kind::Secondary).clicked() {
                     crate::pages::dns::open(cx);
                 }
             });
@@ -166,27 +166,33 @@ impl Computers {
                             cell = cell.and_link(
                                 t("sessions"),
                                 Tone::Normal,
-                                "👥",
+                                crate::icons::USERS,
                                 tf!("SMB sessions on %s", x.name),
                                 (Act::Sessions, i),
                             );
                         }
                         if !x.is_dc {
                             let (icon, label, hint) = if x.enabled {
-                                ("🔒", t("disable"), tf!("Disable %s", x.name))
+                                (crate::icons::POWER, t("disable"), tf!("Disable %s", x.name))
                             } else {
-                                ("🔓", t("enable"), tf!("Enable %s", x.name))
+                                (crate::icons::POWER, t("enable"), tf!("Enable %s", x.name))
                             };
                             cell = cell
                                 .and_link(label, Tone::Normal, icon, hint, (Act::Toggle, i))
                                 .and_link(
                                     t("move"),
                                     Tone::Normal,
-                                    "📁",
+                                    crate::icons::FOLDER_INPUT,
                                     tf!("Move %s to another OU", x.name),
                                     (Act::Move, i),
                                 )
-                                .and_link(t("delete"), Tone::Normal, "🗑", tf!("Delete %s", x.name), (Act::Delete, i));
+                                .and_link(
+                                    t("delete"),
+                                    Tone::Normal,
+                                    crate::icons::TRASH,
+                                    tf!("Delete %s", x.name),
+                                    (Act::Delete, i),
+                                );
                         }
                         cell
                     }

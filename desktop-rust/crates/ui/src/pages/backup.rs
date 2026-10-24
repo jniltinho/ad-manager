@@ -116,7 +116,7 @@ impl Backup {
             ui.spacing_mut().item_spacing.x = 20.0;
             ui.vertical(|ui| {
                 ui.set_width(300.0);
-                let right = |ui: &mut Ui| refresh = widgets::act(ui, &look, "⟳", t("refresh"), None, 12.0).clicked();
+                let right = |ui: &mut Ui| refresh = widgets::act(ui, &look, crate::icons::REFRESH, t("refresh"), None, 12.0).clicked();
                 widgets::panel(ui, &look, (t("Servers"), ""), right, 0.0, |ui| {
                     for (i, s) in self.servers.iter().enumerate() {
                         let on = self.cur == Some(i);
@@ -183,7 +183,7 @@ impl Backup {
         let look = cx.look.clone();
         let Some(cur) = self.current().cloned() else { return };
         let name = if cur.id == 0 { t("This panel").to_string() } else { cur.name.clone() };
-        let title = format!("🗄  {name}");
+        let title = format!("{}  {name}", crate::icons::ARCHIVE);
         let note = tf!("%d backup(s)", cur.backups.len());
         let mut act: Option<(Act, usize)> = None;
         widgets::panel(
@@ -242,11 +242,13 @@ impl Backup {
                                 );
                             });
                         }
-                        if widgets::button(ui, &look, "🗄", t("Back up now"), Kind::Primary).clicked() {
+                        if widgets::button(ui, &look, crate::icons::ARCHIVE, t("Back up now"), Kind::Primary).clicked()
+                        {
                             act = Some((Act::Now, 0));
                         }
                         if !cur.upload_kinds.is_empty()
-                            && widgets::button(ui, &look, "⬆", t("Send a backup"), Kind::Secondary).clicked()
+                            && widgets::button(ui, &look, crate::icons::UPLOAD, t("Send a backup"), Kind::Secondary)
+                                .clicked()
                         {
                             act = Some((Act::Send, 0));
                         }
@@ -265,7 +267,7 @@ impl Backup {
                         ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 8.0;
-                            ui.label(RichText::new("🕘").size(12.0).color(ink));
+                            ui.label(RichText::new(crate::icons::HISTORY).size(12.0).color(ink));
                             ui.label(crate::style::semibold(format!("{}:", t("Last restoration")), 12.0).color(ink));
                             ui.label(
                                 RichText::new(format!("{} · {}", backup_kind_name(&r.kind), date(r.started)))
@@ -276,7 +278,10 @@ impl Backup {
                             }
                             ui.label(RichText::new(st).size(12.0).color(ink));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if widgets::act(ui, &look, "📄", "", None, 12.0).on_hover_text(t("Log")).clicked() {
+                                if widgets::act(ui, &look, crate::icons::SCROLL, "", None, 12.0)
+                                    .on_hover_text(t("Log"))
+                                    .clicked()
+                                {
                                     act = Some((Act::RestoreLog, 0));
                                 }
                             });
@@ -311,14 +316,37 @@ impl Backup {
                                 _ => Cell::new(t("running"), Tone::Warn),
                             },
                             _ => {
-                                let mut cell =
-                                    Cell::plain("").and_link("", Tone::Normal, "📄", t("Log").into(), (Act::Log, r));
+                                let mut cell = Cell::plain("").and_link(
+                                    "",
+                                    Tone::Normal,
+                                    crate::icons::SCROLL,
+                                    t("Log").into(),
+                                    (Act::Log, r),
+                                );
                                 if b.status == "ok" {
                                     cell = cell
-                                        .and_link("", Tone::Normal, "⬇", t("Download").into(), (Act::Download, r))
-                                        .and_link("", Tone::Normal, "🕘", t("Restore").into(), (Act::Restore, r));
+                                        .and_link(
+                                            "",
+                                            Tone::Normal,
+                                            crate::icons::DOWNLOAD,
+                                            t("Download").into(),
+                                            (Act::Download, r),
+                                        )
+                                        .and_link(
+                                            "",
+                                            Tone::Normal,
+                                            crate::icons::HISTORY,
+                                            t("Restore").into(),
+                                            (Act::Restore, r),
+                                        );
                                 }
-                                cell.and_link("", Tone::Normal, "🗑", t("Delete").into(), (Act::Delete, r))
+                                cell.and_link(
+                                    "",
+                                    Tone::Normal,
+                                    crate::icons::TRASH,
+                                    t("Delete").into(),
+                                    (Act::Delete, r),
+                                )
                             }
                         }
                     });
@@ -435,7 +463,7 @@ impl Backup {
         let mut save = false;
         let kinds: Vec<String> = cur.kinds.iter().map(|k| backup_kind_name(k)).collect();
         let roots = cur.roots.join(", ");
-        widgets::panel(ui, &look, (&format!("📅  {}", t("Schedules")), ""), right, 0.0, |ui| {
+        widgets::panel(ui, &look, (&format!("{}  {}", crate::icons::CALENDAR, t("Schedules")), ""), right, 0.0, |ui| {
             let muted = look.c("fg-muted");
             // the columns: name, kind, cron, chains, days, full every, on, delete
             // the kind takes what the others leave
@@ -539,7 +567,10 @@ impl Backup {
                             crate::widgets::check(ui, &mut row.enabled, "").on_hover_text(t("On"));
                         });
                         cell(ui, widths[7], &mut |ui| {
-                            if widgets::act(ui, &look, "🗑", "", None, 12.0).on_hover_text(t("Delete")).clicked() {
+                            if widgets::act(ui, &look, crate::icons::TRASH, "", None, 12.0)
+                                .on_hover_text(t("Delete"))
+                                .clicked()
+                            {
                                 drop = Some(r);
                             }
                         });
@@ -574,7 +605,7 @@ impl Backup {
             egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
-                    save = widgets::button(ui, &look, "✔", t("Save schedules"), Kind::Primary).clicked();
+                    save = widgets::button(ui, &look, crate::icons::CHECK, t("Save schedules"), Kind::Primary).clicked();
                     ui.add(
                         egui::Label::new(
                             RichText::new(t("Retention deletes whole chains only (a full backup and its incrementals), never the backup just made; 0 = no limit."))

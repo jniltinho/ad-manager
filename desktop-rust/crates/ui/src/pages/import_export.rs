@@ -363,7 +363,14 @@ impl ImportExport {
                     for pair in EXPORTS.chunks(2) {
                         ui.horizontal(|ui| {
                             for (f, label) in pair {
-                                let r = widgets::button_end(ui, &look, t(label), "⬇", Kind::Secondary, w);
+                                let r = widgets::button_end(
+                                    ui,
+                                    &look,
+                                    t(label),
+                                    crate::icons::DOWNLOAD,
+                                    Kind::Secondary,
+                                    w,
+                                );
                                 if r.on_hover_text(format!("{f}.csv")).clicked() {
                                     let path = format!("/api/export/{f}");
                                     crate::files::save_download(
@@ -395,8 +402,8 @@ impl ImportExport {
                             let r = widgets::button_end(
                                 ui,
                                 &look,
-                                &format!("📂  {}", t("Folders")),
-                                "⬇",
+                                &format!("{}  {}", crate::icons::FOLDER_OPEN, t("Folders")),
+                                crate::icons::DOWNLOAD,
                                 Kind::Secondary,
                                 120.0,
                             );
@@ -478,7 +485,7 @@ impl ImportExport {
                             let chosen = self.files.get(f).and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned());
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 8.0;
-                                if widgets::button(ui, &look, "📂", t("Choose a file…"), Kind::Secondary).clicked() {
+                                if widgets::button(ui, &look, crate::icons::FOLDER_OPEN, t("Choose a file…"), Kind::Secondary).clicked() {
                                     crate::files::pick_file_of(cx, Some(("CSV", &["csv"])), move |app, p| {
                                         Self::page(app, |s, _| {
                                             s.files.insert(f, p);
@@ -502,7 +509,7 @@ impl ImportExport {
                             ui.add_space(8.0);
                         }
                         let ready = !busy && !self.files.is_empty();
-                        preview = full_button(ui, &look, ready, "👁", preview_label(busy, false));
+                        preview = full_button(ui, &look, ready, crate::icons::EYE, preview_label(busy, false));
                         note(ui, &look, t("Only creates and updates — never deletes objects nor removes members. Key: login / group name / OU path."));
                     }
                     Mode::Folders => {
@@ -519,7 +526,7 @@ impl ImportExport {
                             let chosen = self.folders_file.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned());
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 8.0;
-                                if widgets::button(ui, &look, "📂", t("Choose a file…"), Kind::Secondary).clicked() {
+                                if widgets::button(ui, &look, crate::icons::FOLDER_OPEN, t("Choose a file…"), Kind::Secondary).clicked() {
                                     crate::files::pick_file_of(cx, Some(("CSV", &["csv"])), |app, p| {
                                         Self::page(app, |s, _| {
                                             s.folders_file = Some(p);
@@ -531,7 +538,7 @@ impl ImportExport {
                             });
                             ui.add_space(8.0);
                             let ready = !busy && self.folders_file.is_some();
-                            preview = full_button(ui, &look, ready, "👁", preview_label(busy, false));
+                            preview = full_button(ui, &look, ready, crate::icons::EYE, preview_label(busy, false));
                             note(ui, &look, t("Structure and permissions only: each share becomes an empty folder with the ACLs of the groups and users, published on Samba by the agent. It does not copy files and never removes shares."));
                         }
                     }
@@ -565,7 +572,7 @@ impl ImportExport {
                             if widgets::act(ui, &look, "", &p.name, Some(look.c("fg-strong")), 11.0).clicked() {
                                 use_profile = Some(p.clone());
                             }
-                            let r = widgets::act(ui, &look, "🗑", "", Some(look.c("fg-muted")), 11.0);
+                            let r = widgets::act(ui, &look, crate::icons::TRASH, "", Some(look.c("fg-muted")), 11.0);
                             if r.on_hover_text(tf!("Delete the profile %s?", p.name)).clicked() {
                                 drop_profile = Some(p.clone());
                             }
@@ -674,7 +681,7 @@ impl ImportExport {
         let some = s.objects || s.gpos || s.dns || s.shares || s.passwords;
         let ready = !self.busy && some;
         let label = if self.busy { t("Reading the source AD…") } else { t("Connect and preview") };
-        let go = full_button(ui, &look, ready, "🔌", label);
+        let go = full_button(ui, &look, ready, crate::icons::PLUG, label);
         let mut job = egui::text::LayoutJob::default();
         let text = egui::TextFormat::simple(egui::FontId::proportional(11.0), look.c("fg-muted"));
         let code = egui::TextFormat::simple(egui::FontId::monospace(10.5), look.c("fg-strong"));
@@ -808,7 +815,7 @@ impl ImportExport {
                                 };
                                 apply = ui
                                     .add_enabled_ui(!self.busy && pending, |ui| {
-                                        widgets::button(ui, &look, "✔", label, Kind::Primary)
+                                        widgets::button(ui, &look, crate::icons::CHECK, label, Kind::Primary)
                                     })
                                     .inner
                                     .clicked();
@@ -817,7 +824,7 @@ impl ImportExport {
                                 download = widgets::button(
                                     ui,
                                     &look,
-                                    "🔑",
+                                    crate::icons::KEY,
                                     &tf!("generated passwords (%d)", pw.len()),
                                     Kind::Secondary,
                                 )
@@ -977,23 +984,22 @@ impl Dialog for ImportLog {
             ui.add_space(8.0);
             egui::Frame::new().stroke(egui::Stroke::new(1.0, look.c("line"))).show(ui, |ui| {
                 egui::ScrollArea::vertical().max_height(ui.ctx().content_rect().height() * 0.46).show(ui, |ui| {
-                    let rows: Vec<[RichText; 4]> = steps
-                        .iter()
-                        .map(|a| {
-                            let ok = !self.applied || a.ok;
-                            let detail = if a.kind == "password" || !self.applied { &a.detail } else { &a.result };
-                            [
-                                RichText::new(if ok { "✔" } else { "✖" }).monospace().color(if ok {
-                                    look.c("ok")
-                                } else {
-                                    look.c("err")
-                                }),
-                                RichText::new(kind_name(&a.kind)),
-                                RichText::new(&a.target).monospace().size(11.0),
-                                RichText::new(server_text(detail)).color(look.c("fg-muted")),
-                            ]
-                        })
-                        .collect();
+                    let rows: Vec<[RichText; 4]> =
+                        steps
+                            .iter()
+                            .map(|a| {
+                                let ok = !self.applied || a.ok;
+                                let detail = if a.kind == "password" || !self.applied { &a.detail } else { &a.result };
+                                [
+                                    RichText::new(if ok { crate::icons::CHECK } else { "✖" })
+                                        .monospace()
+                                        .color(if ok { look.c("ok") } else { look.c("err") }),
+                                    RichText::new(kind_name(&a.kind)),
+                                    RichText::new(&a.target).monospace().size(11.0),
+                                    RichText::new(server_text(detail)).color(look.c("fg-muted")),
+                                ]
+                            })
+                            .collect();
                     widgets::mini_table(ui, &look, ["", "", "", ""], &rows, None);
                 });
             });

@@ -17,6 +17,8 @@ pub const SEMIBOLD: &str = "semibold";
 
 const INTER_400: &[u8] = include_bytes!("../../core/assets/fonts/Inter-Regular.ttf");
 const INTER_600: &[u8] = include_bytes!("../../core/assets/fonts/Inter-SemiBold.ttf");
+/// The web's Lucide icons (a subset: `crate::icons`).
+const LUCIDE: &[u8] = include_bytes!("../../core/assets/fonts/lucide.ttf");
 
 /// One face to register: its file bytes, the face index in a collection and a weight for a variable font.
 #[derive(Clone)]
@@ -261,8 +263,10 @@ pub fn definitions(sans: &[String], mono: &[String]) -> (FontDefinitions, String
     let s = cached(sans, false).unwrap_or_else(inter);
     d.font_data.insert("adm-sans".into(), Arc::new(data(&s.regular)));
     d.font_data.insert("adm-sans-600".into(), Arc::new(data(&s.semibold)));
-    let mut prop = vec!["adm-sans".to_string()];
-    let mut bold = vec!["adm-sans-600".to_string()];
+    // the icons right after the theme's face: their private-use characters are found nowhere else
+    d.font_data.insert("adm-icons".into(), Arc::new(egui::FontData::from_static(LUCIDE)));
+    let mut prop = vec!["adm-sans".to_string(), "adm-icons".to_string()];
+    let mut bold = vec!["adm-sans-600".to_string(), "adm-icons".to_string()];
     // a wide system face after the theme's (the embedded Inter is a latin subset): arrows and other symbols of the
     // web's texts (→, ✕) draw as the browser's fallback draws them
     let symbols: Vec<String> = SYMBOLS.iter().map(|f| (*f).to_string()).collect();
@@ -274,6 +278,7 @@ pub fn definitions(sans: &[String], mono: &[String]) -> (FontDefinitions, String
     prop.extend(fallback_prop.iter().cloned());
     bold.extend(fallback_prop.iter().cloned());
     let mut mono_fam = fallback_mono.clone();
+    mono_fam.push("adm-icons".into());
     if let Some(m) = cached(mono, true) {
         d.font_data.insert("adm-mono".into(), Arc::new(data(&m.regular)));
         mono_fam.insert(0, "adm-mono".into());

@@ -115,7 +115,11 @@ impl Env {
     }
 
     fn click(&mut self, label: &str) {
-        self.h.get_by_label_contains(label).click();
+        // the exact name first (the last one drawn: a dialog's over the page's), else the one containing it
+        match self.h.query_all_by_label(label).last() {
+            Some(n) => n.click(),
+            None => self.h.get_by_label_contains(label).click(),
+        }
         // a dialog's footer button reaches the dialog on the next frame, its effect shows on the one after
         self.h.step();
         self.h.step();
@@ -333,7 +337,7 @@ fn share_edit_sends_the_same_name_and_the_lists() {
     // the folder's permissions arrive and grow the dialog: click Save once it settled
     e.wait("the permissions", |_, m| !m.sent("GET", "/api/agents/1/acl").is_empty());
     assert!(e.h.query_by_label_contains("Edit share finance").is_some());
-    e.click("✔  Save");
+    e.click("Save");
     e.wait("the task", |_, m| !m.sent("POST", "/api/agents/1/tasks").is_empty());
     let t = &e.sent("POST", "/api/agents/1/tasks")[0].json();
     assert_eq!(t["type"], "share:create");
@@ -427,7 +431,7 @@ fn shots() {
     page(&mut e, "Users");
     e.wait("the users", |a, _| matches!(&a.screen, Screen::Shell(s) if s.users.visible().count() > 0));
     save(&mut e, "04-users");
-    e.click("➕  New user");
+    e.click("New user");
     save(&mut e, "05-new-user");
     e.key(egui::Key::Escape);
     page(&mut e, "Groups");
@@ -446,7 +450,7 @@ fn shots() {
     e.h.run_steps(3);
     e.click("Send link to the user");
     save(&mut e, "10-password-link");
-    e.click("✔  Generate link");
+    e.click("Generate link");
     e.wait("the link", |_, m| !m.sent("POST", "/api/users/bruno.silva/password-link").is_empty());
     save(&mut e, "11-link-generated");
     e.key(egui::Key::Escape);
@@ -461,7 +465,7 @@ fn shots() {
     page(&mut e, "Sync");
     save(&mut e, "15-sync");
     page(&mut e, "Computers");
-    e.click("🌐  DNS");
+    e.click("DNS");
     e.wait("the records", |_, m| !m.sent("GET", "/api/dns/records").is_empty());
     save(&mut e, "16-dns");
     e.key(egui::Key::Escape);
@@ -470,7 +474,7 @@ fn shots() {
     save(&mut e, "17-smb-sessions");
     e.key(egui::Key::Escape);
     page(&mut e, "Shares");
-    e.click("👥  Sessions");
+    e.click("Sessions");
     e.wait("the sessions", |_, m| !m.sent("GET", "/api/agents/1/sessions").is_empty());
     save(&mut e, "18-share-sessions");
     e.key(egui::Key::Escape);
@@ -626,7 +630,7 @@ fn sync_preview_is_followed_in_the_wizard() {
     }
     assert!(e.h.query_by_label_contains("Preview done").is_some(), "step 5 shows the finished preview");
     assert!(e.h.query_by_label_contains("40 (50.0 MiB)").is_some(), "with its plan");
-    e.h.get_by_label("▶  Run now").click_accesskit();
+    e.h.query_all_by_label("Run now").last().expect("the wizard's Run now").click_accesskit(); // the dialog's, over the list's
     e.wait("the run", |_, m| !m.sent("POST", "/api/agents/1/syncs/public/run").is_empty());
 }
 
@@ -688,7 +692,7 @@ fn file_server_save_reloads_the_list() {
     let before = e.sent("GET", "/api/agents").iter().filter(|r| r.path == "/api/agents").count();
     e.h.query_all_by_label("edit").next().expect("the server's edit link").click_accesskit();
     e.h.run_steps(3);
-    e.click("✔  Save");
+    e.click("Save");
     e.wait("the save", |_, m| !m.sent("PUT", "/api/agents/1").is_empty());
     e.wait("the reload", move |_, m| {
         m.sent("GET", "/api/agents").iter().filter(|r| r.path == "/api/agents").count() > before
@@ -755,7 +759,7 @@ fn import_from_another_ad_previews_then_writes() {
     assert!(e.h.query_by_label_contains("4 actions, 3 change(s)").is_some(), "the plan's head");
     e.h.get_by_label_contains("Write to the domain").click_accesskit();
     e.h.run_steps(3);
-    e.click("✔  Apply");
+    e.click("Apply");
     e.wait("the write", |_, m| !m.sent("POST", "/api/import/ad/apply").is_empty());
     e.h.run_steps(4);
     assert!(e.h.query_by_label_contains("Finished: 3 action(s).").is_some(), "the log dialog");
@@ -787,7 +791,7 @@ fn every_field_has_a_name() {
     check(&mut e, "home");
     e.users_page();
     check(&mut e, "users");
-    e.click("➕  New user");
+    e.click("New user");
     check(&mut e, "new user");
     e.key(egui::Key::Escape);
     for page in ["Groups", "Computers", "Shares", "Logs", "Settings", "Import/export"] {
