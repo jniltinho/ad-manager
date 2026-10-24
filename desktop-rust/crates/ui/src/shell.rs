@@ -567,9 +567,9 @@ const TABS: [Page; 10] = [
 /// A top tab as the web's: px 16 py 8, a 15 point icon and the 12 point semibold label; the current one in the
 /// theme's tab-on recipe (fill or gradient, its inset marks), the others lower by the theme's inset.
 /// The app's frame for a screen outside the shell (Configure): the page and its pattern, the app box, the header
-/// (logo, "Active Directory" and `subtitle`), the tab strip with `tab` current, and the footer (company, version).
-/// Returns the content's area (20 points of padding, as the shell's pages).
-pub fn app_frame(ui: &mut Ui, cx: &Cx, subtitle: &str, tab: (&str, &str)) -> egui::Rect {
+/// (logo, "Active Directory" and `subtitle`), the tab strip with `tab` current, and the footer (company, `note` in
+/// red, version). Returns the content's area (20 points of padding, as the shell's pages).
+pub fn app_frame(ui: &mut Ui, cx: &Cx, subtitle: &str, tab: (&str, &str), note: &str) -> egui::Rect {
     let look = cx.look.clone();
     look.page_pattern(ui.painter(), ui.max_rect());
     let full = ui.max_rect();
@@ -644,7 +644,15 @@ pub fn app_frame(ui: &mut Ui, cx: &Cx, subtitle: &str, tab: (&str, &str)) -> egu
         egui::FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
         strong,
     );
+    let company_w = company.size().x;
     p.galley(egui::pos2(body.left() + 20.0, body.center().y - company.size().y / 2.0), company, strong);
+    if !note.is_empty() {
+        // red that reads on the footer: the error ink on a light footer, its soft tint on a dark one
+        let dark = adm_core::theme::is_dark(adm_core::theme::Rgba(look.c("footer").to_srgba_unmultiplied()));
+        let red = if dark { look.c("err").lerp_to_gamma(egui::Color32::WHITE, 0.35) } else { look.c("err") };
+        let g = p.layout_no_wrap(note.to_string(), egui::FontId::proportional(11.0), red);
+        p.galley(egui::pos2(body.left() + 20.0 + company_w + 20.0, body.center().y - g.size().y / 2.0), g, red);
+    }
     let version =
         p.layout_no_wrap(format!("ad-manager desktop-rs {}", cx.version), egui::FontId::proportional(11.0), strong);
     p.galley(

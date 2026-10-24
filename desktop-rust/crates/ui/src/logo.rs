@@ -33,7 +33,7 @@ impl Logo {
     }
 
     pub fn image(&self) -> Image<'static> {
-        Image::from_bytes(self.uri.clone(), egui::load::Bytes::Shared(self.bytes.clone()))
+        Image::from_bytes(self.uri.clone(), egui::load::Bytes::Shared(self.bytes.clone())).texture_options(SMOOTH)
     }
 }
 
@@ -50,12 +50,21 @@ pub fn drawable_svg(b: &[u8]) -> bool {
     px.pixels().iter().any(|p| p.alpha() > 0)
 }
 
+/// A logo drawn several times smaller than its pixels (1320 x 440 shown 40 high): mipmaps, so the edges stay smooth
+/// instead of the jagged look of a plain linear minification.
+const SMOOTH: egui::TextureOptions = egui::TextureOptions {
+    magnification: egui::TextureFilter::Linear,
+    minification: egui::TextureFilter::Linear,
+    wrap_mode: egui::TextureWrapMode::ClampToEdge,
+    mipmap_mode: Some(egui::TextureFilter::Linear),
+};
+
 pub fn product_navy() -> Image<'static> {
-    Image::from_bytes("bytes://ad-manager-logo.png", assets::LOGO_NAVY)
+    Image::from_bytes("bytes://ad-manager-logo.png", assets::LOGO_NAVY).texture_options(SMOOTH)
 }
 
 pub fn product_white() -> Image<'static> {
-    Image::from_bytes("bytes://ad-manager-logo-light.png", assets::LOGO_WHITE)
+    Image::from_bytes("bytes://ad-manager-logo-light.png", assets::LOGO_WHITE).texture_options(SMOOTH)
 }
 
 #[cfg(test)]

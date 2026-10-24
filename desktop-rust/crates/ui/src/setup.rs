@@ -307,18 +307,25 @@ impl Setup {
         cx.title = t("AD Manager — configure").into();
         egui::CentralPanel::default().frame(Frame::new().fill(look.c("page"))).show(ui, |ui| {
             // the other screens' frame: app box, header, tab strip and footer; the cards in two columns as Settings
+            let file = format!(
+                "{}{}{}",
+                t("File: "),
+                cx.cfg_path.display(),
+                t("  (another file: ad-manager-desktop --config path)")
+            );
             let area = crate::shell::app_frame(
                 ui,
                 cx,
                 t("Configure AD Manager desktop"),
                 (crate::icons::SETTINGS, t("Configure")),
+                &file,
             );
             let mut page =
                 ui.new_child(egui::UiBuilder::new().max_rect(area).layout(egui::Layout::top_down(egui::Align::Min)));
             page.set_clip_rect(area.expand(20.0));
             let ui = &mut page;
             // only a very short window (or the certificate's details) scrolls
-            egui::ScrollArea::vertical().max_height(area.height() - 72.0).auto_shrink([false, true]).show(ui, |ui| {
+            egui::ScrollArea::vertical().max_height(area.height() - 48.0).auto_shrink([false, true]).show(ui, |ui| {
                 let total = ui.available_width();
                 // the web's Settings grid: the main column and a 520-point one at its right; stacked when narrow (the
                 // web's xl breakpoint)
@@ -348,19 +355,8 @@ impl Setup {
             if let Some(e) = &self.write_err {
                 ui.label(RichText::new(e).color(look.c("err")));
             }
-            ui.add_space(8.0);
-            // the file on its row (a long path wraps), the buttons under it at the right
-            widgets::muted(
-                ui,
-                &look,
-                &format!(
-                    "{}{}{}",
-                    t("File: "),
-                    cx.cfg_path.display(),
-                    t("  (another file: ad-manager-desktop --config path)")
-                ),
-            );
-            ui.add_space(8.0);
+            ui.add_space(12.0);
+            // the buttons at the right (the file is in the footer)
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if self.back != Back::None && widgets::button(ui, &look, "", t("Cancel"), Kind::Secondary).clicked()
