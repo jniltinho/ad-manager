@@ -219,20 +219,22 @@ const stateNames = {
           <li
             v-for="a in agents"
             :key="a.id"
-            class="flex cursor-pointer items-center gap-2 px-3 py-2"
+            class="flex cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-2"
             :class="current?.id === a.id ? 'nav-on bg-nav-on text-on-nav-on shadow-(--shadow-nav-on)' : 'hover:bg-row-hover'"
             :aria-current="current?.id === a.id || null"
             @click="current = a"
           >
             <span
-              class="h-2 w-2"
+              class="h-2 w-2 shrink-0"
               :class="status[a.id] === 'ok' ? 'bg-ok-fill' : status[a.id] === 'down' ? 'bg-err-fill' : 'bg-neutral-fill'"
               :title="status[a.id] === 'down' ? t('unavailable') : t('online')"
             ></span>
-            <span class="font-semibold">{{ a.name }}</span>
-            <span class="text-[11px]">{{ agentHost(a.url) }}</span>
-            <span v-if="dcTag[a.id]" class="tag bg-surface-2 text-fg-muted">DC</span>
-            <span class="ml-auto space-x-1">
+            <!-- one line: the host gives way first, then the name (shrink is a weight; this one is big enough to act as a
+                 priority, the name losing less than a layout unit while the host has room) -->
+            <span class="min-w-0 truncate font-semibold" :title="a.name">{{ a.name }}</span>
+            <span class="min-w-0 shrink-[1000000] truncate text-[11px]" :title="agentHost(a.url)">{{ agentHost(a.url) }}</span>
+            <span v-if="dcTag[a.id]" class="tag shrink-0 bg-surface-2 text-fg-muted">DC</span>
+            <span class="ml-auto shrink-0 space-x-1">
               <button
                 class="act px-0 text-[11px]"
                 :class="current?.id === a.id ? 'text-inherit' : ''"
@@ -357,7 +359,7 @@ const stateNames = {
       <div class="card-h flex items-center gap-3">
         <span>{{ current ? t('Shares on {server}', { server: current.name }) : t('Shares') }}</span>
         <span v-if="current" class="font-normal normal-case text-fg-muted">{{ current.url }}</span>
-        <div v-if="current" class="ml-auto flex gap-2 normal-case">
+        <div v-if="current" class="ml-auto flex items-center gap-2 normal-case">
           <span v-if="shares.length" class="text-[12px] text-fg-muted" :title="t('Sum of the folders (nested ones count again)')">{{
             t('total {size}', { size: measuring ? '…' : bytes(total) })
           }}</span>

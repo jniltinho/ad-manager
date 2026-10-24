@@ -22,3 +22,13 @@ desktop app's Shares page SHALL behave the same.
 #### Scenario: Server down
 - **WHEN** the chosen file server is unavailable
 - **THEN** clicking a share's name does not open the form
+
+### Requirement: A file server's row stays on one line
+In the Shares page's list of file servers, each server SHALL take one line: its name, host, DC tag and its edit and
+remove actions never wrap. When the row is too narrow, the host SHALL shorten first and then the name, both ending in
+"…" with the full text in a tooltip; the DC tag and the actions SHALL keep their size. The total size in the Shares
+header SHALL be vertically centered on its buttons. The desktop app's Shares page SHALL behave the same.
+
+#### Scenario: Long server name
+- **WHEN** a domain controller registered as "fileserver-headquarters-saopaulo-01" is listed in the narrowest list
+- **THEN** its row is one line high, the name ends in "…", and the DC tag, "edit" and "remove" are fully visible
