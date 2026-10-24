@@ -25,11 +25,43 @@ pub struct Column {
     pub right: bool,
     /// Its badge is at least this wide (the Users status: 104).
     pub badge_w: f32,
+    /// Its header spans this many columns, centered (the web's "Actions" over the action columns); 0 for a column
+    /// covered by an earlier span.
+    pub span: usize,
+    /// It takes the width left over (the last column when no column says so).
+    pub fill: bool,
 }
 
 impl Column {
     pub fn new(title: &str, width: f32) -> Self {
-        Self { title: title.into(), width, badge: false, compact: None, right: false, badge_w: 0.0 }
+        Self {
+            title: title.into(),
+            width,
+            badge: false,
+            compact: None,
+            right: false,
+            badge_w: 0.0,
+            span: 1,
+            fill: false,
+        }
+    }
+
+    /// The header spans `n` columns (the next `n - 1` columns get `covered()`).
+    pub fn span(mut self, n: usize) -> Self {
+        self.span = n;
+        self
+    }
+
+    /// Takes the width left over.
+    pub fn fill(mut self) -> Self {
+        self.fill = true;
+        self
+    }
+
+    /// Under the header of an earlier spanning column.
+    pub fn covered(mut self) -> Self {
+        self.span = 0;
+        self
     }
 
     pub fn right(mut self) -> Self {
@@ -209,7 +241,7 @@ fn show<A>(
     let head_grad = look.gradient("table-head");
     let head_fill = look.c("table-head");
     let head_shadow = look.shadows("table-head");
-    ui.push_id(id, |ui| {
+    let framed = ui.push_id(id, |ui| {
         let v = ui.visuals_mut();
         // the web marks the row under the pointer (and here the keyboard's row) with the hover tint, not a selection
         v.selection.bg_fill = hover_bg;
@@ -228,18 +260,47 @@ fn show<A>(
             tb = tb.scroll_to_row(r, None);
         }
         let n = cols.len();
+        let filler = cols.iter().position(|c| c.fill).unwrap_or(n.saturating_sub(1));
         for (i, w) in widths.iter().enumerate() {
-            tb = tb.column(if i + 1 == n { XColumn::remainder().at_least(*w) } else { XColumn::exact(*w).clip(true) });
+            tb = tb.column(if i == filler {
+                XColumn::remainder().at_least(*w).clip(true)
+            } else {
+                XColumn::exact(*w).clip(true)
+            });
         }
+        // the column that opens the current span, for the title drawn once its last column is painted
+        let mut span_from: Option<usize> = None;
         tb.header(head_h, |mut h| {
-            for c in cols {
+            for (i, c) in cols.iter().enumerate() {
+                if c.span > 1 {
+                    span_from = Some(i);
+                }
                 h.col(|ui| {
                     let rect = ui.max_rect();
                     crate::depth::paint_box(ui.painter(), rect, head_grad, head_fill, head_shadow);
                     ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, egui::Stroke::new(1.0, line));
-                    pad(ui, c.right, th_px, |ui| {
-                        ui.label(crate::style::semibold(&c.title, text).color(on_head));
-                    });
+                    let last_of_span = span_from.is_some_and(|f| i + 1 == f + cols[f].span);
+                    if let (true, Some(f)) = (last_of_span, span_from) {
+                        // centered over the columns it spans, after their backgrounds
+                        let w: f32 = widths.iter().skip(f).take(cols[f].span).sum();
+                        let g = ui.painter().layout_no_wrap(
+                            cols[f].title.clone(),
+                            egui::FontId::new(text, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into())),
+                            on_head,
+                        );
+                        let left = rect.right() - w;
+                        let at = egui::pos2(left + (w - g.size().x) / 2.0, rect.center().y - g.size().y / 2.0);
+                        let clip = egui::Rect::from_min_max(egui::pos2(left, rect.top()), rect.max);
+                        // the layer's painter: a cell's painter only clips narrower (it intersects)
+                        ui.ctx()
+                            .layer_painter(ui.layer_id())
+                            .with_clip_rect(clip.intersect(ui.clip_rect().with_min_x(left)))
+                            .galley(at, g, on_head);
+                    } else if c.span == 1 {
+                        pad(ui, c.right, th_px, |ui| {
+                            ui.label(crate::style::semibold(&c.title, text).color(on_head));
+                        });
+                    }
                 });
             }
         })
@@ -270,6 +331,8 @@ fn show<A>(
             });
         });
     });
+    // the table's 1 px frame, as the web's wrapper
+    ui.painter().rect_stroke(framed.response.rect, 0.0, egui::Stroke::new(1.0, line), egui::StrokeKind::Inside);
     out
 }
 

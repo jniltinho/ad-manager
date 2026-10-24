@@ -154,6 +154,17 @@ pub fn ou_path(dn: &str) -> String {
     parts.join(" / ")
 }
 
+/// The name of the OU or container that holds an object, as the web's Users column: the first RDN after the object's
+/// own that is not a DC, or "—".
+pub fn ou_name(dn: &str) -> String {
+    split_dn(dn)
+        .into_iter()
+        .skip(1)
+        .filter_map(|rdn| rdn.trim().split_once('='))
+        .find(|(k, _)| !k.eq_ignore_ascii_case("DC"))
+        .map_or_else(|| "—".to_string(), |(_, v)| v.to_string())
+}
+
 /// The RDNs of a DN, keeping escaped commas inside their value.
 fn split_dn(dn: &str) -> Vec<&str> {
     let mut out = Vec::new();
@@ -413,6 +424,13 @@ pub fn share_folder(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn ou_name_as_the_web() {
+        assert_eq!(super::ou_name("CN=Ana Costa,OU=IT,OU=Example,DC=domain,DC=local"), "IT");
+        assert_eq!(super::ou_name("CN=Administrator,CN=Users,DC=domain,DC=local"), "Users");
+        assert_eq!(super::ou_name("CN=x,DC=domain,DC=local"), "—");
+    }
     use super::*;
     use chrono::TimeZone;
 

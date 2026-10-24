@@ -8,7 +8,7 @@ use adm_core::api::{Api, esc};
 use adm_core::forms::{USER_FIELDS, UserFields, template_groups};
 use adm_core::i18n::{date, t};
 use adm_core::logic::{
-    self, Tone, UserAction, UserFilter, editable, inactive, ou_path, parent_dn, user_actions, user_status,
+    self, Tone, UserAction, UserFilter, editable, inactive, ou_name, parent_dn, user_actions, user_status,
 };
 use adm_core::model::{Group, OrgUnit, User, is_set};
 use adm_core::tf;
@@ -103,8 +103,10 @@ impl Users {
     pub fn ui(&mut self, ui: &mut Ui, cx: &mut Cx, keys: bool) {
         let look = cx.look.clone();
         let days = cx.inactive_days();
-        widgets::card(ui, &look, t("Domain users"), |ui| {
+        {
+            // as the web's Users: the toolbar, then the table, no card around them
             self.toolbar(ui, cx, days);
+            ui.add_space(look.px("toolbar-mb", 12.0));
             let now = Utc::now();
             let me = cx.me.clone();
             let cols = columns();
@@ -131,25 +133,27 @@ impl Users {
                 let pos = ui.min_rect().min + egui::vec2(24.0, 70.0);
                 self.menu = self.all.get(i).cloned().map(|u| (u, pos));
             }
-        });
+        }
         self.menu_ui(ui, cx);
     }
 
     fn toolbar(&mut self, ui: &mut Ui, cx: &mut Cx, days: i64) {
         let look = cx.look.clone();
-        let wide = ui.available_width() >= 1040.0;
+        let wide = ui.available_width() >= 1000.0;
         ui.horizontal(|ui| {
-            let w = (ui.available_width() - 640.0).clamp(220.0, 360.0);
-            if super::search(ui, &mut self.search, t("Filter by login, name, e-mail…"), w).changed() {
+            ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
+            if super::search(ui, &mut self.search, t("Filter by login, name, e-mail…"), 256.0).changed() {
                 self.apply(cx);
             }
             let labels: Vec<String> = UserFilter::ALL.iter().map(|f| f.label(days)).collect();
             let mut i = UserFilter::ALL.iter().position(|f| *f == self.filter).unwrap_or(0);
-            if widgets::select(ui, "users-filter", &mut i, &labels, 170.0) {
+            if widgets::select(ui, "users-filter", &mut i, &labels, 176.0) {
                 self.filter = UserFilter::ALL[i];
                 self.apply(cx);
             }
-            ui.label(RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).color(look.c("fg-muted")));
+            ui.label(
+                RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if wide {
                     if widgets::icon_button(ui, &look, "⟳", t("Refresh")).clicked() {
@@ -225,15 +229,15 @@ fn columns() -> Vec<Column> {
     vec![
         Column::new(t("Login"), 130.0),
         Column::new(t("Name"), 140.0),
-        Column::new(t("E-mail"), 160.0),
+        Column::new(t("E-mail"), 160.0).fill(),
         Column::new(t("OU"), 100.0),
-        Column::new(t("Status"), 105.0).badge(),
+        Column::new(t("Status"), 120.0).badge_w(104.0),
         Column::new("", 130.0).badge().compact(104.0),
         Column::new(t("Last logon"), 140.0),
-        Column::new("", 105.0).compact(COMPACT),
-        Column::new("", 90.0).compact(COMPACT),
-        Column::new("", 85.0).compact(COMPACT),
-        Column::new("", 90.0).compact(COMPACT),
+        Column::new(t("Actions"), 95.0).compact(COMPACT).span(4),
+        Column::new("", 75.0).compact(COMPACT).covered(),
+        Column::new("", 75.0).compact(COMPACT).covered(),
+        Column::new("", 75.0).compact(COMPACT).covered(),
     ]
 }
 
@@ -248,10 +252,11 @@ pub fn cell(
 ) -> Cell<(UserAction, usize)> {
     let ed = editable(x, me);
     match c {
-        C_LOGIN => Cell::plain(&x.sam).link("", tf!("Edit %s", x.sam), (UserAction::Edit, i)),
-        1 => Cell::plain(&x.name),
-        2 => Cell::plain(&x.mail),
-        3 => Cell::new(ou_path(parent_dn(&x.dn)), Tone::Muted),
+        C_LOGIN => Cell::plain(&x.sam).bold().link("", tf!("Edit %s", x.sam), (UserAction::Edit, i)),
+        // a deactivated account's text is in the subtle ink, as the web's row
+        1 => Cell::new(&x.name, if x.enabled { Tone::Normal } else { Tone::Muted }),
+        2 => Cell::new(&x.mail, if x.enabled { Tone::Normal } else { Tone::Muted }),
+        3 => Cell::new(ou_name(&x.dn), if x.enabled { Tone::Normal } else { Tone::Muted }),
         C_STATUS => {
             let (s, tone) = user_status(x);
             let cell = Cell::new(s, tone);
