@@ -218,10 +218,13 @@ impl Login {
                 }
                 let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !modal;
                 ui.add_space(24.0);
-                let label = if self.signing { "…" } else { t("Sign in") };
+                let signing = self.signing;
                 let b = ui
                     .vertical_centered(|ui| {
-                        ui.add_enabled_ui(!self.signing, |ui| widgets::button(ui, look, "", label, Kind::Brand)).inner
+                        ui.add_enabled_ui(!signing, |ui| {
+                            widgets::busy_button(ui, look, t("Sign in"), t("Signing in…"), Kind::Brand, signing)
+                        })
+                        .inner
                     })
                     .inner;
                 ui.add_space(12.0);

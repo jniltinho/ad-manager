@@ -151,28 +151,50 @@ pub fn refresh(ui: &mut Ui, look: &Look, label: &str, busy: bool) -> Response {
         spin_clicked(ui, id, &r);
         return r;
     };
+    let r = spun_button(ui, look, crate::icons::REFRESH, label, Kind::Secondary, angle);
+    spin_clicked(ui, id, &r);
+    r
+}
+
+/// A boxed button whose `icon` is drawn turned by `angle` before its label.
+fn spun_button(ui: &mut Ui, look: &Look, icon: &str, label: &str, kind: Kind, angle: f32) -> Response {
     let size = look.px("control-text", 12.0);
     let disabled = !ui.is_enabled();
-    let (fill, ink, line) = colors(look, Kind::Secondary);
+    let (fill, ink, line) = colors(look, kind);
     let (fill, ink, line) = if disabled {
         let s = look.c("surface");
         (fill.lerp_to_gamma(s, 0.5), ink.lerp_to_gamma(s, 0.5), line.lerp_to_gamma(s, 0.5))
     } else {
         (fill, ink, line)
     };
-    let job = spun_text(crate::icons::REFRESH, "  ", label, egui::FontId::proportional(size), ink);
-    let r = ui.scope(|ui| {
-        ui.set_opacity(1.0);
-        boxed(ui, look, egui::Button::new(job), Kind::Secondary, line, fill, 0.0)
-    });
-    let r = r.inner;
-    let pad = ui.spacing().button_padding.x;
-    paint_spun(ui, r.rect, pad, crate::icons::REFRESH, size, ink, angle);
+    let font = match kind {
+        Kind::Primary | Kind::Danger | Kind::Brand => {
+            egui::FontId::new(size, egui::FontFamily::Name(crate::fonts::SEMIBOLD.into()))
+        }
+        _ => egui::FontId::proportional(size),
+    };
+    let job = spun_text(icon, "  ", label, font, ink);
+    let r = ui
+        .scope(|ui| {
+            ui.set_opacity(1.0);
+            boxed(ui, look, egui::Button::new(job), kind, line, fill, 0.0)
+        })
+        .inner;
+    paint_spun(ui, r.rect, ui.spacing().button_padding.x, icon, size, ink, angle);
     if !label.is_empty() {
         let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(spoken(label)));
     }
-    spin_clicked(ui, id, &r);
     r
+}
+
+/// A button that shows a turning loader before `busy_label` while `busy` (the login's Sign in), else `label`.
+pub fn busy_button(ui: &mut Ui, look: &Look, label: &str, busy_label: &str, kind: Kind, busy: bool) -> Response {
+    if !busy {
+        return button(ui, look, "", label, kind);
+    }
+    ui.ctx().request_repaint();
+    let angle = ((ui.input(|i| i.time) / SPIN_TURN).fract() * std::f64::consts::TAU) as f32;
+    spun_button(ui, look, crate::icons::LOADER, busy_label, kind, angle)
 }
 
 /// A refresh link (the web's .act refresh): its icon turns while `busy` and briefly after each click.

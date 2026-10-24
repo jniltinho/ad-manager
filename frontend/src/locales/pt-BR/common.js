@@ -32,6 +32,7 @@ export default {
   // login
   User: 'Usuário',
   Password: 'Senha',
+  'Signing in…': 'Entrando…',
   'Sign in': 'Entrar',
   Use: 'Use',
   user: 'usuario',

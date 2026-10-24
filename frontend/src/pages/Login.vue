@@ -4,6 +4,7 @@
 // orange stripe, 195 × 65 logo, 41 px rows, 326 × 25 inputs, 65 × 26 button and
 // Larry's elliptic shadow. Errors and hints stay outside the box.
 // With a token it is the public page of a password link (/password/<token>).
+import { LoaderCircle } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { brand, get, loadMe, logoUrl, post } from '../api'
 import { formatDate } from '../util'
@@ -126,7 +127,9 @@ const netbios = () => brand.netbios || domain().split('.')[0].toUpperCase()
           </tbody>
         </table>
         <p v-if="!token" class="formbuttons">
-          <button class="button" :disabled="busy">{{ busy ? '…' : t('Sign in') }}</button>
+          <button class="button" :disabled="busy">
+            <LoaderCircle v-if="busy" :size="14" class="motion-safe:animate-spin" /> {{ busy ? t('Signing in…') : t('Sign in') }}
+          </button>
         </p>
       </div>
       <div class="box-bottom">
@@ -300,13 +303,36 @@ td.input input:-webkit-autofill:focus {
   border: 1px solid var(--color-brand-action-hover);
   box-shadow: var(--shadow-brand-action);
 }
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition:
+    background-color 150ms ease,
+    transform 120ms ease,
+    filter 150ms ease,
+    box-shadow 150ms ease;
+}
 .button:hover,
 .button:focus {
   background: var(--color-brand-action-hover);
 }
+/* a little life: it rises under the pointer and presses down when clicked */
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
 .button:active:not(:disabled) {
   transform: translateY(1px);
   box-shadow: var(--shadow-btn-active);
+}
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+  .button:hover:not(:disabled) {
+    transform: none;
+  }
 }
 .button:disabled {
   opacity: 0.7;
