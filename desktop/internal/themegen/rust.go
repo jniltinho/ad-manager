@@ -111,7 +111,7 @@ var rustTokens = []string{
 	"dialog-line-w", "dialog-head-bar-w", "dialog-head-size",
 	"subtabs-line-w", "subtabs-gap", "subtabs-pad", "subtab-inset-top", "subtab-on-overlap",
 	"cardtabs-pad", "cardtabs-gap", "cardtab-inset-top", "cardtab-on-overlap", "cardtab-bar-w",
-	"tab-gap", "tab-inset-top", "tabs-pad", "footer-bar-w", "nav-on-last-line-w", "logo-plate-pad",
+	"tab-gap", "tab-inset-top", "tabs-pad", "footer-bar-w", "footer-gap", "nav-on-last-line-w", "logo-plate-pad",
 }
 
 // rustText are the keyword parameters exported as they are.
@@ -124,6 +124,8 @@ var (
 	rustShadow = []string{"btn", "btn-2", "btn-danger", "brand-action", "btn-active", "card", "card-hover", "field",
 		"field-focus", "table-head", "app", "tabs", "tab-on", "login-box", "dialog", "subtab", "subtab-on", "cardtab",
 		"cardtab-on", "popup", "toast", "nav-on", "tab"}
+	// rustRelief are shadows the web names without the --shadow- prefix (the footer's line and panes).
+	rustRelief = []string{"footer-line", "footer-pane-relief"}
 )
 
 // The web's monospace stack (Tailwind's font-mono) when a theme does not set --font-mono.
@@ -334,6 +336,15 @@ func Rust(root string) ([]byte, error) {
 					return nil, fmt.Errorf("%s --shadow-%s: %w", t.ID, p, err)
 				}
 				rt.Shadow[p] = append([]RustLayer{}, s...) // [] rather than null for none
+			}
+		}
+		for _, p := range rustRelief {
+			if v, ok := get("--" + p); ok {
+				s, err := parseShadows(v)
+				if err != nil {
+					return nil, fmt.Errorf("%s --%s: %w", t.ID, p, err)
+				}
+				rt.Shadow[p] = append([]RustLayer{}, s...)
 			}
 		}
 		if v, ok := get("--font-sans"); ok {

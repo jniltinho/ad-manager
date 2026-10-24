@@ -430,7 +430,14 @@ impl Shell {
         let rect = ui.max_rect();
         let bar = look.px("footer-bar-w", 3.0);
         let body = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.top() + bar), rect.max);
-        crate::depth::paint_box(ui.painter(), body, look.gradient("footer"), look.c("footer"), &[]);
+        // the theme's line inside the top (the 98's white edge)
+        crate::depth::paint_box(
+            ui.painter(),
+            body,
+            look.gradient("footer"),
+            look.c("footer"),
+            look.shadows("footer-line"),
+        );
         if bar > 0.0 {
             ui.painter().rect_filled(
                 egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), bar)),
@@ -444,20 +451,37 @@ impl Shell {
                 .max_rect(body.shrink2(egui::vec2(20.0, 0.0)))
                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
         );
-        inner.spacing_mut().item_spacing.x = 20.0;
+        inner.spacing_mut().item_spacing.x = look.px("footer-gap", 20.0);
+        inner.spacing_mut().interact_size.y = 0.0; // the Support link as high as its text (its pane around it)
         let small = |s: String, c| RichText::new(s).size(11.0).color(c);
+        // each item in the theme's pane (the 98's sunken status-bar boxes), none in the others
+        let relief = look.shadows("footer-pane-relief");
+        let (py, px) = crate::modal::head_pad(look.p.text("footer-pane-pad"));
+        let pane = |ui: &mut Ui, add: &mut dyn FnMut(&mut Ui) -> egui::Response| -> egui::Response {
+            if relief.is_empty() {
+                return add(ui);
+            }
+            // the pane around the item, its padding outside the item's own rect
+            ui.add_space(px);
+            let r = add(ui);
+            ui.add_space(px);
+            let pane = r.rect.expand2(egui::vec2(px, py));
+            ui.painter().extend(crate::depth::box_shapes(pane, None, egui::Color32::TRANSPARENT, relief));
+            r
+        };
         let company =
             if cx.me.brand.company.is_empty() { "AD Manager".to_string() } else { cx.me.brand.company.clone() };
-        inner.label(crate::style::semibold(format!("© {company}"), 11.0).color(strong));
+        pane(&mut inner, &mut |ui| ui.label(crate::style::semibold(format!("© {company}"), 11.0).color(strong)));
         let support = if cx.me.settings.support_url.is_empty() {
             SUPPORT.to_string()
         } else {
             cx.me.settings.support_url.clone()
         };
-        if inner
-            .add(egui::Button::new(small(format!("{} {}", SUPPORT_ICON, t("Support")), ink)).frame(false))
-            .on_hover_cursor(egui::CursorIcon::PointingHand)
-            .clicked()
+        if pane(&mut inner, &mut |ui| {
+            ui.add(egui::Button::new(small(format!("{} {}", SUPPORT_ICON, t("Support")), ink)).frame(false))
+        })
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+        .clicked()
         {
             inner.ctx().open_url(egui::OpenUrl::new_tab(support));
         }
@@ -466,21 +490,18 @@ impl Shell {
         } else {
             format!("{} ({})", cx.me.domain, cx.me.netbios)
         };
-        inner.label(small(format!("🖥 {domain}"), ink));
+        pane(&mut inner, &mut |ui| ui.label(small(format!("🖥 {domain}"), ink)));
         inner.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(small(format!("ad-manager desktop-rs {}", cx.version), strong));
+            pane(ui, &mut |ui| ui.label(small(format!("ad-manager desktop-rs {}", cx.version), strong)));
             if cx.me.settings.session_minutes > 0 {
-                ui.label(small(
-                    format!(
-                        "🕐 {}",
-                        adm_core::tf!("session expires after %d min idle", cx.me.settings.session_minutes)
-                    ),
-                    ink,
-                ));
+                let idle = adm_core::tf!("session expires after %d min idle", cx.me.settings.session_minutes);
+                pane(ui, &mut |ui| ui.label(small(format!("🕐 {idle}"), ink)));
             }
-            ui.label(small(format!("👤 {}", cx.me.user), ink));
+            pane(ui, &mut |ui| ui.label(small(format!("👤 {}", cx.me.user), ink)));
             let s = cx.hover.clone().unwrap_or_else(|| cx.status.clone());
-            ui.add(egui::Label::new(small(s, strong)).truncate());
+            if !s.is_empty() {
+                pane(ui, &mut |ui| ui.add(egui::Label::new(small(s.clone(), strong)).truncate()));
+            }
         });
     }
 }

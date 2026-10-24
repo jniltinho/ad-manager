@@ -211,6 +211,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "logo-plate-pad": 0,
     "nav-on-last-line-w": 1,
@@ -546,6 +547,8 @@
       "color": "#11305838"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -804,6 +807,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "logo-plate-pad": 0,
     "nav-on-last-line-w": 0,
@@ -1133,6 +1137,8 @@
       "color": "#6d45f940"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -1434,6 +1440,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -1768,6 +1775,8 @@
       "color": "#967aff40"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -2069,6 +2078,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "logo-plate-pad": 0,
     "nav-on-last-line-w": 0,
@@ -2398,6 +2408,8 @@
       "color": "#1f6fa340"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -2700,6 +2712,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -3034,6 +3047,8 @@
       "color": "#3daee940"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -3336,6 +3351,7 @@
     "focus-ring-w": 2,
     "font-size-base": 11,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -3677,6 +3693,8 @@
       "color": "#2f7d2f40"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -3978,6 +3996,7 @@
     "focus-ring-w": 2,
     "font-size-base": 11,
     "footer-bar-w": 1,
+    "footer-gap": 3,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -4371,6 +4390,28 @@
       "color": "#00008040"
      }
     ],
+    "footer-line": [
+     {
+      "inset": true,
+      "dx": 0,
+      "dy": 1,
+      "color": "#ffffffff"
+     }
+    ],
+    "footer-pane-relief": [
+     {
+      "inset": true,
+      "dx": 1,
+      "dy": 1,
+      "color": "#808080ff"
+     },
+     {
+      "inset": true,
+      "dx": -1,
+      "dy": -1,
+      "color": "#ffffffff"
+     }
+    ],
     "login-box": [
      {
       "inset": true,
@@ -4708,6 +4749,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -5042,6 +5084,8 @@
       "color": "#ff880040"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -5343,6 +5387,7 @@
     "focus-ring-w": 3,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "logo-plate-pad": 0,
     "nav-on-last-line-w": 0,
@@ -5680,6 +5725,8 @@
       "color": "#0064e1ff"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -5978,6 +6025,7 @@
     "focus-ring-w": 3,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -6314,6 +6362,8 @@
       "color": "#4ea2ffff"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -6606,6 +6656,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "logo-plate-pad": 0,
     "nav-on-last-line-w": 0,
@@ -6964,6 +7015,8 @@
       "color": "#11305838"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -7232,6 +7285,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -7560,6 +7614,8 @@
       "color": "#6e9fff40"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -7861,6 +7917,7 @@
     "focus-ring-w": 3,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -7979,6 +8036,8 @@
       "color": "#ffff00ff"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [],
     "nav-on": [
      {
@@ -8273,6 +8332,7 @@
     "focus-ring-w": 2,
     "font-size-base": 12,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -8655,6 +8715,8 @@
       "color": "#00ff4173"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -8964,6 +9026,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -9314,6 +9377,8 @@
       "color": "#e98bb259"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -9615,6 +9680,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "logo-plate-pad": 0,
     "nav-on-last-line-w": 0,
@@ -9944,6 +10010,8 @@
       "color": "#894ffb40"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -10245,6 +10313,7 @@
     "focus-ring-w": 2,
     "font-size-base": 13,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -10579,6 +10648,8 @@
       "color": "#a36eff40"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "dx": 0,
@@ -10880,6 +10951,7 @@
     "focus-ring-w": 2,
     "font-size-base": 12,
     "footer-bar-w": 3,
+    "footer-gap": 20,
     "input-px": 8,
     "nav-on-last-line-w": 0,
     "select-pr": 24,
@@ -11322,6 +11394,8 @@
       "color": "#2cf02c59"
      }
     ],
+    "footer-line": [],
+    "footer-pane-relief": [],
     "login-box": [
      {
       "inset": true,

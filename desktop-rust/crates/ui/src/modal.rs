@@ -141,7 +141,7 @@ pub fn frame(ui: &mut Ui, d: &mut dyn Dialog, cx: &mut Cx) -> Flow {
 }
 
 /// The title bar's padding from the theme's `dialog-head-pad` ("0.5rem 0.75rem": 8 and 12).
-fn head_pad(v: &str) -> (f32, f32) {
+pub(crate) fn head_pad(v: &str) -> (f32, f32) {
     let px = |s: &str| {
         let s = s.trim();
         if let Some(r) = s.strip_suffix("rem") {
