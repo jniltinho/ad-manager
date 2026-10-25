@@ -31,7 +31,7 @@ server stays the authority):
   `.config/desktop.toml` beside the executable, the user config folder), written `0600` and refused when looser.
 - English interface with the pt-BR catalog (`crates/core/assets/i18n/pt-BR.json`); server messages translated with
   the panel's catalog (`/api/i18n`).
-- The panel's 18 themes (`crates/core/assets/themes.json`, generated from the web's CSS by
+- The panel's 20 themes (`crates/core/assets/themes.json`, generated from the web's CSS by
   `archive/desktop-go/internal/themegen`), drawn with their gradients, shadows, fonts and the page's pattern, or flat.
   **Configure › Appearance** picks another theme (and flat or with depth) for this computer only, applied at once
   and saved as `[appearance]` in desktop.toml; *Panel default* follows the panel's Settings.

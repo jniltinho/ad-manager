@@ -1048,5 +1048,5 @@ components:
         default_ou: { type: string }
         company: { type: string }
         support_url: { type: string }
-        theme: { type: string, enum: [default, admanager, breeze, breeze-dark, violet, violet-dark, aurora, aurora-dark, crystal, crystal-dark, cone, classic-blue, classic-gray, graphite, matrix, winamp, pink-panther, high-contrast], default: default, description: "Visual theme for every operator, one of the theme registry (brand.themes); also in the public brand of /api/health and /api/me" }
+        theme: { type: string, enum: [default, admanager, breeze, breeze-dark, violet, violet-dark, aurora, aurora-dark, crystal, crystal-dark, cone, classic-blue, classic-gray, graphite, grafana, rabbitmq, matrix, winamp, pink-panther, high-contrast], default: default, description: "Visual theme for every operator, one of the theme registry (brand.themes); also in the public brand of /api/health and /api/me" }
         flat: { type: boolean, default: false, description: "Flat look: the theme without gradients and depth shadows (brand.flat)" }

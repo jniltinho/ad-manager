@@ -29,7 +29,7 @@ import (
 	"ad-manager/internal/sambadc"
 	"ad-manager/internal/store"
 
-	"github.com/hibiken/asynqmon"
+	"github.com/jniltinho/asynqmon"
 	"github.com/labstack/echo/v5"
 )
 
@@ -94,9 +94,13 @@ func (s *Server) extras(e *echo.Echo, p *echo.Group) {
 	p.POST("/import/ad/apply", s.importAD(true))
 	p.POST("/import/ad/passwords", s.importADPasswords)
 
-	// asynqmon with its original layout, only for a logged-in administrator.
+	// asynqmon (jniltinho/asynqmon, the Vue UI) in the panel's theme and flat look, only for a logged-in administrator.
 	if s.cfg.Redis.Addr != "" {
-		mon := asynqmon.New(asynqmon.Options{RootPath: "/asynqmon", RedisConnOpt: agent.RedisOpt(s.cfg.Redis)})
+		mon := asynqmon.New(asynqmon.Options{
+			RootPath:     "/asynqmon",
+			RedisConnOpt: agent.RedisOpt(s.cfg.Redis),
+			Theme:        func() (string, bool) { st := s.settings(); return st.Theme, st.Flat },
+		})
 		h := func(c *echo.Context) error {
 			// the asynqmon SPA uses inline scripts and Google fonts
 			c.Response().Header().Set("Content-Security-Policy",

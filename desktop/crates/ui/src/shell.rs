@@ -171,6 +171,8 @@ impl Shell {
                 egui::pos2(full.center().x + w / 2.0, full.bottom() - 16.0),
             );
             look.paint(ui.painter(), rect, "", "app", look.c("surface"));
+            // the web's outline: a thin line around the app box in the theme's line color, also in the flat look
+            ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, look.c("line")), egui::StrokeKind::Outside);
             let mut app =
                 ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
             app.set_clip_rect(rect);
@@ -585,6 +587,8 @@ pub fn app_frame(ui: &mut Ui, cx: &Cx, subtitle: &str, tab: (&str, &str), note: 
         egui::pos2(full.center().x + w / 2.0, full.bottom() - 16.0),
     );
     look.paint(ui.painter(), rect, "", "app", look.c("surface"));
+    // the web's outline: a thin line around the app box in the theme's line color, also in the flat look
+    ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, look.c("line")), egui::StrokeKind::Outside);
     let p = ui.painter().with_clip_rect(rect);
     // header: the shell's, without search and operator (no session yet)
     let head = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 64.0));

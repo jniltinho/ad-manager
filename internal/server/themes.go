@@ -27,6 +27,8 @@ var themes = []Theme{
 	{ID: "classic-blue", Label: "Classic blue (XP)", Scheme: "light"},
 	{ID: "classic-gray", Label: "Classic gray (98)", Scheme: "light"},
 	{ID: "graphite", Label: "Graphite (dark)", Scheme: "dark"},
+	{ID: "grafana", Label: "Grafana (dark)", Scheme: "dark"},
+	{ID: "rabbitmq", Label: "RabbitMQ", Scheme: "light"},
 	{ID: "matrix", Label: "Matrix (dark)", Scheme: "dark"},
 	{ID: "winamp", Label: "Winamp (dark)", Scheme: "dark"},
 	{ID: "pink-panther", Label: "Pink Panther", Scheme: "light"},

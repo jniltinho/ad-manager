@@ -29,7 +29,7 @@ permissions on Samba file servers.
 | 🚚 **Migration** | Windows → Samba: inventory, comparison, import from another AD (users, groups, DNS, shares) and DC join |
 | 🧾 **Logs** | Audit trail of every change, HTTP access log and Samba logs per server |
 | 🌐 **DNS, GPOs, sessions** | Domain DNS records, GPO links and backups, SMB sessions with disconnect |
-| 🎨 **18 themes** | Light, dark and flat looks, identical in the web panel and the desktop app; English and Portuguese UI |
+| 🎨 **20 themes** | Light, dark and flat looks, identical in the web panel and the desktop app; English and Portuguese UI |
 | 🤖 **MCP server** | Let AI agents query and manage the directory, with the same rules and audit |
 
 ## Screenshots
@@ -47,7 +47,7 @@ permissions on Samba file servers.
 | ![Setup](screenshots/setup-5-details.png) | ![Desktop](screenshots/desktop-rs-04-users.png) |
 
 <p align="center">
-  <img src="screenshots/themes.jpg" alt="The 18 themes" width="80%">
+  <img src="screenshots/themes.jpg" alt="The 20 themes" width="80%">
 </p>
 
 More in [screenshots/README.md](screenshots/README.md).

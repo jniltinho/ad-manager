@@ -5,7 +5,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Added
+- Two themes, on the web and the desktop: **Grafana (dark)**, the Grafana 11 palette, and **RabbitMQ**, the RabbitMQ
+  management UI palette, both with the panel's folder tabs, header band, page dots and drop shadows.
+- The queue monitor (`/asynqmon`) is the new Vue frontend of
+  [jniltinho/asynqmon](https://github.com/jniltinho/asynqmon) v0.8.0, opened in the panel's theme and flat look.
+
+### Changed
+- A thin outline in the theme's line color marks the app's edge in every theme, also in the flat look.
 
 ## [0.25.0] — 2026-10-25
 
