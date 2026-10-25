@@ -1,6 +1,6 @@
 ---
 name: create-release
-description: Cut a release of ad-manager on GitHub with the gh CLI — CHANGELOG, checks, tag, the release workflow (Linux, Windows and macOS packages) and its verification. Use when asked to release, tag or publish a version.
+description: Cut a release of ad-manager on GitHub with the gh CLI — CHANGELOG, checks, tag, the release workflow (Linux, Windows and macOS packages), its verification and the Docker Hub image (jniltinho/ad-manager). Use when asked to release, tag or publish a version.
 ---
 
 # Releasing ad-manager (GitHub, gh CLI)
@@ -139,14 +139,24 @@ the Downloads list from the published assets, and the compare link from the prev
 Write it to `notes.md` and apply: `gh release edit vX.Y.Z --repo "$REPO" --notes-file notes.md` (then `rm notes.md`;
 never commit it).
 
-### 7. Docker image (optional, when asked)
+### 7. Docker image (every release)
+
+Publish the all-in-one image of the tag to Docker Hub with every release, built from the tag itself so the version
+is exactly `X.Y.Z` (the working tree may already be past it):
 
 ```bash
-make docker-push          # jniltinho/ad-manager:<version> and :latest (docker login first)
+docker info 2>/dev/null | grep -q 'Username: jniltinho' || echo 'docker login first'
+W=$(mktemp -d) && git worktree add -q --detach "$W" vX.Y.Z
+(cd "$W" && make docker-push)   # jniltinho/ad-manager:X.Y.Z and :latest
+git worktree remove --force "$W"
+curl -s "https://hub.docker.com/v2/repositories/jniltinho/ad-manager/tags?page_size=2" | python3 -c 'import json,sys; [print(t["name"], t["digest"][:19]) for t in json.load(sys.stdin)["results"]]'
 ```
+
+Expect `latest` and `X.Y.Z` with the same digest.
 
 ## Guardrails
 
 - Never push a tag before check, tests and the CI of that commit are green.
 - Never commit secrets, `.run/`, `dist/`, `web/dist`, `.env` or databases.
 - The tag is the version; to fix a published release, cut a new patch.
+- A release is not done until `jniltinho/ad-manager:X.Y.Z` and `:latest` are on Docker Hub.
