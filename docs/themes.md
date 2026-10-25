@@ -148,7 +148,7 @@ The **Flat look** checkbox removes gradients and shadows from any theme.
 | Aurora / Aurora (dark) | `aurora`, `aurora-dark` | light / dark | DashboardPack's gradient dashboard |
 | Crystal / Crystal (dark) | `crystal`, `crystal-dark` | light / dark | macOS system colors |
 | Cone (dark) | `cone` | dark | VLC 4 dark interface |
-| Classic blue (XP) | `classic-blue` | light | Windows XP (Luna) |
+| Classic blue (XP) | `classic-blue` | light | Windows XP (Luna): title-bar and taskbar gradients, Start-green action, XP push buttons, task-pane card heads, listview headers, orange tab tops (WCAG AAA) |
 | Classic gray (98) | `classic-gray` | light | Windows 98, with 3D bevels |
 | Graphite (dark) | `graphite` | dark | Grafana 11 |
 | Matrix (dark) | `matrix` | dark | the film's green phosphor terminal: monospace, a static "digital rain" of strokes on the page, a soft green glow |
@@ -157,7 +157,7 @@ The **Flat look** checkbox removes gradients and shadows from any theme.
 | High contrast (dark) | `high-contrast` | dark | accessibility: black and white, one yellow accent, 3 px focus ring, no gradients or depth shadows (WCAG AAA); Matrix's structure (window line, bars, tab marks) in that palette |
 
 All have square corners and pass the WCAG contrast matrix (`frontend/src/themes/matrix.json`); Crystal, Crystal
-(dark) and High contrast are held to AAA (normal text 7:1). Reference colors
+(dark), Classic blue (XP) and High contrast are held to AAA (normal text 7:1). Reference colors
 adjusted for contrast are noted in the header comment of each theme file. In dark themes (and
 in those with a dark header) the product logo switches to the light-ink version, and the customer logo gets a
 light plate behind it.

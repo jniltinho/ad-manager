@@ -112,6 +112,7 @@ var rustTokens = []string{
 	"subtabs-line-w", "subtabs-gap", "subtabs-pad", "subtab-inset-top", "subtab-on-overlap",
 	"cardtabs-pad", "cardtabs-gap", "cardtab-inset-top", "cardtab-on-overlap", "cardtab-bar-w",
 	"tab-gap", "tab-inset-top", "tabs-pad", "footer-bar-w", "footer-gap", "nav-on-last-line-w", "logo-plate-pad",
+	"login-shadow-y",
 }
 
 // rustText are the keyword parameters exported as they are.

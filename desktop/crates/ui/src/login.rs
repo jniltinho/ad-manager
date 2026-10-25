@@ -110,14 +110,15 @@ impl Login {
                 ui.add_space((h * 0.1).floor());
                 ui.set_max_width(BOX_W);
                 self.login_box(ui, cx, &look, modal);
-                // the elliptic shadow under the box (a light glow on dark pages), 3 points over its bottom
+                // the elliptic shadow under the box (a light glow on dark pages), 3 points over its bottom (lower by the
+                // theme's login-shadow-y)
                 let shadow = match look.p.text("login-shadow") {
                     _ if look.flat => None,
                     "dark" => Some(("bytes://login-shadow.png", adm_core::assets::LOGIN_SHADOW)),
                     "light" => Some(("bytes://login-shadow-light.png", adm_core::assets::LOGIN_SHADOW_LIGHT)),
                     _ => None,
                 };
-                let top = ui.cursor().top() - 3.0;
+                let top = ui.cursor().top() - 3.0 + look.px("login-shadow-y", 0.0);
                 if let Some((uri, bytes)) = shadow {
                     let r = egui::Rect::from_center_size(
                         egui::pos2(ui.max_rect().center().x, top + 5.0),

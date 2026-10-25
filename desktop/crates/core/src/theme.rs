@@ -159,10 +159,12 @@ impl Palette {
         self.bg.get(part).and_then(Option::as_ref)
     }
 
-    /// A part's repeated background (`page`), none in the flat look when the flat override clears it.
+    /// A part's repeated background (`page`); in the flat look the standard dots in the theme's page-dots color, as the
+    /// web's flat override sets them, instead of the theme's own pattern (rain, steel lines).
     pub fn pattern(&self, part: &str, flat: bool) -> Option<Pattern> {
         if flat && flat_clears(&format!("--bg-{part}")) {
-            return None;
+            let color = self.col("page-dots");
+            return (part == "page").then_some(Pattern { kind: PatternKind::Dots, color, w: 1.0, h: 1.0, period: 0.0 });
         }
         self.pattern.get(part).copied()
     }
@@ -320,7 +322,7 @@ mod tests {
         assert_eq!(id, "default");
         let (id, p) = palette("classic-blue").unwrap();
         assert_eq!(id, "classic-blue");
-        assert_eq!(p.col("dialog-head"), Rgba([0x1f, 0x6e, 0xe0, 0xff]));
+        assert_eq!(p.col("dialog-head"), Rgba([0x01, 0x43, 0xcf, 0xff]));
         assert_eq!(order().len(), 18);
         let hc = palette("high-contrast").unwrap().1;
         assert!(hc.depthless && hc.min_text == 7.0 && hc.focus_ring == 3.0);
@@ -333,7 +335,7 @@ mod tests {
         let p = palette("classic-blue").unwrap().1;
         assert_eq!((p.px("control-h", 0.0), p.px("th-py", 0.0), p.px("tag-size", 0.0)), (28.0, 6.0, 10.0));
         let h = p.gradient("header", false).expect("Classic blue header gradient");
-        assert_eq!((h.dir.as_str(), h.space.as_str(), h.stops.len()), ("to right", "oklab", 2));
+        assert_eq!((h.dir.as_str(), h.space.as_str(), h.stops.len()), ("to bottom", "oklab", 9));
         assert!(p.gradient("header", true).is_none(), "the flat look clears the header gradient");
         assert!(!p.shadows("btn", false).is_empty() && p.shadows("btn", true).is_empty());
         assert!(p.shadows("tab-on", true).iter().any(|l| l.inset), "the current tab's mark stays in the flat look");

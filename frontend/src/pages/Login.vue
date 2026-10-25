@@ -344,7 +344,7 @@ td.input input:-webkit-autofill:focus {
   /* the elliptic shadow under the box: --login-shadow-img (a light glow on dark themes) */
   background-image: var(--login-shadow-img);
   background-repeat: no-repeat;
-  background-position: top center;
+  background-position: center var(--login-shadow-y);
 }
 /* flat look: no shadow image under the box either */
 :root[data-flat='true'] .box-bottom {
