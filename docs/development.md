@@ -8,7 +8,7 @@ CLI (`vite-plus` in `devDependencies`; `vp dev/build/check/test` via `npm run �
 ## Cycle
 
 ```bash
-make build            # npm ci + vp build → web/dist; dist/ad-manager and dist/desktop-rust/ (the desktop app, built in Docker; dist/ is outside git)
+make build            # npm ci + vp build → web/dist; dist/ad-manager and dist/desktop/ (the desktop app, built in Docker; dist/ is outside git)
 make test             # go vet + go test + vitest
 make check            # gofmt + vp check (oxfmt + oxlint)
 make samba-up         # Samba AD 4.23 (Ubuntu 26.04, distro packages) at ldaps://127.0.0.1:6636
@@ -86,17 +86,17 @@ This replaces `.run/visual/baseline` with the Chromium images; to go back to the
 - Languages: everything is in English — code, comments, docs, CLI output, server and agent messages, specs. pt-BR
   exists only as translation catalogs: UI texts use `t()` with the pt-BR in `frontend/src/locales/pt-BR/`; server and
   agent messages have their pt-BR in the `internal/i18n` catalog (web via `/api/i18n`, desktop and CLI through the
-  package); the desktop app's own texts in `desktop-rust/crates/core/assets/i18n/pt-BR.json`. After touching the catalog:
+  package); the desktop app's own texts in `desktop/crates/core/assets/i18n/pt-BR.json`. After touching the catalog:
   `UPDATE_I18N=1 go test ./internal/i18n` (updates the JSON used by the frontend tests).
 - No secrets in versioned files: `.env`, `inventory/`, `base/`, `.run/` are in `.gitignore`.
 
 ## Release
 
-GitHub Actions. `.github/workflows/ci.yml` runs on every push to `main` (and on pull requests): Go and frontend tests
-on Ubuntu. The tag `vX.Y.Z` → `.github/workflows/release.yml` runs CI again and, if it passes, builds the SPA, the
-linux amd64 server with UPX and the `.deb`, and publishes the release with `gh` (notes from the version's section in
-`CHANGELOG.md`, `checksums.txt`). The desktop app (Rust) has its own CI (`desktop-rust-ci.yml`) and release
-(`desktop-rust-release.yml`, tags `desktop-rust-vX.Y.Z`: Linux, Windows and macOS universal); the Fyne app in
-`desktop/` is archived and no longer built. Always: push to `main`, green CI, then the tag. The version is
-the tag (injected via ldflags into `internal/buildinfo`). Step by step in the `create-release` skill
+GitHub Actions. `.github/workflows/ci.yml` runs on every push to `main` (and on pull requests): the server's Go and
+frontend tests and the desktop app's checks (`desktop-ci.yml`, called from it: Linux, Windows cross and native,
+macOS). The tag `vX.Y.Z` → `.github/workflows/release.yml` runs CI again and, if it passes, builds the SPA, the linux
+amd64 server with UPX and the `.deb`, and the desktop app for Linux, Windows and macOS universal, and publishes them in
+one release with `gh` (notes from the version's section in `CHANGELOG.md`, one `checksums.txt`); the Fyne app in
+`archive/desktop-go/` is archived and no longer built. Always: push to `main`, green CI, then the tag. The version is the tag
+(injected via ldflags into `internal/buildinfo`); the desktop app has the same one in `desktop/Cargo.toml`. Step by step in the `create-release` skill
 (`.claude/skills/create-release`).

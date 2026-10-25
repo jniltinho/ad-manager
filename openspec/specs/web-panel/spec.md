@@ -99,3 +99,89 @@ the main action on the right).
 #### Scenario: Close during a save
 - **WHEN** the user closes the wizard while the job is being saved
 - **THEN** the page still receives the result and refreshes the list
+
+### Requirement: Framed lists
+Every list table that scrolls inside the page (Users, Groups, Computers and the logs) SHALL be framed on all four
+sides in the theme's line color, whether or not its content overflows and a scrollbar shows; the frame belongs to
+the scrolling wrapper, not to the collapsed table border.
+
+#### Scenario: Long list
+- **WHEN** a list has more rows than fit and scrolls
+- **THEN** its left and right lines are visible from top to bottom, in every theme
+
+#### Scenario: Short list
+- **WHEN** a list fits without scrolling
+- **THEN** it is framed the same way
+
+### Requirement: Sync run end and duration
+The Sync page's Runs table SHALL show, for each finished run, the time it ended and how long it took, with the date
+when it ended on another day than it started, and SHALL show no end while the run is queued or running.
+
+#### Scenario: Finished run
+- **WHEN** a run started at 08:37:14 and finished at 08:41:52 the same day
+- **THEN** its Finished cell reads the end time and the duration, `08:41 AM · 4m38s` (in the panel's locale), on one line
+
+#### Scenario: Run across midnight
+- **WHEN** a run started on one day and finished on the next
+- **THEN** its Finished cell shows the end date and time, and the duration
+
+#### Scenario: Running run
+- **WHEN** a run is queued or running
+- **THEN** its Finished cell is empty (`—`) and the Status cell shows the phase
+
+### Requirement: Sync run-log modal
+A sync run's log SHALL be shown in a dialog capped to a fraction of the viewport height, in which only the monospace
+log body scrolls (`overflow-y:auto`) while the run's summary header (job name, run id, status and file/size counts)
+and the footer stay in view. The page SHALL NOT grow with the log, and the dialog SHALL stay on screen on small
+viewports. The dialog SHALL be dismissable with Escape and the Close button and SHALL offer a Copy action for the log
+text.
+
+#### Scenario: Very long log
+- **WHEN** a run's log has thousands of lines (e.g. a dry-run printing a skip line per object) and the operator opens
+  its Log
+- **THEN** the log scrolls inside the dialog and the page itself does not overflow or grow downward
+
+#### Scenario: Header and footer stay
+- **WHEN** the operator scrolls through a long log
+- **THEN** the summary header and the Close/Copy footer remain in view while the log body scrolls
+
+#### Scenario: Small viewport
+- **WHEN** the dialog is opened on a short screen
+- **THEN** it is capped to the viewport and stays fully on screen, with the log body scrolling inside it
+
+#### Scenario: Empty or short log
+- **WHEN** a run has no log or only a few lines
+- **THEN** the dialog renders correctly without scrolling and shows the run's summary
+
+### Requirement: Shared size tokens
+The web panel's stylesheet SHALL define its control, toolbar, table-cell and badge sizes as named CSS variables
+(`--control-h`, `--input-px`, `--select-pr`, `--button-px`, `--toolbar-gap`, `--toolbar-mb`, `--th-px`, `--th-py`,
+`--td-px`, `--td-py`, `--tag-px`, `--tag-py`, `--tag-size`), used by its existing classes, so that the desktop reads
+the same values.
+
+#### Scenario: No visual change
+- **WHEN** the web panel is captured before and after the tokens are introduced, in every theme
+- **THEN** the computed sizes of inputs, selects, buttons, table cells and badges are the same
+
+### Requirement: A share's name edits it
+In the Shares table, a share's name SHALL be the link that opens its edit form, as a user's login does in Users, and
+the Actions column SHALL hold only remove. The name SHALL be disabled while the chosen file server is down. The
+desktop app's Shares page SHALL behave the same.
+
+#### Scenario: Edit from the name
+- **WHEN** the operator clicks the share name "finance" on a file server that is up
+- **THEN** the edit form of "finance" opens, and the row shows no separate edit link
+
+#### Scenario: Server down
+- **WHEN** the chosen file server is unavailable
+- **THEN** clicking a share's name does not open the form
+
+### Requirement: A file server's row stays on one line
+In the Shares page's list of file servers, each server SHALL take one line: its name, host, DC tag and its edit and
+remove actions never wrap. When the row is too narrow, the host SHALL shorten first and then the name, both ending in
+"…" with the full text in a tooltip; the DC tag and the actions SHALL keep their size. The total size in the Shares
+header SHALL be vertically centered on its buttons. The desktop app's Shares page SHALL behave the same.
+
+#### Scenario: Long server name
+- **WHEN** a domain controller registered as "fileserver-headquarters-saopaulo-01" is listed in the narrowest list
+- **THEN** its row is one line high, the name ends in "…", and the DC tag, "edit" and "remove" are fully visible

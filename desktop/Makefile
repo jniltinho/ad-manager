@@ -1,103 +1,92 @@
-# Desktop app (Fyne) for macOS: Intel (amd64), Apple Silicon (arm64), a universal
-# binary and an .app bundle. Run on a Mac with Go and the Xcode Command Line
-# Tools (xcode-select --install):
+# AD Manager desktop in Rust (egui). Every recipe runs in Docker (scripts/cargo-docker.sh, the pinned rustXterm
+# toolchain image): nothing here needs a host Rust toolchain.
 #
-#   cd desktop && make mac        # everything below
-#   make mac-arm64                # Apple Silicon only
-#   make mac-amd64                # Intel only
-#
-# Output (dist/ is not tracked by git):
-#   dist/desktop/darwin-arm64/ad-manager-desktop
-#   dist/desktop/darwin-amd64/ad-manager-desktop
-#   dist/desktop/darwin-universal/ad-manager-desktop      (lipo: both architectures)
-#   dist/desktop/darwin-universal/ad-manager-desktop.app  (double-click; ad-hoc signed)
-#   dist/ad-manager-desktop_<version>_darwin_{arm64,amd64,universal}.zip
-#
-# From Linux it only works with Apple's SDK copied from a Mac
-# (MACOS_SDK=/path/MacOSX.sdk, cross-compiled with zig) — Xcode's license does not
-# allow getting the SDK anywhere else.
+#   make help          list targets
+#   make check         what CI runs: fmt-check, clippy, test, deny
+#   make dist          release archives for Linux and Windows into dist/
 
-.PHONY: mac mac-arm64 mac-amd64 mac-universal mac-app mac-zip help
+SHELL := /bin/sh
+.DEFAULT_GOAL := help
 
-VERSION   ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
-OUT       ?= $(abspath ../dist/desktop)
-ZIPS      ?= $(abspath ../dist)
-MIN_MACOS ?= 12.0
-MACOS_SDK ?=
-ZIG       ?= $(shell command -v zig 2>/dev/null || echo /usr/local/zig/zig)
-BIN       := ad-manager-desktop
-APP       := $(OUT)/darwin-universal/$(BIN).app
-LDFLAGS   := -s -w -X main.version=$(VERSION)
-OS        := $(shell uname -s)
+CARGO   := scripts/cargo-docker.sh cargo
+VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' Cargo.toml | head -n 1)
+DIST    ?= dist
+TARGET  := target/docker
+# DIST as the toolchain container sees it (the repository is mounted at /work): the zip is made in there, where
+# python3 is, so the host needs no zip; DIST must be inside the repository
+DIST_IN_DOCKER = $(patsubst $(abspath ..)/%,/work/%,$(abspath $(DIST)))
 
-# compiler per architecture: Apple clang on a Mac, zig + SDK elsewhere
-ifeq ($(OS),Darwin)
-CC_arm64 := clang -arch arm64 -mmacosx-version-min=$(MIN_MACOS)
-CC_amd64 := clang -arch x86_64 -mmacosx-version-min=$(MIN_MACOS)
-else ifneq ($(MACOS_SDK),)
-ZIG_SDK  := --sysroot=$(MACOS_SDK) -I$(MACOS_SDK)/usr/include -F$(MACOS_SDK)/System/Library/Frameworks -L$(MACOS_SDK)/usr/lib
-CC_arm64 := $(ZIG) cc -target aarch64-macos.$(MIN_MACOS) $(ZIG_SDK)
-CC_amd64 := $(ZIG) cc -target x86_64-macos.$(MIN_MACOS) $(ZIG_SDK)
-endif
+DENY        := cargo-deny-0.20.2-x86_64-unknown-linux-musl
+DENY_SHA256 := 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
 
-help:
-	@sed -n '1,19p' Makefile | sed 's/^# \{0,1\}//'
+.PHONY: help build release run test fmt fmt-check clippy deny check shots mock bench dist dist-linux dist-windows themes themes-check
 
-mac: mac-app mac-zip
+help: ## Show this help
+	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-define build_arch
-	@test -n "$(CC_$(1))" || { echo "macOS: run on a Mac (Xcode Command Line Tools) or set MACOS_SDK=/path/MacOSX.sdk"; exit 1; }
-	mkdir -p $(OUT)/darwin-$(1)
-	CGO_ENABLED=1 GOOS=darwin GOARCH=$(1) CC="$(CC_$(1))" \
-		CGO_CFLAGS="-mmacosx-version-min=$(MIN_MACOS)" CGO_LDFLAGS="-mmacosx-version-min=$(MIN_MACOS)" \
-		go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUT)/darwin-$(1)/$(BIN) .
-endef
+build: ## Debug build of the workspace
+	$(CARGO) build --workspace
 
-mac-arm64:
-	$(call build_arch,arm64)
+release: ## Release build (target/docker/release/ad-manager-desktop)
+	$(CARGO) build --release --locked -p ad-manager-desktop
 
-mac-amd64:
-	$(call build_arch,amd64)
+test: ## Unit and UI acceptance tests
+	$(CARGO) test --workspace --locked
 
-# one binary that runs on both Intel and Apple Silicon
-mac-universal: mac-arm64 mac-amd64
-	mkdir -p $(OUT)/darwin-universal
-	lipo -create -output $(OUT)/darwin-universal/$(BIN) $(OUT)/darwin-arm64/$(BIN) $(OUT)/darwin-amd64/$(BIN)
-	lipo -info $(OUT)/darwin-universal/$(BIN)
+fmt: ## Format the workspace
+	$(CARGO) fmt --all
 
-# .app bundle with icon (assets/icon.png → .icns), ad-hoc signed so Gatekeeper
-# accepts it on the machine that built it (to distribute, sign with a Developer ID).
-mac-app: mac-universal
-	rm -rf "$(APP)" $(OUT)/icon.iconset
-	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" $(OUT)/icon.iconset
-	cp $(OUT)/darwin-universal/$(BIN) "$(APP)/Contents/MacOS/$(BIN)"
-	for s in 16 32 128 256 512; do \
-		sips -z $$s $$s assets/icon.png --out $(OUT)/icon.iconset/icon_$${s}x$${s}.png >/dev/null; \
-		sips -z $$((s*2)) $$((s*2)) assets/icon.png --out $(OUT)/icon.iconset/icon_$${s}x$${s}@2x.png >/dev/null; \
-	done
-	iconutil -c icns $(OUT)/icon.iconset -o "$(APP)/Contents/Resources/icon.icns"
-	rm -rf $(OUT)/icon.iconset
-	printf '%s\n' \
-		'<?xml version="1.0" encoding="UTF-8"?>' \
-		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
-		'<plist version="1.0"><dict>' \
-		'<key>CFBundleName</key><string>AD Manager</string>' \
-		'<key>CFBundleDisplayName</key><string>AD Manager</string>' \
-		'<key>CFBundleIdentifier</key><string>io.github.jniltinho.admanager</string>' \
-		'<key>CFBundleExecutable</key><string>$(BIN)</string>' \
-		'<key>CFBundleIconFile</key><string>icon</string>' \
-		'<key>CFBundlePackageType</key><string>APPL</string>' \
-		'<key>CFBundleShortVersionString</key><string>$(patsubst v%,%,$(VERSION))</string>' \
-		'<key>LSMinimumSystemVersion</key><string>$(MIN_MACOS)</string>' \
-		'<key>NSHighResolutionCapable</key><true/>' \
-		'</dict></plist>' > "$(APP)/Contents/Info.plist"
-	codesign --force --deep --sign - "$(APP)"
-	@echo "done: $(APP)"
+fmt-check: ## Check formatting
+	$(CARGO) fmt --all --check
 
-# zips for the release (ditto keeps the bundle and its signature intact)
-mac-zip: mac-app
-	cd $(OUT)/darwin-arm64 && rm -f $(ZIPS)/$(BIN)_$(VERSION)_darwin_arm64.zip && zip -q $(ZIPS)/$(BIN)_$(VERSION)_darwin_arm64.zip $(BIN)
-	cd $(OUT)/darwin-amd64 && rm -f $(ZIPS)/$(BIN)_$(VERSION)_darwin_amd64.zip && zip -q $(ZIPS)/$(BIN)_$(VERSION)_darwin_amd64.zip $(BIN)
-	rm -f $(ZIPS)/$(BIN)_$(VERSION)_darwin_universal.zip
-	ditto -c -k --keepParent "$(APP)" $(ZIPS)/$(BIN)_$(VERSION)_darwin_universal.zip
-	@ls -1 $(ZIPS)/$(BIN)_$(VERSION)_darwin_*.zip
+clippy: ## Lint, warnings are errors
+	$(CARGO) clippy --workspace --all-targets --locked -- -D warnings
+
+deny: ## cargo deny (licenses, advisories, sources) with the pinned, SHA-256 checked binary of CI
+	@set -eu; \
+	if [ ! -x target/tools/cargo-deny ]; then \
+		mkdir -p target/tools; \
+		curl --fail --show-error --silent --location --retry 3 \
+			"https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/$(DENY).tar.gz" -o target/tools/deny.tgz; \
+		echo "$(DENY_SHA256)  target/tools/deny.tgz" | sha256sum --check --strict -; \
+		tar -xzf target/tools/deny.tgz -C target/tools --strip-components=1 "$(DENY)/cargo-deny"; \
+		rm -f target/tools/deny.tgz; \
+	fi
+	scripts/cargo-docker.sh target/tools/cargo-deny check
+
+check: fmt-check clippy test deny themes-check ## What CI runs
+
+shots: ## The docs screenshots (2x, Classic blue, domain.local) into ../docs/screenshots
+	DESKTOP_RUST_DOCKER_ARGS="--add-host panel.domain.local:127.0.0.1 -v /usr/share/fonts:/usr/share/fonts:ro" ADM_SHOTS=/work/docs/screenshots ADM_SHOTS_HOST=panel.domain.local \
+		$(CARGO) test -p adm-ui --test ui --locked shots -- --ignored --exact
+
+mock: ## A mock panel with 5,000 users on https://127.0.0.1:8443 (prints the URL and pin)
+	DESKTOP_RUST_DOCKER_ARGS="-p 127.0.0.1:8443:8443" $(CARGO) run -p adm-core --example mock_panel --features testkit --locked -- --users 5000 --port 8443
+
+bench: ## Benchmark against the archived Fyne app (bench/run.sh; needs both release binaries)
+	bench/run.sh
+
+# the generator is Go (archive/desktop-go/internal/themegen, kept from the archived Fyne app): run in the Go image, as the user
+GO_IMAGE := docker.io/library/golang:$(shell sed -n 's/^go //p' ../archive/desktop-go/go.mod)
+GO_RUN   := docker run --rm -u $$(id -u):$$(id -g) -v $(CURDIR)/..:/w -w /w/archive/desktop-go -e HOME=/tmp \
+	-e GOCACHE=/tmp/go-cache -e GOPATH=/tmp/go $(GO_IMAGE)
+themes: ## Regenerate assets/themes.json from the web's theme CSS (in the Go image, nothing to install)
+	$(GO_RUN) go run ./internal/themegen/rustgen
+
+themes-check: ## assets/themes.json is what the web's theme CSS gives now (in the Go image)
+	$(GO_RUN) go test ./internal/themegen -run 'TestRustThemesUpToDate|TestParseGradientAndShadows' -count=1
+
+dist: dist-linux dist-windows ## Release archives (Linux tar.gz, Windows zip) and SHA256SUMS into DIST
+
+dist-linux: release
+	mkdir -p $(DIST)/stage-linux
+	cp $(TARGET)/release/ad-manager-desktop README.md CHANGELOG.md $(DIST)/stage-linux/
+	tar -C $(DIST)/stage-linux -czf $(DIST)/ad-manager-desktop_$(VERSION)_linux_x86_64.tar.gz .
+	cd $(DIST) && sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true
+
+dist-windows:
+	DESKTOP_RUST_TOOLCHAIN=windows $(CARGO) build --release --locked -p ad-manager-desktop --target x86_64-pc-windows-gnu
+	mkdir -p $(DIST)/stage-windows
+	cp $(TARGET)/x86_64-pc-windows-gnu/release/ad-manager-desktop.exe README.md CHANGELOG.md $(DIST)/stage-windows/
+	scripts/cargo-docker.sh sh -c 'cd $(DIST_IN_DOCKER)/stage-windows && python3 -m zipfile -c ../ad-manager-desktop_$(VERSION)_windows_x86_64.zip *'
+	cd $(DIST) && sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true

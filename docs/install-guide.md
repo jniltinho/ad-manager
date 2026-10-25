@@ -16,7 +16,7 @@ Everything is on the [Releases page](https://github.com/jniltinho/ad-manager/rel
 |---|---|---|---|
 | **Web panel** (`ad-manager server`) | Linux amd64 server, can be the DC itself | `ad-manager_X.Y.Z_amd64.deb` | `ad-manager_vX.Y.Z_linux_amd64.tar.gz` |
 | **Agent** (`ad-manager agent`) | each Samba file server, or the DC that also serves files | the same `.deb` | the same `.tar.gz` |
-| **Desktop app** (`ad-manager-desktop-rs`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop-rs_X.Y.Z_linux_x86_64.tar.gz`, `…_windows_x86_64.zip`, `…_macos_universal.zip` (releases tagged `desktop-rust-vX.Y.Z`) |
+| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz`, `…_windows_x86_64.zip`, `…_macos_universal.zip` (the same release) |
 | CLI and MCP (`ad-manager …`) | any machine with LDAPS to a DC | the same `.deb` | the same `.tar.gz` (Linux; on Windows, build it from source) |
 
 The panel, the agent, the CLI and MCP are **one binary** (`ad-manager`); what a machine runs depends on which systemd
@@ -25,11 +25,10 @@ unit you enable. The server tarball holds only the binary, a `config.toml` (a co
 from the repository at the same tag (below). The panel's units, the setup wizard and the agent's Samba work are Linux
 only.
 
-Check what you downloaded (the server's release lists `checksums.txt`, the desktop app's `SHA256SUMS`):
+Check what you downloaded (the release's `checksums.txt` lists every package, server and desktop):
 
 ```bash
-sha256sum -c checksums.txt --ignore-missing   # server release
-sha256sum -c SHA256SUMS --ignore-missing      # desktop release
+sha256sum -c checksums.txt --ignore-missing
 ```
 
 ## Prerequisites
@@ -273,9 +272,9 @@ The desktop app is a client of the panel's API only (the file servers through th
 
 | System | Install |
 |---|---|
-| Linux | `tar xzf ad-manager-desktop-rs_X.Y.Z_linux_x86_64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop-rs` |
-| Windows | unzip `ad-manager-desktop-rs_X.Y.Z_windows_x86_64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop-rs.exe` |
-| macOS | unzip `…_macos_universal.zip` and move `AD Manager (Rust).app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
+| Linux | `tar xzf ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop` |
+| Windows | unzip `ad-manager-desktop_X.Y.Z_windows_x86_64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` |
+| macOS | unzip `…_macos_universal.zip` and move `AD Manager.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
 
 On the first run the **Configure** screen asks for the panel URL, the user, the password and the language; **Test
 connection** signs in for real (a self-signed certificate is shown with its fingerprint, to trust once), and **Save**

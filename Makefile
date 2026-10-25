@@ -70,22 +70,22 @@ samba-up:
 samba-down:
 	docker compose -f docker/compose.yml down -v
 
-# Desktop app (Rust/egui, desktop-rust/): every recipe runs in Docker (its pinned toolchain image), nothing to install
-# but Docker. The Fyne app in desktop/ is archived (kept as code only: not built, tested or released).
-#   make desktop          Linux and Windows archives and the Linux binary in dist/desktop-rust/
+# Desktop app (Rust/egui, desktop/): every recipe runs in Docker (its pinned toolchain image), nothing to install
+# but Docker. The Fyne app in archive/desktop-go/ is archived (kept as code only: not built, tested or released).
+#   make desktop          Linux and Windows archives and the Linux binary in dist/desktop/
 #   make desktop-check    what its CI runs: format, clippy, tests and cargo-deny
 #   make desktop-test     unit and UI acceptance tests only
 #   make desktop-shots    its docs screenshots (docs/screenshots/desktop-rs-*.png)
 #   make desktop-themes   themes.json again from the web's theme CSS
-# its own version (desktop-rust/Cargo.toml), not the server's VERSION a command line may pass down
-DESKTOP_VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' desktop-rust/Cargo.toml | head -n 1)
+# the desktop's version (desktop/Cargo.toml: the server's number), not a VERSION a command line passes down
+DESKTOP_VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' desktop/Cargo.toml | head -n 1)
 desktop:
-	$(MAKE) -C desktop-rust dist DIST=$(CURDIR)/$(DIST)/desktop-rust VERSION=$(DESKTOP_VERSION)
-	cp desktop-rust/target/docker/release/ad-manager-desktop-rs $(DIST)/desktop-rust/
-	rm -rf $(DIST)/desktop-rust/stage-*
+	$(MAKE) -C desktop dist DIST=$(CURDIR)/$(DIST)/desktop VERSION=$(DESKTOP_VERSION)
+	cp desktop/target/docker/release/ad-manager-desktop $(DIST)/desktop/
+	rm -rf $(DIST)/desktop/stage-*
 
 desktop-check desktop-test desktop-shots desktop-themes:
-	$(MAKE) -C desktop-rust $(patsubst desktop-%,%,$@)
+	$(MAKE) -C desktop $(patsubst desktop-%,%,$@)
 
 # .deb package (nfpm) in dist/: binary, systemd units, config 0640 and docs.
 deb: build-prod

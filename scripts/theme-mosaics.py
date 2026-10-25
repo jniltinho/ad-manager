@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Builds the theme mosaics of the docs from the home screen of every theme:
 #   web:     frontend: BASELINE=1 npx playwright test          → .run/visual/baseline/home-<id>.png
-#   desktop: the Rust app's live test with ADM_LIVE_SHOTS (desktop-rust/README.md), its live-theme-<id>.png copied
+#   desktop: the Rust app's live test with ADM_LIVE_SHOTS (desktop/README.md), its live-theme-<id>.png copied
 #            into .run/desk-themes-rs/
 # Writes docs/screenshots/themes.jpg (web, two per row) and docs/img/conformity/web-desktop-{1,2,3}.jpg (web beside
 # desktop, six themes each). Needs Pillow.

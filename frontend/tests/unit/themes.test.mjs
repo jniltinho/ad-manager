@@ -191,7 +191,7 @@ describe('contrast', () => {
       const aaa = (matrix.aaa || []).includes(id)
       const min = (r) => (r.size === 'normal' ? (aaa ? 7 : 4.5) : r.size === 'large' ? (aaa ? 4.5 : 3) : 3)
       const zero = (k) => ['0', '0px'].includes((merged(id).get(k) || '').trim())
-      const segmented = zero('--subtabs-gap') && zero('--subtab-inset-top') // as desktop/internal/themegen
+      const segmented = zero('--subtabs-gap') && zero('--subtab-inset-top') // as archive/desktop-go/internal/themegen
       const failing = matrix.recipes
         .filter((r) => aaa || !r.aaaOnly)
         .filter((r) => segmented || !r.segmentedOnly)

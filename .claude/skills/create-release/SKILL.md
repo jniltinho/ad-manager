@@ -5,14 +5,16 @@ description: Cut a release of ad-manager on GitHub with the gh CLI — CHANGELOG
 
 # Releasing ad-manager (GitHub, gh CLI)
 
-The repository is **github.com/jniltinho/ad-manager**. A release is: bump `CHANGELOG.md`, commit, push `main`, wait
-for the CI, push the tag. The tag starts `.github/workflows/release.yml`, which runs the CI again, builds every
-package (server linux amd64 and the `.deb`)
-and publishes the release with `gh release create`, with the notes of that version's section in `CHANGELOG.md`
-and `checksums.txt`.
+The repository is **github.com/jniltinho/ad-manager**. A release is: bump `CHANGELOG.md` and the desktop's version,
+commit, push `main`, wait for the CI, push the tag. The tag starts `.github/workflows/release.yml`, which runs the CI
+again (server and desktop), builds every package — the server for linux amd64 and the `.deb`, the desktop app for
+Linux, Windows and macOS (universal `.app`) — and publishes them in one release with `gh release create`, with the
+notes of that version's section in `CHANGELOG.md` and one `checksums.txt`.
 
-> The version comes from the **git tag** (`Makefile`: `git describe --tags` → ldflags into `internal/buildinfo`).
-> There is no version constant to bump: the tag *is* the version.
+> The server's version comes from the **git tag** (`Makefile`: `git describe --tags` → ldflags into
+> `internal/buildinfo`). The desktop app has the **same version**, written in `desktop/Cargo.toml`
+> (`[workspace.package] version`): set it to X.Y.Z in the release commit (the release workflow refuses a tag that
+> does not match it).
 
 Release only when the user asks for it.
 
@@ -64,10 +66,12 @@ the release notes are taken from it, by its exact heading:
 
 Omit empty sections.
 
-### 4. Check, commit, push `main`, wait for the CI
+### 4. The desktop's version, check, commit, push `main`, wait for the CI
 
 ```bash
-make check && make test && make build
+sed -i '0,/^version = ".*"/s//version = "X.Y.Z"/' desktop/Cargo.toml      # [workspace.package]: the tag's version
+(cd desktop && scripts/cargo-docker.sh cargo update --workspace)  # Cargo.lock follows (in Docker)
+make check && make test && make desktop-check && make build
 git add -A && git diff --cached --name-only        # nothing from .run/, dist/, web/dist, .env, *.db
 git commit -m "release: vX.Y.Z"
 git push origin main
@@ -96,9 +100,9 @@ If a job fails: `gh run view --repo "$REPO" "$RUN" --log-failed`, fix on `main`,
 gh release view vX.Y.Z --repo "$REPO" --json name,assets -q '.name, (.assets[].name)'
 ```
 
-Expect: `ad-manager_vX.Y.Z_linux_amd64.tar.gz`, `ad-manager_X.Y.Z_amd64.deb` and `checksums.txt`. The desktop app
-(Rust) is released on its own `desktop-rust-vX.Y.Z` tags (`desktop-rust-release.yml`); the Fyne app in `desktop/` is
-archived and no longer released.
+Expect: `ad-manager_vX.Y.Z_linux_amd64.tar.gz`, `ad-manager_X.Y.Z_amd64.deb`,
+`ad-manager-desktop_X.Y.Z_{linux_x86_64.tar.gz,windows_x86_64.zip,macos_universal.zip}` and `checksums.txt`
+(the server and the desktop app in one release; the Fyne app in `archive/desktop-go/` is archived and no longer released).
 
 ### 6b. Format the GitHub release notes (rustXterm style)
 
@@ -124,7 +128,10 @@ the Downloads list from the published assets, and the compare link from the prev
 ## 📦 Downloads
 - `ad-manager_vX.Y.Z_linux_amd64.tar.gz` — server for Linux (x86_64)
 - `ad-manager_X.Y.Z_amd64.deb` — server package for Ubuntu 26.04
-- `checksums.txt` — SHA-256 checksums
+- `ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz` — desktop app for Linux
+- `ad-manager-desktop_X.Y.Z_windows_x86_64.zip` — desktop app for Windows
+- `ad-manager-desktop_X.Y.Z_macos_universal.zip` — desktop app for macOS (universal: Apple Silicon and Intel)
+- `checksums.txt` — SHA-256 checksums of every file above
 
 **Full Changelog**: https://github.com/jniltinho/ad-manager/compare/$LAST...vX.Y.Z
 ```

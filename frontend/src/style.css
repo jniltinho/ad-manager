@@ -282,7 +282,7 @@
   --nav-on-last-line-w: 0px; /* bottom line of the current side item when it is the last one (divide-y skips it) */
   --tab-hover-filter: none;
   --table-head-h: auto;
-  /* sizes of controls, tables and badges, named so the desktop apps read the same values (desktop-rust themes.json) */
+  /* sizes of controls, tables and badges, named so the desktop apps read the same values (desktop themes.json) */
   --control-h: 1.75rem; /* inputs, selects and buttons: 28 px border boxes */
   --control-text: 12px;
   --input-px: 0.5rem;

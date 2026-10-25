@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Builds the raised (embossed) logos from the flat sources in docs/img/logo/ (needs rsvg-convert):
-#   frontend/src/assets and desktop/assets: ad-manager-logo{,-light}.png, transparent, 1320 × 440 (the 660 × 220
+#   frontend/src/assets and archive/desktop-go/assets: ad-manager-logo{,-light}.png, transparent, 1320 × 440 (the 660 × 220
 #     box at 2×, so the apps show it at the same width and height);
 #   docs/img/logo-wide.{svg,png}: the light logo filling a raised navy banner (README).
 # The relief is a light from the top left on the logo's shapes and a soft shadow under them.
@@ -66,7 +66,7 @@ def app_logos():
   <g filter="url(#relief)">{inner}</g>
 </svg>
 '''
-        for d in ('frontend/src/assets', 'desktop/assets'):
+        for d in ('frontend/src/assets', 'archive/desktop-go/assets'):
             png(svg, os.path.join(ROOT, d, f'ad-manager-logo{variant}.png'), 2)
 
 

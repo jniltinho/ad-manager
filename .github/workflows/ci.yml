@@ -1,6 +1,7 @@
-# CI: every push to main and every pull request — Go and frontend tests on Linux. The release (release.yml) calls this
-# workflow first. The themes' visual regression is not run here (scripts/visual-ci.sh, locally). The desktop app is the
-# Rust one (desktop-rust-ci.yml); the Fyne app in desktop/ is archived and no longer built or tested.
+# CI: every push to main and every pull request — the server (Go and frontend tests on Linux) and the desktop app
+# (desktop-ci.yml: checks, Windows and macOS builds, the native Windows WARP test), together. The release
+# (release.yml) calls this workflow first. The themes' visual regression is not run here (scripts/visual-ci.sh,
+# locally). The Fyne app in archive/desktop-go/ is archived and no longer built or tested.
 name: ci
 
 on:
@@ -41,3 +42,6 @@ jobs:
           npm ci --no-audit --no-fund
           npm run check
           npm run test
+
+  desktop:
+    uses: ./.github/workflows/desktop-ci.yml
