@@ -42,7 +42,7 @@ jobs:
           go-version-file: archive/desktop-go/go.mod
           cache: false
       - name: Themes in step with the web's CSS (assets/themes.json from archive/desktop-go/internal/themegen)
-        working-directory: desktop
+        working-directory: archive/desktop-go
         run: go test ./internal/themegen -run 'TestRustThemesUpToDate|TestParseGradientAndShadows' -count=1
       - name: Release build
         run: scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop
