@@ -1,0 +1,216 @@
+/* "RabbitMQ" theme (light): the RabbitMQ management UI (rabbitmq_management priv/www/css/main.css), adapted: white
+ * header with the orange rule, gray tab buttons with the current one in orange, gray section heads, light table
+ * heads, #eee zebra rows, the green and yellow state boxes with dark text, Verdana. The orange is darkened where
+ * it carries white text (AA). Only role values and recipe parameters of the contract in style.css; square corners. */
+:root[data-theme='rabbitmq'] {
+  --font-sans: Verdana, Geneva, 'DejaVu Sans', Arial, sans-serif;
+  --font-size-base: 12px;
+  /* text */
+  --color-fg: #333333;
+  --color-on-page: #333333;
+  --color-fg-strong: #222222;
+  --color-fg-muted: #5e5e5e;
+  --color-fg-subtle: #5e5e5e;
+  --color-link: #a64000;
+  --color-link-hover: #7a2f00;
+  /* page and surfaces */
+  --color-page: #e7e7e7;
+  --color-page-dots: rgba(0, 0, 0, 0.12);
+  --bg-page: radial-gradient(var(--color-page-dots) 1px, transparent 1px);
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f4f4;
+  --color-surface-3: #f8f8f8;
+  --color-row-alt: #f1f1f1;
+  --color-row-hover: #fff0e5;
+  --color-line: #d6d6d6;
+  --color-line-soft: #ebebeb;
+  /* fields */
+  --color-field: #ffffff;
+  --color-on-field: #333333;
+  --color-field-line: #8c8c8c;
+  --color-field-focus: #d65200;
+  --color-check-line: #8c8c8c;
+  --color-autofill: #333333;
+  --bg-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23333333'/%3E%3C/svg%3E");
+  /* actions: the orange button, gray secondary buttons */
+  --color-action: #b84700;
+  --color-action-top: #c24e00;
+  --color-action-line: #9a3c00;
+  --color-on-action: #ffffff;
+  --color-action-2: #ececec;
+  --color-action-2-top: #ffffff;
+  --color-action-2-line: #b5b5b5;
+  --color-action-2-hover-line: #d65200;
+  --color-on-action-2: #333333;
+  --color-danger: #c62828;
+  --color-danger-top: #d03434;
+  --color-danger-line: #8e1c1c;
+  --color-brand-action: #b84700;
+  --color-brand-action-top: #c24e00;
+  --color-brand-action-hover: #a64000;
+  --color-on-brand-action: #ffffff;
+  /* accents, selection, focus */
+  --color-accent: #ff6600;
+  --color-accent-strong: #d65200;
+  --color-selection: #b84700;
+  --color-on-selection: #ffffff;
+  --color-on-selection-muted: rgba(255, 255, 255, 0.92);
+  --color-focus: #d65200;
+  /* states: the management UI's green / yellow / red boxes */
+  --color-ok: #2a7a2a;
+  --color-err: #c0201f;
+  --color-warn: #9a5800;
+  --color-ok-fill: #66cc66;
+  --color-on-ok-fill: #102a10;
+  --color-err-fill: #d32f2f;
+  --color-warn-fill: #ffcc33;
+  --color-on-warn-fill: #3a2a00;
+  --color-neutral-fill: #6b6b6b;
+  --color-strong-fill: #484848;
+  --color-on-toast-warn: #3a2a00;
+  --color-toast-ok: #2e7d32;
+  --color-toast-err: #c62828;
+  --color-toast-warn: #ffcc33;
+  --color-err-soft: #fbe3e3;
+  --color-on-err-soft: #8a1c1c;
+  --color-ok-soft: #e1f5e1;
+  --color-on-ok-soft: #1f5c1f;
+  --color-warn-soft: #fff4d6;
+  --color-on-warn-soft: #6b4a00;
+  /* header: white with the orange rule */
+  --color-header-top: #ffffff;
+  --color-header: #f0f0f0;
+  --bg-header: linear-gradient(to bottom in oklab, var(--color-header-top) 0%, var(--color-header) 100%);
+  --color-on-header: #333333;
+  --color-on-header-muted: #5e5e5e;
+  --color-on-header-subtle: #5e5e5e;
+  --color-header-bar: #ff6600;
+  --color-header-link: #a64000;
+  --color-header-link-hover: #7a2f00;
+  /* tabs: gray buttons on white, the current one orange */
+  --color-tabs-top: #fafafa;
+  --color-tabs: #e6e6e6;
+  --bg-tabs: linear-gradient(to bottom in oklab, var(--color-tabs-top) 0%, var(--color-tabs) 100%);
+  --shadow-tabs: inset 0 -1px #c4c4c4;
+  --tabs-pad: 6px;
+  --tab-gap: 2px;
+  --tab-inset-top: 3px;
+  --color-tab: #f4f4f4;
+  --color-on-tab: #333333;
+  --color-tab-hover: #ffffff;
+  --color-on-tab-hover: #222222;
+  --shadow-tab: inset 1px 0 #c4c4c4, inset -1px 0 #c4c4c4, inset 0 1px #c4c4c4, inset 0 -1px #c4c4c4, inset 0 -7px 7px rgba(0, 0, 0, 0.07);
+  --color-on-tab-aux: #333333;
+  --color-tab-aux-hover: #e4e4e4;
+  --color-on-tab-aux-hover: #222222;
+  --color-tab-on-top: #ffffff;
+  --color-tab-on: #ffffff;
+  --color-on-tab-on: #222222;
+  --color-tab-on-icon: #c24e00;
+  --shadow-tab-on: inset 1px 0 #c4c4c4, inset -1px 0 #c4c4c4, inset 0 1px #a64000, inset 0 3px #ff6600;
+  /* footer: white with a thin gray rule */
+  --color-footer-top: #ffffff;
+  --color-footer: #ececec;
+  --color-footer-bar: #d6d6d6;
+  --footer-bar-w: 1px;
+  --color-on-footer: #5e5e5e;
+  --color-footer-strong: #a64000;
+  /* side list, cards, tables, dialogs, tooltip */
+  --color-nav-on: #fff0e5;
+  --color-on-nav-on: #222222;
+  --color-nav-on-line: #d6d6d6;
+  --color-card-head-top: #f7f7f7;
+  --color-card-head: #e9e9e9;
+  --color-card-head-bar: #ff6600;
+  --color-on-card-head: #222222;
+  --card-head-bar-w: 3px;
+  --card-head-size: 13px;
+  --card-head-transform: none;
+  --card-stripe: 3px;
+  --color-table-head-top: #f9f9f9;
+  --color-table-head: #e6e6e6;
+  --color-on-table-head: #222222;
+  --shadow-table-head: inset 0 -1px 0 #bdbdbd, inset 0 -2px 0 #d8d8d8;
+  --color-dialog-line: #8c8c8c;
+  --color-on-dialog: #333333;
+  --color-dialog-head-top: #4a4a4a;
+  --color-dialog-head: #3a3a3a;
+  --color-dialog-head-bar: #ff6600;
+  --color-on-dialog-head: #ffffff;
+  --color-backdrop: rgba(0, 0, 0, 0.45);
+  --color-pop-line: #8c8c8c;
+  --color-tooltip: #3a3a3a;
+  --color-on-tooltip: #ffffff;
+  --color-tooltip-bar: #ff6600;
+  --color-on-pop: #333333;
+  --color-card-hover-line: #d65200;
+  /* inner tabs (task states): gray boxes, the current one orange, on an orange rule */
+  --color-subtab-line: #b84700;
+  --color-subtab: #f4f4f4;
+  --color-on-subtab: #333333;
+  --color-subtab-hover: #dedede;
+  --color-subtab-on: #ffffff;
+  --color-on-subtab-on: #222222;
+  --shadow-subtab: inset 1px 0 #c4c4c4, inset -1px 0 #c4c4c4, inset 0 1px #c4c4c4, inset 0 -7px 7px rgba(0, 0, 0, 0.07);
+  --shadow-subtab-on: inset 1px 0 #c4c4c4, inset -1px 0 #c4c4c4, inset 0 1px #a64000, inset 0 3px #ff6600;
+  --subtabs-line-w: 1px;
+  --subtabs-gap: 2px;
+  --subtab-inset-top: 3px;
+  /* card tabs */
+  --color-cardtabs: #f4f4f4;
+  --color-cardtabs-line: #d6d6d6;
+  --color-cardtab: #f4f4f4;
+  --color-on-cardtab: #333333;
+  --color-cardtab-hover: #dedede;
+  --color-cardtab-on: #ffffff;
+  --color-on-cardtab-on: #222222;
+  --color-cardtab-bar: #ff6600;
+  --cardtab-transform: none;
+  /* charts and decorations */
+  --color-chart-1: #e05a00;
+  --color-decor-ok: #66cc66;
+  --color-decor-err: #d32f2f;
+  --color-decor-warn: #ffcc33;
+  --color-decor-muted: #a0a0a0;
+  --color-decor-strong: #ff6600;
+  --color-scroll-thumb: #a8a8a8;
+  --color-scroll-track: #f0f0f0;
+  /* login box */
+  --color-login-page: #f2f2f2;
+  --color-login-box: #3a3a3a;
+  --color-login-box-line: #222222;
+  --color-login-box-bar: #ff6600;
+  --color-login-title: #ff8533;
+  --color-login-field-line: #8c8c8c;
+  --color-login-focus: rgba(255, 102, 0, 0.45);
+  /* depth: light, soft */
+  --shadow-btn: 0 2px 5px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.15);
+  --shadow-btn-2: 0 2px 4px rgba(0, 0, 0, 0.24), inset 0 1px 0 #ffffff, inset 0 -2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-btn-danger: 0 2px 5px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.15);
+  --shadow-brand-action: 0 2px 5px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.15);
+  --shadow-field-focus: 0 0 0 2px rgba(214, 82, 0, 0.25);
+  --shadow-card: 0 3px 9px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.26);
+  --shadow-app: 0 3px 16px rgba(0, 0, 0, 0.24);
+  --shadow-nav-on: inset 3px 0 0 #d65200;
+  --dialog-line-w: 1px;
+  --shadow-cardtab: inset 1px 0 #c4c4c4, inset -1px 0 #c4c4c4, inset 0 1px #c4c4c4, inset 0 -7px 7px rgba(0, 0, 0, 0.07);
+  --shadow-cardtab-on: inset 1px 0 #c4c4c4, inset -1px 0 #c4c4c4, inset 0 1px #a64000, inset 0 3px #ff6600;
+  --bg-footer: linear-gradient(to bottom in oklab, var(--color-footer-top) 0%, var(--color-footer) 100%);
+  --bg-card-head: linear-gradient(to bottom in oklab, var(--color-card-head-top) 0%, var(--color-card-head) 100%);
+  --bg-table-head: linear-gradient(to bottom in oklab, var(--color-table-head-top) 0%, var(--color-table-head) 100%);
+  --bg-action: linear-gradient(to bottom in oklab, #e8742a 0%, var(--color-action-top) 22%, var(--color-action) 100%);
+  --bg-brand-action: linear-gradient(to bottom in oklab, #e8742a 0%, var(--color-brand-action-top) 22%, var(--color-brand-action) 100%);
+  --bg-action-2: linear-gradient(to bottom in oklab, var(--color-action-2-top) 0%, var(--color-action-2) 80%, #dcdcdc 100%);
+  --shadow-field: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+  --shadow-login-box: 0 6px 20px rgba(0, 0, 0, 0.24);
+  --shadow-dialog: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --placeholder-color: var(--color-fg-muted);
+  --btn-hover-filter: none;
+  --cardtabs-pad: 6px;
+  --cardtabs-gap: 2px;
+  --cardtab-inset-top: 3px;
+  --cardtab-on-overlap: 1px;
+  --cardtab-bar-w: 0px;
+  --subtab-on-overlap: 1px;
+}

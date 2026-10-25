@@ -59,7 +59,7 @@ A single binary (`ad-manager`) provides the panel, CLI, MCP and agent; the `.deb
 | Folders and shares (create, edit, remove, size) | ✔ | ✔ | `migrate shares` | — |
 | Migration: preflight, inventory, diff, Windows shares | — | — | ✔ | preflight |
 | Logs: audit and Samba (from the DC and from each file server) | ✔ | ✔ | — | ✔ |
-| Agent queues (asynqmon) | ✔ | — | — | — |
+| Agent queues (asynqmon, in the panel's theme) | ✔ | — | — | — |
 | Company settings (language, session, logo, support link…) | ✔ | — | — | — |
 
 ## Two-layer configuration

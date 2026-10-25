@@ -135,7 +135,7 @@ The archived Fyne app (`archive/desktop-go/`, code only) has its own notes in it
 
 ## 6. Selectable panel themes
 
-The web panel has 18 themes, chosen in **Settings → Theme** (applies to every operator and to the login
+The web panel has 20 themes, chosen in **Settings → Theme** (applies to every operator and to the login
 screen). The default is **Default**; the desktop app uses the same themes.
 The **Flat look** checkbox removes gradients and shadows from any theme.
 
@@ -151,6 +151,8 @@ The **Flat look** checkbox removes gradients and shadows from any theme.
 | Classic blue (XP) | `classic-blue` | light | Windows XP (Luna): title-bar and taskbar gradients, Start-green action, XP push buttons, task-pane card heads, listview headers, orange tab tops (WCAG AAA) |
 | Classic gray (98) | `classic-gray` | light | Windows 98, with 3D bevels |
 | Graphite (dark) | `graphite` | dark | Grafana 11 |
+| Grafana (dark) | `grafana` | dark | the Grafana 11 dashboard as it is: flat panels on the dark canvas, no gradients or shadows, the orange current-tab underline (Graphite is the same palette with depth) |
+| RabbitMQ | `rabbitmq` | light | the RabbitMQ management UI: white header with the orange rule, gray tab buttons with the current one in orange, gray section heads, Verdana |
 | Matrix (dark) | `matrix` | dark | the film's green phosphor terminal: monospace, a static "digital rain" of strokes on the page, a soft green glow |
 | Winamp (dark) | `winamp` | dark | the Winamp 2 skin: brushed steel with a 1 px bevel, LCD readout (green on black) in fields, amber buttons, the playlist's blue selection |
 | Pink Panther | `pink-panther` | light | the 1963 film titles: plum title bars with the panther-pink stripe, blush page, deep rose actions; pink only as an accent |

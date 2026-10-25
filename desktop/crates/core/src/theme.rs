@@ -323,7 +323,7 @@ mod tests {
         let (id, p) = palette("classic-blue").unwrap();
         assert_eq!(id, "classic-blue");
         assert_eq!(p.col("dialog-head"), Rgba([0x01, 0x43, 0xcf, 0xff]));
-        assert_eq!(order().len(), 18);
+        assert_eq!(order().len(), 20);
         let hc = palette("high-contrast").unwrap().1;
         assert!(hc.depthless && hc.min_text == 7.0 && hc.focus_ring == 3.0);
     }

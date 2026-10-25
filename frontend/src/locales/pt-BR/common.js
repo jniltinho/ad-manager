@@ -90,6 +90,7 @@ export default {
   'Classic blue (XP)': 'Clássico azul (XP)',
   'Classic gray (98)': 'Clássico cinza (98)',
   'Graphite (dark)': 'Graphite (escuro)',
+  'Grafana (dark)': 'Grafana (escuro)',
   'Matrix (dark)': 'Matrix (escuro)',
   'Winamp (dark)': 'Winamp (escuro)',
   'Pink Panther': 'Pantera Cor-de-Rosa',

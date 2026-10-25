@@ -21,7 +21,7 @@ each previewed as a plan), **Backup** and **Sync** (the wizard with its preview 
 (audit, HTTP, Samba) and **Settings** (language, theme, company, logo, agent token), with the web's guards (built-in
 and own accounts, DCs, typed confirmations).
 
-**Same themes as the panel**: the 18 themes of the web panel, with their gradients, shadows, fonts and page pattern,
+**Same themes as the panel**: the 20 themes of the web panel, with their gradients, shadows, fonts and page pattern,
 or flat. The app follows the theme chosen in the panel's **Settings**; **Configure › Appearance** picks another theme
 (and flat or with depth) for this computer only, applied at once and saved as `[appearance]` in desktop.toml (*Panel
 default* follows the panel again). Saving a new theme in **Settings** from the app also hands this computer back to

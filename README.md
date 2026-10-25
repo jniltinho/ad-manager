@@ -48,7 +48,7 @@ shares with Windows permissions, backups and migrations — behind one fast, aud
   <tr>
     <td valign="top"><b>🖥️ Native desktop app</b><br>Linux, Windows and macOS (Apple Silicon, Intel, universal <code>.app</code>), same themes as the web.</td>
     <td valign="top"><b>🤖 AI-ready</b><br>A built-in MCP server lets AI agents query and manage the directory under the same rules and audit.</td>
-    <td valign="top"><b>🎨 18 themes</b><br>Light, dark and flat looks, English and Portuguese, sharp on QHD and 4K screens.</td>
+    <td valign="top"><b>🎨 20 themes</b><br>Light, dark and flat looks, English and Portuguese, sharp on QHD and 4K screens.</td>
   </tr>
 </table>
 
@@ -103,7 +103,7 @@ to an existing Active Directory, writing the configuration for you ([installatio
 
 ## 📚 Learn more
 
-- **[Overview](docs/overview.md)** — every feature, more screenshots and the 18 themes
+- **[Overview](docs/overview.md)** — every feature, more screenshots and the 20 themes
 - **[Documentation](docs/README.md)** — installation, panel, desktop, CLI, MCP, agent, backup, sync and migration
 - **[Changelog](CHANGELOG.md)** · **[Development](docs/development.md)** — contributions welcome!
 
