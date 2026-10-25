@@ -108,7 +108,7 @@ public pages (e.g. the password change link).
 
 ## 4. Desktop app (Rust + egui)
 
-The desktop app (`desktop-rust/`) draws the web's themes from `crates/core/assets/themes.json`, generated from the
+The desktop app (`desktop/`) draws the web's themes from `crates/core/assets/themes.json`, generated from the
 same CSS (`make desktop-themes`; `make desktop-check` fails when it is out of date):
 
 | File | What it has |
@@ -120,7 +120,7 @@ same CSS (`make desktop-themes`; `make desktop-check` fails when it is out of da
 | `crates/ui/src/modal.rs` | the web's dialogs: header strip (red when destructive), footer band, typed confirmations |
 | `crates/ui/src/shell.rs` | header, top tabs, footer and the page pattern |
 
-The archived Fyne app (`desktop/`, code only) has its own notes in its sources.
+The archived Fyne app (`archive/desktop-go/`, code only) has its own notes in its sources.
 
 ## 5. Checklist for a new app
 

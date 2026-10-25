@@ -52,9 +52,9 @@ frontend/.vite/
 !.claude/skills/create-release/
 .codex/
 
-# binaries built inside desktop/ by a plain "go build"
-/desktop/desktop
-/desktop/*.exe
+# binaries built inside archive/desktop-go/ by a plain "go build"
+/archive/desktop-go/desktop
+/archive/desktop-go/*.exe
 __pycache__/
 
 # Samba source (reference for the API study, docs/samba-api.md) — not versioned

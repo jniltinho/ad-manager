@@ -127,7 +127,7 @@ panel has no domain yet): `frontend/tests/visual/setup-shots.mjs`.
 
 ## Desktop app
 
-The desktop app ([`desktop-rust/`](../../desktop-rust/README.md), Rust/egui), 1280 × 800 at 2× (2560 × 1600), Classic
+The desktop app ([`desktop/`](../../desktop/README.md), Rust/egui), 1280 × 800 at 2× (2560 × 1600), Classic
 blue. The archived Fyne app's screenshots were removed with it.
 
 | Sign in | Configure |
@@ -243,5 +243,5 @@ Everything runs locally, with passwords only in environment variables.
 
 6. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`; the
    desktop app's home screen in every theme from its live test against the container above (`ADM_LIVE_SHOTS`, the
-   command in [desktop-rust/README.md](../../desktop-rust/README.md)), its `live-theme-<id>.png` copied into
+   command in [desktop/README.md](../../desktop/README.md)), its `live-theme-<id>.png` copied into
    `.run/desk-themes-rs/`; then `python3 scripts/theme-mosaics.py`.
