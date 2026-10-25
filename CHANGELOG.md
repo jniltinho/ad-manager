@@ -5,9 +5,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.26.1] — 2026-10-25
+
+**The queue monitor moves to jniltinho/asynqmon v0.8.1.**
+
 ### Changed
 - The queue monitor is [jniltinho/asynqmon](https://github.com/jniltinho/asynqmon) v0.8.1: the Redis INFO in a tab per
   section, pages that fit the window (only lists, tables and charts scroll), card shadows and smoother charts.
+- Every release also publishes the all-in-one image to Docker Hub (`jniltinho/ad-manager:X.Y.Z` and `:latest`).
 
 ## [0.26.0] — 2026-10-25
 
