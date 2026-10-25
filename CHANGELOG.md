@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.26.0] — 2026-10-25
+
+**Grafana and RabbitMQ themes, a thin app outline in every theme, and the queue monitor in the panel's theme.**
+
 ### Added
 - Two themes, on the web and the desktop: **Grafana (dark)**, the Grafana 11 palette, and **RabbitMQ**, the RabbitMQ
   management UI palette, both with the panel's folder tabs, header band, page dots and drop shadows.
