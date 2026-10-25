@@ -5,7 +5,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- The queue monitor is [jniltinho/asynqmon](https://github.com/jniltinho/asynqmon) v0.8.1: the Redis INFO in a tab per
+  section, pages that fit the window (only lists, tables and charts scroll), card shadows and smoother charts.
 
 ## [0.26.0] — 2026-10-25
 

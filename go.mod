@@ -10,7 +10,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/hibiken/asynq v0.26.0
 	github.com/jcmturner/gokrb5/v8 v8.4.4
-	github.com/jniltinho/asynqmon v0.8.0
+	github.com/jniltinho/asynqmon v0.8.1
 	github.com/labstack/echo/v5 v5.4.2
 	github.com/miekg/dns v1.1.73
 	github.com/modelcontextprotocol/go-sdk v1.8.0
