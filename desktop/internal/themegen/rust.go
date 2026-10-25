@@ -289,6 +289,13 @@ func Rust(root string) ([]byte, error) {
 			v, err := resolve(t.vals, name, 0)
 			return strings.TrimSpace(v), err == nil
 		}
+		for _, n := range []string{"scroll-thumb", "scroll-track"} { // the Rust desktop's scroll bars (Fyne drew none)
+			if v, ok := get("--color-" + n); ok {
+				if c, err := parseColor(v); err == nil {
+					rt.C[n] = hex(c)
+				}
+			}
+		}
 		for _, n := range rustTokens {
 			if v, ok := get("--" + n); ok {
 				scale := 1.0

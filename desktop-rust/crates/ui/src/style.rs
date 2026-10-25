@@ -68,6 +68,11 @@ impl Look {
         c32(self.p.col(role))
     }
 
+    /// `role`'s color, or `fallback`'s when the theme has none.
+    pub fn c_or(&self, role: &str, fallback: &str) -> Color32 {
+        self.c(if self.p.has(role) { role } else { fallback })
+    }
+
     /// The color of a text tone (the roles the Fyne app uses).
     pub fn tone(&self, t: Tone) -> Color32 {
         self.c(match t {
@@ -89,7 +94,10 @@ impl Look {
         v.window_fill = self.c("surface");
         // popups (a select's list) in the web's .select-pop border; the app's dialogs draw their own frame
         v.window_stroke = Stroke::new(1.0, self.c("pop-line"));
-        v.extreme_bg_color = self.c("field");
+        // egui paints the scroll bar's track in extreme_bg_color: the web's scroll-track there, the fields' own
+        // background kept apart
+        v.extreme_bg_color = self.c_or("scroll-track", "field");
+        v.text_edit_bg_color = Some(self.c("field"));
         v.text_edit_bg_color = Some(self.c("field"));
         // placeholders in the theme's --placeholder-color (the browser's field ink at 50% when it gives none)
         v.weak_text_color = Some(self.c("placeholder"));
@@ -131,7 +139,7 @@ impl Look {
         w.hovered.bg_stroke = Stroke::new(1.0, self.c("focus"));
         // the strong fill paints the scroll bar's handle (selects use the weak one): visible on the field, as the
         // browser's bar
-        w.inactive.bg_fill = self.c("field-line");
+        w.inactive.bg_fill = self.c_or("scroll-thumb", "field-line");
         w.hovered.bg_fill = self.c("fg-muted");
         // both of egui's styles: set_visuals changes only the current light/dark one, and eframe follows the
         // system's theme (a dark Windows or Wine switched the app to egui's own visuals)

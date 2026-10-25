@@ -948,13 +948,15 @@ fn many_samba_tabs_wrap_and_stay_reachable() {
     assert!(opened, "the last server's Samba tab opened (its files asked for)");
 }
 
-/// The toolbars' refresh button reads the list again and says so in the status line.
+/// F5 (the browser's reload) reads the list again and says so in the status line; the toolbar has no refresh button,
+/// as the web's.
 #[test]
 fn refresh_reads_the_list_again_and_says_so() {
     let mut e = env();
     e.users_page();
+    assert!(e.h.query_by_label("Refresh").is_none(), "no refresh button on the toolbar");
     let before = e.sent("GET", "/api/users").iter().filter(|r| r.path == "/api/users").count();
-    e.h.get_by_label("Refresh").click();
+    e.key(egui::Key::F5);
     e.wait("the reload", move |_, m| {
         m.sent("GET", "/api/users").iter().filter(|r| r.path == "/api/users").count() > before
     });

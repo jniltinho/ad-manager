@@ -113,6 +113,27 @@ func Collect(ctx context.Context, run Runner, host, authFile string) ([]Share, e
 	return shares, nil
 }
 
+// Paths reads the server's data shares and their folders (lowercase name → E:\Folder), with rpcclient (port 0:
+// SMB's own).
+func Paths(ctx context.Context, run Runner, host string, port int, authFile string) (map[string]string, error) {
+	if err := ValidHost(host); err != nil {
+		return nil, err
+	}
+	args := []string{"-A", authFile, host, "-c", "netshareenumall"}
+	if port > 0 && port != 445 {
+		args = append([]string{"-p", strconv.Itoa(port)}, args...)
+	}
+	out, err := run(ctx, "rpcclient", args...)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]string{}
+	for _, s := range parseEnum(out) {
+		m[strings.ToLower(s.Name)] = s.WinPath
+	}
+	return m, nil
+}
+
 var reRIDHex = regexp.MustCompile(`^[0-9A-F]{8}$`)
 
 var reField = regexp.MustCompile(`^\s*(netname|remark|path):\s*(.*)$`)
