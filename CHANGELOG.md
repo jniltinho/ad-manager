@@ -5,14 +5,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.24.0] — 2026-10-25
+
+**The server and the desktop app in one release, with one version; the desktop binary is `ad-manager-desktop`.**
+
 ### Changed
 - One CI and one release for the server and the desktop app: `ci.yml` runs the desktop's checks too (Linux, Windows
   cross and native, macOS), and a tag `vX.Y.Z` publishes the server, the `.deb` and the desktop app (Linux, Windows,
-  macOS universal) in one release with one `checksums.txt`. The desktop app carries the server's version (0.23.1 now;
-  the release refuses a tag that differs from `desktop/Cargo.toml`), and `desktop-rust-v*` tags are no longer used.
+  macOS universal) in one release with one `checksums.txt`. The desktop app carries the server's version (the release
+  refuses a tag that differs from `desktop/Cargo.toml`), and `desktop-rust-v*` tags are no longer used.
 - The desktop app lives in `desktop/` (it was `desktop-rust/`) and its binary is `ad-manager-desktop` (it was
   `ad-manager-desktop-rs`; the macOS app is `AD Manager.app`); the archived Fyne app moved to `archive/desktop-go/`.
   Its `desktop.toml` is the same: an existing configuration keeps working.
+- CI: the GitHub actions moved to their Node 24 versions, pinned by commit SHA, and the Ubuntu runner is pinned to
+  24.04.
 
 ## [0.23.1] — 2026-10-25
 
