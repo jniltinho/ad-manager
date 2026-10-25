@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.23.1] — 2026-10-25
+
+**Sync of every share reads a share that denies its account through the disk's administrative share.**
+
 ### Fixed
 - Sync of every share: a share whose own permission leaves the job's account out ("permission denied" at its root)
   is read through its disk's administrative share (`E$\ADM`), read only, with a note in the run; a share at a

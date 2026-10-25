@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 
 ## [Unreleased]
 
+—
+
+## [0.2.1] - 2026-10-25
+
 ### Changed
 
 - Users, Groups, OUs and Computers reload with F5 or Ctrl+R, as the browser, instead of a toolbar button the web
