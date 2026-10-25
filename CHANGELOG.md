@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.25.0] — 2026-10-25
+
+**Classic blue (XP) looks like Windows XP Luna, with volume and WCAG AAA contrast, on the web and the desktop.**
+
 ### Changed
 - Classic blue (XP) looks like Windows XP Luna, with volume, on the web and the desktop: vertical title-bar gradients
   in the header and dialogs, a taskbar footer, Start-green glossy buttons, XP push buttons, task-pane card heads,
