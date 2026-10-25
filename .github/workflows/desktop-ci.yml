@@ -37,7 +37,7 @@ jobs:
         run: scripts/cargo-docker.sh cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests (unit and UI acceptance)
         run: scripts/cargo-docker.sh cargo test --workspace --locked
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: archive/desktop-go/go.mod
           cache: false
