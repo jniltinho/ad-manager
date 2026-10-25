@@ -5,7 +5,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- Classic blue (XP) looks like Windows XP Luna, with volume, on the web and the desktop: vertical title-bar gradients
+  in the header and dialogs, a taskbar footer, Start-green glossy buttons, XP push buttons, task-pane card heads,
+  listview table heads, a beige tab strip with XP tabs and orange tops, soft drop shadows and an XP window frame on
+  the login; only colors, gradients and shadows changed. The theme now meets WCAG AAA (normal text 7:1).
+- The flat look keeps the page's dots in every theme (a theme's own pattern gives way to them).
+
+### Fixed
+- Desktop: the New user dialog's rows are 12 px apart, as on the web.
 
 ## [0.24.0] — 2026-10-25
 

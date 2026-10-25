@@ -470,7 +470,8 @@ fn fields_form(ui: &mut Ui, cx: &Cx, f: &mut UserFields, first: impl FnOnce(&mut
         [[None, Some(0)], [Some(1), Some(2)], [Some(3), Some(4)], [Some(5), Some(6)], [Some(7), None]];
     for (r, row) in cells.iter().enumerate() {
         if r > 0 {
-            ui.add_space(12.0);
+            // the web's gap-y-3: 12 px between rows, the item spacing egui adds included
+            ui.add_space(12.0 - ui.spacing().item_spacing.y);
         }
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 16.0;
@@ -688,14 +689,14 @@ impl Dialog for NewUser {
                 r.request_focus();
             }
         });
-        ui.add_space(12.0);
+        ui.add_space(12.0 - ui.spacing().item_spacing.y);
         let w = ui.available_width();
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
             widgets::lbl(ui, &look, t("OU"));
             self.ou.ui(ui, "new-user-ou", t("OU"), w);
         });
-        ui.add_space(12.0);
+        ui.add_space(12.0 - ui.spacing().item_spacing.y);
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
             let l = widgets::lbl(ui, &look, t("Initial password"));
@@ -717,7 +718,7 @@ impl Dialog for NewUser {
         });
         // the template's groups, added after the account is created
         if !self.groups.is_empty() {
-            ui.add_space(12.0);
+            ui.add_space(12.0 - ui.spacing().item_spacing.y);
             widgets::lbl(ui, &look, t("Groups (from the template)"));
             ui.add_space(4.0);
             let mut drop = None;

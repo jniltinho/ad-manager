@@ -158,8 +158,8 @@ describe('flat look', () => {
     const rule = contract().root.nodes.find((n) => n.selector === ":root[data-flat='true'][data-theme]")
     expect(rule, 'flat rule in style.css').toBeTruthy()
     const set = new Map(rule.nodes.filter((d) => d.type === 'decl').map((d) => [d.prop, d.value]))
-    // the select arrow is an icon and the button hover a single color (both stops alike), not gradients
-    const keep = ['--bg-select-arrow', '--bg-action-hover']
+    // the select arrow is an icon, the button hover a single color (both stops alike) and the page the standard dots
+    const keep = ['--bg-select-arrow', '--bg-action-hover', '--bg-page']
     for (const r of known) if (r.startsWith('--bg-') && !keep.includes(r)) expect(set.get(r), r).toBe('none')
     for (const r of ['--shadow-btn', '--shadow-card', '--shadow-field', '--shadow-table-head']) expect(set.get(r), r).toBe('none')
   })
@@ -187,7 +187,7 @@ describe('contrast', () => {
   })
   for (const { id } of registry) {
     test(`theme ${id}: every recipe passes, or is pending for phase B`, () => {
-      // the aaa themes (Cristal): normal text 7:1, large text 4.5:1 (WCAG 1.4.6); components stay at 3:1 (1.4.11)
+      // the aaa themes (Crystal, Classic blue, High contrast): normal text 7:1, large text 4.5:1 (WCAG 1.4.6); components stay at 3:1 (1.4.11)
       const aaa = (matrix.aaa || []).includes(id)
       const min = (r) => (r.size === 'normal' ? (aaa ? 7 : 4.5) : r.size === 'large' ? (aaa ? 4.5 : 3) : 3)
       const zero = (k) => ['0', '0px'].includes((merged(id).get(k) || '').trim())
