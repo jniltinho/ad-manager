@@ -268,23 +268,51 @@ impl Sync {
                 // actions stay in view
                 let caps = [224.0, 320.0, 256.0, f32::INFINITY, f32::INFINITY, f32::INFINITY, f32::INFINITY];
                 let w: [f32; 7] = std::array::from_fn(|i| (w[i].ceil() + 16.0).min(caps[i]));
+                // the last run's cell wraps in the web (no nowrap): its narrowest is its longest word
+                let last_min = jobs
+                    .iter()
+                    .flat_map(|j| last_run_text(j, runs).0.split(' ').map(|x| tw(x, &reg)).collect::<Vec<_>>())
+                    .fold(0.0, f32::max)
+                    .ceil()
+                    + 16.0;
                 let room = ui.available_width() - 144.0;
                 let sum: f32 = w.iter().sum();
                 let w = if sum <= room {
                     w.map(|x| (x * room / sum).floor())
                 } else {
-                    // too wide: only the cut columns give way (name, source, destination, last run), down to 80
-                    // each; mode, cron and quarantine keep their text whole, as the browser keeps their min-content
-                    let cut = [0, 1, 2, 5];
-                    let floor = |i: usize| if i == 1 { src_floor } else { 80.0 }.min(w[i]);
-                    let flex: f32 = cut.iter().map(|&i| w[i] - floor(i)).sum();
-                    let k = ((sum - room) / flex.max(1.0)).min(1.0);
+                    // too wide: the last run wraps first (down to its longest word), as the browser does; then only
+                    // the cut columns give way (name, source, destination), down to 80 each (the source to its tags);
+                    // mode, cron and quarantine keep their text whole, as the browser keeps their min-content
                     let mut w = w;
-                    for i in cut {
-                        w[i] = (w[i] - (w[i] - floor(i)) * k).floor();
+                    let wrap = (sum - room).min(w[5] - last_min.min(w[5]));
+                    w[5] -= wrap;
+                    let sum = sum - wrap;
+                    if sum > room {
+                        let cut = [0, 1, 2];
+                        let w0 = w;
+                        let floor = |i: usize| if i == 1 { src_floor } else { 80.0 }.min(w0[i]);
+                        let flex: f32 = cut.iter().map(|&i| w0[i] - floor(i)).sum();
+                        let k = ((sum - room) / flex.max(1.0)).min(1.0);
+                        for i in cut {
+                            w[i] = (w0[i] - (w0[i] - floor(i)) * k).floor();
+                        }
                     }
-                    w
+                    w.map(f32::floor)
                 };
+                // a row grows by a 1.5 line per line its last run wraps to (the web's 18 points at 12)
+                let row_h = (12.0 * 1.5 + 2.0 * look.px("td-py", 4.0) + 2.0).round();
+                let heights: Vec<f32> = jobs
+                    .iter()
+                    .map(|j| {
+                        let job = egui::text::LayoutJob::simple(
+                            last_run_text(j, runs).0,
+                            reg.clone(),
+                            egui::Color32::PLACEHOLDER,
+                            w[5] - 16.0,
+                        );
+                        row_h + (ui.painter().layout_job(job).rows.len().max(1) as f32 - 1.0) * 18.0
+                    })
+                    .collect();
                 // what stays whole when the table still has to shrink (a scroll bar, a narrow window): mode, cron,
                 // quarantine and the actions, and the source down to its tags
                 let cols = [
@@ -293,7 +321,7 @@ impl Sync {
                     Column::new(t("Destination"), w[2]),
                     Column::new(t("Mode"), w[3]).min(w[3]),
                     Column::new(t("When (cron)"), w[4]).min(w[4]),
-                    Column::new(t("Last run"), w[5]),
+                    Column::new(t("Last run"), w[5]).min(last_min.min(w[5])),
                     Column::new(t("Quarantine"), w[6]).min(w[6]),
                     Column::new("", 144.0).right().fixed().fill().min(144.0), // the web's w-36
                 ];
@@ -307,7 +335,7 @@ impl Sync {
                     row_h: 0.0,
                     frame: false,
                     view_minus: 0.0,
-                    heights: None,
+                    heights: Some(&heights),
                 }
                 .show(ui, &look, &mut self.jobs, &mut hover, |r, c| {
                     let j = &jobs[r];
@@ -333,7 +361,7 @@ impl Sync {
                         4 => Cell::plain("—"),
                         5 => {
                             let (text, tone) = last_run_text(j, runs);
-                            Cell::new(text, tone)
+                            Cell::new(text, tone).wrap()
                         }
                         6 => {
                             let size: i64 = qs.iter().filter(|q| q.job == j.id).map(|q| q.size).sum();

@@ -5,7 +5,13 @@ follows [Keep a Changelog](https://keepachangelog.com/); the release notes are t
 
 ## [Unreleased]
 
-—
+### Changed
+
+- Users, Groups, OUs and Computers reload with F5 or Ctrl+R, as the browser, instead of a toolbar button the web
+  does not have.
+- Sync jobs: the last run wraps before the name, source or destination is cut, as the web's table; the rows grow
+  with it.
+- Scroll bars in the theme's scroll colors (the web's thumb and track).
 
 ## [0.2.0] - 2026-10-24
 

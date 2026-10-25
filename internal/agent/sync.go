@@ -29,6 +29,7 @@ import (
 	"ad-manager/internal/secretbox"
 	"ad-manager/internal/shares"
 	"ad-manager/internal/syncer"
+	"ad-manager/internal/winshares"
 
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v5"
@@ -198,6 +199,9 @@ func (a *Agent) validateSync(j *SyncJob) error {
 	}
 	if j.Mode == "" {
 		j.Mode = syncer.ModeCopy
+	}
+	if j.Source.Via != "" {
+		return errors.New("via is set by the agent only")
 	}
 	switch j.Kind {
 	case "", "folder":
@@ -1064,6 +1068,9 @@ func (a *Agent) syncRoutes(api *echo.Group) {
 		if err := c.Bind(&in); err != nil {
 			return bad(c, http.StatusBadRequest, errors.New("invalid JSON"))
 		}
+		if in.Source.Via != "" { // set by a server job's run only
+			return bad(c, http.StatusBadRequest, errors.New("via is set by the agent only"))
+		}
 		pw := in.Password
 		if in.Source.Auth == "ntlm" && pw == "" {
 			j := SyncJob{ID: in.Job, Source: in.Source, PasswordFile: in.PasswordFile}
@@ -1416,6 +1423,7 @@ func (a *Agent) syncServer(rctx context.Context, j SyncJob, r *SyncRun) (*syncer
 	}
 	sum := &syncer.Result{Plan: syncer.Plan{Sample: map[string][]string{}}, Checked: true, ContentVerified: j.Verify}
 	var failed []string
+	var winPaths map[string]string // the source's shares and their folders, read once when a share denies access
 	for i, t := range todo {
 		if rctx.Err() != nil {
 			return sum, rctx.Err()
@@ -1426,6 +1434,26 @@ func (a *Agent) syncServer(rctx context.Context, j SyncJob, r *SyncRun) (*syncer
 		a.writeRun(*r)
 		part := fmt.Sprintf("-s%d", i+1)
 		res, err := a.syncTree(rctx, jj, r, part)
+		if err != nil && rctx.Err() == nil && deniedRoot(err) && (res == nil || res.Transfers == 0) {
+			// the share's own permission leaves this account out (its root could not even be read, nothing copied):
+			// its folder through the disk's administrative share (read only: a server job copies from the source,
+			// never into it)
+			if via, ok := a.adminPath(rctx, j.Source, pw, t.Share, &winPaths); ok {
+				if !r.Preview { // the failed attempt's quarantine, empty: the retry makes it again
+					if q, qerr := a.quarantine(j.ID + "-" + r.ID + part); qerr == nil {
+						if n, _ := dirUsage(q.Path); n == 0 {
+							a.sync.qmu.Lock()
+							_ = a.dropQuarantine(q)
+							a.sync.qmu.Unlock()
+						}
+					}
+				}
+				r.Notes = append(r.Notes, fmt.Sprintf("%s: the share denies this account; read through \\\\%s\\%s\\%s",
+					t.Share, j.Source.Host, via.Share, strings.ReplaceAll(via.Path, "/", "\\")))
+				jj.Source = via
+				res, err = a.syncTree(rctx, jj, r, part)
+			}
+		}
 		addResult(sum, res, t.Share)
 		switch {
 		case err != nil && rctx.Err() != nil:
@@ -1459,6 +1487,60 @@ func (a *Agent) syncServer(rctx context.Context, j SyncJob, r *SyncRun) (*syncer
 		return sum, fmt.Errorf("%d of %d shares failed: %s", len(failed), len(todo), strings.Join(failed, ", "))
 	}
 	return sum, nil
+}
+
+// deniedRoot tells whether a share failed because its root could not be opened (the share's permission), not a
+// file or folder inside it.
+func deniedRoot(err error) bool {
+	m := strings.ToLower(err.Error())
+	denied := strings.Contains(m, "permission denied") || strings.Contains(m, "access_denied") || strings.Contains(m, "access denied")
+	// "open : …" is the share's own root (an empty path); a file inside names itself ("open dir/x: …")
+	return denied && (strings.Contains(m, "open : ") || strings.Contains(m, "root"))
+}
+
+// adminPath is the source share's folder on its disk's administrative share (E:\ADM → E$ and ADM), from the
+// server's share list (rpcclient netshareenumall, read once into *paths with the job's NTLM account); false when
+// it cannot be known (Kerberos jobs, a share at a disk's root, rpcclient missing or refused).
+func (a *Agent) adminPath(ctx context.Context, src syncer.Source, pw, share string, paths *map[string]string) (syncer.Source, bool) {
+	if src.Auth != "ntlm" {
+		return src, false
+	}
+	if *paths == nil {
+		*paths = map[string]string{}
+		auth, err := winshares.AuthFile("", src.User, pw, src.Domain)
+		if err != nil {
+			return src, false
+		}
+		defer os.Remove(auth)
+		lctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		if m, err := winshares.Paths(lctx, winshares.Exec, src.Host, src.Port, auth); err == nil {
+			*paths = m
+		}
+	}
+	drive, dir, ok := adminShare((*paths)[strings.ToLower(share)])
+	if !ok {
+		return src, false
+	}
+	src.Share, src.Path, src.Via = drive, dir, share
+	return src, syncer.CheckSource(src) == nil
+}
+
+// adminShare splits a Windows folder into its disk's administrative share and the folder on it (E:\Users\x →
+// E$ and Users/x); false for a disk's root or a path that is not on a lettered disk.
+func adminShare(win string) (string, string, bool) {
+	if len(win) < 4 || win[1] != ':' || win[2] != '\\' {
+		return "", "", false
+	}
+	l := win[0] | 0x20
+	if l < 'a' || l > 'z' {
+		return "", "", false
+	}
+	dir := strings.Trim(strings.ReplaceAll(win[3:], "\\", "/"), "/")
+	if dir == "" {
+		return "", "", false
+	}
+	return strings.ToUpper(win[:1]) + "$", dir, true
 }
 
 // addResult adds one share's result to a server run's sum (its sample names under the share's name).

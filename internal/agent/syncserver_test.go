@@ -57,6 +57,7 @@ func TestValidateServerJob(t *testing.T) {
 		"mirror": func(j *SyncJob) { j.Mode = syncer.ModeMirror },
 		"kind":   func(j *SyncJob) { j.Kind = "everything" },
 		"host":   func(j *SyncJob) { j.Source.Host = "bad host" },
+		"via":    func(j *SyncJob) { j.Source.Via = "ADM" }, // the agent sets it; a saved job never has it
 	} {
 		j := ok
 		j.Mode = ""
@@ -122,6 +123,34 @@ func TestRestoreReinherits(t *testing.T) {
 	} {
 		if got := restoreReinherits(c.j, c.q); got != c.want {
 			t.Errorf("%s: %v", name, got)
+		}
+	}
+}
+
+// A share whose permission leaves the account out is read through its disk's administrative share: the folder on
+// it, never a disk's root.
+func TestAdminShare(t *testing.T) {
+	for in, want := range map[string][3]string{
+		`E:\ADM`:                    {"E$", "ADM", "ok"},
+		`e:\Users\giovanna.ribeiro`: {"E$", "Users/giovanna.ribeiro", "ok"},
+		`C:\FSW_Cluster01\`:         {"C$", "FSW_Cluster01", "ok"},
+		`E:\`:                       {"", "", ""},
+		`\\srv\share`:               {"", "", ""},
+		"":                          {"", "", ""},
+	} {
+		d, p, ok := adminShare(in)
+		if d != want[0] || p != want[1] || ok != (want[2] == "ok") {
+			t.Errorf("%q: %q %q %v", in, d, p, ok)
+		}
+	}
+	for _, msg := range []string{"plan: open : permission denied", "error reading source root directory: open : permission denied", "listing the root: NT_STATUS_ACCESS_DENIED"} {
+		if !deniedRoot(errors.New(msg)) {
+			t.Errorf("%q: a denied root", msg)
+		}
+	}
+	for _, msg := range []string{"no space left on device", "copy Fin/x.pdf: permission denied", "plan: open Fin/2026: permission denied"} {
+		if deniedRoot(errors.New(msg)) {
+			t.Errorf("%q: not a denied root (another error, or a file inside the share)", msg)
 		}
 	}
 }

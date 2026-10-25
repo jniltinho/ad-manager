@@ -84,7 +84,7 @@ impl Ous {
             ui.label(crate::style::semibold(&cx.me.domain, 12.0).color(muted));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = look.px("toolbar-gap", 8.0);
-                if widgets::refresh_button(ui, &look, self.refreshing) {
+                if widgets::reload_keys(ui, self.refreshing) {
                     self.refreshing = true;
                     self.reload(cx);
                 }

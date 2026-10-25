@@ -5,7 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Fixed
+- Sync of every share: a share whose own permission leaves the job's account out ("permission denied" at its root)
+  is read through its disk's administrative share (`E$\ADM`), read only, with a note in the run; a share at a
+  disk's root still fails, and a saved job can never name an administrative share.
 
 ## [0.23.0] — 2026-10-24
 

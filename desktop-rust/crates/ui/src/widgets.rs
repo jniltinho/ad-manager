@@ -273,12 +273,13 @@ fn boxed(ui: &mut Ui, look: &Look, b: egui::Button<'_>, kind: Kind, line: Color3
     r
 }
 
-/// A toolbar's refresh button: disabled while `busy` (a reload in flight), so a click shows it is working.
-pub fn refresh_button(ui: &mut Ui, look: &Look, busy: bool) -> bool {
-    let name = adm_core::i18n::t("Refresh");
-    let r = ui.add_enabled_ui(!busy, |ui| refresh(ui, look, "", busy)).inner;
-    let _ = ui.ctx().accesskit_node_builder(r.id, |n| n.set_label(name.to_string()));
-    r.on_hover_text(name).clicked()
+/// The browser's reload keys (F5, Ctrl+R) on a page whose web twin has no refresh button (the browser reloads it):
+/// true when one was pressed and no reload is in flight.
+pub fn reload_keys(ui: &mut Ui, busy: bool) -> bool {
+    !busy
+        && ui.input_mut(|i| {
+            i.consume_key(egui::Modifiers::NONE, egui::Key::F5) || i.consume_key(egui::Modifiers::COMMAND, egui::Key::R)
+        })
 }
 
 /// An icon-only button with its name as tooltip.

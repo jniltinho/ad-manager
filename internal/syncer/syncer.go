@@ -46,6 +46,9 @@ type Source struct {
 	Auth   string `json:"auth"`           // kerberos (default) or ntlm
 	User   string `json:"user,omitempty"`
 	Domain string `json:"domain,omitempty"`
+	// Via is the share a server job could not open, read here through its disk's administrative share (Share is
+	// then that disk's X$ and Path the share's folder on it); the agent sets it, a saved job never has it.
+	Via string `json:"via,omitempty"`
 }
 
 // Spec is one preview or run, as the worker gets it.
@@ -288,8 +291,10 @@ func checkSource(s Source, needShare bool) error {
 		return fmt.Errorf("invalid host %q", s.Host)
 	}
 	sh := strings.ToLower(s.Share)
-	if len(sh) == 2 && sh[1] == '$' { // C$, D$…
-		return fmt.Errorf("the share %q is not a source", s.Share)
+	if len(sh) == 2 && sh[1] == '$' { // C$, D$…: only a folder of one, for a share that denies the account (Via)
+		if s.Via == "" || strings.Trim(s.Path, "/") == "" {
+			return fmt.Errorf("the share %q is not a source", s.Share)
+		}
 	}
 	for _, a := range adminShares {
 		if sh == a {

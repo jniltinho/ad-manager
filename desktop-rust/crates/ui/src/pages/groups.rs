@@ -120,7 +120,7 @@ impl Groups {
                     .color(look.c("fg-muted")),
             );
             widgets::toolbar_end(ui, |ui| {
-                if widgets::refresh_button(ui, &look, self.refreshing) {
+                if widgets::reload_keys(ui, self.refreshing) {
                     self.refreshing = true;
                     self.reload(cx);
                 }

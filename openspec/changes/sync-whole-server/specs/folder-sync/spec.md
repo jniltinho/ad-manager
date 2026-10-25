@@ -51,3 +51,17 @@ send nothing until it is given.
 #### Scenario: Stop dismissed
 - **WHEN** the operator dismisses the confirmation
 - **THEN** no request is sent and the run goes on
+
+### Requirement: A share that denies the account is read through its disk's administrative share
+When a server job cannot open a source share's root because the share's permission leaves its NTLM account out, the
+agent SHALL read that share's folder (from the source's share list) through its disk's administrative share, read
+only, and note it in the run; it SHALL never read a whole disk, and a saved job SHALL NOT name an administrative
+share.
+
+#### Scenario: Denied share read through E$
+- **WHEN** a server job copies a source whose share `ADM` (folder `E:\ADM`) denies the job's account at share level
+- **THEN** the run notes that `ADM` is read through `\\source\E$\ADM` and copies its files into the share `ADM` here
+
+#### Scenario: No disk root and no saved administrative share
+- **WHEN** a share's folder is a disk's root, or a job is saved with an administrative share
+- **THEN** the share fails as before, and the job is refused

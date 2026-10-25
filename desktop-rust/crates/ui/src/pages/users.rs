@@ -208,11 +208,11 @@ impl Users {
                 RichText::new(tf!("%d of %d", self.visible.len(), self.all.len())).size(12.0).color(look.c("fg-muted")),
             );
             widgets::toolbar_end(ui, |ui| {
+                if widgets::reload_keys(ui, self.refreshing) {
+                    self.refreshing = true;
+                    self.reload(cx);
+                }
                 if wide {
-                    if widgets::refresh_button(ui, &look, self.refreshing) {
-                        self.refreshing = true;
-                        self.reload(cx);
-                    }
                     if widgets::button(ui, &look, crate::icons::USER_PLUS, t("New user"), Kind::Primary).clicked() {
                         new_user(cx, None);
                     }

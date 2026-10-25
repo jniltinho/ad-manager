@@ -184,3 +184,17 @@ func TestParseCaclsKeepsEveryDeny(t *testing.T) {
 		t.Fatalf("%+v", acl)
 	}
 }
+
+// Paths maps the data shares to their folders; the special ones (ADMIN$) are left out.
+func TestPaths(t *testing.T) {
+	m, err := Paths(context.Background(), fake, "h", 0, "auth")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["financeiro"] != `E:\Financeiro` || m["notas fiscais$"] != `E:\Financeiro\NFe` || m["admin$"] != "" {
+		t.Fatalf("paths: %v", m)
+	}
+	if _, err := Paths(context.Background(), fake, "h;x", 0, "auth"); err == nil {
+		t.Fatal("an invalid host is refused")
+	}
+}
