@@ -148,7 +148,7 @@ The proxy (`desktop-wails/internal/panel`):
 - **Requires the generation on requests.** Every request except `POST /api/login`, `GET /api/health`,
   `GET /api/brand…` and `GET /api/i18n` must carry the `X-ADM-Session` it was built under. Session-bound service
   calls (`Files`) take it as an argument. The proxy compares it with the current generation **under the same lock
-  that picks the jar**, and a mismatch is refused with 409 (`StaleSession`) before anything is forwarded. A write
+  that picks the jar**, and a mismatch is refused with 409 (`X-ADM-Stale`) before anything is forwarded. A write
   delayed in the bridge across a sign-out and sign-in therefore can never run with the new session.
 - **Limits the bridge**: request and response bodies through the bridge are capped (32 MiB, set from G1's
   measurements) in the buffers the app controls. Uploads get a lower **file limit**: the body cap minus 1 MiB of
@@ -201,22 +201,24 @@ So, for web and desktop alike:
 - **Session generation in `api.js`.** It is set from `X-ADM-Session` (desktop) or bumped on sign-in and sign-out
   (web). Every call goes through `api()` or one of two raw helpers (`apiRaw` for blobs and text, `sendFile`), so no
   `fetch`/XHR to `/api` is left outside them.
-- **Stale answers.** A response under an older generation rejects with a `StaleSession` error. Every `catch`,
-  `loadMe()` included, ignores it; a lint rule or test asserts that. A 401 clears `auth.user` only for the current
-  generation.
+- **Stale answers.** A response under an older generation **never settles**: nothing waiting for it runs, so no
+  `catch` (including `loadMe()`'s, which clears `auth.user`) and no 401 handling can touch the new session. The
+  desktop proxy marks the requests it refuses with `X-ADM-Stale`, and Go transfers of an ended session fail with
+  `stale session`, which the desktop's call wrapper also turns into a promise that never settles. A 401 clears
+  `auth.user` only for the current generation.
 - **Session change.** A session-change hook closes the open dialogs: `dialogState` is reset, and pending
   `askConfirm` calls resolve as cancelled. Pollers registered with it stop. The `Shares.vue` follower registers,
   and it also stops on unmount.
-- **Target guards.** Pages that switch targets (Sync, Shares and the file-server logs between servers, Users and
-  Groups between filters) keep a per-key latest-request token. A late answer for server A is dropped once server
+- **Target guards.** Pages that switch servers (Sync, and Shares, which already had its own) keep a latest-request
+  token. Users and Groups filter their whole list locally, so a filter cannot race. A late answer for server A is dropped once server
   B is selected, as the Rust app does.
 - **Dialog instance ownership.** A dialog's completion callbacks (saved, closed, reload) run only if that dialog
   instance is still open: each open gets an id, and a late completion for a closed instance is dropped. Today
   `UserFormDialog` can close a newer dialog B when the save of a closed dialog A finishes (`Users.vue`). The
   Rust app requires the same ("Reply to a closed dialog").
-- **Confirmation ownership.** A target change cancels the pending confirmations of that page. An action resumed
-  after a confirmation re-checks that the target it captured (server and object) is still selected before
-  sending. This fixes `Shares.vue`, which checks the server only before awaiting, and `Sync.vue`, which uses the
+- **Confirmation ownership.** The confirmation is modal, so the page cannot switch targets under it; still, an
+  action resumed after a confirmation re-checks that the target it captured (server and object) is still selected
+  before sending. This fixes `Shares.vue`, which checks the server only before awaiting, and `Sync.vue`, which uses the
   current server afterwards.
 
 Tests sign out and in, with a slow list, a slow 401, an open confirmation and a running follower in flight, and
@@ -424,6 +426,33 @@ tags.
 - **G5 (maturity)**: Wails pinned to a release at least 4 weeks old with no open P0/P1 issue on our three
   desktop targets, the navigation guard shipped (upstream or as a carried patch with a test), and the parity
   checklist complete.
+
+**G1 results (milestone 0, 2026-10-26, Linux)**
+
+Measured on Ubuntu 24.04, with WebKitGTK 2.52.6 (6.0 API), Xvfb, the WebKit sandbox on and the all-in-one test
+panel (`domain.local`):
+
+- **Build**: `vp build --mode desktop` is embedded by a `-tags production` Go build. The Linux binary is 12.0 MiB
+  (CGO, WebKitGTK 6.0, glibc 2.39); the Windows `.exe` is 12.4 MiB (`CGO_ENABLED=0`, cross-built in the same
+  image). The archives are about 5 MB each. Dev mode with hot reload was not exercised yet.
+- **Window and SPA**: the window appears in 620–830 ms, the sign-in and Home pages are the web's, and signing in
+  goes through the proxy with the pinned certificate.
+- **Bridge (smoke build)**: request and response bodies of 1, 16, 32, 64 and 128 MiB went through whole, with
+  128 MiB echoed in 1.2 s. WebKitGTK does not limit the bridge. The cap of D2 (32 MiB) stays for WebView2, which
+  buffers whole responses, until Windows is measured.
+- **Files**: `SaveFromPanel` saved `/api/export/users` with mode 0600 through the smoke build's dialog adapter.
+  Streaming 200 MiB down and 50 MiB up, with hashes, progress and cancellation, is covered by Go tests against a
+  TLS fake panel.
+- **Navigation guard**: on Linux, the webview's `decide-policy` signal (cgo, `guard_linux.go`) ignored
+  `location.href = 'https://example.org/'` and new-window requests; the window stayed on `wails://localhost/`.
+  Windows and macOS have no hook in v3.0.0. Their guard needs a carried patch of Wails (WebView2
+  `NavigationStarting` with `Cancel`, a WKWebView navigation delegate), planned for milestone 2. G2 stays closed
+  until it lands.
+- **Not yet measured**: Windows (WebView2) and macOS (WKWebView), which run in CI from milestone 3; and whether
+  another origin can call bound methods, which is moot on Linux because the guard prevents another origin from
+  loading.
+
+G1 verdict: **go on Linux**. Windows and macOS are pending CI.
 
 **Rollback**
 

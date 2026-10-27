@@ -5,11 +5,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { toast } from '../toasts'
-import { auth, del, get, post } from '../api'
+import { apiRaw, checkUpload, del, get, post } from '../api'
 import { serverText, t } from '../i18n'
 import { DatabaseZap, Download, Eye, FolderOpen, KeyRound, PlugZap, Trash2 } from 'lucide-vue-next'
 import { askConfirm } from '../dialogs'
-import { downloadCsv } from '../util'
+import { downloadCsv, saveFile } from '../util'
 
 // csv | ad | folders; ?mode= opens on a tab (the setup wizard links to ?mode=ad)
 const mode = ref(['ad', 'folders'].includes(useRoute().query.mode) ? useRoute().query.mode : 'csv')
@@ -202,8 +202,8 @@ async function send(apply) {
   busy.value = true
   if (apply) logStart(t('Import CSV'), t('Writing to the domain…'))
   try {
-    const r = await fetch('/api/import/' + (apply ? 'apply' : 'plan'), { method: 'POST', body: fd, credentials: 'same-origin' })
-    if (r.status === 401) auth.user = null
+    checkUpload(fd)
+    const r = await apiRaw('/import/' + (apply ? 'apply' : 'plan'), { method: 'POST', body: fd })
     const data = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
     plan.value = data.plan || []
@@ -232,12 +232,8 @@ async function sendFolders(apply) {
   busy.value = true
   if (apply) logStart(t('Folders'), t('Sending to the server…'))
   try {
-    const r = await fetch(`/api/agents/${server.value}/import/${apply ? 'apply' : 'plan'}`, {
-      method: 'POST',
-      body: fd,
-      credentials: 'same-origin',
-    })
-    if (r.status === 401) auth.user = null
+    checkUpload(fd)
+    const r = await apiRaw(`/agents/${server.value}/import/${apply ? 'apply' : 'plan'}`, { method: 'POST', body: fd })
     const data = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
     plan.value = data.plan || []
@@ -308,6 +304,7 @@ function downloadPasswords() {
               class="btn-ghost w-full justify-between"
               :title="f + '.csv'"
               download
+              @click.prevent="saveFile({ name: f + '.csv', apiPath: `/api/export/${f}` })"
             >
               {{ t(label) }} <Download :size="13" />
             </a>
@@ -316,7 +313,13 @@ function downloadPasswords() {
             <select v-model="server" class="inp" :aria-label="t('File server')">
               <option v-for="a in servers" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
-            <a :href="`/api/agents/${server}/export`" class="btn-ghost shrink-0" download :title="t('Folders and permissions (no files)')">
+            <a
+              :href="`/api/agents/${server}/export`"
+              class="btn-ghost shrink-0"
+              download
+              :title="t('Folders and permissions (no files)')"
+              @click.prevent="saveFile({ name: 'shares.csv', apiPath: `/api/agents/${server}/export` })"
+            >
               <FolderOpen :size="13" /> {{ t('Folders') }} <Download :size="13" />
             </a>
           </div>

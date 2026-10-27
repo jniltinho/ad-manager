@@ -87,4 +87,5 @@ export default {
   'Complete (configuration + all share roots, full)': 'Completo (configuração + todas as raízes, completo)',
   'Full backup (starts a new chain)': 'Backup completo (começa uma cadeia nova)',
   'Or only one folder inside them': 'Ou só uma pasta dentro delas',
+  'Send asks for the file.': 'Enviar pede o arquivo.',
 }

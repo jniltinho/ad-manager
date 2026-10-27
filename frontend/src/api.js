@@ -1,6 +1,6 @@
 // Client for the Go API. A 401 sends the operator back to the login page.
 import { reactive } from 'vue'
-import { serverText, setServerCatalog, useDefault } from './i18n'
+import { serverText, setServerCatalog, t, useDefault } from './i18n'
 
 export const auth = reactive({ user: null, domain: '', version: '', checked: false, settings: {}, brand: {} })
 
@@ -17,17 +17,85 @@ export const brand = reactive({
   netbios: '',
 })
 
-export async function api(method, path, body) {
-  const opts = { method, credentials: 'same-origin' }
-  if (body instanceof FormData) opts.body = body
-  else if (body) Object.assign(opts, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const r = await fetch('/api' + path, opts)
+// ── sessions. Every sign-in and sign-out starts a new one. An answer of an earlier session never settles: nothing
+// waiting for it runs, so a late list or a late 401 cannot reach the new session's screens. The desktop's Go proxy
+// keeps the generation too: it refuses (409, X-ADM-Stale) a request built under an older one, before the panel.
+let generation = 0
+const never = () => new Promise(() => {})
+const sessionHooks = new Set()
+// onSessionChange runs fn at every new session (open confirmations are cancelled, pollers stop); returns the undo
+export function onSessionChange(fn) {
+  sessionHooks.add(fn)
+  return () => sessionHooks.delete(fn)
+}
+function newSession(gen) {
+  generation = gen || generation + 1
+  for (const fn of sessionHooks) fn()
+}
+// session is the current generation (a raw XHR compares it before and after)
+export const session = () => generation
+// setGeneration adopts the desktop proxy's generation at start
+export const setGeneration = (gen) => (generation = gen)
+
+// platform holds what the desktop replaces (src/desktop): file saving and sending, the upload limit of its bridge,
+// the panel's origin for links used outside the app
+export const platform = { saveFile: null, sendFile: null, maxUpload: 0, panelOrigin: '' }
+
+// apiRaw is fetch('/api' + path) with the session rules; api() and the few callers that need the raw answer (a
+// blob, a text) use it
+export async function apiRaw(path, opts = {}) {
+  const gen = generation
+  const headers = { ...opts.headers, 'X-ADM-Session': String(gen) }
+  let r
+  try {
+    r = await fetch('/api' + path, { credentials: 'same-origin', ...opts, headers })
+  } finally {
+    if (path === '/logout') newSession(Number(r?.headers.get('X-ADM-Session')))
+  }
+  if (path === '/login') {
+    if (r.ok) newSession(Number(r.headers.get('X-ADM-Session')))
+  } else if (path !== '/logout' && (gen !== generation || r.headers.has('X-ADM-Stale'))) return never()
   if (r.status === 401 && path !== '/login') auth.user = null
+  return r
+}
+
+export async function api(method, path, body) {
+  const opts = { method }
+  if (body instanceof FormData) {
+    checkUpload(body)
+    opts.body = body
+  } else if (body) Object.assign(opts, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const gen = generation
+  const r = await apiRaw(path, opts)
   if (r.status === 204) return null
   const data = await r.json().catch(() => ({}))
+  if (gen !== generation && path !== '/login' && path !== '/logout') return never()
   if (!r.ok) throw new Error(serverText(data.error) || `HTTP ${r.status}`)
   return data
 }
+
+// checkUpload refuses, before sending, a form whose files pass the desktop's upload limit (no limit on the web)
+export function checkUpload(fd) {
+  if (!platform.maxUpload) return
+  let size = 0
+  for (const v of fd.values()) size += typeof v === 'string' ? v.length : v.size
+  if (size > platform.maxUpload)
+    throw new Error(t('The files are larger than {n} MiB, the most the desktop app sends at once.', { n: platform.maxUpload >> 20 }))
+}
+
+// latest() is a guard for a page that switches targets (a server, a filter): wrap each load's request with the
+// returned function and an answer that a newer load replaced never settles
+export function latest() {
+  let n = 0
+  return async (promise) => {
+    const mine = ++n
+    const v = await promise
+    return mine === n ? v : never()
+  }
+}
+
+// panelOrigin is the panel's address for links used outside the app (the single-use password link)
+export const panelOrigin = () => platform.panelOrigin || location.origin
 
 export const get = (p) => api('GET', p)
 export const post = (p, b) => api('POST', p, b ?? {})

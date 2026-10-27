@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -25,6 +26,9 @@ func fakePanel(t *testing.T, hits *atomic.Int32) *httptest.Server {
 				return
 			}
 			_, _ = io.WriteString(w, `{"user":"administrator","cookies":"`+r.Header.Get("Cookie")+`"}`)
+		case "/api/big":
+			w.Header().Set("Content-Length", strconv.Itoa(BridgeCap+1))
+			_, _ = io.CopyN(w, pattern{}, BridgeCap+1)
 		case "/api/redirect":
 			http.Redirect(w, r, "https://elsewhere.example/", http.StatusFound)
 		default:
@@ -38,6 +42,7 @@ func fakePanel(t *testing.T, hits *atomic.Int32) *httptest.Server {
 func do(t *testing.T, p *Panel, method, target string, cookie string) *httptest.ResponseRecorder {
 	t.Helper()
 	r := httptest.NewRequest(method, target, nil)
+	r.Header.Set("X-ADM-Session", strconv.FormatUint(p.Generation(), 10))
 	if cookie != "" {
 		r.Header.Set("Cookie", cookie)
 	}
@@ -130,5 +135,56 @@ func TestOnlyHTTPS(t *testing.T) {
 		if _, err := New(u, "", false); err != ErrURL {
 			t.Errorf("%s: %v", u, err)
 		}
+	}
+}
+
+func TestStaleSessionRefusedBeforeThePanel(t *testing.T) {
+	var hits atomic.Int32
+	p := pinned(t, fakePanel(t, &hits))
+	do(t, p, http.MethodPost, "/api/login", "")
+	old := p.Generation()
+	w := do(t, p, http.MethodPost, "/api/logout", "")
+	if got := w.Header().Get("X-ADM-Session"); got != strconv.FormatUint(old+1, 10) {
+		t.Fatalf("logout answered generation %q, want %d", got, old+1)
+	}
+	do(t, p, http.MethodPost, "/api/login", "") // signed in again: session old+2
+	before := hits.Load()
+	for _, gen := range []string{strconv.FormatUint(old, 10), "", "x"} {
+		r := httptest.NewRequest(http.MethodPost, "/api/users", nil)
+		if gen != "" {
+			r.Header.Set("X-ADM-Session", gen)
+		}
+		w = httptest.NewRecorder()
+		p.ServeHTTP(w, r)
+		if w.Code != http.StatusConflict || w.Header().Get("X-ADM-Stale") != "1" {
+			t.Errorf("generation %q: %d", gen, w.Code)
+		}
+	}
+	if hits.Load() != before {
+		t.Fatal("a stale request reached the panel")
+	}
+	// the public requests need no generation
+	r := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	w = httptest.NewRecorder()
+	p.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("health: %d", w.Code)
+	}
+}
+
+func TestBridgeCap(t *testing.T) {
+	var hits atomic.Int32
+	p := pinned(t, fakePanel(t, &hits))
+	r := httptest.NewRequest(http.MethodPost, "/api/import/plan", strings.NewReader("x"))
+	r.ContentLength = BridgeCap + 1
+	r.Header.Set("X-ADM-Session", strconv.FormatUint(p.Generation(), 10))
+	w := httptest.NewRecorder()
+	before := hits.Load()
+	p.ServeHTTP(w, r)
+	if w.Code != http.StatusRequestEntityTooLarge || hits.Load() != before {
+		t.Fatalf("request over the cap: %d, panel hit %v", w.Code, hits.Load() != before)
+	}
+	if w = do(t, p, http.MethodGet, "/api/big", ""); w.Code != http.StatusBadGateway || !strings.Contains(w.Body.String(), "32 MiB") {
+		t.Fatalf("answer over the cap: %d %.80s", w.Code, w.Body)
 	}
 }

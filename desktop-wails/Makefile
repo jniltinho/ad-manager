@@ -3,7 +3,7 @@
 # GTK4, WebKitGTK 6.0). Linux needs CGO; Windows does not.
 #
 #   make dist     Linux tar.gz and Windows zip (+ SHA256SUMS) into DIST
-#   make check    gofmt, go vet, go test
+#   make check    gofmt, go vet, go test, the web build without the desktop
 
 SHELL   := /bin/sh
 .DEFAULT_GOAL := help
@@ -14,7 +14,7 @@ DIST    ?= dist
 LDFLAGS := -s -w -X main.version=$(VERSION)
 NAME    := ad-manager-desktop-wails
 
-.PHONY: help frontend linux windows dist check test
+.PHONY: help frontend linux windows dist check test web-check
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-10s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -39,5 +39,9 @@ dist: linux windows ## Release archives and SHA256SUMS into DIST
 test: ## Go tests
 	$(GO) go test ./...
 
-check: ## gofmt, go vet, go test
-	$(GO) sh -c 'test -z "$$(gofmt -l $$(find . -name "*.go" -not -path "./.cache/*"))" && go vet ./... && go test ./...'
+check: web-check ## gofmt, go vet, go test, and the web build without the desktop
+	$(GO) sh -c 'test -z "$$(gofmt -l $$(find . -name "*.go" -not -path "./.cache/*"))" && go vet ./... && go vet -tags smoke . && go test ./...'
+
+web-check: ## The web build (vp build) has none of the desktop's code
+	cd ../frontend && npm run build >/dev/null
+	@if grep -rlE 'adm-desktop-wails-bundle|@wailsio|wails/runtime' ../web/dist; then echo "the web build has desktop code" >&2; exit 1; fi

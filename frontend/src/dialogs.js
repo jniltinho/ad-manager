@@ -13,6 +13,15 @@ export const dialogState = reactive({
   alert: null, // { title, msg, ok, resolve }
 })
 
+// cancelDialogs answers every open dialog as cancelled (a new session: nothing confirmed for the old one runs)
+export function cancelDialogs() {
+  for (const k of ['confirm', 'typed', 'alert']) {
+    const d = dialogState[k]
+    dialogState[k] = null
+    d?.resolve(k === 'alert' ? undefined : false)
+  }
+}
+
 export function askConfirm(msg, opts = {}) {
   return new Promise((resolve) => {
     dialogState.confirm = { title: opts.title || t('Confirmation'), msg, ok: opts.ok || 'OK', cancel: opts.cancel || t('Cancel'), resolve }

@@ -4,7 +4,7 @@
 // preview of its current revision.
 import { Archive, Eye, FolderSync, Pencil, Play, Plus, RefreshCw, ScrollText, Square, Trash2 } from 'lucide-vue-next'
 import { computed, onUnmounted, ref } from 'vue'
-import { del, enc, get, post } from '../api'
+import { apiRaw, del, enc, get, latest, post } from '../api'
 import { askConfirm, confirmTyped } from '../dialogs'
 import { locale, serverText, t } from '../i18n'
 import { toast } from '../toasts'
@@ -35,12 +35,15 @@ async function loadAgents() {
   }
   agentsLoaded.value = true
 }
+// a server switched before its answer: the late answer never settles (latest)
+const fresh = latest()
+const freshQ = latest()
 async function load() {
   if (!currentId.value) return
   loading.value = true
   clearTimeout(timer)
   try {
-    data.value = await get(`/agents/${currentId.value}/syncs`)
+    data.value = await fresh(get(`/agents/${currentId.value}/syncs`))
     error.value = ''
   } catch (e) {
     data.value = null
@@ -55,7 +58,7 @@ async function load() {
 const qs = ref({ quarantines: [], space: [] })
 async function loadQuarantines() {
   try {
-    qs.value = await get(`/agents/${currentId.value}/syncs/quarantines`)
+    qs.value = await freshQ(get(`/agents/${currentId.value}/syncs/quarantines`))
   } catch {
     qs.value = { quarantines: [], space: [] }
   }
@@ -136,10 +139,13 @@ function saved(e) {
   if (!e?.closed) wizard.value = null
   load()
 }
+// actions confirmed after a switch of server send nothing: the confirmation was about the server it was opened on
 async function remove(j) {
+  const at = base.value
   if (!(await confirmTyped(t('Delete the sync job {name}? The files already brought stay.', { name: j.name || j.id }), j.id))) return
+  if (at !== base.value) return
   try {
-    await del(`${base.value}/syncs/${enc(j.id)}`)
+    await del(`${at}/syncs/${enc(j.id)}`)
     load()
   } catch (e) {
     toast.error(e.message)
@@ -156,9 +162,10 @@ async function start(j, preview) {
 }
 async function cancel(r) {
   const msg = t('Stop the run of {name}? What it already copied stays, and the job can run again later.', { name: jobName(r.job) })
-  if (!(await askConfirm(msg, { title: t('Stop run'), ok: t('Stop run') }))) return
+  const at = base.value
+  if (!(await askConfirm(msg, { title: t('Stop run'), ok: t('Stop run') })) || at !== base.value) return
   try {
-    await post(`${base.value}/sync-runs/${enc(r.id)}/cancel`)
+    await post(`${at}/sync-runs/${enc(r.id)}/cancel`)
     setTimeout(load, 1000)
   } catch (e) {
     toast.error(e.message)
@@ -167,7 +174,7 @@ async function cancel(r) {
 const logRun = ref(null) // { run, text } for SyncLogDialog
 async function showLog(r) {
   try {
-    const res = await fetch(`/api${base.value}/sync-runs/${enc(r.id)}/log`, { credentials: 'same-origin' })
+    const res = await apiRaw(`${base.value}/sync-runs/${enc(r.id)}/log`)
     logRun.value = { run: r, text: await res.text() }
   } catch (e) {
     toast.error(e.message)

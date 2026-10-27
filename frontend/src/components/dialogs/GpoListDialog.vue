@@ -7,6 +7,7 @@ import { auth, get, post, enc } from '../../api'
 import { toast } from '../../toasts'
 import { confirmTyped, showAlert } from '../../dialogs'
 import { serverText, t } from '../../i18n'
+import { savePanelBlob } from '../../util'
 import Modal from '../Modal.vue'
 import LoadingNote from '../LoadingNote.vue'
 
@@ -30,14 +31,7 @@ const backingUp = ref('')
 async function backup(g) {
   backingUp.value = g.guid
   try {
-    const r = await fetch(`/api/gpos/${enc(g.guid)}/backup`, { credentials: 'same-origin' })
-    if (!r.ok) throw new Error(serverText((await r.json().catch(() => ({}))).error) || `HTTP ${r.status}`)
-    const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || 'gpo.tar.gz'
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(await r.blob())
-    a.download = name
-    a.click()
-    URL.revokeObjectURL(a.href)
+    await savePanelBlob(`/api/gpos/${enc(g.guid)}/backup`, `gpo-${g.guid.replace(/[{}]/g, '')}.tar.gz`)
   } catch (e) {
     toast.error(e.message)
   }

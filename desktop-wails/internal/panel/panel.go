@@ -4,17 +4,20 @@
 package panel
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +29,16 @@ var ErrRedirect = errors.New("the panel answered with a redirect, which is not f
 // ErrCertChanged is a panel certificate other than the one the operator trusted in Configure.
 var ErrCertChanged = errors.New("the panel's certificate is not the one trusted in Configure (it changed): check it with the panel's administrator, then trust it again in Configure")
 
+// ErrStale is a request built under a session that has ended (a sign-in or a sign-out came in between).
+var ErrStale = errors.New("stale session")
+
+// BridgeCap is the most one request or answer carries through the webview's bridge, which may buffer a whole body
+// (WebView2 does): bigger files go through Download and Upload, in Go.
+const BridgeCap = 32 << 20
+
+// ErrTooLarge is a body over BridgeCap.
+var ErrTooLarge = fmt.Errorf("larger than %d MiB, the most the desktop app passes through its window at once", BridgeCap>>20)
+
 // ErrURL is a panel URL that is not https://server[:port].
 var ErrURL = errors.New("Panel URL: enter an https://server:port URL") //nolint:staticcheck // the field's name starts the message
 
@@ -36,6 +49,7 @@ type Panel struct {
 	tls  *tls.Config
 
 	mu     sync.Mutex
+	gen    uint64 // the session's generation: the SPA sends it on every request (X-ADM-Session)
 	hc     *http.Client
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -94,17 +108,35 @@ func (p *Panel) reset() {
 	p.mu.Lock()
 	old := p.cancel
 	p.hc, p.ctx, p.cancel = hc, ctx, cancel
+	p.gen++
 	p.mu.Unlock()
 	if old != nil {
 		old()
 	}
 }
 
-// session is the current client and its context.
-func (p *Panel) session() (*http.Client, context.Context) {
+// Generation is the current session's generation.
+func (p *Panel) Generation() uint64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.hc, p.ctx
+	return p.gen
+}
+
+// session is the client and context of session gen, checked under the same lock that picks them: a request built
+// under an older session never runs with the new one.
+func (p *Panel) session(gen uint64) (*http.Client, context.Context, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if gen != p.gen {
+		return nil, nil, ErrStale
+	}
+	return p.hc, p.ctx, nil
+}
+
+// public are the requests the SPA makes without a session, before sign-in or as an <img>: no generation needed.
+func public(method, path string) bool {
+	return method == http.MethodPost && path == "/api/login" ||
+		method == http.MethodGet && (path == "/api/health" || path == "/api/i18n" || path == "/api/brand/logo")
 }
 
 // Middleware routes the asset server's requests: /api/… to the panel, everything else to next (the embedded SPA and
@@ -149,27 +181,44 @@ func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	login := r.Method == http.MethodPost && path == "/api/login"
-	if login {
+	gen, err := strconv.ParseUint(r.Header.Get("X-ADM-Session"), 10, 64)
+	switch {
+	case r.Method == http.MethodPost && path == "/api/login":
 		p.reset()
+		gen = p.Generation()
+	case public(r.Method, path):
+		gen = p.Generation()
+	case err != nil:
+		gen = 0 // no generation: refused as stale below
 	}
-	hc, sctx := p.session()
+	hc, sctx, err := p.session(gen)
+	if err != nil {
+		w.Header().Set("X-ADM-Stale", "1")
+		w.Header().Set("X-ADM-Session", strconv.FormatUint(p.Generation(), 10))
+		writeError(w, http.StatusConflict, err)
+		return
+	}
 	ctx, cancel := context.WithCancel(sctx)
 	defer cancel()
 	stop := context.AfterFunc(r.Context(), cancel)
 	defer stop()
 
+	if r.ContentLength > BridgeCap {
+		writeError(w, http.StatusRequestEntityTooLarge, ErrTooLarge)
+		return
+	}
 	target := p.base.String() + path
 	if r.URL.RawQuery != "" {
 		target += "?" + r.URL.RawQuery
 	}
-	req, err := http.NewRequestWithContext(ctx, r.Method, target, r.Body)
+	req, err := http.NewRequestWithContext(ctx, r.Method, target, http.MaxBytesReader(w, r.Body, BridgeCap))
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
 	}
 	req.ContentLength = r.ContentLength
 	req.Header = r.Header.Clone()
+	req.Header.Del("X-ADM-Session")
 	for _, h := range dropRequest {
 		req.Header.Del(h)
 	}
@@ -179,8 +228,9 @@ func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer res.Body.Close()
-	if r.Method == http.MethodPost && path == "/api/logout" {
-		defer p.reset()
+	if res.ContentLength > BridgeCap {
+		writeError(w, http.StatusBadGateway, ErrTooLarge)
+		return
 	}
 	for k, v := range res.Header {
 		w.Header()[k] = v
@@ -188,8 +238,17 @@ func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, h := range dropResponse {
 		w.Header().Del(h)
 	}
+	var body io.Reader = res.Body
+	if r.Method == http.MethodPost && path == "/api/logout" {
+		// the answer is read before the session ends (its context is cancelled), then carries the new generation
+		b, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+		body = bytes.NewReader(b)
+		p.reset()
+	}
+	w.Header().Set("X-ADM-Session", strconv.FormatUint(p.Generation(), 10))
 	w.WriteHeader(res.StatusCode)
-	_, _ = io.Copy(w, res.Body)
+	// an answer of unknown length is cut at the cap: the SPA then fails to read it instead of the bridge buffering it
+	_, _ = io.Copy(w, io.LimitReader(body, BridgeCap))
 }
 
 // cause is the error to show for a failed request: the desktop's own messages unwrapped from url.Error.

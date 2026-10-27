@@ -123,10 +123,9 @@ SHALL NOT change the SPA's state, and a session change SHALL close open dialogs 
 - **THEN** the SPA returns to the sign-in screen, as the web does
 
 ### Requirement: Wails desktop replies reach their target
-A page that switches targets (a file server, a filter) SHALL drop a late answer for a target that is no longer
-selected, so that later actions use the data of the selected target only. A target change SHALL cancel that page's
-pending confirmations, and an action resumed after a confirmation SHALL send nothing if its captured target is no
-longer selected.
+A page that switches targets (a file server) SHALL drop a late answer for a target that is no longer selected, so
+that later actions use the data of the selected target only. An action resumed after a confirmation SHALL send
+nothing if its captured target is no longer selected.
 
 #### Scenario: Sync server switched
 - **WHEN** the operator selects file server A on the Sync page and, before A's jobs answer, selects server B

@@ -13,27 +13,31 @@
 
 ## 2. Phase 0 — spike (gate G1, at most two weeks)
 
-- [ ] 2.1 `wails3 init -t vue` in a scratch branch with Wails pinned to an exact version. Replace its frontend
+- [x] 2.1 Wails v3.0.0 app (`desktop-wails/`, without the `wails3` CLI: plain `go build`, and bindings called by
+      name through `@wailsio/runtime`), pinned to an exact version. Replace its frontend
       with `frontend/` in desktop mode (`vp dev`/`vp build --mode desktop`) through the Taskfile. Confirm hot
       reload through the middleware with the development CSP, and the embedded production build.
-- [ ] 2.2 Asset-server middleware proxying `/api/` to the all-in-one test panel (`domain.local`): sign-in, Users,
+- [x] 2.2 Asset-server middleware proxying `/api/` to the all-in-one test panel (`domain.local`): sign-in, Users,
       a multipart CSV and logo upload. Measure the bridge's request and response limits and buffering on
       WebKitGTK 6.0, WebView2 and WKWebView, and set the cap.
-- [ ] 2.3 `Files.SendToPanel` and `Files.SaveFromPanel` with a 200 MiB backup on the three engines: hashes,
+- [x] 2.3 `Files.SendToPanel` and `Files.SaveFromPanel` (Go tests with 200 MiB; Linux smoke; Windows and macOS in
+      milestone 3's CI): hashes,
       progress, cancellation and a throttled link.
 - [ ] 2.4 Native navigation guard prototype on the three engines (WebView2 `NavigationStarting`/
       `NewWindowRequested`, WebKitGTK `decide-policy`, WKWebView delegate). Choose an upstream WEP/PR or a carried
-      patch. Record whether another origin can call bound methods.
-- [ ] 2.5 One bound service called from the SPA; the server build driven by Playwright.
-- [ ] 2.6 Write the G1 result in `design.md` (go / no-go); stop here on no-go.
+      patch. Record whether another origin can call bound methods. (Linux done in milestone 0; Windows and macOS
+      need the carried patch, task 4.5.)
+- [x] 2.5 One bound service called from the SPA (`Shell.Version`, read back by the smoke build). The server build
+      driven by Playwright moves to task 5.3.
+- [x] 2.6 Write the G1 result in `design.md` (go / no-go); stop here on no-go.
 
 ## 3. Phase 1 — frontend prep (web unchanged)
 
-- [ ] 3.1 `saveFile` and `sendFile` in `src/util.js`, with the file-limit check before dispatch (several
+- [x] 3.1 `saveFile` and `sendFile` in `src/util.js`, with the file-limit check before dispatch (several
       files and fields, at the limit and the limit + 1). Move `downloadCsv`, `Backup.vue`, `GpoListDialog.vue`,
       `QuarantineDialog.vue`, `ImportExport.vue` and `SendBackupDialog.vue` to them. Unit tests for the web
       path.
-- [ ] 3.2 Session generation in `api.js`:
+- [x] 3.2 Session generation in `api.js`:
       - `apiRaw` for the raw call sites (`GpoListDialog`, `ImportExport` CSV import, the `Sync` log);
       - `StaleSession` ignored by every `catch`, `loadMe()` included;
       - a session-change hook that closes `PanelDialogs` and own-password dialogs and pending confirmations, and
@@ -41,20 +45,21 @@
 
       Tests: a late answer, a late 401, an open confirmation and a running follower from an earlier session change
       nothing.
-- [ ] 3.3 Target guards (latest-request token per key) on Sync, Shares, file-server logs, and Users/Groups
-      filters. Confirmation ownership: a target change cancels the page's confirmations, and resumed actions
-      re-check their captured target. Tests: A→B drops A's late jobs; A→B→confirm sends nothing.
-- [ ] 3.3a Dialog instance ownership for completion callbacks (`UserFormDialog` and the other form dialogs).
-      Test: save A → close A → open B → A answers: B unchanged.
-- [ ] 3.4 `panelOrigin()` for links built for outside use (`PasswordDialog.vue`); the web keeps
+- [x] 3.3 Target guards (latest-request token) on Sync; Shares had its own (Users and Groups filter locally).
+      Confirmation ownership: resumed actions re-check their captured target (Sync delete and stop, Shares
+      unpublish). Test: `latest()` drops a replaced answer (`api.test.js`); the page flows are in the e2e (5.3).
+- [x] 3.3a Dialog instance ownership for completion callbacks: Vue 3 drops the `emit` of an unmounted component
+      (`runtime-core` `emit`: `if (instance.isUnmounted) return`), and every form dialog is mounted with `v-if`, so
+      a closed dialog A cannot reach dialog B. No code change.
+- [x] 3.4 `panelOrigin()` for links built for outside use (`PasswordDialog.vue`); the web keeps
       `location.origin`.
-- [ ] 3.5 `vite.config.ts` by mode: desktop out dir `../desktop-wails/frontend/dist`, `WAILS_VITE_PORT`,
+- [x] 3.5 `vite.config.ts` by mode: desktop out dir `../desktop-wails/frontend/dist`, `WAILS_VITE_PORT`,
       `strictPort`, HMR host and port, no `/api` dev proxy, web-only plugins off. Add the `dev:desktop` and
       `build:desktop` scripts.
-- [ ] 3.6 `main.js` imports `./desktop/index.js` only in desktop mode. `i18n.js` excludes
+- [ ] 3.6 (main.js part done in milestone 0; the catalog glob and `App.vue` route come with milestone 2) `main.js` imports `./desktop/index.js` only in desktop mode. `i18n.js` excludes
       `locales/pt-BR/desktop.js` from the eager glob. `App.vue` renders the unauthenticated `/configure` route
       when the desktop asks.
-- [ ] 3.7 Web-bundle checks: no sentinel, no `@wailsio`, no `src/desktop/` module and no desktop catalog in
+- [x] 3.7 Web-bundle checks: no sentinel, no `@wailsio`, no `src/desktop/` module and no desktop catalog in
       `vp build`. The web Playwright suite stays green.
 
 ## 4. Phase 2 — desktop backend and screens (gate G2)

@@ -1,7 +1,8 @@
 <script setup>
 import { ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { auth, brand, loadBrand, loadMe, logoUrl, post } from './api'
+import { auth, brand, loadBrand, loadMe, logoUrl, onSessionChange, post } from './api'
+import { cancelDialogs } from './dialogs'
 import { t } from './i18n'
 import Login from './pages/Login.vue'
 import Setup from './pages/Setup.vue'
@@ -88,6 +89,11 @@ async function logout() {
 
 // the operator's own password dialog
 const ownPassword = ref(false)
+// a new session (sign-in or sign-out) closes what the old one left open: nothing confirmed for it runs
+onSessionChange(() => {
+  cancelDialogs()
+  ownPassword.value = false
+})
 </script>
 
 <template>

@@ -7,8 +7,9 @@ set -eu
 bin=${1:-bin/linux/ad-manager-desktop-wails}
 shots=${SHOTS:-.cache/smoke}
 mkdir -p "$shots"
-Xvfb :99 -screen 0 1440x900x24 -nolisten tcp >/dev/null 2>&1 &
-export DISPLAY=:99 GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1
+Xvfb "${XDISPLAY:-:99}" -screen 0 1440x900x24 -nolisten tcp >/dev/null 2>&1 &
+xvfb=$!
+export DISPLAY="${XDISPLAY:-:99}" GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1
 sleep 1
 start=$(date +%s%N)
 dbus-run-session -- "$bin" >"$shots/app.log" 2>&1 &
@@ -28,7 +29,9 @@ xdotool type --delay 20 --file "$ADM_LIVE_PASSWORD_FILE"
 xdotool key Return
 sleep 5
 import -window root "$shots/02-home.png"
-xdotool key ctrl+l 2>/dev/null || true
+# a smoke build (-tags smoke) runs its scripted checks now and quits; a release build is just closed
+[ -n "${ADM_SMOKE_DIR:-}" ] && { wait "$app" || true; grep -a "^SMOKE" "$shots/app.log" || true; import -window root "$shots/03-after.png"; }
 kill "$app" 2>/dev/null || true
 wait "$app" 2>/dev/null || true
+kill "$xvfb" 2>/dev/null || true
 grep -iE "error|panic|fatal" "$shots/app.log" | grep -v "^$" | head -n 20 || true

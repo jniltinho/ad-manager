@@ -3,7 +3,7 @@
 // and "unlock too" when the account is locked. The "Send link" tab generates a
 // single-use link for the user to choose the new password.
 import { ref } from 'vue'
-import { post, enc } from '../api'
+import { enc, panelOrigin, post } from '../api'
 import { toast } from '../toasts'
 import { formatDate, generatePassword } from '../util'
 import { t } from '../i18n'
@@ -39,7 +39,7 @@ async function save() {
   try {
     if (mode.value === 'link') {
       const r = await post(`/users/${sam}/password-link`, { hours: hours.value })
-      link.value = { url: `${location.origin}/password/${r.token}`, expires: r.expires }
+      link.value = { url: `${panelOrigin()}/password/${r.token}`, expires: r.expires }
       busy.value = false
       return
     }

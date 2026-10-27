@@ -176,4 +176,6 @@ export default {
   'Command on the file server': 'Comando no servidor de arquivos',
   'Token copied.': 'Token copiado.',
   'Command copied.': 'Comando copiado.',
+  'The files are larger than {n} MiB, the most the desktop app sends at once.':
+    'Os arquivos passam de {n} MiB, o máximo que o app desktop envia de uma vez.',
 }

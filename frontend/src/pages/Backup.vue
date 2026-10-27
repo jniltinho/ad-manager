@@ -8,7 +8,7 @@ import { del, get, post, put, enc } from '../api'
 import { confirmTyped, showAlert } from '../dialogs'
 import { serverText, t } from '../i18n'
 import { toast } from '../toasts'
-import { formatDate, spinner } from '../util'
+import { formatDate, saveFile, spinner } from '../util'
 import BackupTabs from '../components/BackupTabs.vue'
 import RestoreBackupDialog from '../components/dialogs/RestoreBackupDialog.vue'
 import SendBackupDialog from '../components/dialogs/SendBackupDialog.vue'
@@ -93,9 +93,7 @@ async function remove(b) {
 }
 
 function download(b) {
-  const a = document.createElement('a')
-  a.href = `/api${base(current.value)}/${enc(b.id)}/download`
-  a.click()
+  saveFile({ name: b.file || b.id + '.tar.gz', apiPath: `/api${base(current.value)}/${enc(b.id)}/download` })
 }
 
 function showLog(b) {

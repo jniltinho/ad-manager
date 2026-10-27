@@ -12,8 +12,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"ad-manager/desktop-wails/internal/panel"
 )
@@ -46,6 +48,12 @@ func (s *Shell) OpenExternal(path string) error {
 	return s.app.Browser.OpenURL(s.panel.URL() + path)
 }
 
+// Session is the panel session's generation, which the SPA sends on every request (X-ADM-Session).
+func (s *Shell) Session() uint64 { return s.panel.Generation() }
+
+// UploadLimit is the most the webview's bridge carries in one request body (bigger files go through Files).
+func (s *Shell) UploadLimit() int64 { return panel.BridgeCap - 1<<20 }
+
 // Version is the desktop app's version.
 func (s *Shell) Version() string { return version }
 
@@ -76,22 +84,31 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	shell := &Shell{panel: p}
+	shell, files := &Shell{panel: p}, &Files{panel: p}
 	app := application.New(application.Options{
 		Name:        "AD Manager",
 		Description: "AD Manager desktop",
-		Services:    []application.Service{application.NewService(shell)},
+		Services:    []application.Service{application.NewService(shell), application.NewService(files)},
 		Assets: application.AssetOptions{
 			Handler:    application.AssetFileServerFS(dist),
-			Middleware: application.ChainMiddleware(withCSP, p.Middleware),
+			Middleware: application.ChainMiddleware(withCSP, smokeRoutes, p.Middleware),
 		},
 		Linux: application.LinuxOptions{ProgramName: "ad-manager-desktop"},
 		Mac:   application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})
-	shell.app = app
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	shell.app, files.app = app, app
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title: "AD Manager", Width: 1280, Height: 800, MinWidth: 800, MinHeight: 600, URL: "/",
 	})
+	var guard sync.Once
+	win.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
+		guard.Do(func() {
+			if err := guardNavigation(win); err != nil {
+				app.Logger.Error(err.Error())
+			}
+		})
+	})
+	smokeRun(app, win, files)
 	return app.Run()
 }
 

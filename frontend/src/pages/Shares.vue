@@ -216,12 +216,12 @@ async function removeAgent(a) {
 }
 
 // ── tasks: enqueue and follow
-async function enqueue(type, payload, label) {
-  track(await post(`/agents/${current.value.id}/tasks`, { type, payload }), label)
+async function enqueue(type, payload, label, agent = current.value.id) {
+  track(await post(`/agents/${agent}/tasks`, { type, payload }), label, agent)
 }
 // track lists a queued task in this session and follows it
-function track(task, label) {
-  const item = { id: task.id, label, state: task.state, agent: current.value.id }
+function track(task, label, agent = current.value.id) {
+  const item = { id: task.id, label, state: task.state, agent }
   tasks.value.unshift(item)
   follow(item)
 }
@@ -230,6 +230,7 @@ function track(task, label) {
 async function follow(item) {
   for (let i = 0; i < 40 + 17280; i++) {
     await new Promise((r) => setTimeout(r, i < 40 ? 1000 : 5000))
+    if (gone) return // the page closed (also at a sign-out): stop polling
     try {
       const task = await get(`/agents/${item.agent}/tasks/${enc(item.id)}`)
       item.state = task.state
@@ -254,8 +255,9 @@ async function remove(s) {
   if (s.agent !== current.value?.id) return toast.error(t('The list changed servers; refresh and try again.'))
   const unc = `\\\\${current.value.name}\\${s.name}`
   if (!(await confirmTyped(t('Unpublish {share}? The folder and its files stay on the server.', { share: unc }), s.name))) return
+  if (s.agent !== current.value?.id) return // switched servers while confirming: nothing is sent
   try {
-    await enqueue('share:delete', { name: s.name }, t('Remove {share}', { share: unc }))
+    await enqueue('share:delete', { name: s.name }, t('Remove {share}', { share: unc }), s.agent)
   } catch (e) {
     toast.error(e.message)
   }
