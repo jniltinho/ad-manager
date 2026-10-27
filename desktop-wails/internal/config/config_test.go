@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -51,7 +52,7 @@ gpu_backend = "dx12"
 	if strings.Contains(string(b), "theme") {
 		t.Errorf("an empty theme was written:\n%s", b)
 	}
-	if st, _ := os.Stat(f.Path); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(f.Path); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Fatalf("mode %v", st.Mode())
 	}
 }
@@ -86,6 +87,9 @@ token = "secret-token"
 }
 
 func TestLoosePermissionsRefused(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("on Windows the mode does not reflect the ACL")
+	}
 	f := write(t, "[panel]\nurl = \"https://p:8443\"\n", 0o644)
 	_, _, err := Load(f)
 	if !errors.Is(err, ErrLoose) || !strings.Contains(err.Error(), "must be private and has mode 0644: run chmod 600") {

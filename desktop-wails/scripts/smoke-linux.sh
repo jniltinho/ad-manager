@@ -21,7 +21,7 @@ if [ -n "${ADM_PANEL_FINGERPRINT:-}" ]; then
     (umask 077; printf '[panel]\nurl = "%s"\nfingerprint = "%s"\nuser = "%s"\n' "$ADM_PANEL_URL" "$ADM_PANEL_FINGERPRINT" \
         "${ADM_LIVE_USER:-administrator}" > "$cfg/desktop.toml")
 fi
-export GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1
+export GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 ADM_SMOKE_PANEL=1
 start=$(date +%s%N)
 dbus-run-session -- "$bin" --config "$cfg/desktop.toml" >"$shots/app.log" 2>&1 &
 app=$!

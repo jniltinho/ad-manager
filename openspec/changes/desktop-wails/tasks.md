@@ -94,20 +94,21 @@
 
 ## 5. Phase 3 — build, CI, numbers (gates G3, G4)
 
-- [ ] 5.1 `desktop-wails/docker/Dockerfile` (Ubuntu 24.04, pinned by digest) and `scripts/go-docker.sh`. Linux
+- [x] 5.1 `desktop-wails/docker/Dockerfile` (Ubuntu 24.04, pinned by digest) and `scripts/go-docker.sh`. Linux
       `production` build, Windows `CGO_ENABLED=0` cross-build, and the archives.
-- [ ] 5.2 Make targets `desktop-wails`, `desktop-wails-check` and `desktop-wails-e2e` (not in `make build`).
+- [x] 5.2 Make targets `desktop-wails` and `desktop-wails-check` (not in `make build`); the version lockstep test
+      (`lockstep_test.go`). `desktop-wails-e2e` comes with task 5.3.
 - [ ] 5.3 Test server build: loopback, `Host` check, per-run token, throwaway config. Playwright e2e on Chromium
       and WebKit against the mock panel, with cookie-store and response-header checks. The live config for the
       all-in-one image.
-- [ ] 5.4 `.github/workflows/desktop-wails-ci.yml`, a workflow of its own: path-filtered, not called by `ci.yml`
+- [ ] 5.4 (written; checked by its first runs) `.github/workflows/desktop-wails-ci.yml`, a workflow of its own: path-filtered, not called by `ci.yml`
       or `release.yml`, artifacts named `desktop-wails-preview-*`. Native smoke with the `smoke` tag on Ubuntu,
       `windows-latest` and `macos-14` (universal). The shipped-binary check (no listener, no dev assets, no test
       adapters).
 - [ ] 5.5 `desktop-wails/bench/run.sh`: the current Rust binary re-measured in the same run; PSS and CPU over all
       webview processes; painted readiness. Report in `desktop-wails/docs/benchmark.md`, each budget marked pass,
       fail or waived.
-- [ ] 5.6 nfpm `.deb` (`libgtk-4-1, libwebkitgtk-6.0-4`) and `.rpm` (`gtk4, webkitgtk6.0`).
+- [x] 5.6 nfpm `.deb` (`libgtk-4-1, libwebkitgtk-6.0-4`) and `.rpm` (`gtk4, webkitgtk6.0`).
 - [ ] 5.7 G3 runs: Ubuntu 24.04, Debian 13, Fedora 40+, Windows 11, Windows Server 2022 with WebView2, macOS 14, and
       GPU-less Linux and Hyper-V VMs with painted-frame checks. Write the G3 and G4 results, and any written
       waivers, in `design.md`.

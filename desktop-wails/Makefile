@@ -12,9 +12,11 @@ GO      := scripts/go-docker.sh
 VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
 DIST    ?= dist
 LDFLAGS := -s -w -X main.version=$(VERSION)
+# DIST as the toolchain container sees it (the repository is mounted at /work); DIST must be inside the repository
+DIST_IN_DOCKER = $(patsubst $(abspath ..)/%,/work/%,$(abspath $(DIST)))
 NAME    := ad-manager-desktop-wails
 
-.PHONY: help frontend linux windows dist check test web-check
+.PHONY: help frontend linux windows dist packages check test web-check
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-10s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -28,13 +30,17 @@ linux: frontend ## bin/linux/ad-manager-desktop-wails (production build, CGO)
 windows: frontend ## bin/windows/ad-manager-desktop-wails.exe (production build, no CGO)
 	$(GO) env GOOS=windows CGO_ENABLED=0 go build -tags production -trimpath -ldflags "$(LDFLAGS) -H windowsgui" -o bin/windows/$(NAME).exe .
 
-dist: linux windows ## Release archives and SHA256SUMS into DIST
+packages: linux ## .deb and .rpm of the Linux build into DIST (nfpm, in the toolchain image)
+	mkdir -p $(DIST)
+	$(GO) sh -c 'for p in deb rpm; do VERSION=$(patsubst v%,%,$(VERSION)) nfpm package --config packaging/linux/nfpm.yaml --packager $$p --target $(DIST_IN_DOCKER)/ || exit 1; done'
+
+dist: linux windows packages ## Release archives, packages and SHA256SUMS into DIST
 	mkdir -p $(DIST)
 	tar -C bin/linux -czf $(DIST)/$(NAME)_$(VERSION)_linux_x86_64.tar.gz $(NAME) -C $(CURDIR) README.md
 	rm -f $(DIST)/$(NAME)_$(VERSION)_windows_x86_64.zip
 	cd bin/windows && python3 -m zipfile -c $(abspath $(DIST))/$(NAME)_$(VERSION)_windows_x86_64.zip $(NAME).exe ../../README.md
 	cp bin/linux/$(NAME) $(DIST)/
-	cd $(DIST) && sha256sum *.tar.gz *.zip > SHA256SUMS
+	cd $(DIST) && sha256sum *.tar.gz *.zip *.deb *.rpm > SHA256SUMS
 
 test: ## Go tests
 	$(GO) go test ./...

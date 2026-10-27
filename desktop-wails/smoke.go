@@ -4,7 +4,9 @@ package main
 
 // The smoke test build (-tags smoke, never shipped): local /smoke/ routes to measure the webview bridge, dialogs
 // answered from ADM_SMOKE_DIR, and a scripted run once the operator (xdotool in scripts/smoke-linux.sh) has signed
-// in. It prints "SMOKE …" lines, then "SMOKE PASS" or "SMOKE FAIL <what>", which the script checks.
+// in. It prints "SMOKE …" lines, then "SMOKE PASS" or "SMOKE FAIL <what>" (also into ADM_SMOKE_DIR/smoke.log), which
+// the script and CI check. Without a configured panel (CI on Windows and macOS) it checks what needs none: the bridge
+// and a binding. The navigation guard is checked where it exists (Linux).
 
 import (
 	"fmt"
@@ -12,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,7 +40,7 @@ func smokeRoutes(next http.Handler) http.Handler {
 			smokeMu.Lock()
 			smokeReports[name] = value
 			smokeMu.Unlock()
-			fmt.Printf("SMOKE %s\n", b)
+			say("SMOKE %s", b)
 		default:
 			next.ServeHTTP(w, r)
 		}
@@ -61,6 +64,16 @@ const bridgeJS = `(async () => {
   }
   await fetch('/smoke/report', { method: 'POST', body: 'bridge ' + (ok ? 'ok ' : 'failed ') + JSON.stringify(out) })
 })()`
+
+// say prints a smoke line and appends it to ADM_SMOKE_DIR/smoke.log (a GUI build on Windows has no stdout).
+func say(format string, a ...any) {
+	line := fmt.Sprintf(format, a...)
+	fmt.Println(line)
+	if f, err := os.OpenFile(filepath.Join(os.Getenv("ADM_SMOKE_DIR"), "smoke.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+		fmt.Fprintln(f, line)
+		f.Close()
+	}
+}
 
 func report(name string, wait time.Duration) string {
 	deadline := time.Now().Add(wait)
@@ -96,25 +109,31 @@ func smokeRun(app *application.App, win *application.WebviewWindow, d *desktop, 
 		}
 		time.Sleep(time.Duration(delay) * time.Second)
 		p := d.current()
-		check(p != nil && p.Generation() > 1, "signed in (a session after the first)")
-		win.ExecJS(bridgeJS)
-		check(strings.HasPrefix(report("bridge", 30*time.Second), "ok "), "bridge")
-		if p != nil {
-			ok, err := files.SaveFromPanel(p.Generation(), "/api/export/users", "users.csv")
-			st, serr := os.Stat(filepath.Join(dir, "users.csv"))
-			fmt.Printf("SMOKE files saved=%v err=%v\n", ok, err)
-			check(ok && err == nil && serr == nil && st.Size() > 0 && st.Mode().Perm() == 0o600, "files")
+		if os.Getenv("ADM_SMOKE_PANEL") != "" {
+			check(p != nil && p.Generation() > 1, "signed in (a session after the first)")
 		}
-		win.ExecJS(`location.href = 'https://example.org/'`)
-		time.Sleep(2 * time.Second)
-		win.ExecJS(`fetch('/smoke/report', { method: 'POST', body: 'location ' + location.href })`)
-		check(strings.HasPrefix(report("location", 10*time.Second), "wails://localhost/"), "navigation guard")
+		win.ExecJS(bridgeJS)
+		check(strings.HasPrefix(report("bridge", 60*time.Second), "ok "), "bridge")
 		win.ExecJS(`fetch('/smoke/report', { method: 'POST', body: 'binding ' + window.__admDesktopVersion })`)
 		check(report("binding", 10*time.Second) == version, "binding")
-		if len(failed) == 0 {
-			fmt.Println("SMOKE PASS")
+		if p != nil && os.Getenv("ADM_SMOKE_PANEL") != "" {
+			ok, err := files.SaveFromPanel(p.Generation(), "/api/export/users", "users.csv")
+			st, serr := os.Stat(filepath.Join(dir, "users.csv"))
+			say("SMOKE files saved=%v err=%v", ok, err)
+			check(ok && err == nil && serr == nil && st.Size() > 0 && (runtime.GOOS == "windows" || st.Mode().Perm() == 0o600), "files")
+		}
+		if runtime.GOOS == "linux" {
+			win.ExecJS(`location.href = 'https://example.org/'`)
+			time.Sleep(2 * time.Second)
+			win.ExecJS(`fetch('/smoke/report', { method: 'POST', body: 'location ' + location.href })`)
+			check(strings.HasPrefix(report("location", 10*time.Second), "wails://localhost/"), "navigation guard")
 		} else {
-			fmt.Println("SMOKE FAIL", strings.Join(failed, ", "))
+			say("SMOKE guard none on %s (task 4.5)", runtime.GOOS)
+		}
+		if len(failed) == 0 {
+			say("SMOKE PASS")
+		} else {
+			say("SMOKE FAIL %s", strings.Join(failed, ", "))
 		}
 		app.Quit()
 	}()

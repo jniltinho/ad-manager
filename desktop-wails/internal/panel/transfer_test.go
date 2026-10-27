@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -65,7 +66,7 @@ func TestDownloadStreamsPrivately(t *testing.T) {
 	if sum != hex.EncodeToString(h.Sum(nil)) {
 		t.Fatal("hash differs")
 	}
-	if st, _ := os.Stat(dst); st.Mode().Perm() != 0o600 || st.Size() != size {
+	if st, _ := os.Stat(dst); (runtime.GOOS != "windows" && st.Mode().Perm() != 0o600) || st.Size() != size {
 		t.Fatalf("file: %v %d", st.Mode(), st.Size())
 	}
 }
@@ -111,7 +112,7 @@ func TestSaveTextPrivate(t *testing.T) {
 	if err := SaveText(dst, "a;b\r\n"); err != nil {
 		t.Fatal(err)
 	}
-	if st, _ := os.Stat(dst); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(dst); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Fatalf("mode %v", st.Mode())
 	}
 }
