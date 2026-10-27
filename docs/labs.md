@@ -25,7 +25,7 @@ another AD, folder sync and DC migration.
 | `samba-mig19` | 192.168.57.24 | path B for 2019 |
 | `w2022` | 192.168.57.22 | hardened Windows Server 2022 DC of `origem2022.lab`, which also serves the shares |
 | `samba-mig22` | 192.168.57.23 | Windows path B: Samba DC that joins `origem2022.lab` and takes over the domain |
-| `win11` | 192.168.57.61 | Windows 11 workstation of `destino.lab` |
+| `win11` | 192.168.57.61 | Windows 11 workstation of `destino.lab`; signs `vagrant` in at boot (`autologon.ps1`, the box's public password or `LAB_WIN_PASSWORD`) and never locks, for the desktop app's tests |
 | `ws2022m` | 192.168.57.62 | Windows Server 2022 member of `destino.lab`, with RSAT |
 | `ubuntu-desk` | 192.168.57.63 | Ubuntu 26.04 client of `destino.lab` (realmd/sssd) |
 

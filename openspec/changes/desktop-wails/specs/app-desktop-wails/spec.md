@@ -299,10 +299,28 @@ from the window, not computed from `dvh`, so that WebKit (which does not scale `
 - **THEN** the page is 1920 CSS px wide with no extra zoom, drawn at 2× and filling the window
 
 
-The window SHALL open at 1280×800 (minimum 800×600) and be restored where the operator left it, on a visible
-screen. A second start SHALL focus the running window. `--safe-gpu` or `[graphics] safe = true` SHALL apply a
+The window SHALL open at 1280×800 (minimum 800×600), fitted and centred on a screen whose work area is smaller, and
+be restored where the operator left it, on a visible screen; a window closed maximised SHALL start maximised. A
+second start SHALL focus the running window. The webview SHALL deny the microphone, camera, geolocation,
+notifications and clipboard reading without asking (WebView2 otherwise grants them all). `--safe-gpu` or `[graphics] safe = true` SHALL apply a
 workaround preset: on Linux, GTK's software renderer and WebKit without DMA-BUF and compositing; on Windows,
 WebView2 with `--disable-gpu`. On macOS the option SHALL NOT be offered.
+
+#### Scenario: A small screen
+- **WHEN** the app starts for the first time on a 1024×768 screen
+- **THEN** the window fits the screen's work area, centred, with its title bar visible
+
+#### Scenario: Quit from the menu
+- **WHEN** the operator quits with Cmd+Q (or the Dock) without closing the window
+- **THEN** the window's place, size and maximised state are kept, and the next start has the same size
+
+#### Scenario: Local Network on macOS
+- **WHEN** macOS 15 refuses the connection to a panel on the local network because the app is not allowed there
+- **THEN** Configure says that macOS blocks the app from the local network and where to allow it
+
+#### Scenario: Closed maximised
+- **WHEN** the operator maximises the window and closes the app
+- **THEN** the next start opens the window maximised, and restoring it gives the size it had before
 
 #### Scenario: The app's icon
 - **WHEN** the window opens on Linux (X11)

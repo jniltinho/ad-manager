@@ -14,6 +14,8 @@ DIST    ?= dist
 LDFLAGS := -s -w -X main.version=$(VERSION)
 # the packages' version: the tag's number without its v (v0.27.0 → 0.27.0)
 PKG_VERSION = $(patsubst v%,%,$(VERSION))
+# the exe's version resource: numbers only (v0.27.0-3-gabc → 0.27.0)
+WIN_VERSION = $(firstword $(subst -, ,$(PKG_VERSION)))
 # DIST as the toolchain container sees it (the repository is mounted at /work); DIST must be inside the repository
 DIST_IN_DOCKER = $(patsubst $(abspath ..)/%,/work/%,$(abspath $(DIST)))
 NAME    := ad-manager-desktop
@@ -29,7 +31,10 @@ frontend: ## The SPA in desktop mode → frontend/dist (embedded)
 linux: frontend ## bin/linux/ad-manager-desktop (production build, CGO)
 	$(GO) go build -tags production -trimpath -ldflags "$(LDFLAGS)" -o bin/linux/$(NAME) .
 
-windows: frontend ## bin/windows/ad-manager-desktop.exe (production build, no CGO)
+windows: frontend ## bin/windows/ad-manager-desktop.exe (production build, no CGO; icon, manifest and version)
+	$(GO) go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64 --out rsrc --manifest gui \
+		--icon packaging/icon-256.png --product-name "AD Manager" --file-description "AD Manager desktop" \
+		--original-filename $(NAME).exe --product-version $(WIN_VERSION) --file-version $(WIN_VERSION)
 	$(GO) env GOOS=windows CGO_ENABLED=0 go build -tags production -trimpath -ldflags "$(LDFLAGS) -H windowsgui" -o bin/windows/$(NAME).exe .
 
 packages: linux ## .deb and .rpm of the Linux build into DIST (nfpm, in the toolchain image)

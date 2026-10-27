@@ -20,6 +20,8 @@
 	<string>__VERSION__</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>12.0</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AD Manager connects to your AD Manager panel, which is usually on the local network.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

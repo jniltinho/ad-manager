@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -13,6 +14,7 @@ import (
 // windowState is where the operator left the window, kept in a private desktop-state/ folder beside desktop.toml.
 type windowState struct {
 	X, Y, Width, Height int
+	Maximised           bool `json:",omitempty"`
 }
 
 // stateDir is the private folder of this app's own state, beside desktop.toml: 0700, refused when it is a link or
@@ -46,34 +48,72 @@ func (d *desktop) loadWindow(o *application.WebviewWindowOptions) *windowState {
 		return nil
 	}
 	o.Width, o.Height = s.Width, s.Height
+	if s.Maximised {
+		o.StartState = application.WindowStateMaximised
+	}
 	return &s
 }
 
-// placeWindow puts the window back where it was when that is still on a screen.
+// placeWindow puts the window back where and as large as it was (Bounds and SetBounds measure the same way on every
+// platform; the creation size does not on macOS), where that is still on a screen, then fits a window larger than its
+// screen's work area (the default size on a small screen), centred, so its title bar stays reachable.
 func (d *desktop) placeWindow(w *application.WebviewWindow, s *windowState) {
-	if s == nil {
+	if s != nil && s.Maximised {
+		if !w.IsMaximised() {
+			w.Maximise() // macOS: Wails zooms before it centres the window, which undoes the zoom
+		}
 		return
 	}
-	for _, sc := range d.app.Screen.GetAll() {
+	if s != nil {
+		w.SetSize(s.Width, s.Height)
+		for _, sc := range d.app.Screen.GetAll() {
+			a := sc.WorkArea
+			if s.X >= a.X && s.Y >= a.Y && s.X+64 <= a.X+a.Width && s.Y+64 <= a.Y+a.Height {
+				w.SetBounds(application.Rect{X: s.X, Y: s.Y, Width: s.Width, Height: s.Height})
+				go settle(w, s.X, s.Y)
+				break
+			}
+		}
+	}
+	if sc, err := w.GetScreen(); err == nil && sc != nil {
 		a := sc.WorkArea
-		if s.X >= a.X && s.Y >= a.Y && s.X+64 <= a.X+a.Width && s.Y+64 <= a.Y+a.Height {
-			w.SetPosition(s.X, s.Y)
-			return
+		if wd, ht := w.Size(); wd > a.Width || ht > a.Height {
+			w.SetSize(min(wd, a.Width), min(ht, a.Height))
+			w.Center()
 		}
 	}
 }
 
-// saveWindow keeps the window's place and size for the next start (a private file, through a temporary one).
-func (d *desktop) saveWindow(w *application.WebviewWindow) {
-	if w.IsMaximised() || w.IsMinimised() || w.IsFullscreen() {
+// settle moves the window by what the window manager added to the position it was given: on X11 Position reads the
+// client area and SetPosition places the frame, so the window would move down by its title bar at every start.
+func settle(w *application.WebviewWindow, x, y int) {
+	time.Sleep(300 * time.Millisecond) // the window manager places the window asynchronously
+	gx, gy := w.Position()
+	if dx, dy := gx-x, gy-y; (dx != 0 || dy != 0) && abs(dx) < 100 && abs(dy) < 100 {
+		w.SetPosition(x-dx, y-dy)
+	}
+}
+
+func abs(n int) int { return max(n, -n) }
+
+// saveWindow keeps the window's place and size for the next start (a private file, through a temporary one). A
+// maximised window keeps last, the normal size it started with, and starts maximised again.
+func (d *desktop) saveWindow(w *application.WebviewWindow, last *windowState) {
+	s := windowState{Maximised: w.IsMaximised()}
+	switch {
+	case w.IsMinimised() || w.IsFullscreen():
 		return
+	case s.Maximised:
+		s.X, s.Y, s.Width, s.Height = last.X, last.Y, last.Width, last.Height
+	default:
+		b := w.Bounds()
+		s.X, s.Y, s.Width, s.Height = b.X, b.Y, b.Width, b.Height
 	}
 	dir, err := d.stateDir()
 	if err != nil {
 		return
 	}
-	b := w.Bounds()
-	data, _ := json.Marshal(windowState{X: b.X, Y: b.Y, Width: b.Width, Height: b.Height})
+	data, _ := json.Marshal(s)
 	tmp, err := os.CreateTemp(dir, ".window-*.json")
 	if err != nil {
 		return

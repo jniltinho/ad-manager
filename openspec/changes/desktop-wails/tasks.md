@@ -112,7 +112,19 @@
 - [x] 5.6 nfpm `.deb` (`libgtk-4-1, libwebkitgtk-6.0-4`) and `.rpm` (`gtk4, webkitgtk6.0`).
 - [ ] 5.7 G3 runs: Ubuntu 24.04, Debian 13, Fedora 40+, Windows 11, Windows Server 2022 with WebView2, macOS 14, and
       GPU-less Linux and Hyper-V VMs with painted-frame checks. Write the G3 and G4 results, and any written
-      waivers, in `design.md`.
+      waivers, in `design.md`. Windows 11 Enterprise 25H2 (Vagrant `win11`, WebView2 151, 1024×768): Configure,
+      certificate trust, sign-in, Home and Users, CSV export through the native save dialog, maximised restart and
+      single instance pass against the demo panel; no UAC prompt. Fixed there: the first window was larger than the
+      screen (title bar out of reach). macOS Sequoia 15.8 (Reims GUI KVM VM, x86_64, built on the Mac): Configure,
+      trust, sign-in, Users, CSV export through the native save panel (0600), Cmd+V/Cmd+A/Cmd+Q through the default
+      menu, zoomed restart pass. Fixed there: Cmd+Q saved no window state; the restored size grew by the title bar
+      each start; a zoomed window started unzoomed; the Dock showed the square runtime icon instead of the .app's;
+      macOS 15 asks for Local Network access on the first connection to a LAN panel (now explained in Info.plist,
+      and a refused connection says where to allow it). Linux (X11, two screens): place, size and maximised state
+      stable over open/close cycles. Fixed there: the state saved on close was all zero (Wails' own WindowClosing
+      listener marks the window destroyed first: saved from a hook now); the window moved down by its title bar each
+      start (X11 reads the client position, places the frame: corrected after placing). Windows 11 again with these
+      fixes: fitted first window, stable place and size, maximised restart, restore to the saved size.
 
 ## 6. Phase 4 — preview (gate G5)
 
