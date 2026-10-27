@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.27.1] — 2026-10-27
+
+**The desktop header is the web's: Configure moves to the tab bar.**
+
 ### Changed
 - Desktop app: Configure moves from the header to the tab bar, next to Queues: the header is the web's.
 - Desktop app: Queues shows disabled (the queue monitor needs a browser session to the panel).
