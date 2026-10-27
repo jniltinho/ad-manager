@@ -16,8 +16,9 @@ All notable changes to this project are documented here. The format follows
   - It reads the same `desktop.toml`.
 - Configure (first run, sign-in box, header): test, trust the certificate and save. This computer's language, theme,
   look and safe rendering save without a test.
-- The window keeps its place and size and has the app's icon; one window per configuration file. It fills the window
-  at Full HD, QHD and 4K.
+- The window keeps its place, size and maximised state and has the app's icon; one window per configuration file. It
+  fills the window at Full HD, QHD and 4K, and fits a smaller screen. The page gets no microphone, camera, location,
+  notifications or clipboard reading.
 - Linux packages: `.deb` and `.rpm` (they bring GTK4 and WebKitGTK 6.0). Linux needs Ubuntu 24.04+, Debian 13+,
   Fedora 40+ or RHEL 10+. Windows needs WebView2.
 - The Rust app moves to `archive/desktop-rust/` (code only, as `archive/desktop-go/`).

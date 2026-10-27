@@ -13,6 +13,7 @@ import (
 // windowState is where the operator left the window, kept in a private desktop-state/ folder beside desktop.toml.
 type windowState struct {
 	X, Y, Width, Height int
+	Maximised           bool `json:",omitempty"`
 }
 
 // stateDir is the private folder of this app's own state, beside desktop.toml: 0700, refused when it is a link or
@@ -46,11 +47,26 @@ func (d *desktop) loadWindow(o *application.WebviewWindowOptions) *windowState {
 		return nil
 	}
 	o.Width, o.Height = s.Width, s.Height
+	if s.Maximised {
+		o.StartState = application.WindowStateMaximised
+	}
 	return &s
 }
 
-// placeWindow puts the window back where it was when that is still on a screen.
+// placeWindow puts the window back where it was when that is still on a screen, and fits a window larger than its
+// screen's work area (the default size on a small screen), centred, so its title bar stays reachable.
 func (d *desktop) placeWindow(w *application.WebviewWindow, s *windowState) {
+	if s != nil && s.Maximised {
+		return
+	}
+	if sc, err := w.GetScreen(); err == nil && sc != nil {
+		a := sc.WorkArea
+		if wd, ht := w.Size(); wd > a.Width || ht > a.Height {
+			w.SetSize(min(wd, a.Width), min(ht, a.Height))
+			w.Center()
+			return
+		}
+	}
 	if s == nil {
 		return
 	}
@@ -63,17 +79,24 @@ func (d *desktop) placeWindow(w *application.WebviewWindow, s *windowState) {
 	}
 }
 
-// saveWindow keeps the window's place and size for the next start (a private file, through a temporary one).
-func (d *desktop) saveWindow(w *application.WebviewWindow) {
-	if w.IsMaximised() || w.IsMinimised() || w.IsFullscreen() {
+// saveWindow keeps the window's place and size for the next start (a private file, through a temporary one). A
+// maximised window keeps last, the normal size it started with, and starts maximised again.
+func (d *desktop) saveWindow(w *application.WebviewWindow, last *windowState) {
+	s := windowState{Maximised: w.IsMaximised()}
+	switch {
+	case w.IsMinimised() || w.IsFullscreen():
 		return
+	case s.Maximised:
+		s.X, s.Y, s.Width, s.Height = last.X, last.Y, last.Width, last.Height
+	default:
+		b := w.Bounds()
+		s.X, s.Y, s.Width, s.Height = b.X, b.Y, b.Width, b.Height
 	}
 	dir, err := d.stateDir()
 	if err != nil {
 		return
 	}
-	b := w.Bounds()
-	data, _ := json.Marshal(windowState{X: b.X, Y: b.Y, Width: b.Width, Height: b.Height})
+	data, _ := json.Marshal(s)
 	tmp, err := os.CreateTemp(dir, ".window-*.json")
 	if err != nil {
 		return

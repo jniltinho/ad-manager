@@ -84,7 +84,13 @@ func run(args []string) error {
 		Linux: application.LinuxOptions{ProgramName: iconName},
 		Mac:   application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	}
-	winOpts := application.WebviewWindowOptions{Title: "AD Manager", Width: 1280, Height: 800, MinWidth: 800, MinHeight: 600}
+	winOpts := application.WebviewWindowOptions{Title: "AD Manager", Width: 1280, Height: 800, MinWidth: 800, MinHeight: 600,
+		// the panel needs none of these; without a policy WebView2 grants them all without asking
+		Permissions: map[application.PermissionType]application.Permission{
+			application.PermissionMicrophone: application.PermissionDeny, application.PermissionCamera: application.PermissionDeny,
+			application.PermissionGeolocation: application.PermissionDeny, application.PermissionNotifications: application.PermissionDeny,
+			application.PermissionClipboardRead: application.PermissionDeny,
+		}}
 	saved := d.loadWindow(&winOpts)
 	if *safeGPU || d.safeGPU() {
 		safeGraphics(&opts, &winOpts)
@@ -120,7 +126,11 @@ func run(args []string) error {
 			d.placeWindow(win, saved)
 		})
 	})
-	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { d.saveWindow(win) })
+	last := saved
+	if last == nil {
+		last = &windowState{Width: winOpts.Width, Height: winOpts.Height}
+	}
+	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { d.saveWindow(win, last) })
 	smokeRun(app, win, d, files)
 	return app.Run()
 }
