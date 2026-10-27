@@ -123,7 +123,8 @@
       and a refused connection says where to allow it). Linux (X11, two screens): place, size and maximised state
       stable over open/close cycles. Fixed there: the state saved on close was all zero (Wails' own WindowClosing
       listener marks the window destroyed first: saved from a hook now); the window moved down by its title bar each
-      start (X11 reads the client position, places the frame: corrected after placing).
+      start (X11 reads the client position, places the frame: corrected after placing). Windows 11 again with these
+      fixes: fitted first window, stable place and size, maximised restart, restore to the saved size.
 
 ## 6. Phase 4 — preview (gate G5)
 

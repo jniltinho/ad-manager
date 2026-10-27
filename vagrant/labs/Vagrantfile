@@ -60,6 +60,12 @@ Vagrant.configure("2") do |config|
         vb.gui = false
       end
       w.vm.provision "isolate", type: "shell", path: "isolate-windows.ps1", env: ISOLATE
+      # the workstation signs in by itself (desktop app tests need a session); LAB_WIN_PASSWORD defaults to the
+      # box's public vagrant/vagrant, never a real account
+      if name == "win11"
+        w.vm.provision "autologon", type: "shell", path: "autologon.ps1", reboot: true,
+                       env: { "LAB_WIN_PASSWORD" => ENV.fetch("LAB_WIN_PASSWORD", "vagrant") }
+      end
     end
   end
 
