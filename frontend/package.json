@@ -5,11 +5,14 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
+    "dev:desktop": "vp dev --mode desktop",
+    "build:desktop": "vp build --mode desktop",
     "check": "vp check",
     "test": "vp test",
     "test:visual": "playwright test"
   },
   "dependencies": {
+    "@wailsio/runtime": "3.0.0",
     "lucide-vue-next": "^1.0.0",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0"

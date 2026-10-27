@@ -1,4 +1,4 @@
-.PHONY: desktop desktop-check desktop-test desktop-shots desktop-themes server deb all frontend build build-prod test test-integration check run dev docker-build docker-allinone docker-push samba-up samba-down clean
+.PHONY: desktop-wails desktop-wails-check desktop desktop-check desktop-test desktop-shots desktop-themes server deb all frontend build build-prod test test-integration check run dev docker-build docker-allinone docker-push samba-up samba-down clean
 
 BINARY := ad-manager
 DIST   := dist
@@ -86,6 +86,16 @@ desktop:
 
 desktop-check desktop-test desktop-shots desktop-themes:
 	$(MAKE) -C desktop $(patsubst desktop-%,%,$@)
+
+# Desktop app on Wails v3 (preview, desktop-wails/, openspec/changes/desktop-wails): the web SPA in desktop mode and
+# a Go backend, built in Docker. Not part of `make build` until it replaces the Rust app.
+#   make desktop-wails         Linux and Windows archives and the Linux binary in dist/desktop-wails/
+#   make desktop-wails-check   gofmt, go vet, go test
+desktop-wails:
+	$(MAKE) -C desktop-wails dist DIST=$(CURDIR)/$(DIST)/desktop-wails
+
+desktop-wails-check:
+	$(MAKE) -C desktop-wails check
 
 # .deb package (nfpm) in dist/: binary, systemd units, config 0640 and docs.
 deb: build-prod

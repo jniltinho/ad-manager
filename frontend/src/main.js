@@ -42,4 +42,6 @@ const router = createRouter({
 router.afterEach((to) => (document.title = `${t(to.meta.title || '')} · AD Manager`))
 
 installNativeReplacements()
+// the Wails desktop's own code (Configure, file saving, external links): not part of the web build
+if (import.meta.env.MODE === 'desktop') await (await import('./desktop/index.js')).install(router)
 createApp(App).use(router).mount('#app')
