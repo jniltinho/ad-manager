@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.27.0] — 2026-10-27
+
 **The desktop app is the web panel in its own window: Go + Wails v3 replaces the Rust app.**
 
 ### Changed
