@@ -450,8 +450,10 @@ panel (`domain.local`):
   until it lands.
 - **Windows and macOS (milestone 3's CI, the smoke build without a panel)**: both start, load the SPA and answer
   a binding. Bridge times for 1, 16, 32, 64 and 128 MiB, each body echoed whole:
-  - WebView2 (`windows-latest`): 248 ms, 3.6 s, 7.1 s, 14.3 s and 28.9 s (about 4.5 MB/s, through Wails'
-    chunked transport). This confirms keeping files off the bridge, and the 32 MiB cap.
+  - WebView2 (`windows-latest`): 248 ms, 3.6 s, 7.1 s, 14.3 s and 28.9 s on the first run (about 4.5 MB/s); a
+    later run took 437 ms, 6.3 s, 12.5 s, 25.4 s and 51.2 s (about 2.6 MB/s). Wails' transport is that slow, and
+    its speed varies with the runner. This confirms keeping files off the bridge, and the 32 MiB cap (up to ~12 s
+    for a form at the cap). The smoke checks the binding first and waits up to 6 minutes for the bridge.
   - WKWebView (`macos-14`): 11 ms, 86 ms, 242 ms, 507 ms and 1.1 s.
 - **Linux sandbox**: WebKitGTK 6.0 runs its web process in a bubblewrap sandbox that needs unprivileged user
   namespaces. On a system whose policy blocks them, WebKit aborts at start (`bwrap: setting up uid map: Permission
