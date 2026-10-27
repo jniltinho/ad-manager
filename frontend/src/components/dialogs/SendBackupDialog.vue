@@ -1,8 +1,9 @@
 <script setup>
 // Send a backup (.tar.gz) to a server: streamed, with progress. Calls "done" with the server's answer once stored.
 import { ref } from 'vue'
-import { enc } from '../../api'
-import { serverText, t } from '../../i18n'
+import { enc, platform } from '../../api'
+import { t } from '../../i18n'
+import { sendFile } from '../../util'
 import { toast } from '../../toasts'
 import Modal from '../Modal.vue'
 
@@ -20,30 +21,19 @@ const kind = ref(props.kinds[0])
 const file = ref(null)
 const progress = ref(-1)
 
-function send() {
-  if (!file.value) return
+// the web sends the file picked below; the desktop picks and streams it in Go (sendFile)
+const desktop = !!platform.sendFile
+async function send() {
+  if (!file.value && !desktop) return
   progress.value = 0
-  const req = new XMLHttpRequest()
-  req.open('POST', `/api${props.base}/upload?kind=${enc(kind.value)}`)
-  req.upload.onprogress = (e) => e.lengthComputable && (progress.value = Math.round((100 * e.loaded) / e.total))
-  req.onload = () => {
-    let data = {}
-    try {
-      data = JSON.parse(req.responseText)
-    } catch {
-      /* not JSON */
-    }
-    if (req.status !== 200) {
-      progress.value = -1
-      return toast.error(serverText(data.error) || `HTTP ${req.status}`)
-    }
-    props.onDone?.(data)
-  }
-  req.onerror = () => {
+  try {
+    const data = await sendFile(`/api${props.base}/upload?kind=${enc(kind.value)}`, file.value, (p) => (progress.value = p))
+    if (data) props.onDone?.(data)
+    else progress.value = -1 // the desktop's file dialog was cancelled
+  } catch (e) {
     progress.value = -1
-    toast.error(t('The upload failed (connection).'))
+    toast.error(e.message)
   }
-  req.send(file.value)
 }
 </script>
 
@@ -58,7 +48,19 @@ function send() {
       </div>
       <div>
         <label class="lbl" for="sfile">{{ t('File (.tar.gz downloaded from a Backup page)') }}</label>
-        <input id="sfile" type="file" accept=".gz,.tgz,application/gzip" class="inp" required @change="file = $event.target.files[0]" />
+        <input
+          v-if="!desktop"
+          id="sfile"
+          type="file"
+          accept=".gz,.tgz,application/gzip"
+          class="inp"
+          required
+          @change="file = $event.target.files[0]"
+        />
+        <p v-else id="sfile" class="text-fg-muted">{{ t('Send asks for the file.') }}</p>
+      </div>
+      <div v-if="desktop && progress >= 0">
+        <button type="button" class="btn-ghost" @click="platform.cancelSend()">{{ t('Stop sending') }}</button>
       </div>
       <p class="text-fg-muted">
         {{

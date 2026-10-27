@@ -8,7 +8,7 @@ import { enc, get, post } from '../api'
 import { confirmTyped, showAlert } from '../dialogs'
 import { serverText, t } from '../i18n'
 import { toast } from '../toasts'
-import { formatDate } from '../util'
+import { formatDate, saveFile } from '../util'
 import Modal from './Modal.vue'
 
 const props = defineProps({
@@ -156,7 +156,14 @@ async function empty() {
                   <td class="text-right whitespace-nowrap">{{ size(f.size) }}</td>
                   <td class="whitespace-nowrap">{{ formatDate(f.modified) }}</td>
                   <td>
-                    <a class="act px-0" :href="fileUrl(f.path)" :title="t('Download')" download><Download :size="13" /></a>
+                    <a
+                      class="act px-0"
+                      :href="fileUrl(f.path)"
+                      :title="t('Download')"
+                      download
+                      @click.prevent="saveFile({ name: f.path.split('/').pop(), apiPath: fileUrl(f.path) })"
+                      ><Download :size="13"
+                    /></a>
                   </td>
                 </tr>
                 <tr v-if="!files.length">

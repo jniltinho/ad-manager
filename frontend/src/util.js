@@ -1,7 +1,7 @@
-// Dependency-free helpers: dates, CSV download, password generator.
+// Dependency-free helpers: dates, file saving and sending, CSV download, password generator.
 import { ref, watch } from 'vue'
-import { auth } from './api'
-import { locale, t } from './i18n'
+import { apiRaw, auth, endSession, platform, session } from './api'
+import { locale, serverText, t } from './i18n'
 
 // spinner is true while busy() is, and for at least `ms` after it turned true: a refresh icon still visibly turns
 // when the reload answers at once.
@@ -50,11 +50,60 @@ export function downloadCsv(name, rows, columns) {
   const esc = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`
   const val = (r, c) => (typeof c === 'function' ? c(r) : r[c])
   const txt = [columns.map((c) => esc(c[0])).join(';'), ...rows.map((r) => columns.map((c) => esc(val(r, c[1]))).join(';'))].join('\r\n')
+  return saveFile({ name, text: '﻿' + txt })
+}
+
+// saveFile saves text built here, or a panel download (apiPath "/api/…"), as name. The web lets the browser
+// download it; the desktop saves it through Go with a native dialog (platform.saveFile, src/desktop).
+export async function saveFile({ name, text, apiPath }) {
+  if (platform.saveFile) return platform.saveFile({ name, text, apiPath })
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob(['﻿' + txt], { type: 'text/csv;charset=utf-8' }))
+  a.href = apiPath ?? URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }))
+  a.download = name
+  a.click()
+  if (!apiPath) URL.revokeObjectURL(a.href)
+}
+
+// savePanelBlob saves a panel answer made on demand (a GPO backup), named by its Content-Disposition on the web; the
+// desktop has Go make the request and write the answer into the file the operator picks
+export async function savePanelBlob(apiPath, fallbackName) {
+  if (platform.saveFile) return platform.saveFile({ name: fallbackName, apiPath })
+  const r = await apiRaw(apiPath.replace(/^\/api/, ''))
+  if (!r.ok) throw new Error(serverText((await r.json().catch(() => ({}))).error) || `HTTP ${r.status}`)
+  const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || fallbackName
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(await r.blob())
   a.download = name
   a.click()
   URL.revokeObjectURL(a.href)
+}
+
+// sendFile POSTs a file as the raw body of apiPath ("/api/…") with progress (0–100) and resolves with the panel's
+// JSON answer. The web sends the File picked in the form; the desktop picks and streams it in Go (platform.sendFile),
+// and resolves null when the operator cancels its dialog.
+export function sendFile(apiPath, file, onProgress) {
+  if (platform.sendFile) return platform.sendFile(apiPath, onProgress)
+  const gen = session()
+  return new Promise((resolve, reject) => {
+    const req = new XMLHttpRequest()
+    req.open('POST', apiPath)
+    req.setRequestHeader('X-ADM-Session', String(gen))
+    req.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((100 * e.loaded) / e.total))
+    req.onload = () => {
+      let data = {}
+      try {
+        data = JSON.parse(req.responseText)
+      } catch {
+        /* not JSON */
+      }
+      if (gen !== session()) return // an answer of an earlier session never settles
+      if (req.status === 401) endSession()
+      if (req.status === 200) resolve(data)
+      else reject(new Error(serverText(data.error) || `HTTP ${req.status}`))
+    }
+    req.onerror = () => gen === session() && reject(new Error(t('The upload failed (connection).')))
+    req.send(file)
+  })
 }
 
 // generatePassword returns n characters (configured length by default) with

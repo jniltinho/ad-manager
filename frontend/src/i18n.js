@@ -4,9 +4,13 @@
 import { ref } from 'vue'
 
 const dictionaries = { 'pt-BR': {} }
-for (const mod of Object.values(import.meta.glob('./locales/pt-BR/*.js', { eager: true }))) {
+// the desktop's own catalog (desktop.js) is added by the desktop build only (src/desktop)
+for (const mod of Object.values(import.meta.glob(['./locales/pt-BR/*.js', '!./locales/pt-BR/desktop.js'], { eager: true }))) {
   Object.assign(dictionaries['pt-BR'], mod.default)
 }
+
+// addTranslations merges a catalog loaded later (the desktop's)
+export const addTranslations = (l, dict) => Object.assign(dictionaries[l], dict)
 
 export const languages = [
   ['pt-BR', 'Português'],
@@ -39,8 +43,16 @@ export function setLang(l) {
 }
 
 // useDefault applies the company default unless the operator already chose.
+// pinLang fixes the language over the panel's default (the desktop's desktop.toml lang); '' lets it follow again
+let pinned = false
+export function pinLang(l) {
+  pinned = !!l
+  if (l) lang.value = l
+  document.documentElement.lang = lang.value
+}
+
 export function useDefault(l) {
-  if (!stored() && l) lang.value = l
+  if (!pinned && !stored() && l) lang.value = l
   document.documentElement.lang = lang.value
 }
 
@@ -68,6 +80,7 @@ export function serverText(s) {
 
 function toPortuguese(s) {
   if (catalog.messages[s]) return catalog.messages[s]
+  if (dictionaries['pt-BR'][s]) return dictionaries['pt-BR'][s] // the desktop's own messages (Go) are in its catalog
   for (const [re, tr] of catalog.patterns) if (re.test(s)) return s.replace(re, tr)
   const i = s.indexOf(': ')
   return i < 0 ? s : `${toPortuguese(s.slice(0, i))}: ${toPortuguese(s.slice(i + 2))}`

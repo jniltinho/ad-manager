@@ -8,7 +8,7 @@ import { del, get, post, put, enc } from '../api'
 import { confirmTyped, showAlert } from '../dialogs'
 import { serverText, t } from '../i18n'
 import { toast } from '../toasts'
-import { formatDate, spinner } from '../util'
+import { formatDate, saveFile, spinner } from '../util'
 import BackupTabs from '../components/BackupTabs.vue'
 import RestoreBackupDialog from '../components/dialogs/RestoreBackupDialog.vue'
 import SendBackupDialog from '../components/dialogs/SendBackupDialog.vue'
@@ -93,9 +93,7 @@ async function remove(b) {
 }
 
 function download(b) {
-  const a = document.createElement('a')
-  a.href = `/api${base(current.value)}/${enc(b.id)}/download`
-  a.click()
+  saveFile({ name: b.file || b.id + '.tar.gz', apiPath: `/api${base(current.value)}/${enc(b.id)}/download` })
 }
 
 function showLog(b) {
@@ -132,9 +130,16 @@ function showRestoreLog(r) {
 }
 
 // ── send a backup (.tar.gz) to a server: streamed, with progress
-const sending = ref(false)
-function sent(data) {
-  sending.value = false
+// the open send dialog: { n, done }. An upload goes on when its dialog closes (the list still reloads), but only its
+// own dialog closes when it ends: a newer one stays open
+const sending = ref(null)
+let sends = 0
+function openSend() {
+  const n = ++sends
+  sending.value = { n, done: (data) => sent(data, n) }
+}
+function sent(data, n) {
+  if (sending.value?.n === n) sending.value = null
   toast.success(t('Backup sent: {id}', { id: data.id }))
   load()
 }
@@ -269,7 +274,7 @@ load().then(() => current.value && pick(current.value))
               </label>
             </div>
             <button class="btn" :disabled="busy"><Archive :size="14" /> {{ busy ? '…' : t('Back up now') }}</button>
-            <button v-if="current.upload_kinds?.length" type="button" class="btn-ghost" @click="sending = true">
+            <button v-if="current.upload_kinds?.length" type="button" class="btn-ghost" @click="openSend">
               <Upload :size="14" /> {{ t('Send a backup') }}
             </button>
           </form>
@@ -423,11 +428,12 @@ load().then(() => current.value && pick(current.value))
 
   <SendBackupDialog
     v-if="sending"
+    :key="sending.n"
     :base="base(current)"
     :kinds="current.upload_kinds"
     :max-mib="current.upload_max_mib"
     :kind-name="kindName"
-    @close="sending = false"
-    @done="sent"
+    @close="sending = null"
+    @done="sending.done"
   />
 </template>
