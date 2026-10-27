@@ -363,12 +363,14 @@
 /* Large screens: the panel is dense (12px). On QHD/4K without OS scaling
    (CSS width ≥ 2400px) everything grows proportionally. With OS scaling
    (125%/150%/200%) the CSS width stays at Full HD and nothing changes here. */
-/* --view-h is the usable window height in CSS px after the zoom: Chrome also
-   scales dvh heights, so without it the panel overflows the window and the
-   footer disappears. Use calc(var(--view-h) - X) instead of 100dvh. */
+/* --view-h is the usable window height in CSS px after the zoom. Use calc(var(--view-h) - X) instead of 100dvh:
+   engines disagree on whether dvh follows the zoom (Chrome scales it, WebKit does not), so main.js measures it
+   (a fixed, full-window element) and this is only the value until then.
+   --app-max-w is the widest the panel's box gets (the desktop app fills its window instead). */
 :root {
   --z: 1;
   --view-h: calc(100dvh / var(--z));
+  --app-max-w: 1840px;
 }
 @media (min-width: 2400px) {
   :root {

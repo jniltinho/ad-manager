@@ -285,11 +285,28 @@ Content-Security-Policy that forbids frames, objects and foreign form targets. O
 - **THEN** its `Content-Security-Policy` has `frame-src 'none'`, `child-src 'none'`, `object-src 'none'` and
   `form-action 'self'`, and no `ws:` source
 
-### Requirement: Wails desktop window and graphics
+### Requirement: Wails desktop fills its window
+The desktop's panel SHALL fill its window at every size (16 px margin), without the web's widest box, and SHALL keep
+the web's zoom steps (1.25× from 2400 and 1.6× from 3200 CSS px of window width). The usable height SHALL be measured
+from the window, not computed from `dvh`, so that WebKit (which does not scale `dvh` with the zoom) and Chrome agree.
+
+#### Scenario: QHD at OS scale 1
+- **WHEN** the window is 2560×1440 at OS scale 1
+- **THEN** the zoom is 1.25, the panel is 2528 px wide and its footer sits 16 px above the window's bottom
+
+#### Scenario: 4K at OS scale 2
+- **WHEN** a 3840×2160 screen runs at OS scale 2 and the window fills it
+- **THEN** the page is 1920 CSS px wide with no extra zoom, drawn at 2× and filling the window
+
+
 The window SHALL open at 1280×800 (minimum 800×600) and be restored where the operator left it, on a visible
 screen. A second start SHALL focus the running window. `--safe-gpu` or `[graphics] safe = true` SHALL apply a
 workaround preset: on Linux, GTK's software renderer and WebKit without DMA-BUF and compositing; on Windows,
 WebView2 with `--disable-gpu`. On macOS the option SHALL NOT be offered.
+
+#### Scenario: The app's icon
+- **WHEN** the window opens on Linux (X11)
+- **THEN** the window carries the AD Manager icon (`_NET_WM_ICON`) and the program name `ad-manager-desktop-wails`
 
 #### Scenario: Restored
 - **WHEN** the app starts again after the operator moved and resized the window

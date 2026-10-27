@@ -48,6 +48,8 @@ export function themes() {
 // install wires the desktop before the app mounts.
 export async function install() {
   window.__admDesktop = DESKTOP_SENTINEL
+  // the desktop's panel fills its window (the web keeps its widest box: style.css --app-max-w)
+  document.documentElement.style.setProperty('--app-max-w', 'none')
   addTranslations('pt-BR', catalog)
   const [gen, limit, origin, st] = await Promise.all([shell('Session'), shell('UploadLimit'), shell('PanelURL'), configure('State')])
   setGeneration(gen)

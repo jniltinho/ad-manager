@@ -110,7 +110,7 @@ onSessionChange(() => {
   <Login v-else-if="!auth.user" />
   <div
     v-else
-    class="mx-auto my-4 flex h-[calc(var(--view-h)-32px)] w-[calc(100%-32px)] max-w-[1840px] flex-col overflow-hidden bg-surface text-fg shadow-(--shadow-app) outline outline-line"
+    class="mx-auto my-4 flex h-[calc(var(--view-h)-32px)] w-[calc(100%-32px)] max-w-(--app-max-w) flex-col overflow-hidden bg-surface text-fg shadow-(--shadow-app) outline outline-line"
   >
     <header class="flex flex-wrap items-center gap-4 bg-header bg-(image:--bg-header) px-5 py-3">
       <img v-if="brand.logo" :src="logoUrl()" :alt="brand.company || t('Company logo')" class="logo-plate h-10 max-w-64 object-contain" />

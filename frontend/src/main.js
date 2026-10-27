@@ -41,6 +41,13 @@ const router = createRouter({
 })
 router.afterEach((to) => (document.title = `${t(to.meta.title || '')} · AD Manager`))
 
+// --view-h (style.css): the window's height in the page's CSS px after the zoom steps, measured
+const viewport = document.createElement('div')
+viewport.setAttribute('aria-hidden', 'true')
+viewport.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none'
+document.body.append(viewport)
+new ResizeObserver(() => document.documentElement.style.setProperty('--view-h', `${viewport.offsetHeight}px`)).observe(viewport)
+
 installNativeReplacements()
 // the Wails desktop's own code (Configure, file saving, external links): not part of the web build
 if (import.meta.env.MODE === 'desktop') await (await import('./desktop/index.js')).install(router)
