@@ -30,13 +30,17 @@ var (
 
 func smokeRoutes(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/smoke/echo" && r.URL.Path != "/smoke/report" {
+		if r.URL.Path == "/smoke/echo" {
+			say("SMOKE echo %d bytes announced", r.ContentLength)
+		} else if r.URL.Path != "/smoke/report" {
 			say("SMOKE request %s %s", r.Method, r.URL.Path) // what the webview asked for (a diagnosis when JS stays silent)
 		}
 		switch r.URL.Path {
 		case "/smoke/echo": // the request body back: both directions of the bridge
+			b, err := io.ReadAll(r.Body)
+			say("SMOKE echo read %d bytes err=%v", len(b), err)
 			w.Header().Set("Content-Type", "application/octet-stream")
-			_, _ = io.Copy(w, r.Body)
+			_, _ = w.Write(b)
 		case "/smoke/report": // "<name> <value>"
 			b, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 			name, value, _ := strings.Cut(string(b), " ")
@@ -51,19 +55,24 @@ func smokeRoutes(next http.Handler) http.Handler {
 }
 
 // bridgeJS posts bodies of growing size to /smoke/echo and reports whether each came back whole, and how fast.
+// Each size is reported as it ends ("bridge-<n>"), and a request taking more than 60 s is aborted.
 const bridgeJS = `(async () => {
   const out = {}
   let ok = true
   for (const mb of [1, 16, 32, 64, 128]) {
     const body = new Uint8Array(mb << 20); body[0] = 7; body[body.length - 1] = 9
     const t = performance.now()
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), 60000)
     try {
-      const r = await fetch('/smoke/echo', { method: 'POST', body })
+      const r = await fetch('/smoke/echo', { method: 'POST', body, signal: abort.signal })
       const got = new Uint8Array(await r.arrayBuffer())
       const whole = got.length === body.length && got[0] === 7 && got[got.length - 1] === 9
       ok = ok && whole
-      out[mb + 'MiB'] = { ok: whole, ms: Math.round(performance.now() - t) }
-    } catch (e) { ok = false; out[mb + 'MiB'] = { error: String(e) } }
+      out[mb + 'MiB'] = { ok: whole, ms: Math.round(performance.now() - t), status: r.status, got: got.length }
+    } catch (e) { ok = false; out[mb + 'MiB'] = { error: String(e), ms: Math.round(performance.now() - t) } }
+    clearTimeout(timer)
+    await fetch('/smoke/report', { method: 'POST', body: 'bridge-' + mb + ' ' + JSON.stringify(out[mb + 'MiB']) })
   }
   await fetch('/smoke/report', { method: 'POST', body: 'bridge ' + (ok ? 'ok ' : 'failed ') + JSON.stringify(out) })
 })()`
@@ -117,10 +126,10 @@ func smokeRun(app *application.App, win *application.WebviewWindow, d *desktop, 
 		if os.Getenv("ADM_SMOKE_PANEL") != "" {
 			check(p != nil && p.Generation() > 1, "signed in (a session after the first)")
 		}
-		win.ExecJS(bridgeJS)
-		check(strings.HasPrefix(report("bridge", 60*time.Second), "ok "), "bridge")
 		win.ExecJS(`fetch('/smoke/report', { method: 'POST', body: 'binding ' + window.__admDesktopVersion })`)
 		check(report("binding", 10*time.Second) == version, "binding")
+		win.ExecJS(bridgeJS)
+		check(strings.HasPrefix(report("bridge", 360*time.Second), "ok "), "bridge")
 		if p != nil && os.Getenv("ADM_SMOKE_PANEL") != "" {
 			ok, err := files.SaveFromPanel(p.Generation(), "/api/export/users", "users.csv")
 			st, serr := os.Stat(filepath.Join(dir, "users.csv"))
