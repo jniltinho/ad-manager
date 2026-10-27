@@ -30,6 +30,9 @@ var (
 
 func smokeRoutes(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/smoke/echo" && r.URL.Path != "/smoke/report" {
+			say("SMOKE request %s %s", r.Method, r.URL.Path) // what the webview asked for (a diagnosis when JS stays silent)
+		}
 		switch r.URL.Path {
 		case "/smoke/echo": // the request body back: both directions of the bridge
 			w.Header().Set("Content-Type", "application/octet-stream")
@@ -108,6 +111,8 @@ func smokeRun(app *application.App, win *application.WebviewWindow, d *desktop, 
 			}
 		}
 		time.Sleep(time.Duration(delay) * time.Second)
+		win.ExecJS(`fetch('/smoke/report', { method: 'POST', body: 'page ' + location.href + ' ' + document.readyState + ' ' + (document.title || '') })`)
+		say("SMOKE page %s", report("page", 10*time.Second))
 		p := d.current()
 		if os.Getenv("ADM_SMOKE_PANEL") != "" {
 			check(p != nil && p.Generation() > 1, "signed in (a session after the first)")
