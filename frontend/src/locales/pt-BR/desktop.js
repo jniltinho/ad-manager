@@ -38,6 +38,8 @@ export default {
     'o certificado do painel não é o confiado em Configurar (mudou): confira com o administrador do painel e confie de novo em Configurar',
   'the panel is being set up: finish its setup wizard in a browser first':
     'o painel está sendo configurado: termine o assistente de configuração num navegador primeiro',
+  'macOS blocks this app from the local network (System Settings, Privacy & Security, Local Network)':
+    'o macOS bloqueia este app na rede local (Ajustes do Sistema, Privacidade e Segurança, Rede Local)',
   'the panel is not configured: open Configure': 'o painel não está configurado: abra Configurar',
   'test the connection before saving': 'teste a conexão antes de salvar',
   "only the panel's /asynqmon and /swagger pages open outside the app": 'só as páginas /asynqmon e /swagger do painel abrem fora do app',

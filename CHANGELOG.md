@@ -19,7 +19,8 @@ All notable changes to this project are documented here. The format follows
 - The window keeps its place, size and maximised state and has the app's icon; one window per configuration file. It
   fills the window at Full HD, QHD and 4K, and fits a smaller screen. The page gets no microphone, camera, location,
   notifications or clipboard reading. The Windows `.exe` carries the icon, its version and a manifest (per-monitor
-  DPI, no administrator).
+  DPI, no administrator). On macOS the app has an icon in the macOS shape, says why it asks for the local network
+  and where to allow it when refused, and keeps the window when quit with Cmd+Q.
 - Linux packages: `.deb` and `.rpm` (they bring GTK4 and WebKitGTK 6.0). Linux needs Ubuntu 24.04+, Debian 13+,
   Fedora 40+ or RHEL 10+. Windows needs WebView2.
 - The Rust app moves to `archive/desktop-rust/` (code only, as `archive/desktop-go/`).

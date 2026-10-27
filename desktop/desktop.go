@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -306,6 +308,9 @@ func (d *desktop) serveTest(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(res)
 }
 
+// errLocalNetwork is macOS's Local Network privacy refusing the panel's address.
+var errLocalNetwork = errors.New("macOS blocks this app from the local network (System Settings, Privacy & Security, Local Network)")
+
 // errSetup is a panel whose setup wizard has not finished.
 var errSetup = errors.New("the panel is being set up: finish its setup wizard in a browser first")
 
@@ -315,6 +320,9 @@ func runTest(ctx context.Context, req testRequest) (TestResult, *trial) {
 		return fail(err)
 	}
 	cert, err := panel.ProbeCert(ctx, req.URL)
+	if runtime.GOOS == "darwin" && errors.Is(err, syscall.EHOSTUNREACH) {
+		err = fmt.Errorf("%w: %w", errLocalNetwork, err) // macOS 15 refuses a LAN address until the app is allowed
+	}
 	if err != nil {
 		return fail(err)
 	}

@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -72,7 +73,6 @@ func run(args []string) error {
 	opts := application.Options{
 		Name:        "AD Manager",
 		Description: "AD Manager desktop",
-		Icon:        appIcon,
 		LogLevel:    slog.LevelInfo, // never Debug: Wails logs binding arguments there
 		Services: []application.Service{application.NewService(shell), application.NewService(files),
 			application.NewService(configure)},
@@ -83,6 +83,9 @@ func run(args []string) error {
 		},
 		Linux: application.LinuxOptions{ProgramName: iconName},
 		Mac:   application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+	}
+	if runtime.GOOS != "darwin" {
+		opts.Icon = appIcon // macOS: the .app's own icon (macOS shape); Wails would replace it in the Dock
 	}
 	winOpts := application.WebviewWindowOptions{Title: "AD Manager", Width: 1280, Height: 800, MinWidth: 800, MinHeight: 600,
 		// the panel needs none of these; without a policy WebView2 grants them all without asking
@@ -105,6 +108,19 @@ func run(args []string) error {
 			}
 		},
 	}
+	last := saved
+	if last == nil {
+		last = &windowState{Width: winOpts.Width, Height: winOpts.Height}
+	}
+	// once: closing the window, or quitting the app (Cmd+Q, the Dock), which closes no window first
+	var saveOnce sync.Once
+	save := func() { saveOnce.Do(func() { d.saveWindow(win, last) }) }
+	opts.ShouldQuit = func() bool {
+		if win != nil {
+			save()
+		}
+		return true
+	}
 	app := application.New(opts)
 	d.app = app
 	// the app's own pages load only once the navigation guard is on (a blank page first where it needs the webview)
@@ -126,11 +142,7 @@ func run(args []string) error {
 			d.placeWindow(win, saved)
 		})
 	})
-	last := saved
-	if last == nil {
-		last = &windowState{Width: winOpts.Width, Height: winOpts.Height}
-	}
-	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { d.saveWindow(win, last) })
+	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { save() })
 	smokeRun(app, win, d, files)
 	return app.Run()
 }

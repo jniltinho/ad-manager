@@ -310,6 +310,14 @@ WebView2 with `--disable-gpu`. On macOS the option SHALL NOT be offered.
 - **WHEN** the app starts for the first time on a 1024×768 screen
 - **THEN** the window fits the screen's work area, centred, with its title bar visible
 
+#### Scenario: Quit from the menu
+- **WHEN** the operator quits with Cmd+Q (or the Dock) without closing the window
+- **THEN** the window's place, size and maximised state are kept, and the next start has the same size
+
+#### Scenario: Local Network on macOS
+- **WHEN** macOS 15 refuses the connection to a panel on the local network because the app is not allowed there
+- **THEN** Configure says that macOS blocks the app from the local network and where to allow it
+
 #### Scenario: Closed maximised
 - **WHEN** the operator maximises the window and closes the app
 - **THEN** the next start opens the window maximised, and restoring it gives the size it had before

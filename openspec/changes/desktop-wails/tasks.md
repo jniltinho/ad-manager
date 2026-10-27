@@ -115,7 +115,12 @@
       waivers, in `design.md`. Windows 11 Enterprise 25H2 (Vagrant `win11`, WebView2 151, 1024×768): Configure,
       certificate trust, sign-in, Home and Users, CSV export through the native save dialog, maximised restart and
       single instance pass against the demo panel; no UAC prompt. Fixed there: the first window was larger than the
-      screen (title bar out of reach).
+      screen (title bar out of reach). macOS Sequoia 15.8 (Reims GUI KVM VM, x86_64, built on the Mac): Configure,
+      trust, sign-in, Users, CSV export through the native save panel (0600), Cmd+V/Cmd+A/Cmd+Q through the default
+      menu, zoomed restart pass. Fixed there: Cmd+Q saved no window state; the restored size grew by the title bar
+      each start; a zoomed window started unzoomed; the Dock showed the square runtime icon instead of the .app's;
+      macOS 15 asks for Local Network access on the first connection to a LAN panel (now explained in Info.plist,
+      and a refused connection says where to allow it).
 
 ## 6. Phase 4 — preview (gate G5)
 

@@ -24,8 +24,8 @@ sed "s/__VERSION__/$version/g" "$here/Info.plist" > "$app/Contents/Info.plist"
 set_dir=$(mktemp -d)/icon.iconset
 mkdir -p "$set_dir"
 for s in 16 32 128 256 512; do
-    sips -z "$s" "$s" "$here/../icon.png" --out "$set_dir/icon_${s}x${s}.png" >/dev/null
-    sips -z $((s * 2)) $((s * 2)) "$here/../icon.png" --out "$set_dir/icon_${s}x${s}@2x.png" >/dev/null
+    sips -z "$s" "$s" "$here/icon.png" --out "$set_dir/icon_${s}x${s}.png" >/dev/null
+    sips -z $((s * 2)) $((s * 2)) "$here/icon.png" --out "$set_dir/icon_${s}x${s}@2x.png" >/dev/null
 done
 iconutil -c icns "$set_dir" -o "$app/Contents/Resources/icon.icns"
 
