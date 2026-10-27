@@ -1,4 +1,4 @@
-// The desktop app's own strings (src/desktop) and its Go messages (desktop-wails/): loaded only by the desktop build.
+// The desktop app's own strings (src/desktop) and its Go messages (desktop/): loaded only by the desktop build.
 export default {
   Configure: 'Configurar',
   'Panel URL': 'URL do painel',
@@ -30,7 +30,7 @@ export default {
     'só as páginas /asynqmon e /swagger do painel e o link de suporte abrem fora do app',
   '{path} must be private and has mode {mode}: run chmod 600': '{path} precisa ser privado e tem modo {mode}: rode chmod 600',
   'Send asks for the file.': 'Enviar pede o arquivo.',
-  // Go messages (desktop-wails/)
+  // Go messages (desktop/)
   'Panel URL: enter an https://server:port URL': 'URL do painel: informe uma URL https://servidor:porta',
   'the panel answered with a redirect, which is not followed: check the panel URL':
     'o painel respondeu com um redirecionamento, que não é seguido: confira a URL do painel',

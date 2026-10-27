@@ -1,105 +1,82 @@
-# AD Manager desktop (Rust)
+# AD Manager desktop
 
-The desktop client of the [ad-manager](../README.md) panel, written in Rust with
-[egui/eframe](https://github.com/emilk/egui), matching the web panel's pages, themes and rules (user guide:
-[docs/desktop.md](../docs/desktop.md)). It replaced the Fyne desktop, now archived in [`archive/desktop-go/`](../archive/desktop-go) as code
-only; the benchmark that compared them is in [docs/benchmark.md](docs/benchmark.md). It has the server's version and
-is released with it (tags `vX.Y.Z`).
+The desktop client of the [ad-manager](../README.md) panel, in Go with [Wails v3](https://wails.io): the web panel's
+own SPA (`../frontend`, Vue 3 + Vite+ + Tailwind 4, built with `vp build --mode desktop`) in the system's webview,
+and a Go backend that is its only way to the panel. Every page, dialog, theme and translation is the web's. The user
+guide is [docs/desktop.md](../docs/desktop.md); the OpenSpec changes are
+[desktop-wails](../openspec/changes/desktop-wails/design.md) and
+[desktop-switch](../openspec/changes/desktop-switch/proposal.md). It replaced the Rust app, archived in
+[`archive/desktop-rust/`](../archive/desktop-rust/README.md).
 
 | Sign-in | Users |
 |---|---|
-| ![sign-in](../docs/screenshots/desktop-rs-01-login.png) | ![users](../docs/screenshots/desktop-rs-04-users.png) |
+| ![sign-in](../docs/screenshots/desktop-03-signin.png) | ![users](../docs/screenshots/desktop-05-users.png) |
 
-## What it does
+## Run
 
-The web panel's pages and dialogs, laid out as the web's, against the same panel API and with the same rules (the
-server stays the authority):
+Linux needs GTK4 and WebKitGTK 6.0 (Ubuntu 24.04+, Debian 13+, Fedora 40+, RHEL 10+):
 
-- **Configure**: panel URL, user, password and language; **Test connection** reads the certificate, the health and
-  signs in for real. A self-signed certificate is shown (fingerprint, subject, issuer, validity) and trusted only
-  when the operator clicks **Trust this certificate**; from then on only that certificate is accepted (its
-  handshake signed with its key). Redirects are never followed. The password is never saved.
-- **Sign-in** like the web one (dots, box, language switch), with the panel's theme, logo and domain; then the web's
-  shell (header with the global search, top tabs, footer) and its pages: **Home**, **Users**, **Groups**, **OUs**
-  (with GPOs), **Computers** (with DNS and SMB sessions), **Shares** (file servers, tasks, sessions, the share form
-  with the folder's permissions), **Import/export** (CSV, another AD, folders, each previewed as a plan),
-  **Backup** (schedules edited in place), **Sync** (the wizard with its preview step, runs, quarantine), **Logs**
-  (audit, HTTP, Samba) and **Settings** (language, theme, company, logo, agent token), with the web's dialogs and
-  guards (built-in and own accounts, DCs, typed confirmations).
-- It talks **only to the panel**: file servers through the panel's proxy, never with an agent token.
-- **`desktop.toml`** (the keys and lookup of the archived Fyne app: `--config`, `AD_MANAGER_DESKTOP`,
-  `.config/desktop.toml` beside the executable, the user config folder), written `0600` and refused when looser.
-- English interface with the pt-BR catalog (`crates/core/assets/i18n/pt-BR.json`); server messages translated with
-  the panel's catalog (`/api/i18n`).
-- The panel's 20 themes (`crates/core/assets/themes.json`, generated from the web's CSS by
-  `archive/desktop-go/internal/themegen`), drawn with their gradients, shadows, fonts and the page's pattern, or flat.
-  **Configure › Appearance** picks another theme (and flat or with depth) for this computer only, applied at once
-  and saved as `[appearance]` in desktop.toml; *Panel default* follows the panel's Settings.
-- A **crash-safe graphics start** (rustXterm's design). The app renders through wgpu. Before the window opens it
-  takes a `gpu-starting` marker next to desktop.toml, and a start that dies in the graphics driver makes the next
-  start try a safer backend:
-  - Windows: OpenGL → DirectX 12 → Vulkan → software (WARP);
-  - Linux: Vulkan → OpenGL → software (llvmpipe);
-  - macOS: Metal → OpenGL (glow).
+```bash
+sudo apt install libgtk-4-1 libwebkitgtk-6.0-4    # Debian, Ubuntu
+sudo dnf install gtk4 webkitgtk6.0                # Fedora, RHEL
+```
 
-  A working fallback is saved as `[graphics]` in desktop.toml and announced under the sign-in
-  box. It can be changed in **Configure › Graphics › Rendering backend**, which applies at the next start. Choices:
-  - Automatic;
-  - **wgpu (WebGPU)**, where wgpu picks the backend and the adapter itself: on Windows it prefers DX12/Vulkan, where
-    Automatic prefers OpenGL;
-  - the OS's backends (Vulkan, OpenGL, DirectX 12, Software). Flags and variables:
-  - `--safe-gpu` forces the software path for one start;
-  - `WGPU_BACKEND` forces wgpu's own choice;
-  - `--gpu-info` prints the backend and adapter used.
+Windows needs the WebView2 runtime (part of Windows 10/11 and Server 2025; on older Windows Server install it from
+Microsoft). macOS builds only on a Mac.
 
-  The window is 1280×800 (minimum 800×600) and eframe restores its size and position.
+On first run the app opens **Configure**: panel URL, user and password. **Test connection** reads the panel's
+certificate, its health and signs in for real. A self-signed certificate is shown (fingerprint, subject, issuer,
+validity) and trusted only when the operator clicks **Trust this certificate**; compare the fingerprint with the one
+the panel logs at start (`journalctl -u ad-manager | grep sha256`). **Save** writes `desktop.toml` (mode 0600, the
+same file and lookup as the archived Rust app: `--config`, `AD_MANAGER_DESKTOP`, `.config/desktop.toml` beside the executable,
+the user's config folder) and opens the app signed in. The password is never saved. Language, theme, look and safe
+rendering are this computer's preferences, saved without a test.
 
-## Layout
+```bash
+./ad-manager-desktop                     # Configure on first run, then the panel's sign-in
+./ad-manager-desktop --config ~/lab.toml # another desktop.toml
+./ad-manager-desktop --safe-gpu          # GPU acceleration off for this start (Linux, Windows)
+```
 
-A Cargo workspace, laid out as [rustXterm](https://github.com/jniltinho/rustXterm):
+## How it works
 
-| Crate | Job |
-|---|---|
-| `apps/ad-manager-desktop` | the binary: arguments, picks the platform, starts eframe |
-| `crates/ui` (`adm-ui`) | egui: screens, pages, dialogs, the table, theme → visuals |
-| `crates/core` (`adm-core`) | no GUI: config, panel client, TLS pinning, i18n, theme data, models, page rules, form payloads |
-| `crates/platform` (`adm-platform`) | the `Platform` trait (config locations, private files) and the Unix helpers |
-| `crates/platform-linux`, `-windows`, `-macos` | one implementation each |
-
-Requests run on a tokio runtime off the UI thread; each ends by sending a closure back to the UI thread over a
-channel (only the UI thread changes UI state; a result of a replaced session or of an older reload is dropped).
-`unsafe` is forbidden and `unwrap`/`expect` are denied by the workspace lints; passwords are wiped from memory after
-use (`zeroize`).
+- `main.go`, `desktop.go`, `routes.go`: the window (1280×800, minimum 800×600, restored where it was left, one
+  instance), the asset server (the embedded SPA with its CSP and router fallback, Wails' runtime without its
+  Browser object, Configure's test, the panel's API) and the `Shell`, `Configure` and `Files` services the SPA calls
+  through `@wailsio/runtime` (`frontend/src/desktop/`).
+- `internal/config`: `desktop.toml`, the same file as the archived apps' (unknown keys and sections are kept).
+- `guard_linux.go`: the webview never leaves the app (WebKitGTK `decide-policy`). Windows and macOS have no native
+  guard yet: there the CSP and the SPA's link guard keep it on the app (`desktop-wails` task 4.5).
+- `icon*.go`, `window.go`, `graphics.go`: the app's icon on the window, the window's place, `--safe-gpu`.
+- `internal/panel`: the asset-server middleware that forwards the SPA's same-origin `/api/…` requests to the panel.
+  It speaks https only, accepts the system's roots or exactly the pinned certificate, never follows a redirect,
+  keeps the panel's session cookie in Go (the webview never sees it), refuses paths that could leave `/api/` and
+  requests of an ended session, and caps what crosses the webview's bridge at 32 MiB; files (backups, exports) move
+  in Go between the panel and the disk (`Files`).
 
 ## Build and test
 
-Everything runs in Docker (the pinned rustXterm toolchain image, and the Go image for the theme generator); the host
-needs neither Rust nor Go. From the repository root: `make desktop`, `make desktop-check`, `make desktop-shots`,
-`make desktop-themes`; here:
+Everything but the SPA runs in Docker (`docker/Dockerfile`: Go, GTK4, WebKitGTK 6.0, Xvfb; built on first use):
 
 ```bash
-make check     # fmt, clippy -D warnings, unit + UI acceptance tests, cargo deny, themes.json in step with the CSS
-make release   # target/docker/release/ad-manager-desktop
-make dist      # Linux tar.gz and Windows zip in dist/
-make shots     # the docs screenshots (2x, Classic blue, domain.local)
-make mock      # a mock panel with 5,000 users (prints the URL and pin for desktop.toml)
-make bench     # the benchmark against the archived Fyne app
+make dist      # Linux tar.gz, .deb, .rpm, Windows zip, SHA256SUMS and the Linux binary in dist/
+make check     # gofmt, go vet, go test, and the web build without the desktop's code
+make shots     # the docs screenshots, on the host (Xvfb, xdotool): 2x, Classic blue, the demo panel
 ```
 
-Against a real domain, the all-in-one test image ([docs/docker.md](../docs/docker.md), a fictitious `domain.local`
-with its LDAPS and panel on `127.0.0.1` only) runs the ignored live test: it signs in, opens every page and tab, fails
-on any error and saves a screenshot of each. The password stays in a 0600 file outside the repository; never point it
-at a production panel.
+From the repository root: `make desktop` (into `dist/desktop/`, also part of `make build`), `make desktop-check`,
+`make desktop-shots`. macOS builds on a Mac: `cd frontend && npm run build:desktop`, then in `desktop/` a
+`go build -tags production` per architecture, `lipo`, and `packaging/macos/bundle.sh` (as `release.yml`).
+
+`tools/demopanel` is a demo panel (HTTPS, self-signed, Example Company Ltd, `domain.local`, password `Secret#1`) for
+the screenshots; `bench/run.sh` is the benchmark against the archived Rust app
+([docs/benchmark.md](docs/benchmark.md)).
+
+`scripts/smoke-linux.sh` drives the real window under a private Xvfb against a **test** panel (the all-in-one image,
+`domain.local`); with a smoke build (`go build -tags production,smoke`) it also checks the bridge, a file save, the
+navigation guard and a binding, and fails without `SMOKE PASS`:
 
 ```bash
-DESKTOP_RUST_DOCKER_NET=host DESKTOP_RUST_DOCKER_ARGS="-v $HOME/.adm-live:/live:ro" scripts/cargo-docker.sh sh -c 'ADM_LIVE_URL=https://127.0.0.1:18443/ ADM_LIVE_PASSWORD_FILE=/live/password ADM_LIVE_SHOTS=/work/desktop/target/live cargo test -p adm-ui --test live -- --ignored'
+ADM_SMOKE_DIR=$PWD/.cache/smoke-files ADM_PANEL_URL=https://127.0.0.1:18443 \
+  ADM_LIVE_PASSWORD_FILE=$HOME/.adm-live/password scripts/smoke-linux.sh bin/smoke/ad-manager-desktop
 ```
-
-macOS builds natively on a Mac (`rustup` reads `rust-toolchain.toml`): `cargo build --release` and
-`packaging/macos/bundle.sh` for the universal `.app`. Its CI (`.github/workflows/desktop-ci.yml`) is part of
-`ci.yml`, with the server's; the release (`release.yml`, tags `vX.Y.Z`) builds its Linux, Windows and macOS universal
-archives and publishes them with the server's packages, one `checksums.txt` and the notes of the root
-[CHANGELOG.md](../CHANGELOG.md).
-
-The OpenSpec change is [openspec/changes/desktop](../openspec/changes/desktop/) (parity matrix and
-benchmark method in its `design.md`).

@@ -1,92 +1,59 @@
-# AD Manager desktop in Rust (egui). Every recipe runs in Docker (scripts/cargo-docker.sh, the pinned rustXterm
-# toolchain image): nothing here needs a host Rust toolchain.
+# AD Manager desktop (Go, Wails v3; openspec/changes/desktop-wails and desktop-switch). The SPA is the web panel's frontend/ in
+# desktop mode (built with the host's npm, as the server's); Go builds run in Docker (scripts/go-docker.sh: Go,
+# GTK4, WebKitGTK 6.0). Linux needs CGO; Windows does not.
 #
-#   make help          list targets
-#   make check         what CI runs: fmt-check, clippy, test, deny
-#   make dist          release archives for Linux and Windows into dist/
+#   make dist     Linux tar.gz and Windows zip (+ SHA256SUMS) into DIST
+#   make check    gofmt, go vet, go test, the web build without the desktop
 
-SHELL := /bin/sh
+SHELL   := /bin/sh
 .DEFAULT_GOAL := help
 
-CARGO   := scripts/cargo-docker.sh cargo
-VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' Cargo.toml | head -n 1)
+GO      := scripts/go-docker.sh
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
 DIST    ?= dist
-TARGET  := target/docker
-# DIST as the toolchain container sees it (the repository is mounted at /work): the zip is made in there, where
-# python3 is, so the host needs no zip; DIST must be inside the repository
+LDFLAGS := -s -w -X main.version=$(VERSION)
+# the packages' version: the tag's number without its v (v0.27.0 → 0.27.0)
+PKG_VERSION = $(patsubst v%,%,$(VERSION))
+# DIST as the toolchain container sees it (the repository is mounted at /work); DIST must be inside the repository
 DIST_IN_DOCKER = $(patsubst $(abspath ..)/%,/work/%,$(abspath $(DIST)))
+NAME    := ad-manager-desktop
 
-DENY        := cargo-deny-0.20.2-x86_64-unknown-linux-musl
-DENY_SHA256 := 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
-
-.PHONY: help build release run test fmt fmt-check clippy deny check shots mock bench dist dist-linux dist-windows themes themes-check
+.PHONY: help frontend linux windows dist packages check test web-check shots
 
 help: ## Show this help
-	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-10s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-build: ## Debug build of the workspace
-	$(CARGO) build --workspace
+frontend: ## The SPA in desktop mode → frontend/dist (embedded)
+	cd ../frontend && npm ci --no-audit --no-fund && npm run build:desktop
 
-release: ## Release build (target/docker/release/ad-manager-desktop)
-	$(CARGO) build --release --locked -p ad-manager-desktop
+linux: frontend ## bin/linux/ad-manager-desktop (production build, CGO)
+	$(GO) go build -tags production -trimpath -ldflags "$(LDFLAGS)" -o bin/linux/$(NAME) .
 
-test: ## Unit and UI acceptance tests
-	$(CARGO) test --workspace --locked
+windows: frontend ## bin/windows/ad-manager-desktop.exe (production build, no CGO)
+	$(GO) env GOOS=windows CGO_ENABLED=0 go build -tags production -trimpath -ldflags "$(LDFLAGS) -H windowsgui" -o bin/windows/$(NAME).exe .
 
-fmt: ## Format the workspace
-	$(CARGO) fmt --all
+packages: linux ## .deb and .rpm of the Linux build into DIST (nfpm, in the toolchain image)
+	mkdir -p $(DIST)
+	$(GO) sh -c 'for p in deb rpm; do VERSION=$(PKG_VERSION) nfpm package --config packaging/linux/nfpm.yaml --packager $$p --target $(DIST_IN_DOCKER)/ || exit 1; done'
 
-fmt-check: ## Check formatting
-	$(CARGO) fmt --all --check
+dist: linux windows packages ## Release archives, packages and SHA256SUMS into DIST
+	mkdir -p $(DIST)
+	tar -C bin/linux -czf $(DIST)/$(NAME)_$(PKG_VERSION)_linux_x86_64.tar.gz $(NAME) -C $(CURDIR) README.md
+	rm -f $(DIST)/$(NAME)_$(PKG_VERSION)_windows_x86_64.zip
+	cd bin/windows && python3 -m zipfile -c $(abspath $(DIST))/$(NAME)_$(PKG_VERSION)_windows_x86_64.zip $(NAME).exe ../../README.md
+	cp bin/linux/$(NAME) $(DIST)/
+	cd $(DIST) && sha256sum *.tar.gz *.zip *.deb *.rpm > SHA256SUMS
 
-clippy: ## Lint, warnings are errors
-	$(CARGO) clippy --workspace --all-targets --locked -- -D warnings
+test: ## Go tests
+	$(GO) go test ./...
 
-deny: ## cargo deny (licenses, advisories, sources) with the pinned, SHA-256 checked binary of CI
-	@set -eu; \
-	if [ ! -x target/tools/cargo-deny ]; then \
-		mkdir -p target/tools; \
-		curl --fail --show-error --silent --location --retry 3 \
-			"https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/$(DENY).tar.gz" -o target/tools/deny.tgz; \
-		echo "$(DENY_SHA256)  target/tools/deny.tgz" | sha256sum --check --strict -; \
-		tar -xzf target/tools/deny.tgz -C target/tools --strip-components=1 "$(DENY)/cargo-deny"; \
-		rm -f target/tools/deny.tgz; \
-	fi
-	scripts/cargo-docker.sh target/tools/cargo-deny check
+check: web-check ## gofmt, go vet, go test, and the web build without the desktop
+	$(GO) sh -c 'test -z "$$(gofmt -l $$(find . -name "*.go" -not -path "./.cache/*"))" && go vet ./... && go vet -tags smoke . && go test ./...'
 
-check: fmt-check clippy test deny themes-check ## What CI runs
+web-check: ## The web build (vp build) has none of the desktop's code
+	cd ../frontend && npm run build >/dev/null
+	@if grep -rlE 'adm-desktop-wails-bundle|@wailsio|wails/runtime|Confiar neste certificado' ../web/dist; then echo "the web build has desktop code" >&2; exit 1; fi
 
-shots: ## The docs screenshots (2x, Classic blue, domain.local) into ../docs/screenshots
-	DESKTOP_RUST_DOCKER_ARGS="--add-host panel.domain.local:127.0.0.1 -v /usr/share/fonts:/usr/share/fonts:ro" ADM_SHOTS=/work/docs/screenshots ADM_SHOTS_HOST=panel.domain.local \
-		$(CARGO) test -p adm-ui --test ui --locked shots -- --ignored --exact
-
-mock: ## A mock panel with 5,000 users on https://127.0.0.1:8443 (prints the URL and pin)
-	DESKTOP_RUST_DOCKER_ARGS="-p 127.0.0.1:8443:8443" $(CARGO) run -p adm-core --example mock_panel --features testkit --locked -- --users 5000 --port 8443
-
-bench: ## Benchmark against the archived Fyne app (bench/run.sh; needs both release binaries)
-	bench/run.sh
-
-# the generator is Go (archive/desktop-go/internal/themegen, kept from the archived Fyne app): run in the Go image, as the user
-GO_IMAGE := docker.io/library/golang:$(shell sed -n 's/^go //p' ../archive/desktop-go/go.mod)
-GO_RUN   := docker run --rm -u $$(id -u):$$(id -g) -v $(CURDIR)/..:/w -w /w/archive/desktop-go -e HOME=/tmp \
-	-e GOCACHE=/tmp/go-cache -e GOPATH=/tmp/go $(GO_IMAGE)
-themes: ## Regenerate assets/themes.json from the web's theme CSS (in the Go image, nothing to install)
-	$(GO_RUN) go run ./internal/themegen/rustgen
-
-themes-check: ## assets/themes.json is what the web's theme CSS gives now (in the Go image)
-	$(GO_RUN) go test ./internal/themegen -run 'TestRustThemesUpToDate|TestParseGradientAndShadows' -count=1
-
-dist: dist-linux dist-windows ## Release archives (Linux tar.gz, Windows zip) and SHA256SUMS into DIST
-
-dist-linux: release
-	mkdir -p $(DIST)/stage-linux
-	cp $(TARGET)/release/ad-manager-desktop README.md CHANGELOG.md $(DIST)/stage-linux/
-	tar -C $(DIST)/stage-linux -czf $(DIST)/ad-manager-desktop_$(VERSION)_linux_x86_64.tar.gz .
-	cd $(DIST) && sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true
-
-dist-windows:
-	DESKTOP_RUST_TOOLCHAIN=windows $(CARGO) build --release --locked -p ad-manager-desktop --target x86_64-pc-windows-gnu
-	mkdir -p $(DIST)/stage-windows
-	cp $(TARGET)/x86_64-pc-windows-gnu/release/ad-manager-desktop.exe README.md CHANGELOG.md $(DIST)/stage-windows/
-	scripts/cargo-docker.sh sh -c 'cd $(DIST_IN_DOCKER)/stage-windows && python3 -m zipfile -c ../ad-manager-desktop_$(VERSION)_windows_x86_64.zip *'
-	cd $(DIST) && sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true
+shots: linux ## The docs screenshots (2x, Classic blue, a demo panel) into ../docs/screenshots (on the host: Xvfb, xdotool)
+	$(GO) env CGO_ENABLED=0 go build -o .cache/demopanel ./tools/demopanel
+	scripts/shots.sh bin/linux/$(NAME) .cache/demopanel ../docs/screenshots

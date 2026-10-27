@@ -93,10 +93,10 @@ This replaces `.run/visual/baseline` with the Chromium images; to go back to the
 ## Release
 
 GitHub Actions. `.github/workflows/ci.yml` runs on every push to `main` (and on pull requests): the server's Go and
-frontend tests and the desktop app's checks (`desktop-ci.yml`, called from it: Linux, Windows cross and native,
-macOS). The tag `vX.Y.Z` → `.github/workflows/release.yml` runs CI again and, if it passes, builds the SPA, the linux
+frontend tests and the desktop app's checks (`desktop-ci.yml`, called from it: Linux checks, builds and native
+smokes against the all-in-one test image, Windows and macOS native builds and smokes). The tag `vX.Y.Z` → `.github/workflows/release.yml` runs CI again and, if it passes, builds the SPA, the linux
 amd64 server with UPX and the `.deb`, and the desktop app for Linux, Windows and macOS universal, and publishes them in
-one release with `gh` (notes from the version's section in `CHANGELOG.md`, one `checksums.txt`); the Fyne app in
-`archive/desktop-go/` is archived and no longer built. Always: push to `main`, green CI, then the tag. The version is the tag
-(injected via ldflags into `internal/buildinfo`); the desktop app has the same one in `desktop/Cargo.toml`. Step by step in the `create-release` skill
+one release with `gh` (notes from the version's section in `CHANGELOG.md`, one `checksums.txt`); the Fyne and Rust
+desktop apps in `archive/` are archived and no longer built. Always: push to `main`, green CI, then the tag. The version is the tag
+(injected via ldflags into `internal/buildinfo`, and into the desktop app's `main.version`). Step by step in the `create-release` skill
 (`.claude/skills/create-release`).

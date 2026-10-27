@@ -6,7 +6,7 @@ accent, **square corners everywhere**, subtle depth (short gradients and small s
 
 | Web panel | Desktop app |
 |---|---|
-| ![web](screenshots/03-users.png) | ![desktop](screenshots/desktop-rs-04-users.png) |
+| ![web](screenshots/03-users.png) | ![desktop](screenshots/desktop-05-users.png) |
 
 ## 1. Colors
 
@@ -30,7 +30,7 @@ accent, **square corners everywhere**, subtle depth (short gradients and small s
 "Active/ok" tag: background `#d9ecd9`, text `#1f5c2a`. Selected row (desktop): `#fde3cc`.
 
 Font: **Inter** 400 and 600 (embedded woff2, no Google Fonts); fallback `Tahoma, Verdana, Arial, sans-serif`.
-The desktop app (Rust) uses the same font list as each theme.
+The desktop app draws the web's own CSS, so its fonts are the same.
 
 ## 2. Theme rules
 
@@ -106,27 +106,22 @@ Webmail measurements (Roundcube, company skin): 580 px form 10% from the top, 48
 `#fe6101`), elliptical `login_shadow.png` shadow below and errors/hints **outside** the box. The same component serves
 public pages (e.g. the password change link).
 
-## 4. Desktop app (Rust + egui)
+## 4. Desktop app
 
-The desktop app (`desktop/`) draws the web's themes from `crates/core/assets/themes.json`, generated from the
-same CSS (`make desktop-themes`; `make desktop-check` fails when it is out of date):
+The desktop app (`desktop/`, Go + Wails v3) runs the web panel's own SPA in the system's webview, so it draws exactly
+these themes from the same CSS: nothing to generate or keep in step. Its only theme code is Configure's choice for
+this computer (`[appearance]` in `desktop.toml`, applied over the panel's theme) and a copy of the theme registry for
+when the panel cannot be reached (`frontend/src/desktop/themes.json`, kept equal to `internal/server/themes.go` by a
+test).
 
-| File | What it has |
-|---|---|
-| `crates/ui/src/style.rs` | the theme → egui visuals: colors, fonts, control sizes, the flat look |
-| `crates/ui/src/depth.rs` | the web's gradients (in their CSS color space) and box-shadow layers, outer and inset |
-| `crates/ui/src/widgets.rs` | buttons, fields, tags, cards (`panel`), tabs, the refresh and saving spinners |
-| `crates/ui/src/table.rs` | the web's `.grid-t` table: sticky header, zebra, truncation as the browser's ellipsis, tags |
-| `crates/ui/src/modal.rs` | the web's dialogs: header strip (red when destructive), footer band, typed confirmations |
-| `crates/ui/src/shell.rs` | header, top tabs, footer and the page pattern |
-
-The archived Fyne app (`archive/desktop-go/`, code only) has its own notes in its sources.
+The archived Rust app (`archive/desktop-rust/`) redrew these themes in egui from a generated `themes.json`, and the
+archived Fyne app (`archive/desktop-go/`) has its own notes in its sources: both are code only.
 
 ## 5. Checklist for a new app
 
 - [ ] Color tokens and Inter font copied; global radius 0.
 - [ ] Dotted background, orange strip under the header, navy footer.
-- [ ] `.btn`/`.btn-ghost`/`.btn-danger` buttons (web) or `widgets::button` (desktop) — no system buttons.
+- [ ] `.btn`/`.btn-ghost`/`.btn-danger` buttons — no system buttons.
 - [ ] Tables with a sticky navy header and zebra; `.tag` tags with a fixed width per column.
 - [ ] Themed modals, 10% from the top; confirm deletion by typing the name.
 - [ ] Native controls redrawn (`native.js`, select, checkbox, scrollbar, orange focus).

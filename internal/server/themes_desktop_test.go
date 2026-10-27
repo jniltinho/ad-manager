@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// The desktop app (desktop-wails) carries a copy of the theme registry for Configure when the panel cannot be
+// The desktop app (desktop/) carries a copy of the theme registry for Configure when the panel cannot be
 // reached: it must be this one.
 func TestDesktopThemesInStep(t *testing.T) {
 	b, err := os.ReadFile("../../frontend/src/desktop/themes.json")
