@@ -1,6 +1,8 @@
-# CI of the Rust desktop (desktop/), called by ci.yml (every pull request and push to main, with the server's
-# checks) and so by release.yml. Linux checks run in the pinned toolchain image (as rustXterm's); Windows is
-# cross-built in its image and tested natively (the WARP readback); macOS builds natively.
+# CI of the desktop app (desktop/: Go, Wails v3, the web SPA in desktop mode), called by ci.yml (every pull request and
+# push to main, with the server's checks) and so by release.yml. Linux runs the checks and builds in the toolchain
+# image and a native smoke of the real window against the all-in-one test image (a fictitious domain.local, a random
+# password); Windows and macOS build natively and run the smoke without a panel (the webview bridge and a binding).
+# Nothing is uploaded unless a job fails: release.yml publishes every artifact of its run.
 name: desktop-ci
 
 on:
@@ -11,105 +13,146 @@ permissions:
   contents: read
 
 env:
-  TOOLCHAIN_IMAGE: docker.io/jniltinho/rustxterm-toolchain:snapshot-20261001@sha256:6872535a844a568c5fe8bf05c52c7a0adfa2370fce8990be511ff056ffdb9c70
-  WINDOWS_IMAGE: docker.io/jniltinho/rustxterm-windows-toolchain:snapshot-20261001@sha256:7b9892dc2cc56819f4ee1002a2eb7381b31cebcff9166716b02e9cbd2ebbb5e0
+  TEST_PANEL_IMAGE: docker.io/jniltinho/ad-manager:0.26.1@sha256:1be3a482f81c9e8066da440549b4cca1bc3a217179c6765324af4d266fea938e
 
 jobs:
-  checks:
+  linux:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: desktop
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Toolchain image (pinned by digest)
-        run: |
-          docker pull -q "$TOOLCHAIN_IMAGE"
-          docker tag "$TOOLCHAIN_IMAGE" rustxterm-toolchain:dev
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: desktop/target/cargo-home
-          key: desktop-cargo-home-${{ hashFiles('desktop/Cargo.lock') }}
-      - name: Format
-        run: scripts/cargo-docker.sh cargo fmt --all --check
-      - name: Clippy (warnings are errors)
-        run: scripts/cargo-docker.sh cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Tests (unit and UI acceptance)
-        run: scripts/cargo-docker.sh cargo test --workspace --locked
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+          fetch-depth: 0 # git describe for the version
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          go-version-file: archive/desktop-go/go.mod
-          cache: false
-      - name: Themes in step with the web's CSS (assets/themes.json from archive/desktop-go/internal/themegen)
-        working-directory: archive/desktop-go
-        run: go test ./internal/themegen -run 'TestRustThemesUpToDate|TestParseGradientAndShadows' -count=1
-      - name: Release build
-        run: scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop
-      - name: cargo deny (licenses, advisories, bans, sources; deny.toml)
-        env:
-          DENY: cargo-deny-0.20.2-x86_64-unknown-linux-musl
-          DENY_SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+          node-version: "24"
+      - name: Frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Checks (gofmt, go vet, go test, the web build without the desktop's code)
+        run: make -C desktop check
+      - name: Linux and Windows builds, .deb and .rpm
+        run: make -C desktop dist DIST=dist
+      - name: Test panel (all-in-one image, domain.local, random password in a 0600 file)
         run: |
-          mkdir -p target/tools
-          curl --fail --show-error --silent --location --retry 3 \
-            "https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/$DENY.tar.gz" -o "$RUNNER_TEMP/deny.tgz"
-          echo "$DENY_SHA256  $RUNNER_TEMP/deny.tgz" | sha256sum --check --strict -
-          tar -xzf "$RUNNER_TEMP/deny.tgz" -C target/tools --strip-components=1 "$DENY/cargo-deny"
-          scripts/cargo-docker.sh target/tools/cargo-deny check
+          install -d -m 700 "$RUNNER_TEMP/live"
+          (umask 077; openssl rand -base64 18 | tr -d '/+=' | sed 's/^/Aa1!/' > "$RUNNER_TEMP/live/password")
+          AD_ADMIN_PASSWORD="$(cat "$RUNNER_TEMP/live/password")" docker run -d --name panel --hostname dc1 --cap-add SYS_ADMIN \
+            -p 127.0.0.1:18443:8443 -e AD_DOMAIN=domain.local -e AD_ADMIN_PASSWORD "$TEST_PANEL_IMAGE" >/dev/null
+          for i in $(seq 1 120); do curl -ksf https://127.0.0.1:18443/api/health >/dev/null && break; sleep 2; done
+          curl -ksf https://127.0.0.1:18443/api/health >/dev/null
+      - name: Runtime of the native smoke (GTK4, WebKitGTK 6.0, Xvfb, xdotool)
+        run: |
+          # WebKitGTK's bubblewrap sandbox needs unprivileged user namespaces, which this runner's AppArmor blocks
+          # (an Ubuntu desktop allows them to bwrap through its profile): this throwaway VM allows them
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo apt-get update -q
+          sudo apt-get install -y -q libgtk-4-1 libwebkitgtk-6.0-4 xvfb xauth dbus-x11 xdotool imagemagick
+      - name: Native smoke (first run through Configure, then the checks of the smoke build)
+        working-directory: desktop
+        run: |
+          scripts/go-docker.sh go build -tags production,smoke -o bin/smoke/ad-manager-desktop .
+          mkdir -p .cache/smoke-files
+          SHOTS=.cache/smoke ADM_SMOKE_DELAY=25 ADM_SMOKE_DIR=$PWD/.cache/smoke-files ADM_PANEL_URL=https://127.0.0.1:18443 \
+            ADM_LIVE_PASSWORD_FILE="$RUNNER_TEMP/live/password" scripts/smoke-linux.sh bin/smoke/ad-manager-desktop
+      - name: Native smoke (a configured start, signed in on the sign-in screen)
+        working-directory: desktop
+        run: |
+          pin=sha256:$(echo | openssl s_client -connect 127.0.0.1:18443 2>/dev/null | openssl x509 -outform der | sha256sum | cut -c1-64)
+          rm -f .cache/smoke-files/*
+          SHOTS=.cache/smoke-configured ADM_SMOKE_DELAY=15 ADM_SMOKE_DIR=$PWD/.cache/smoke-files ADM_PANEL_URL=https://127.0.0.1:18443 \
+            ADM_PANEL_FINGERPRINT="$pin" ADM_LIVE_PASSWORD_FILE="$RUNNER_TEMP/live/password" \
+            scripts/smoke-linux.sh bin/smoke/ad-manager-desktop
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: desktop-ci-diagnostics-linux
+          include-hidden-files: true # the smoke's folder is under .cache
+          path: |
+            desktop/.cache/smoke*/*.png
+            desktop/.cache/smoke*/app.log
+          if-no-files-found: warn
 
   windows:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: desktop
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Windows cross toolchain image (pinned by digest)
-        run: |
-          docker pull -q "$WINDOWS_IMAGE"
-          docker tag "$WINDOWS_IMAGE" rustxterm-windows-toolchain:dev
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: desktop/target/cargo-home
-          key: desktop-cargo-home-win-${{ hashFiles('desktop/Cargo.lock') }}
-      - name: Build (x86_64-pc-windows-gnu)
-        run: DESKTOP_RUST_TOOLCHAIN=windows scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop --target x86_64-pc-windows-gnu
-
-  # Native Windows (MSVC): the build and the WARP readback test (design D12: the software DX12 adapter used on GPU-less
-  # machines and VMs renders a frame). Presentation through the output-owning WARP adapter is a manual gate
-  # (docs/gates/windows.md), since a CI runner has a display adapter.
-  windows-native:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: desktop
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Rust toolchain (pinned by rust-toolchain.toml)
-        run: rustup show
-      - name: Graphics start tests (marker with Windows' mandatory locks, adapter choice, WARP readback) and build
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: The SPA in desktop mode
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund && npm run build:desktop
+      - name: Go tests
+        working-directory: desktop
+        run: go test ./...
+      - name: Build, and the smoke without a panel (WebView2 bridge, a binding)
+        working-directory: desktop
+        env:
+          CGO_ENABLED: "0"
         run: |
-          cargo test --locked -p adm-core gpu::tests
-          cargo test --locked -p ad-manager-desktop
-          cargo build --locked -p ad-manager-desktop
+          go build -tags production -trimpath -ldflags "-s -w -H windowsgui" -o bin/ad-manager-desktop.exe .
+          go build -tags production,smoke -o bin/smoke.exe .
+          mkdir -p smoke && export ADM_SMOKE_DIR="$PWD/smoke" ADM_SMOKE_DELAY=10
+          timeout 600 bin/smoke.exe --config "$PWD/smoke/desktop.toml" || true
+          cat smoke/smoke.log
+          grep -q "^SMOKE PASS" smoke/smoke.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: desktop-ci-diagnostics-windows
+          path: desktop/smoke/smoke.log
 
   macos:
     runs-on: macos-14
-    timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: desktop
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Rust toolchain (pinned by rust-toolchain.toml)
-        run: rustup show
-      - name: Clippy and tests of the macOS platform, then a build
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: The SPA in desktop mode
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund && npm run build:desktop
+      - name: Go tests
+        working-directory: desktop
+        run: go test ./...
+      - name: Universal build (arm64 + amd64), the .app, and the smoke without a panel (WKWebView bridge, a binding)
+        working-directory: desktop
+        env:
+          CGO_ENABLED: "1"
         run: |
-          cargo clippy --locked -p adm-platform-macos -p adm-core -p ad-manager-desktop --all-targets -- -D warnings
-          cargo test --locked -p adm-platform-macos -p adm-platform
-          cargo test --locked -p adm-core gpu::tests
-          cargo test --locked -p ad-manager-desktop
-          cargo build --locked -p ad-manager-desktop
+          version=$(git describe --tags --always)
+          for arch in arm64 amd64; do
+            GOARCH=$arch go build -tags production -trimpath -ldflags "-s -w -X main.version=$version" -o "bin/darwin-$arch" .
+          done
+          lipo -create -output bin/ad-manager-desktop bin/darwin-arm64 bin/darwin-amd64
+          lipo -info bin/ad-manager-desktop
+          packaging/macos/bundle.sh bin/ad-manager-desktop "${version#v}" dist
+          go build -tags production,smoke -o bin/smoke .
+          mkdir -p smoke && export ADM_SMOKE_DIR="$PWD/smoke" ADM_SMOKE_DELAY=10
+          bin/smoke --config "$PWD/smoke/desktop.toml" &
+          pid=$!
+          for i in $(seq 1 600); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+          kill $pid 2>/dev/null || true
+          cat smoke/smoke.log
+          grep -q "^SMOKE PASS" smoke/smoke.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: desktop-ci-diagnostics-macos
+          path: desktop/smoke/smoke.log

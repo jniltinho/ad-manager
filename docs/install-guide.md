@@ -38,7 +38,7 @@ sha256sum -c checksums.txt --ignore-missing
 | Panel | Linux amd64 (tested on **Ubuntu 26.04**); LDAPS (636) and Kerberos (TCP 88 and 464, for password links) to a DC; the browsers reach the panel port (8443); optional Redis (queues, the agent) |
 | Agent on a file server | a Samba domain member (`samba`, `winbind`, `acl`, `python3-samba`, `vfs objects = acl_xattr`); a Redis (`redis-server`, usually local); the panel reaches its port 9443 |
 | Agent on a DC | the Samba DC itself, with the panel ([dc-file-server.md](dc-file-server.md)); `tdb-tools` for DC backups |
-| Desktop app | a desktop session (Linux X11 or Wayland with Vulkan or OpenGL, or software rendering; Windows 10+; macOS 12+); HTTPS to the panel only |
+| Desktop app | a desktop session: Linux (X11 or Wayland) with GTK4 and WebKitGTK 6.0 (Ubuntu 24.04+, Debian 13+, Fedora 40+, RHEL 10+); Windows 10+ with WebView2 (Windows Server 2016–2022: install it first); macOS 12+; HTTPS to the panel only |
 | Setup wizard | a fresh Ubuntu 26.04 server, the `.deb`, `redis-server`, a synchronized clock and 2 GiB free (10 GiB for backups) |
 
 A domain that does not exist yet (a new domain, an additional DC or a file server) is created by the setup wizard
@@ -272,11 +272,13 @@ The desktop app is a client of the panel's API only (the file servers through th
 
 | System | Install |
 |---|---|
-| Linux | `tar xzf ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop` |
-| Windows | unzip `ad-manager-desktop_X.Y.Z_windows_x86_64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` |
+| Linux (package) | `sudo apt install ./ad-manager-desktop_X.Y.Z_amd64.deb` or `sudo dnf install ./ad-manager-desktop-X.Y.Z-1.x86_64.rpm` (they bring GTK4 and WebKitGTK 6.0); then **AD Manager** in the applications menu |
+| Linux (archive) | `sudo apt install libgtk-4-1 libwebkitgtk-6.0-4` (or `sudo dnf install gtk4 webkitgtk6.0`), then `tar xzf ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop` |
+| Windows | unzip `ad-manager-desktop_X.Y.Z_windows_x86_64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` (it needs the WebView2 runtime: part of Windows 10/11; on Windows Server 2016–2022 install it from Microsoft) |
 | macOS | unzip `…_macos_universal.zip` and move `AD Manager.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
 
-On the first run the **Configure** screen asks for the panel URL, the user, the password and the language; **Test
+On the first run the **Configure** screen asks for the panel URL, the user and the password (language, theme and
+look are this computer's preferences); **Test
 connection** signs in for real (a self-signed certificate is shown with its fingerprint, to trust once), and **Save**
 writes the file and opens the app signed in. The password is never saved. It saves `.config/desktop.toml` beside the
 executable; when that folder is not writable (or inside the macOS `.app`), the user's configuration folder:
@@ -298,7 +300,7 @@ method. Take a panel backup before a major upgrade (**Backup → panel**, [backu
 | `.deb` (panel and/or agent) | `sudo apt install --no-install-recommends ./ad-manager_NEW_amd64.deb` (the package restarts the panel and the agent that are running; it never starts or enables one that is not) |
 | Binary (panel) | download the new tarball and its `deploy/` files at the new tag, then `sudo ./install.sh ./ad-manager` (replaces the binary and the unit, keeps the rest, restarts the panel) |
 | Binary (agent) | `sudo install -m 0755 ad-manager /opt/ad-manager/ad-manager`, refresh `/etc/systemd/system/ad-manager-agent.service` from the new tag, `sudo systemctl daemon-reload && sudo systemctl restart ad-manager-agent` |
-| Desktop app | replace the executable (or the `.app`) in its folder; `.config/desktop.toml` stays |
+| Desktop app | install the new `.deb`/`.rpm`, or replace the executable (or the `.app`) in its folder; `desktop.toml` stays (the Rust app's is used as is) |
 
 After it: `ad-manager version` and the health checks above (`/api/health` reports `version`). Keep the agents and the
 panel on the same version.

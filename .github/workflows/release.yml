@@ -1,8 +1,9 @@
-# Release on a tag vX.Y.Z, the server and the desktop app together: the CI (ci.yml, both) runs first and the desktop's
-# version (desktop/Cargo.toml) must be X.Y.Z; then the Linux job builds the SPA, the server for linux (amd64) and
-# the .deb, the desktop jobs build Linux and Windows in the pinned toolchain images and macOS natively as a universal
-# (Apple Silicon + Intel) .app, ad-hoc signed; the last job publishes everything in one release with the gh CLI, with
-# the notes of that version in CHANGELOG.md and one checksums.txt. The Fyne app in archive/desktop-go/ is archived.
+# Release on a tag vX.Y.Z, the server and the desktop app together: the CI (ci.yml, both) runs first; then the Linux
+# job builds the SPA, the server for linux (amd64) and the .deb, the desktop jobs build the desktop app (desktop/, Go +
+# Wails, with the tag's version) for Linux (archive, .deb, .rpm) and Windows in its toolchain image and for macOS
+# natively as a universal (Apple Silicon + Intel) .app, ad-hoc signed; the last job publishes everything in one release
+# with the gh CLI, with the notes of that version in CHANGELOG.md and one checksums.txt. The Fyne and Rust desktop
+# apps in archive/ are archived.
 name: release
 
 on:
@@ -15,8 +16,6 @@ permissions:
 env:
   TZ: America/Sao_Paulo
   APP: ad-manager
-  TOOLCHAIN_IMAGE: docker.io/jniltinho/rustxterm-toolchain:snapshot-20261001@sha256:6872535a844a568c5fe8bf05c52c7a0adfa2370fce8990be511ff056ffdb9c70
-  WINDOWS_IMAGE: docker.io/jniltinho/rustxterm-windows-toolchain:snapshot-20261001@sha256:7b9892dc2cc56819f4ee1002a2eb7381b31cebcff9166716b02e9cbd2ebbb5e0
 
 jobs:
   ci:
@@ -27,17 +26,9 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: The desktop's version is the tag's
+      - name: The tag's version (the desktop app's too, given to its build)
         id: v
-        run: |
-          workspace=$(sed -n 's/^version = "\(.*\)"$/\1/p' desktop/Cargo.toml | head -n 1)
-          version=${GITHUB_REF_NAME#v}
-          if [ "$version" != "$workspace" ]; then
-            echo "tag $GITHUB_REF_NAME: desktop/Cargo.toml has $workspace (set it to $version)" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
   linux:
     needs: [ci, version]
@@ -92,34 +83,25 @@ jobs:
   desktop-linux-windows:
     needs: [ci, version]
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: desktop
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Toolchain images (pinned by digest)
-        run: |
-          docker pull -q "$TOOLCHAIN_IMAGE" && docker tag "$TOOLCHAIN_IMAGE" rustxterm-toolchain:dev
-          docker pull -q "$WINDOWS_IMAGE" && docker tag "$WINDOWS_IMAGE" rustxterm-windows-toolchain:dev
-      - name: Build Linux x86_64 and Windows x86_64
-        run: |
-          scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop
-          DESKTOP_RUST_TOOLCHAIN=windows scripts/cargo-docker.sh cargo build --release --locked -p ad-manager-desktop --target x86_64-pc-windows-gnu
-      - name: Archives
-        run: |
-          mkdir -p dist/linux dist/windows
-          cp target/docker/release/ad-manager-desktop README.md CHANGELOG.md dist/linux/
-          cp target/docker/x86_64-pc-windows-gnu/release/ad-manager-desktop.exe README.md CHANGELOG.md dist/windows/
-          tar -C dist/linux -czf "dist/ad-manager-desktop_${VERSION}_linux_x86_64.tar.gz" .
-          (cd dist/windows && zip -q -r "../ad-manager-desktop_${VERSION}_windows_x86_64.zip" .)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Linux x86_64 (archive, .deb, .rpm) and Windows x86_64 (zip), in the toolchain image
+        run: make -C desktop dist DIST=dist VERSION="v$VERSION"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-linux-windows
           path: |
             desktop/dist/*.tar.gz
             desktop/dist/*.zip
+            desktop/dist/*.deb
+            desktop/dist/*.rpm
           if-no-files-found: error
 
   desktop-macos:
@@ -131,21 +113,30 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
       MACOSX_DEPLOYMENT_TARGET: "12.0"
+      CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Rust toolchain (pinned by rust-toolchain.toml)
-        run: rustup show
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: The SPA in desktop mode (embedded)
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund && npm run build:desktop
       - name: Build both slices and fuse them (lipo)
         run: |
-          cargo build --release --locked -p ad-manager-desktop --target aarch64-apple-darwin
-          cargo build --release --locked -p ad-manager-desktop --target x86_64-apple-darwin
-          mkdir -p dist
-          lipo -create -output dist/ad-manager-desktop \
-            target/aarch64-apple-darwin/release/ad-manager-desktop \
-            target/x86_64-apple-darwin/release/ad-manager-desktop
-          lipo -info dist/ad-manager-desktop
+          for arch in arm64 amd64; do
+            GOARCH=$arch go build -tags production -trimpath -ldflags "-s -w -X main.version=v$VERSION" -o "bin/darwin-$arch" .
+          done
+          lipo -create -output bin/ad-manager-desktop bin/darwin-arm64 bin/darwin-amd64
+          lipo -info bin/ad-manager-desktop
       - name: Bundle the .app (universal, ad-hoc signed) and zip it
-        run: sh packaging/macos/bundle.sh dist/ad-manager-desktop "$VERSION" dist
+        run: sh packaging/macos/bundle.sh bin/ad-manager-desktop "$VERSION" dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-macos
@@ -174,8 +165,9 @@ jobs:
           cat >> notes.md <<'NOTES'
 
           ---
-          **Packages:** server for `linux/amd64` (`.tar.gz`, and `.deb` for Ubuntu 26.04); desktop app for Linux,
-          Windows and macOS (a universal `.app`, Apple Silicon and Intel); `checksums.txt`. The Windows zip and the
+          **Packages:** server for `linux/amd64` (`.tar.gz`, and `.deb` for Ubuntu 26.04); desktop app for Linux
+          (`.tar.gz`, `.deb`, `.rpm`; it needs GTK4 and WebKitGTK 6.0), Windows (it needs WebView2) and macOS (a
+          universal `.app`, Apple Silicon and Intel); `checksums.txt`. The Windows zip and the
           macOS .app are unsigned (macOS: ad-hoc): verify the download against checksums.txt first; on macOS open the
           app with right-click → Open the first time.
           NOTES

@@ -1,5 +1,0 @@
-.cache/
-/bin/
-/dist/
-/frontend/dist/*
-!/frontend/dist/.gitkeep

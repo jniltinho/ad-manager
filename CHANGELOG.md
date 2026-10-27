@@ -5,7 +5,36 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+**The desktop app is the web panel in its own window: Go + Wails v3 replaces the Rust app.**
+
+### Changed
+- The desktop app (`desktop/`) runs the web panel's own pages in the system's webview (Go, Wails v3).
+  - Every page, dialog, theme and translation is the web's.
+  - A Go backend is its only way to the panel: https only, the pinned certificate, no redirects, the session kept
+    out of the page.
+  - Files go straight to disk, private.
+  - It reads the same `desktop.toml`.
+- Configure (first run, sign-in box, header): test, trust the certificate and save. This computer's language, theme,
+  look and safe rendering save without a test.
+- The window keeps its place and size and has the app's icon; one window per configuration file. It fills the window
+  at Full HD, QHD and 4K.
+- Linux packages: `.deb` and `.rpm` (they bring GTK4 and WebKitGTK 6.0). Linux needs Ubuntu 24.04+, Debian 13+,
+  Fedora 40+ or RHEL 10+. Windows needs WebView2.
+- The Rust app moves to `archive/desktop-rust/` (code only, as `archive/desktop-go/`).
+
+### Fixed (web panel)
+- An answer, error, 401 or sign-out of an earlier session no longer reaches the next one.
+- A sign-out closes open confirmations.
+- The Shares task follower stops with its page.
+- Sync no longer shows a server's late jobs under another, and actions confirmed after a server switch send nothing.
+- A finished backup upload closes only its own dialog.
+- The page fills the window at QHD/4K in Safari and Firefox too.
+
+### Known limits
+- No native navigation guard on Windows and macOS yet.
+- The Users table renders every row, which is slow with thousands of users in the desktop app.
+
+See `openspec/changes/desktop-wails` and `desktop-switch`.
 
 ## [0.26.1] — 2026-10-25
 

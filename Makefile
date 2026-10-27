@@ -1,4 +1,4 @@
-.PHONY: desktop-wails desktop-wails-check desktop desktop-check desktop-test desktop-shots desktop-themes server deb all frontend build build-prod test test-integration check run dev docker-build docker-allinone docker-push samba-up samba-down clean
+.PHONY: desktop desktop-check desktop-test desktop-shots server deb all frontend build build-prod test test-integration check run dev docker-build docker-allinone docker-push samba-up samba-down clean
 
 BINARY := ad-manager
 DIST   := dist
@@ -15,7 +15,7 @@ all: build
 frontend:
 	cd frontend && npm ci && npm run build
 
-# Everything in dist/ (not tracked by git): server binary and the desktop app (Rust).
+# Everything in dist/ (not tracked by git): server binary and the desktop app.
 build: server desktop
 
 # Server binary (panel, CLI, MCP, agent).
@@ -38,7 +38,7 @@ test-integration:
 	go test -tags=integration ./... -count=1
 
 check:
-	gofmt -l $$(find . -name '*.go' -not -path './third_party/*' -not -path './node_modules/*' -not -path './frontend/node_modules/*' -not -path './desktop-wails/.cache/*') | (! grep .)  # third_party: upstream code as is
+	gofmt -l $$(find . -name '*.go' -not -path './third_party/*' -not -path './node_modules/*' -not -path './frontend/node_modules/*' -not -path './desktop/.cache/*') | (! grep .)  # third_party: upstream code as is
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /dev/null .  # the CLI still builds for windows (from source)
 	cd frontend && npm run check
 
@@ -70,32 +70,18 @@ samba-up:
 samba-down:
 	docker compose -f docker/compose.yml down -v
 
-# Desktop app (Rust/egui, desktop/): every recipe runs in Docker (its pinned toolchain image), nothing to install
-# but Docker. The Fyne app in archive/desktop-go/ is archived (kept as code only: not built, tested or released).
-#   make desktop          Linux and Windows archives and the Linux binary in dist/desktop/
-#   make desktop-check    what its CI runs: format, clippy, tests and cargo-deny
-#   make desktop-test     unit and UI acceptance tests only
-#   make desktop-shots    its docs screenshots (docs/screenshots/desktop-rs-*.png)
-#   make desktop-themes   themes.json again from the web's theme CSS
-# the desktop's version (desktop/Cargo.toml: the server's number), not a VERSION a command line passes down
-DESKTOP_VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' desktop/Cargo.toml | head -n 1)
+# Desktop app (desktop/: Go, Wails v3, the web SPA in desktop mode): its Go builds run in Docker (its toolchain image)
+# and the SPA with the host's npm, as the server's. The Rust and Fyne apps in archive/ are kept as code only (not built,
+# tested or released). Its version is the server's (VERSION, from git describe or the release tag).
+#   make desktop          Linux and Windows archives, .deb, .rpm and the Linux binary in dist/desktop/
+#   make desktop-check    what its CI runs: gofmt, go vet, Go tests, the web build without the desktop's code
+#   make desktop-test     its Go tests only
+#   make desktop-shots    its docs screenshots (docs/screenshots/desktop-*.png: 2x, Classic blue, a demo panel)
 desktop:
-	$(MAKE) -C desktop dist DIST=$(CURDIR)/$(DIST)/desktop VERSION=$(DESKTOP_VERSION)
-	cp desktop/target/docker/release/ad-manager-desktop $(DIST)/desktop/
-	rm -rf $(DIST)/desktop/stage-*
+	$(MAKE) -C desktop dist DIST=$(CURDIR)/$(DIST)/desktop VERSION=$(VERSION)
 
-desktop-check desktop-test desktop-shots desktop-themes:
+desktop-check desktop-test desktop-shots:
 	$(MAKE) -C desktop $(patsubst desktop-%,%,$@)
-
-# Desktop app on Wails v3 (preview, desktop-wails/, openspec/changes/desktop-wails): the web SPA in desktop mode and
-# a Go backend, built in Docker. Not part of `make build` until it replaces the Rust app.
-#   make desktop-wails         Linux and Windows archives and the Linux binary in dist/desktop-wails/
-#   make desktop-wails-check   gofmt, go vet, go test
-desktop-wails:
-	$(MAKE) -C desktop-wails dist DIST=$(CURDIR)/$(DIST)/desktop-wails
-
-desktop-wails-check:
-	$(MAKE) -C desktop-wails check
 
 # .deb package (nfpm) in dist/: binary, systemd units, config 0640 and docs.
 deb: build-prod

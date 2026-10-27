@@ -55,7 +55,7 @@ shares with Windows permissions, backups and migrations — behind one fast, aud
 <p align="center">
   <img src="docs/screenshots/12-edit-share.png" alt="Shares with Windows permissions" width="33%">
   <img src="docs/screenshots/31-sync-wizard.png" alt="Sync wizard" width="33%">
-  <img src="docs/screenshots/desktop-rs-04-users.png" alt="Desktop app" width="29.7%">
+  <img src="docs/screenshots/desktop-05-users.png" alt="Desktop app" width="29.7%">
 </p>
 
 ## 🚀 Quick start
@@ -99,7 +99,7 @@ to an existing Active Directory, writing the configuration for you ([installatio
 | `ad-manager agent` | Runs on each Samba file server or DC: folders, shares, ACLs, backups and sync through a task queue |
 | `ad-manager` (CLI) | The same operations from a terminal, plus migration and import/export tools |
 | `ad-manager mcp` | Model Context Protocol server for AI agents |
-| `ad-manager-desktop` | Native app (Rust/egui) that talks only to the panel's API (the file servers through it) |
+| `ad-manager-desktop` | Native app (Go + Wails: the web panel in its own window) that talks only to the panel's API (the file servers through it) |
 
 ## 📚 Learn more
 

@@ -127,62 +127,24 @@ panel has no domain yet): `frontend/tests/visual/setup-shots.mjs`.
 
 ## Desktop app
 
-The desktop app ([`desktop/`](../../desktop/README.md), Rust/egui), 1280 × 800 at 2× (2560 × 1600), Classic
-blue. The archived Fyne app's screenshots were removed with it.
+The desktop app ([`desktop/`](../../desktop/README.md), Go + Wails v3: the web panel's own pages in a native window),
+1280 × 800 at 2× (2560 × 1600), Classic blue. Its pages are the web's (above), so these show what is its own: the first
+run's Configure, the certificate to trust, and the panel in the window. The screenshots of the archived Fyne and Rust
+apps were removed with them.
 
-| Sign in | Configure |
+| Configure (first run) | Trust the panel's certificate |
 |---|---|
-| ![Sign in](desktop-rs-01-login.png) | ![Configure](desktop-rs-02-configure.png) |
+| ![Configure](desktop-01-configure.png) | ![Certificate](desktop-02-certificate.png) |
 
-| Home | Users |
+| Sign in | Home |
 |---|---|
-| ![Home](desktop-rs-03-home.png) | ![Users](desktop-rs-04-users.png) |
+| ![Sign in](desktop-03-signin.png) | ![Home](desktop-04-home.png) |
 
-| New user | Groups and members |
+| Users | |
 |---|---|
-| ![New user](desktop-rs-05-new-user.png) | ![Groups](desktop-rs-06-groups.png) |
+| ![Users](desktop-05-users.png) | |
 
-| OUs | Computers |
-|---|---|
-| ![OUs](desktop-rs-12-ous.png) | ![Computers](desktop-rs-07-computers.png) |
-
-| Shares | Password policy |
-|---|---|
-| ![Shares](desktop-rs-08-shares.png) | ![Policy](desktop-rs-13-password-policy.png) |
-
-| Backup | Sync |
-|---|---|
-| ![Backup](desktop-rs-14-backup.png) | ![Sync](desktop-rs-15-sync.png) |
-
-| Logs | Send a password link |
-|---|---|
-| ![Logs](desktop-rs-09-logs.png) | ![Link](desktop-rs-10-password-link.png) |
-
-| Link generated | DNS records |
-|---|---|
-| ![Link generated](desktop-rs-11-link-generated.png) | ![DNS](desktop-rs-16-dns.png) |
-
-| SMB sessions of a computer | Sessions and open files of a file server |
-|---|---|
-| ![SMB sessions](desktop-rs-17-smb-sessions.png) | ![Share sessions](desktop-rs-18-share-sessions.png) |
-
-| Samba log | HTTP log |
-|---|---|
-| ![Samba log](desktop-rs-19-logs-samba.png) | ![HTTP log](desktop-rs-20-logs-http.png) |
-
-| Edit share | Restore a backup |
-|---|---|
-| ![Edit share](desktop-rs-21-edit-share.png) | ![Restore](desktop-rs-22-restore.png) |
-
-| Sync wizard | Settings |
-|---|---|
-| ![Sync wizard](desktop-rs-23-sync-wizard.png) | ![Settings](desktop-rs-24-settings.png) |
-
-| Backups of a file server | Import/export |
-|---|---|
-| ![Backup agent](desktop-rs-25-backup-agent.png) | ![Import/export](desktop-rs-26-import-export.png) |
-
-They are retaken with `make desktop-shots` (a mock panel, no domain needed; in Docker).
+They are retaken with `make desktop-shots` (the demo panel `desktop/tools/demopanel`, no domain needed).
 
 ## How to retake them
 
@@ -233,15 +195,14 @@ Everything runs locally, with passwords only in environment variables.
    and rename `sync-classic-blue-page.png` to `30-sync.png` and `sync-classic-blue-log.png` to `33-sync-log.png`
    (`docs-shots.mjs` also takes a `30-sync`, from the container's real runs: keep the fixture one).
 
-5. Desktop app: the real app driven by its UI tests against the in-process mock panel (fixtures of `domain.local`,
-   Example Company Ltd, answering as `https://panel.domain.local:8443`), rendered with lavapipe in the toolchain
-   image — no panel or agent needed, nothing to install but Docker:
+5. Desktop app: the real app (a Linux build at GDK_SCALE=2 under a private Xvfb, driven with xdotool) against the
+   demo panel `desktop/tools/demopanel` (`domain.local`, Example Company Ltd, Classic blue), on the host — WebKit's
+   sandbox does not run in Docker. It needs `libwebkitgtk-6.0-4`, `xvfb`, `xdotool` and ImageMagick:
 
    ```bash
    make desktop-shots
    ```
 
-6. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`; the
-   desktop app's home screen in every theme from its live test against the container above (`ADM_LIVE_SHOTS`, the
-   command in [desktop/README.md](../../desktop/README.md)), its `live-theme-<id>.png` copied into
-   `.run/desk-themes-rs/`; then `python3 scripts/theme-mosaics.py`.
+6. Theme mosaics (`themes.jpg` and `docs/img/conformity/`): `BASELINE=1 npx playwright test` in `frontend/`, then
+   `python3 scripts/theme-mosaics.py`. Its desktop column came from the archived Rust app's live test
+   (`archive/desktop-rust/`); the desktop app now draws the web's own pages, so the web column is its look too.

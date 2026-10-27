@@ -479,6 +479,19 @@ The web's Users page puts all 5,000 rows in the DOM, which a webview on software
 met.** The next step is a virtualized Users table in the web panel (it helps the browsers too) and a new run; the
 alternative is a written waiver.
 
+**Operator decision (2026-10-27)**
+
+The operator decided to make the Wails app the desktop app now (change `desktop-switch`), before the gates. Accepted
+in writing:
+
+- **G2 is not met on Windows and macOS**: no native navigation guard (task 4.5). The CSP and the SPA's link guard
+  remain; Linux has the native guard.
+- **G4 is not met**: four budgets fail, because of the web's Users table with 5,000 rows (task 5.5a).
+- **G3 and G5 were not run**: Debian, Fedora, Windows Server, GPU-less VMs, the preview period. The CI runs on
+  Ubuntu 24.04, Windows (latest) and macOS 14.
+
+These stay open as follow-ups. Rollback is the one below: the Rust app is in `archive/desktop-rust/`.
+
 **Rollback**
 
 - Before the switch: nothing shipped depends on `desktop-wails/`. Stopping means deleting the folder, its workflow,
