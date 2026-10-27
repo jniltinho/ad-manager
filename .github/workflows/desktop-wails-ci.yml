@@ -53,6 +53,9 @@ jobs:
           curl -ksf https://127.0.0.1:18443/api/health >/dev/null
       - name: Runtime of the native smoke (GTK4, WebKitGTK 6.0, Xvfb, xdotool)
         run: |
+          # WebKitGTK's bubblewrap sandbox needs unprivileged user namespaces, which this runner's AppArmor blocks
+          # (an Ubuntu desktop allows them to bwrap through its profile): this throwaway VM allows them
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo apt-get update -q
           sudo apt-get install -y -q libgtk-4-1 libwebkitgtk-6.0-4 xvfb xauth dbus-x11 xdotool imagemagick
       - name: Native smoke (first run through Configure, then the checks of the smoke build)

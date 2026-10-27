@@ -232,3 +232,10 @@ func TestRefusedFileIsNotOverwritten(t *testing.T) {
 		t.Fatal("the file changed")
 	}
 }
+
+func TestInstanceIDPerConfig(t *testing.T) {
+	a, b := instanceID("/home/u/.config/ad-manager/desktop.toml"), instanceID("/tmp/lab/desktop.toml")
+	if a == b || a != instanceID("/home/u/.config/ad-manager/desktop.toml") || strings.ContainsAny(a, "-/") {
+		t.Fatalf("ids: %s %s", a, b)
+	}
+}

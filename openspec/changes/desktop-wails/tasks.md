@@ -105,9 +105,10 @@
       or `release.yml`, artifacts named `desktop-wails-preview-*`. Native smoke with the `smoke` tag on Ubuntu,
       `windows-latest` and `macos-14` (universal). The shipped-binary check (no listener, no dev assets, no test
       adapters).
-- [ ] 5.5 `desktop-wails/bench/run.sh`: the current Rust binary re-measured in the same run; PSS and CPU over all
+- [x] 5.5 `desktop-wails/bench/run.sh`: the current Rust binary re-measured in the same run; PSS and CPU over all
       webview processes; painted readiness. Report in `desktop-wails/docs/benchmark.md`, each budget marked pass,
-      fail or waived.
+      fail or waived. Result: G4 not met (4 of 6 budgets fail; the web's Users table renders all 5,000 rows).
+- [ ] 5.5a Virtualize the web's Users table and run the benchmark again (or a written waiver).
 - [x] 5.6 nfpm `.deb` (`libgtk-4-1, libwebkitgtk-6.0-4`) and `.rpm` (`gtk4, webkitgtk6.0`).
 - [ ] 5.7 G3 runs: Ubuntu 24.04, Debian 13, Fedora 40+, Windows 11, Windows Server 2022 with WebView2, macOS 14, and
       GPU-less Linux and Hyper-V VMs with painted-frame checks. Write the G3 and G4 results, and any written

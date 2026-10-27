@@ -1,0 +1,8 @@
+date: 2026-10-26T23:20:53-03:00
+cpu: AMD Ryzen 9 9900X 12-Core Processor (24 threads)
+memory: 186Gi
+kernel: 6.8.0-147-generic
+display: Xvfb 1920x1080x24, 96 dpi, Mesa llvmpipe (LIBGL_ALWAYS_SOFTWARE=1)
+rust: /home/nilton/Projetos/nilton/NOVOS/ad-manager/desktop/target/docker/release/ad-manager-desktop (30763464 bytes, ad-manager-desktop 0.26.1), wgpu with WGPU_BACKEND=gl
+wails: bin/linux/ad-manager-desktop-wails (13070312 bytes, v0.26.1-4-gf34cfe8), WebKitGTK 2.52.6-0ubuntu0.24.04.1
+users: 5000, runs: 5 (+1 warm-up each, discarded), alternating rust/wails, fresh HOME/XDG per run

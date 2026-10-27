@@ -4,12 +4,15 @@
 package main
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -29,6 +32,17 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ad-manager-desktop-wails:", err)
 		os.Exit(1)
 	}
+}
+
+// instanceID is the single-instance id of one desktop.toml: a second start with the same file focuses the running
+// window, while another file (a lab panel, a test) is an app of its own.
+func instanceID(cfgPath string) string {
+	if abs, err := filepath.Abs(cfgPath); err == nil {
+		cfgPath = abs
+	}
+	sum := sha256.Sum256([]byte(cfgPath))
+	// a D-Bus name element: letters first, no dashes
+	return "io.github.jniltinho.admanager.desktop.c" + hex.EncodeToString(sum[:8])
 }
 
 func run(args []string) error {
@@ -71,7 +85,7 @@ func run(args []string) error {
 	}
 	var win *application.WebviewWindow
 	opts.SingleInstance = &application.SingleInstanceOptions{
-		UniqueID: "io.github.jniltinho.ad-manager.desktop",
+		UniqueID: instanceID(d.file.Path),
 		OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 			if win != nil {
 				win.Restore()

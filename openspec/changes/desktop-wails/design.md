@@ -448,11 +448,34 @@ panel (`domain.local`):
   Windows and macOS have no hook in v3.0.0. Their guard needs a carried patch of Wails (WebView2
   `NavigationStarting` with `Cancel`, a WKWebView navigation delegate), planned for milestone 2. G2 stays closed
   until it lands.
-- **Not yet measured**: Windows (WebView2) and macOS (WKWebView), which run in CI from milestone 3; and whether
+- **Windows and macOS (milestone 3's CI, the smoke build without a panel)**: both start, load the SPA and answer
+  a binding. Bridge times for 1, 16, 32, 64 and 128 MiB, each body echoed whole:
+  - WebView2 (`windows-latest`): 248 ms, 3.6 s, 7.1 s, 14.3 s and 28.9 s (about 4.5 MB/s, through Wails'
+    chunked transport). This confirms keeping files off the bridge, and the 32 MiB cap.
+  - WKWebView (`macos-14`): 11 ms, 86 ms, 242 ms, 507 ms and 1.1 s.
+- **Linux sandbox**: WebKitGTK 6.0 runs its web process in a bubblewrap sandbox that needs unprivileged user
+  namespaces. On a system whose policy blocks them, WebKit aborts at start (`bwrap: setting up uid map: Permission
+  denied`). An Ubuntu desktop allows them to `bwrap` through its AppArmor profile; GitHub's runner and Docker do
+  not. This is a Linux requirement of the app (G3), to be stated in its install notes.
+- **Not yet measured**: whether
   another origin can call bound methods, which is moot on Linux because the guard prevents another origin from
   loading.
 
-G1 verdict: **go on Linux**. Windows and macOS are pending CI.
+G1 verdict: **go** on Linux, Windows and macOS. The Windows and macOS native guard is still missing (G2).
+
+**G4 results (milestone 3, 2026-10-26)** — [desktop-wails/docs/benchmark.md](../../../desktop-wails/docs/benchmark.md),
+medians of 5 against the Rust app (wgpu) on the same mock panel and Xvfb/llvmpipe:
+
+- **Binary**: 12.5 MiB, against Rust's 29.3. **Pass.**
+- **Ready sign-in screen**: 2,054 ms, against Rust's 716. **Fail.**
+- **Idle PSS** (all 8 processes): 415 MiB, against Rust's 127. **Fail.**
+- **Sign-in → Users with 5,000 users**: 9,984 ms, against Rust's 1,182. **Fail.**
+- **PSS with 5,000 users**: 1,375 MiB, against Rust's 146. **Fail.**
+- **Scroll CPU**: 31.0 s, against Rust's 37.4. **Pass.**
+
+The web's Users page puts all 5,000 rows in the DOM, which a webview on software rendering pays for. **G4 is not
+met.** The next step is a virtualized Users table in the web panel (it helps the browsers too) and a new run; the
+alternative is a written waiver.
 
 **Rollback**
 
