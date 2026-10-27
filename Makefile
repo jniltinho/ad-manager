@@ -38,7 +38,7 @@ test-integration:
 	go test -tags=integration ./... -count=1
 
 check:
-	gofmt -l $$(find . -name '*.go' -not -path './third_party/*' -not -path './node_modules/*' -not -path './frontend/node_modules/*') | (! grep .)  # third_party: upstream code as is
+	gofmt -l $$(find . -name '*.go' -not -path './third_party/*' -not -path './node_modules/*' -not -path './frontend/node_modules/*' -not -path './desktop-wails/.cache/*') | (! grep .)  # third_party: upstream code as is
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /dev/null .  # the CLI still builds for windows (from source)
 	cd frontend && npm run check
 

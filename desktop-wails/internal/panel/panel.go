@@ -94,24 +94,58 @@ func CertPin(der []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// reset starts a new session: a new cookie jar and context; the previous session's requests are cancelled.
-func (p *Panel) reset() {
+// sess is one session: its generation, client (cookie jar) and context.
+type sess struct {
+	gen uint64
+	hc  *http.Client
+	ctx context.Context
+}
+
+// reset starts a new session and returns it: a new cookie jar and context; the previous session's requests are
+// cancelled and its idle connections closed.
+func (p *Panel) reset() sess {
+	p.mu.Lock()
+	s, old, oldHC := p.resetLocked()
+	p.mu.Unlock()
+	end(old, oldHC)
+	return s
+}
+
+// resetIf ends session gen only while it is still the current one: a sign-out answering after a newer sign-in leaves
+// that one alone.
+func (p *Panel) resetIf(gen uint64) {
+	p.mu.Lock()
+	if p.gen != gen {
+		p.mu.Unlock()
+		return
+	}
+	_, old, oldHC := p.resetLocked()
+	p.mu.Unlock()
+	end(old, oldHC)
+}
+
+func (p *Panel) resetLocked() (sess, context.CancelFunc, *http.Client) {
 	jar, _ := cookiejar.New(nil)
 	d := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
-	// no whole-request timeout: a backup or an import may stream for minutes, as in a browser
+	// no whole-request timeout: a backup or an import may stream for minutes, as in a browser; the panel still has to
+	// start answering within ResponseHeaderTimeout
 	hc := &http.Client{Jar: jar,
 		Transport: &http.Transport{TLSClientConfig: p.tls, DialContext: d.DialContext, TLSHandshakeTimeout: 10 * time.Second,
-			ForceAttemptHTTP2: true, MaxIdleConnsPerHost: 8},
+			ResponseHeaderTimeout: 10 * time.Minute, IdleConnTimeout: 90 * time.Second, ForceAttemptHTTP2: true,
+			MaxIdleConnsPerHost: 8},
 		// never followed: a redirect could send the session elsewhere, or over plain HTTP
 		CheckRedirect: func(*http.Request, []*http.Request) error { return ErrRedirect }}
 	ctx, cancel := context.WithCancel(context.Background())
-	p.mu.Lock()
-	old := p.cancel
-	p.hc, p.ctx, p.cancel = hc, ctx, cancel
+	old, oldHC := p.cancel, p.hc
 	p.gen++
-	p.mu.Unlock()
-	if old != nil {
-		old()
+	p.hc, p.ctx, p.cancel = hc, ctx, cancel
+	return sess{p.gen, hc, ctx}, old, oldHC
+}
+
+func end(cancel context.CancelFunc, hc *http.Client) {
+	if cancel != nil {
+		cancel()
+		hc.CloseIdleConnections()
 	}
 }
 
@@ -122,15 +156,15 @@ func (p *Panel) Generation() uint64 {
 	return p.gen
 }
 
-// session is the client and context of session gen, checked under the same lock that picks them: a request built
-// under an older session never runs with the new one.
-func (p *Panel) session(gen uint64) (*http.Client, context.Context, error) {
+// session is session gen, checked under the same lock that picks it: a request built under an older session never
+// runs with the new one.
+func (p *Panel) session(gen uint64) (sess, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if gen != p.gen {
-		return nil, nil, ErrStale
+		return sess{}, ErrStale
 	}
-	return p.hc, p.ctx, nil
+	return sess{p.gen, p.hc, p.ctx}, nil
 }
 
 // public are the requests the SPA makes without a session, before sign-in or as an <img>: no generation needed.
@@ -181,24 +215,31 @@ func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	gen, err := strconv.ParseUint(r.Header.Get("X-ADM-Session"), 10, 64)
+	logout := r.Method == http.MethodPost && path == "/api/logout"
+	gen, perr := strconv.ParseUint(r.Header.Get("X-ADM-Session"), 10, 64)
+	var se sess
+	var err error
 	switch {
 	case r.Method == http.MethodPost && path == "/api/login":
-		p.reset()
-		gen = p.Generation()
+		se = p.reset()
 	case public(r.Method, path):
-		gen = p.Generation()
-	case err != nil:
-		gen = 0 // no generation: refused as stale below
+		se, err = p.session(p.Generation())
+	case perr != nil:
+		err = ErrStale // no generation
+	default:
+		se, err = p.session(gen)
 	}
-	hc, sctx, err := p.session(gen)
 	if err != nil {
 		w.Header().Set("X-ADM-Stale", "1")
 		w.Header().Set("X-ADM-Session", strconv.FormatUint(p.Generation(), 10))
 		writeError(w, http.StatusConflict, err)
 		return
 	}
-	ctx, cancel := context.WithCancel(sctx)
+	if logout {
+		// whatever the panel answers, this session is over (unless a newer sign-in already replaced it)
+		defer p.resetIf(se.gen)
+	}
+	ctx, cancel := context.WithCancel(se.ctx)
 	defer cancel()
 	stop := context.AfterFunc(r.Context(), cancel)
 	defer stop()
@@ -222,7 +263,7 @@ func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, h := range dropRequest {
 		req.Header.Del(h)
 	}
-	res, err := hc.Do(req)
+	res, err := se.hc.Do(req)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, cause(err))
 		return
@@ -232,23 +273,34 @@ func (p *Panel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, ErrTooLarge)
 		return
 	}
+	var body io.Reader = res.Body
+	if res.ContentLength < 0 || logout {
+		// an answer of unknown length is read whole (up to the cap) before anything is committed, so a failure or an
+		// answer over the cap becomes an error instead of a cut body with the panel's status; a logout's is read
+		// before its session ends
+		b, err := io.ReadAll(io.LimitReader(res.Body, BridgeCap+1))
+		switch {
+		case err != nil:
+			writeError(w, http.StatusBadGateway, cause(err))
+			return
+		case len(b) > BridgeCap:
+			writeError(w, http.StatusBadGateway, ErrTooLarge)
+			return
+		}
+		body = bytes.NewReader(b)
+	}
 	for k, v := range res.Header {
 		w.Header()[k] = v
 	}
 	for _, h := range dropResponse {
 		w.Header().Del(h)
 	}
-	var body io.Reader = res.Body
-	if r.Method == http.MethodPost && path == "/api/logout" {
-		// the answer is read before the session ends (its context is cancelled), then carries the new generation
-		b, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
-		body = bytes.NewReader(b)
-		p.reset()
+	if logout {
+		p.resetIf(se.gen)
 	}
 	w.Header().Set("X-ADM-Session", strconv.FormatUint(p.Generation(), 10))
 	w.WriteHeader(res.StatusCode)
-	// an answer of unknown length is cut at the cap: the SPA then fails to read it instead of the bridge buffering it
-	_, _ = io.Copy(w, io.LimitReader(body, BridgeCap))
+	_, _ = io.Copy(w, body)
 }
 
 // cause is the error to show for a failed request: the desktop's own messages unwrapped from url.Error.

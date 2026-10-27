@@ -1,5 +1,5 @@
 // Client for the Go API. A 401 sends the operator back to the login page.
-import { reactive } from 'vue'
+import { reactive, shallowReactive } from 'vue'
 import { serverText, setServerCatalog, t, useDefault } from './i18n'
 
 export const auth = reactive({ user: null, domain: '', version: '', checked: false, settings: {}, brand: {} })
@@ -38,8 +38,18 @@ export const session = () => generation
 export const setGeneration = (gen) => (generation = gen)
 
 // platform holds what the desktop replaces (src/desktop): file saving and sending, the upload limit of its bridge,
-// the panel's origin for links used outside the app
-export const platform = { saveFile: null, sendFile: null, maxUpload: 0, panelOrigin: '' }
+// the panel's origin for links used outside the app, a screen shown instead of the app (Configure) and how to open
+// it, this computer's appearance over the panel's, the user the sign-in starts with
+export const platform = shallowReactive({
+  saveFile: null,
+  sendFile: null,
+  maxUpload: 0,
+  panelOrigin: '',
+  screen: null,
+  configure: null,
+  appearance: reactive({ theme: '', flat: '' }),
+  defaultUser: '',
+})
 
 // apiRaw is fetch('/api' + path) with the session rules; api() and the few callers that need the raw answer (a
 // blob, a text) use it

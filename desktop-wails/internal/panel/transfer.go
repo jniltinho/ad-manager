@@ -30,12 +30,13 @@ func (p *Panel) request(ctx context.Context, gen uint64, method, apiPath string,
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("not a panel API path: %q", apiPath)
 	}
-	hc, sctx, err := p.session(gen)
+	se, err := p.session(gen)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	hc = se.hc
 	ctx, cancel := context.WithCancel(ctx)
-	stop := context.AfterFunc(sctx, cancel)
+	stop := context.AfterFunc(se.ctx, cancel)
 	done = func() { stop(); cancel() }
 	target := p.base.String() + path
 	if u.RawQuery != "" {

@@ -44,4 +44,4 @@ check: web-check ## gofmt, go vet, go test, and the web build without the deskto
 
 web-check: ## The web build (vp build) has none of the desktop's code
 	cd ../frontend && npm run build >/dev/null
-	@if grep -rlE 'adm-desktop-wails-bundle|@wailsio|wails/runtime' ../web/dist; then echo "the web build has desktop code" >&2; exit 1; fi
+	@if grep -rlE 'adm-desktop-wails-bundle|@wailsio|wails/runtime|Confiar neste certificado' ../web/dist; then echo "the web build has desktop code" >&2; exit 1; fi

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { auth, brand, loadBrand, loadMe, logoUrl, onSessionChange, post } from './api'
+import { auth, brand, loadBrand, loadMe, logoUrl, onSessionChange, platform, post } from './api'
 import { cancelDialogs } from './dialogs'
 import { t } from './i18n'
 import Login from './pages/Login.vue'
@@ -28,6 +28,7 @@ import {
   Search,
   Server,
   Settings,
+  Settings2,
   UserRound,
   Users,
   UsersRound,
@@ -50,9 +51,12 @@ loadMe()
 // theme of the HTML stays. A value outside the registry falls back to the first (Default).
 watchEffect(() => {
   if (!brand.themes?.length) return
-  const theme = brand.themes.find((x) => x.id === brand.theme) || brand.themes[0]
+  // the desktop's own appearance (Configure) goes over the panel's
+  const id = platform.appearance.theme || brand.theme
+  const flat = platform.appearance.flat ? platform.appearance.flat === 'flat' : !!brand.flat
+  const theme = brand.themes.find((x) => x.id === id) || brand.themes[0]
   document.documentElement.dataset.theme = theme.id
-  document.documentElement.dataset.flat = String(!!brand.flat)
+  document.documentElement.dataset.flat = String(flat)
   document.documentElement.style.colorScheme = theme.scheme // the served <html> carries it inline
   document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', theme.scheme)
 })
@@ -99,7 +103,8 @@ onSessionChange(() => {
 <template>
   <PanelDialogs />
   <Toasts />
-  <Setup v-if="brand.setup" />
+  <component :is="platform.screen" v-if="platform.screen" />
+  <Setup v-else-if="brand.setup" />
   <Login v-else-if="linkToken" :token="linkToken" />
   <div v-else-if="!auth.checked" class="p-10 text-center text-fg-muted">{{ t('Loading…') }}</div>
   <Login v-else-if="!auth.user" />
@@ -130,6 +135,12 @@ onSessionChange(() => {
         <button class="act px-0 text-[11px] text-header-link hover:text-header-link-hover" @click="logout">
           <LogOut :size="11" /> {{ t('sign out') }}
         </button>
+        <template v-if="platform.configure">
+          <span class="text-on-header-subtle"> · </span>
+          <button class="act px-0 text-[11px] text-header-link hover:text-header-link-hover" @click="platform.configure()">
+            <Settings2 :size="11" /> {{ t('Configure') }}
+          </button>
+        </template>
       </div>
     </header>
     <nav class="top-tabs flex flex-wrap bg-tabs bg-(image:--bg-tabs) shadow-(--shadow-tabs)">

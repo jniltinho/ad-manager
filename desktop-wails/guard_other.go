@@ -8,3 +8,6 @@ import "github.com/wailsapp/wails/v3/pkg/application"
 // window on the app there.
 // shortcut: no native navigation cancel on Windows/macOS, upgrade with the carried Wails patch (design D5, gate G2).
 func guardNavigation(*application.WebviewWindow) error { return nil }
+
+// guardedStart loads the app at once: there is no native guard to wait for.
+func guardedStart() (start, html string) { return "/", "" }

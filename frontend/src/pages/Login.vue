@@ -6,14 +6,14 @@
 // With a token it is the public page of a password link (/password/<token>).
 import { LoaderCircle } from 'lucide-vue-next'
 import { ref } from 'vue'
-import { brand, get, loadMe, logoUrl, post } from '../api'
+import { brand, get, loadMe, logoUrl, platform, post } from '../api'
 import { formatDate } from '../util'
 import { languages, lang, setLang, t } from '../i18n'
 import defaultLogo from '../assets/ad-manager-logo-light.png'
 import darkInkLogo from '../assets/ad-manager-logo.png'
 
 const props = defineProps({ token: { type: String, default: '' } })
-const user = ref('')
+const user = ref(platform.defaultUser)
 const password = ref('')
 const error = ref('')
 const busy = ref(false)
@@ -142,6 +142,9 @@ const netbios = () => brand.netbios || domain().split('.')[0].toUpperCase()
           >, <code>{{ t('user') }}@{{ domain() }}</code> {{ t('or') }} <code>{{ netbios() }}\{{ t('user') }}</code
           >.<br />
           {{ t('Domain administrators only; every action is audited.') }}
+        </p>
+        <p v-if="platform.configure" class="langs">
+          <button type="button" @click="platform.configure()">{{ t('Configure') }}</button>
         </p>
         <p class="langs">
           <button v-for="[code, name] in languages" :key="code" type="button" :class="{ on: lang === code }" @click="setLang(code)">

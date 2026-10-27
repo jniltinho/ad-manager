@@ -56,7 +56,7 @@
 - [x] 3.5 `vite.config.ts` by mode: desktop out dir `../desktop-wails/frontend/dist`, `WAILS_VITE_PORT`,
       `strictPort`, HMR host and port, no `/api` dev proxy, web-only plugins off. Add the `dev:desktop` and
       `build:desktop` scripts.
-- [ ] 3.6 (main.js part done in milestone 0; the catalog glob and `App.vue` route come with milestone 2) `main.js` imports `./desktop/index.js` only in desktop mode. `i18n.js` excludes
+- [x] 3.6 (main.js part done in milestone 0; the catalog glob and `App.vue` route come with milestone 2) `main.js` imports `./desktop/index.js` only in desktop mode. `i18n.js` excludes
       `locales/pt-BR/desktop.js` from the eager glob. `App.vue` renders the unauthenticated `/configure` route
       when the desktop asks.
 - [x] 3.7 Web-bundle checks: no sentinel, no `@wailsio`, no `src/desktop/` module and no desktop catalog in
@@ -64,28 +64,32 @@
 
 ## 4. Phase 2 — desktop backend and screens (gate G2)
 
-- [ ] 4.1 `desktop-wails/` Go module, `main.go`, Taskfile, `.gitignore`, README. Wails, `wails3` and
-      `@wailsio/runtime` at one exact version, with a lockstep test.
-- [ ] 4.2 `internal/config`, from the archived `config.go` rules: lookup, legacy keys, `0600`, atomic save, agent
+- [x] 4.1 `desktop-wails/` Go module, `main.go`, Makefile (no Taskfile or `wails3` CLI: plain `go build`),
+      `.gitignore`, README. The lockstep test of the Wails and `@wailsio/runtime` versions comes with task 5.2.
+- [x] 4.2 `internal/config`, from the archived `config.go` rules: lookup, legacy keys, `0600`, atomic save, agent
       tokens removed, unknown keys and sections kept, `[appearance]`, `[graphics] safe`. With tests.
-- [ ] 4.3 `internal/panel`. With tests.
+- [x] 4.3 `internal/panel`. With tests.
       - Routing: `/api/` to the proxy; `/wails/` untouched; history fallback for `GET`/`HEAD`.
       - Proxy: https only, pin, redirects refused, decoded-path confinement, a cookie jar in Go,
         `Set-Cookie`/`Cookie` stripped, cancel and generation header on login/logout, the generation required on
       requests (409 on mismatch, checked under the jar lock), bridge cap, phase timeouts.
       - CSP by mode.
-- [ ] 4.4 Services `Config` (with test ids and cancel), `Files` (`SaveText`, `SaveFromPanel`, `SendToPanel`,
+- [x] 4.4 Services `Config` (with test ids and cancel), `Files` (`SaveText`, `SaveFromPanel`, `SendToPanel`,
       `0600`, progress, cancel) and `Shell.OpenExternal` (allowlist). With tests, including log capture without
       secrets.
-- [ ] 4.5 The native navigation guard on the three engines, upstream or as a carried patch with a test.
-- [ ] 4.6 `frontend/src/desktop/`:
+- [ ] 4.5 The native navigation guard on the three engines, upstream or as a carried patch with a test. Linux is
+      done (`guard_linux.go`, exact `wails://localhost` origin, installed on a blank page before the app loads,
+      fail closed). Windows and macOS need a change to Wails (it keeps the WebView2 controller and the WKWebView
+      delegate private): an upstream PR or a carried patch, which needs the operator's go-ahead. **G2 stays closed
+      until then.**
+- [x] 4.6 `frontend/src/desktop/`:
       - bootstrap: `Config.Load` before mount; user, language and theme precedence;
       - the Configure screen and its certificate card;
       - Appearance and Graphics (Graphics hidden on macOS);
       - the desktop side of `saveFile`/`sendFile`;
       - the SPA navigation guard and external links;
       - pt-BR strings in `locales/pt-BR/desktop.js`.
-- [ ] 4.7 Window 1280×800 (min 800×600) with bounds in the private `desktop-wails/` folder; single instance;
+- [x] 4.7 Window 1280×800 (min 800×600) with bounds in the private `desktop-wails/` folder; single instance;
       `--safe-gpu` on Linux (the workaround preset) and Windows.
 
 ## 5. Phase 3 — build, CI, numbers (gates G3, G4)
