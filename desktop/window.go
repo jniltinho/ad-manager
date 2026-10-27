@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -69,6 +70,7 @@ func (d *desktop) placeWindow(w *application.WebviewWindow, s *windowState) {
 			a := sc.WorkArea
 			if s.X >= a.X && s.Y >= a.Y && s.X+64 <= a.X+a.Width && s.Y+64 <= a.Y+a.Height {
 				w.SetBounds(application.Rect{X: s.X, Y: s.Y, Width: s.Width, Height: s.Height})
+				go settle(w, s.X, s.Y)
 				break
 			}
 		}
@@ -81,6 +83,18 @@ func (d *desktop) placeWindow(w *application.WebviewWindow, s *windowState) {
 		}
 	}
 }
+
+// settle moves the window by what the window manager added to the position it was given: on X11 Position reads the
+// client area and SetPosition places the frame, so the window would move down by its title bar at every start.
+func settle(w *application.WebviewWindow, x, y int) {
+	time.Sleep(300 * time.Millisecond) // the window manager places the window asynchronously
+	gx, gy := w.Position()
+	if dx, dy := gx-x, gy-y; (dx != 0 || dy != 0) && abs(dx) < 100 && abs(dy) < 100 {
+		w.SetPosition(x-dx, y-dy)
+	}
+}
+
+func abs(n int) int { return max(n, -n) }
 
 // saveWindow keeps the window's place and size for the next start (a private file, through a temporary one). A
 // maximised window keeps last, the normal size it started with, and starts maximised again.

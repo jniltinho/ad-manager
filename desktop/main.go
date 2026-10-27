@@ -142,7 +142,8 @@ func run(args []string) error {
 			d.placeWindow(win, saved)
 		})
 	})
-	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { save() })
+	// a hook, not a listener: Wails' own WindowClosing listener marks the window destroyed (Bounds then reads zero)
+	win.RegisterHook(events.Common.WindowClosing, func(*application.WindowEvent) { save() })
 	smokeRun(app, win, d, files)
 	return app.Run()
 }

@@ -120,7 +120,10 @@
       menu, zoomed restart pass. Fixed there: Cmd+Q saved no window state; the restored size grew by the title bar
       each start; a zoomed window started unzoomed; the Dock showed the square runtime icon instead of the .app's;
       macOS 15 asks for Local Network access on the first connection to a LAN panel (now explained in Info.plist,
-      and a refused connection says where to allow it).
+      and a refused connection says where to allow it). Linux (X11, two screens): place, size and maximised state
+      stable over open/close cycles. Fixed there: the state saved on close was all zero (Wails' own WindowClosing
+      listener marks the window destroyed first: saved from a hook now); the window moved down by its title bar each
+      start (X11 reads the client position, places the frame: corrected after placing).
 
 ## 6. Phase 4 — preview (gate G5)
 
