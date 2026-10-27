@@ -3,3 +3,4 @@
 /dist/
 /frontend/dist/*
 !/frontend/dist/.gitkeep
+/rsrc_windows_*.syso
