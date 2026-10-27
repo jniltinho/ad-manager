@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,10 +24,12 @@ type desktop struct {
 	mu           sync.Mutex
 	file         config.File
 	cfg          *config.Config
-	problem      string // why the file cannot be used (loose permissions, a parse error): Configure says it
+	fileProblem  string // why desktop.toml cannot be read (loose permissions, a parse error): nothing overwrites it
+	problem      string // what Configure says: fileProblem, or a panel URL in the file that is not usable
 	unconfigured bool
 	panel        *panel.Panel
 	testID       int64  // the newest test Configure started; an older one finishing is signed out and dropped
+	cancelled    int64  // every test id up to this one was cancelled (an edit, leaving Configure), even if it comes later
 	trial        *trial // the last successful test, which Save adopts
 	notice       string // said once after sign-in
 }
@@ -43,7 +46,7 @@ func newDesktop(f config.File) *desktop {
 	d := &desktop{file: f}
 	cfg, unconfigured, err := config.Load(&d.file)
 	if err != nil {
-		d.problem, d.unconfigured, cfg = err.Error(), true, &config.Config{User: "administrator"}
+		d.fileProblem, d.problem, d.unconfigured, cfg = err.Error(), err.Error(), true, &config.Config{User: "administrator"}
 	}
 	d.cfg, d.notice = cfg, d.file.Notice
 	if !d.unconfigured && !unconfigured {
@@ -83,13 +86,35 @@ func (s *Shell) PanelURL() string {
 	return ""
 }
 
-// OpenExternal opens path on the panel in the system browser: only the queue monitor and the API docs.
-func (s *Shell) OpenExternal(path string) error {
+// defaultSupport is the support link of a panel without its own (the web's DEFAULT_SUPPORT).
+const defaultSupport = "https://github.com/jniltinho/ad-manager/wiki"
+
+// OpenExternal opens target in the system browser: the panel's /asynqmon or /swagger, or the support link the panel
+// publishes (https only); nothing else.
+func (s *Shell) OpenExternal(target string) error {
 	p := s.d.current()
-	if p == nil || (path != "/asynqmon" && path != "/swagger") {
-		return errors.New("only the panel's /asynqmon and /swagger pages open outside the app")
+	if p != nil && (target == "/asynqmon" || target == "/swagger") {
+		return s.d.app.Browser.OpenURL(p.URL() + target)
 	}
-	return s.d.app.Browser.OpenURL(p.URL() + path)
+	if strings.HasPrefix(target, "https://") && (target == defaultSupport || p != nil && target == supportURL(p)) {
+		return s.d.app.Browser.OpenURL(target)
+	}
+	return errors.New("only the panel's /asynqmon and /swagger pages and its support link open outside the app")
+}
+
+// supportURL is the support link the panel publishes (its public /api/health brand).
+func supportURL(p *panel.Panel) string {
+	var h struct {
+		Brand struct {
+			SupportURL string `json:"support_url"`
+		} `json:"brand"`
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if p.Call(ctx, p.Generation(), http.MethodGet, "/api/health", nil, &h) != nil {
+		return ""
+	}
+	return h.Brand.SupportURL
 }
 
 // Session is the panel session's generation, which the SPA sends on every request (X-ADM-Session).
@@ -146,20 +171,22 @@ func (c *Configure) State() ConfigState {
 		Flat: d.cfg.Flat, SafeGPU: d.cfg.SafeGPU, OS: runtime.GOOS}
 }
 
-// Cancel drops test id: an edit of the URL, user or password after it, or leaving Configure. A test still running
-// is dropped when it finishes; a successful one is signed out.
+// Cancel drops every test up to id: an edit of the URL, user or password, or leaving Configure. A test still
+// running, or whose request arrives later, is dropped when it finishes; a successful one is signed out.
 func (c *Configure) Cancel(id int64) {
 	d := c.d
 	d.mu.Lock()
-	if d.testID == id {
-		d.testID = 0
+	if id > d.cancelled {
+		d.cancelled = id
 	}
 	t := d.trial
-	if t != nil && t.id == id {
+	if t != nil && t.id <= d.cancelled {
 		d.trial = nil
+	} else {
+		t = nil
 	}
 	d.mu.Unlock()
-	if t != nil && t.id == id {
+	if t != nil {
 		go t.p.Logout(t.gen)
 	}
 }
@@ -170,13 +197,13 @@ func (c *Configure) Save(id int64, lang, theme, flat string, safeGPU bool) error
 	d := c.d
 	d.mu.Lock()
 	t := d.trial
-	if t == nil || t.id != id {
+	if t == nil || t.id != id || id != d.testID || id <= d.cancelled {
 		d.mu.Unlock()
 		return errors.New("test the connection before saving")
 	}
-	if d.problem != "" && !d.unconfigured {
+	if d.fileProblem != "" { // the file on disk is not read: saving would replace it (and its other sections)
 		d.mu.Unlock()
-		return errors.New(d.problem)
+		return errors.New(d.fileProblem)
 	}
 	cfg := *d.cfg
 	cfg.URL, cfg.User, cfg.Fingerprint, cfg.Insecure = t.url, t.user, t.pin, false
@@ -186,8 +213,10 @@ func (c *Configure) Save(id int64, lang, theme, flat string, safeGPU bool) error
 		return err
 	}
 	old := d.panel
-	d.cfg, d.panel, d.trial, d.testID, d.unconfigured, d.problem = &cfg, t.p, nil, 0, false, ""
+	d.cfg, d.panel, d.trial, d.unconfigured, d.problem = &cfg, t.p, nil, false, ""
 	d.mu.Unlock()
+	// the old panel's session: generations are unique to the process, so no request can reach it any more; the
+	// panel is told to end it
 	if old != nil && old != t.p {
 		go old.Logout(old.Generation())
 	}
@@ -200,8 +229,8 @@ func (c *Configure) SavePreferences(lang, theme, flat string, safeGPU bool) erro
 	d := c.d
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.problem != "" && !d.file.Create {
-		return errors.New(d.problem)
+	if d.fileProblem != "" {
+		return errors.New(d.fileProblem)
 	}
 	cfg := *d.cfg
 	cfg.Lang, cfg.Theme, cfg.Flat, cfg.SafeGPU = lang, theme, flat, safeGPU
@@ -241,13 +270,21 @@ func (d *desktop) serveTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d.mu.Lock()
-	d.testID = req.ID
+	refused := req.ID <= d.cancelled || req.ID < d.testID // cancelled before it arrived, or a newer test runs
+	if !refused {
+		d.testID = req.ID
+	}
 	d.mu.Unlock()
+	if refused {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(TestResult{Stale: true})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
 	res, t := runTest(ctx, req)
 	d.mu.Lock()
-	current := d.testID == req.ID
+	current := d.testID == req.ID && req.ID > d.cancelled
 	if current && t != nil {
 		old := d.trial
 		d.trial = t

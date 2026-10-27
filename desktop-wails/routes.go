@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -24,6 +25,12 @@ func policy() string {
 
 // browserRuntimeObject is Wails' runtime Browser object (OpenURL): the SPA opens pages only through Shell's allowlist.
 const browserRuntimeObject = 9
+
+// isBrowserObject reads a query's object as Wails does (strconv.Atoi: "09" and "+9" are 9 too).
+func isBrowserObject(s string) bool {
+	n, err := strconv.Atoi(s)
+	return err == nil && n == browserRuntimeObject
+}
 
 // routes is the asset server's middleware: Wails' runtime (without its Browser object), Configure's test, the panel's
 // API through the proxy, and the embedded SPA with its CSP and the history fallback of its router.
@@ -51,7 +58,7 @@ func (d *desktop) routes(next http.Handler) http.Handler {
 		default:
 			w.Header().Set("Content-Security-Policy", pol)
 			// a router path (/users) reloads as the app; a missing asset stays a 404
-			if (r.Method == http.MethodGet || r.Method == http.MethodHead) && path.Ext(p) == "" && p != "/" {
+			if devServer() == "" && (r.Method == http.MethodGet || r.Method == http.MethodHead) && path.Ext(p) == "" && p != "/" {
 				r = r.Clone(r.Context())
 				r.URL.Path, r.URL.RawPath = "/", ""
 			}
@@ -63,7 +70,7 @@ func (d *desktop) routes(next http.Handler) http.Handler {
 // allowRuntime refuses the runtime calls the SPA never makes: its Browser object (it would open any URL), and
 // chunked calls (only bodies over a few MiB are chunked, and they could hide the object).
 func allowRuntime(w http.ResponseWriter, r *http.Request) bool {
-	if r.Header.Get("x-wails-chunk-id") != "" || r.URL.Query().Get("object") == "9" {
+	if r.Header.Get("x-wails-chunk-id") != "" || isBrowserObject(r.URL.Query().Get("object")) {
 		http.Error(w, "refused", http.StatusForbidden)
 		return false
 	}

@@ -7,4 +7,4 @@ Exec=ad-manager-desktop-wails
 Icon=ad-manager-desktop-wails
 Terminal=false
 Categories=System;Network;
-StartupWMClass=ad-manager-desktop
+StartupWMClass=ad-manager-desktop-wails

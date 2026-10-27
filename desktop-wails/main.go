@@ -52,6 +52,7 @@ func run(args []string) error {
 	opts := application.Options{
 		Name:        "AD Manager",
 		Description: "AD Manager desktop",
+		Icon:        appIcon,
 		LogLevel:    slog.LevelInfo, // never Debug: Wails logs binding arguments there
 		Services: []application.Service{application.NewService(shell), application.NewService(files),
 			application.NewService(configure)},
@@ -60,7 +61,7 @@ func run(args []string) error {
 			Middleware:     application.ChainMiddleware(smokeRoutes, d.routes),
 			DisableLogging: true, // request paths may carry tokens (a single-use password link)
 		},
-		Linux: application.LinuxOptions{ProgramName: "ad-manager-desktop"},
+		Linux: application.LinuxOptions{ProgramName: iconName},
 		Mac:   application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	}
 	winOpts := application.WebviewWindowOptions{Title: "AD Manager", Width: 1280, Height: 800, MinWidth: 800, MinHeight: 600}
@@ -86,6 +87,7 @@ func run(args []string) error {
 	var once sync.Once
 	win.OnWindowEvent(events.Common.WindowShow, func(*application.WindowEvent) {
 		once.Do(func() {
+			setWindowIcon(win)
 			if err := guardNavigation(win); err != nil {
 				app.Logger.Error(err.Error())
 				app.Dialog.Error().SetTitle("AD Manager").SetMessage("The app cannot start safely: " + err.Error()).Show()

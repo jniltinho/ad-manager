@@ -74,6 +74,8 @@ function openQuarantine(id, open = '') {
 function pick(id) {
   currentId.value = id
   data.value = null
+  qs.value = { quarantines: [], space: [] }
+  freshQ.drop() // the last server's quarantines, if they answer late, never show under this one
   load()
 }
 loadAgents()

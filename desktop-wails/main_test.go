@@ -5,8 +5,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -94,7 +97,7 @@ func TestConfigureTrustTestSave(t *testing.T) {
 	// the tested session is the app's: /api/me through the proxy answers without a new sign-in
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/me", nil)
-	r.Header.Set("X-ADM-Session", "2")
+	r.Header.Set("X-ADM-Session", strconv.FormatUint(d.current().Generation(), 10))
 	d.routes(http.NotFoundHandler()).ServeHTTP(w, r)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "administrator") {
 		t.Fatalf("me after save: %d %s", w.Code, w.Body)
@@ -176,5 +179,56 @@ func TestDevPolicyHasOneConnectSrc(t *testing.T) {
 	p := policy()
 	if devServer() != "" && (strings.Count(p, "connect-src") != 1 || !strings.HasSuffix(p, "connect-src 'self' ws://127.0.0.1:9245")) {
 		t.Fatalf("dev policy: %s", p)
+	}
+}
+
+// A test whose request arrives after its cancel (an edit came in between) is never adopted, and Save needs the
+// active test.
+func TestCancelBeforeTheTestArrives(t *testing.T) {
+	s := testPanel(t, false)
+	d := newTestDesktop(t)
+	c := &Configure{d: d}
+	pin := panel.CertPin(s.Certificate().Raw)
+	c.Cancel(7) // the edit's cancel reaches Go first
+	if res := postTest(t, d, testRequest{ID: 7, URL: s.URL, User: "administrator", Password: "right", Trust: pin}); !res.Stale {
+		t.Fatalf("a cancelled test ran: %+v", res)
+	}
+	if res := postTest(t, d, testRequest{ID: 9, URL: s.URL, User: "administrator", Password: "right", Trust: pin}); !res.OK {
+		t.Fatalf("a newer test: %+v", res)
+	}
+	if res := postTest(t, d, testRequest{ID: 8, URL: s.URL, User: "administrator", Password: "right", Trust: pin}); !res.Stale {
+		t.Fatalf("an older test after a newer one: %+v", res)
+	}
+	if err := c.Save(9, "", "", "", false); err != nil {
+		t.Fatalf("save of the active test: %v", err)
+	}
+}
+
+func TestRuntimeBrowserObjectVariants(t *testing.T) {
+	d := newTestDesktop(t)
+	h := d.routes(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	for _, q := range []string{"9", "09", "+9", "009"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/wails/runtime?object="+url.QueryEscape(q), nil))
+		if w.Code != http.StatusForbidden {
+			t.Errorf("object=%s: %d", q, w.Code)
+		}
+	}
+}
+
+func TestRefusedFileIsNotOverwritten(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "desktop.toml")
+	if err := os.WriteFile(p, []byte("[panel]\nurl = \"https://p:1\"\n[other]\nkeep = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("modes")
+	}
+	d := newDesktop(config.File{Path: p})
+	if err := (&Configure{d: d}).SavePreferences("en", "", "", false); err == nil {
+		t.Fatal("preferences overwrote a refused file")
+	}
+	if b, _ := os.ReadFile(p); !strings.Contains(string(b), "keep = 1") {
+		t.Fatal("the file changed")
 	}
 }

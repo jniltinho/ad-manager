@@ -43,8 +43,16 @@ export function setLang(l) {
 }
 
 // useDefault applies the company default unless the operator already chose.
+// pinLang fixes the language over the panel's default (the desktop's desktop.toml lang); '' lets it follow again
+let pinned = false
+export function pinLang(l) {
+  pinned = !!l
+  if (l) lang.value = l
+  document.documentElement.lang = lang.value
+}
+
 export function useDefault(l) {
-  if (!stored() && l) lang.value = l
+  if (!pinned && !stored() && l) lang.value = l
   document.documentElement.lang = lang.value
 }
 

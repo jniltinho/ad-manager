@@ -88,6 +88,9 @@ func (f *Files) SendToPanel(gen uint64, apiPath string) (string, error) {
 	body, err := p.Upload(ctx, gen, apiPath, path, func(sent, total int64) {
 		f.d.app.Event.Emit("adm:upload-progress", map[string]int64{"sent": sent, "total": total})
 	})
+	if err != nil && ctx.Err() != nil {
+		return "", nil // stopped by CancelUpload: like a cancelled dialog
+	}
 	return string(body), err
 }
 

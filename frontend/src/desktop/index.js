@@ -1,8 +1,8 @@
 // The Wails desktop's own code, loaded by main.js only in `vp build --mode desktop` (never part of the web build).
 import { Call, Events } from '@wailsio/runtime'
 import { markRaw, watch } from 'vue'
-import { auth, platform, session, setGeneration } from '../api'
-import { addTranslations, lang, serverText } from '../i18n'
+import { auth, brand, endSession, platform, session, setGeneration } from '../api'
+import { addTranslations, pinLang, serverText, useDefault } from '../i18n'
 import catalog from '../locales/pt-BR/desktop.js'
 import { toast } from '../toasts'
 import Configure from './Configure.vue'
@@ -10,24 +10,39 @@ import Configure from './Configure.vue'
 // marks a desktop bundle: the web build's check fails if this string reaches web/dist
 export const DESKTOP_SENTINEL = 'adm-desktop-wails-bundle'
 
-// call runs a method of a Go service (main.go, files.go). Its error shows translated like the panel's; a transfer of
-// a session that has ended never settles, as api() answers do.
+// call runs a method of a Go service (desktop.go, files.go). As api() answers, whatever comes back after the session
+// changed never settles; a transfer the panel refused as signed out ends the session; errors show translated.
 async function call(service, method, ...args) {
+  const gen = session()
+  const never = () => new Promise(() => {})
   try {
-    return await Call.ByName(`main.${service}.${method}`, ...args)
+    const v = await Call.ByName(`main.${service}.${method}`, ...args)
+    return gen === session() ? v : never()
   } catch (e) {
-    if (e?.message === 'stale session') return new Promise(() => {})
+    if (gen !== session() || e?.message === 'stale session') return never()
+    if (e?.message === 'the session has ended: sign in again') endSession()
     throw new Error(serverText(e?.message) || String(e))
   }
 }
 export const shell = (method, ...args) => call('Shell', method, ...args)
 export const configure = (method, ...args) => call('Configure', method, ...args)
 
-// language shows the interface in l (desktop.toml's lang, else the panel's default)
+// language shows the interface in l (desktop.toml's lang), or follows the panel's default again ('')
 export function language(l) {
-  if (!l) return
-  lang.value = l
-  document.documentElement.lang = l
+  pinLang(l)
+  if (!l) useDefault(brand.lang)
+}
+
+// themes is the panel's theme registry, remembered for Configure when the panel cannot be reached (a convenience of
+// this computer: the registry itself comes from the panel)
+const THEMES_KEY = 'adm-desktop-themes'
+export function themes() {
+  if (brand.themes?.length) return brand.themes
+  try {
+    return JSON.parse(localStorage.getItem(THEMES_KEY)) || []
+  } catch {
+    return []
+  }
 }
 
 // install wires the desktop before the app mounts.
@@ -43,6 +58,7 @@ export async function install() {
     panelOrigin: origin,
     defaultUser: st.user,
     configure: () => (platform.screen = markRaw(Configure)),
+    cancelSend: () => call('Files', 'CancelUpload'),
     // files move in Go, between the panel and the disk, with native dialogs (files.go)
     async saveFile({ name, text, apiPath }) {
       if (apiPath) await call('Files', 'SaveFromPanel', session(), apiPath, name)
@@ -59,6 +75,16 @@ export async function install() {
     },
   })
   if (!st.configured || st.problem) platform.configure()
+  watch(
+    () => brand.themes,
+    (list) => {
+      try {
+        if (list?.length) localStorage.setItem(THEMES_KEY, JSON.stringify(list))
+      } catch {
+        /* a convenience only */
+      }
+    },
+  )
   // said once after sign-in: the agent tokens of an older desktop.toml were removed
   watch(
     () => auth.user,
@@ -76,10 +102,12 @@ export async function install() {
       const a = e.target.closest?.('a[href]')
       if (!a) return
       const href = a.getAttribute('href')
-      if (href === '/asynqmon' || href === '/swagger') {
+      const to = new URL(href, location.href)
+      if (href === '/asynqmon' || href === '/swagger' || to.origin !== location.origin) {
+        // the panel's own pages and its support link open in the system browser (Go checks which); nothing else
         e.preventDefault()
-        shell('OpenExternal', href)
-      } else if (a.target === '_blank' || new URL(href, location.href).origin !== location.origin) e.preventDefault()
+        shell('OpenExternal', to.origin === location.origin ? href : to.href).catch(() => {})
+      } else if (a.target === '_blank') e.preventDefault()
     },
     true,
   )

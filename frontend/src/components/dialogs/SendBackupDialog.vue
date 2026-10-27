@@ -59,6 +59,9 @@ async function send() {
         />
         <p v-else id="sfile" class="text-fg-muted">{{ t('Send asks for the file.') }}</p>
       </div>
+      <div v-if="desktop && progress >= 0">
+        <button type="button" class="btn-ghost" @click="platform.cancelSend()">{{ t('Stop sending') }}</button>
+      </div>
       <p class="text-fg-muted">
         {{
           t('The server checks the content for the kind and lists it as sent; then it restores like the others. Up to {n} MiB.', {

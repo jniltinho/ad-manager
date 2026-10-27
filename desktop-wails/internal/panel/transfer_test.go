@@ -76,7 +76,7 @@ func TestDownloadErrorLeavesNothing(t *testing.T) {
 	p.reset() // signed out
 	dir := t.TempDir()
 	_, _, err := p.Download(context.Background(), p.Generation(), "/api/backup", filepath.Join(dir, "b.tar.gz"))
-	if err == nil || err.Error() != "sign in" {
+	if err != ErrSessionEnded {
 		t.Fatalf("error: %v", err)
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {

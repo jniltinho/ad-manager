@@ -83,9 +83,17 @@ func (p *Panel) Download(ctx context.Context, gen uint64, apiPath, dst string) (
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return 0, "", panelError(res)
+		return 0, "", transferError(res)
 	}
 	return writePrivate(dst, res.Body)
+}
+
+// transferError is panelError, with a 401 as ErrSessionEnded: the SPA then ends its session as for its own 401s.
+func transferError(res *http.Response) error {
+	if res.StatusCode == http.StatusUnauthorized {
+		return ErrSessionEnded
+	}
+	return panelError(res)
 }
 
 // SaveText writes text to dst as Download does (a CSV built in the SPA).
@@ -140,7 +148,7 @@ func (p *Panel) Upload(ctx context.Context, gen uint64, apiPath, src string, pro
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, panelError(res)
+		return nil, transferError(res)
 	}
 	return io.ReadAll(io.LimitReader(res.Body, 4<<20))
 }

@@ -22,8 +22,12 @@ export default {
   'With depth': 'Com profundidade',
   'Safe rendering (GPU off): for a graphics driver that cannot draw the window. Applies at the next start.':
     'Renderização segura (sem GPU): para um driver de vídeo que não consegue desenhar a janela. Vale no próximo início.',
-  'Without a new test, Save keeps the panel and saves only this computer’s preferences.':
-    'Sem um novo teste, Salvar mantém o painel e salva só as preferências deste computador.',
+  'This computer’s preferences are saved as they change.': 'As preferências deste computador são salvas ao mudar.',
+  'This computer’s preferences are saved.': 'As preferências deste computador foram salvas.',
+  'Stop sending': 'Parar o envio',
+  'the session has ended: sign in again': 'a sessão terminou: entre de novo',
+  "only the panel's /asynqmon and /swagger pages and its support link open outside the app":
+    'só as páginas /asynqmon e /swagger do painel e o link de suporte abrem fora do app',
   '{path} must be private and has mode {mode}: run chmod 600': '{path} precisa ser privado e tem modo {mode}: rode chmod 600',
   'Send asks for the file.': 'Enviar pede o arquivo.',
   // Go messages (desktop-wails/)

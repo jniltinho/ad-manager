@@ -1,6 +1,6 @@
 // Dependency-free helpers: dates, file saving and sending, CSV download, password generator.
 import { ref, watch } from 'vue'
-import { apiRaw, auth, platform, session } from './api'
+import { apiRaw, auth, endSession, platform, session } from './api'
 import { locale, serverText, t } from './i18n'
 
 // spinner is true while busy() is, and for at least `ms` after it turned true: a refresh icon still visibly turns
@@ -97,10 +97,11 @@ export function sendFile(apiPath, file, onProgress) {
         /* not JSON */
       }
       if (gen !== session()) return // an answer of an earlier session never settles
+      if (req.status === 401) endSession()
       if (req.status === 200) resolve(data)
       else reject(new Error(serverText(data.error) || `HTTP ${req.status}`))
     }
-    req.onerror = () => reject(new Error(t('The upload failed (connection).')))
+    req.onerror = () => gen === session() && reject(new Error(t('The upload failed (connection).')))
     req.send(file)
   })
 }

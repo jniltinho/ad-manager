@@ -2,13 +2,14 @@
 // Configure (desktop only): the panel URL, the account and this computer's preferences. Test reads the panel's
 // certificate (a self-signed one is trusted only by the operator), its health, and signs in for real; Save is enabled
 // only after a successful test of the values on screen and opens the app with that session. Language, appearance and
-// graphics are saved at once, without a test. The password is sent only for the test and never saved.
+// graphics are this computer's: saved as they change, without a test (also offline, also before the first Save).
+// The password is sent only for the test and never saved.
 import { LoaderCircle, PlugZap, Save, ShieldAlert, ShieldCheck } from 'lucide-vue-next'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { brand, platform } from '../api'
+import { platform } from '../api'
 import { languages, serverText, t } from '../i18n'
 import { formatDate } from '../util'
-import { configure, language } from './index.js'
+import { configure, language, themes } from './index.js'
 
 const st = ref(null) // ConfigState (desktop.go)
 const url = ref('')
@@ -32,15 +33,19 @@ onMounted(async () => {
   prefs.value = { lang: st.value.lang, theme: st.value.theme, flat: st.value.flat, safeGPU: st.value.safeGPU }
 })
 
-// an edit after a test signs the tested session out and disables Save
-watch([url, user, password], () => {
-  if (busy.value || tested.value) configure('Cancel', tested.value || testID)
+// an edit drops every test so far (Go signs a tested session out, and a test still running is never adopted) and
+// disables Save
+function dropTests() {
+  if (busy.value || tested.value) configure('Cancel', testID)
+  testID++
   tested.value = 0
   result.value = null
   busy.value = false
-})
+}
+watch([url, user, password], dropTests)
 
 const canSave = computed(() => !!tested.value && !!result.value?.ok)
+const themeList = computed(() => themes())
 
 async function test() {
   error.value = ''
@@ -79,8 +84,7 @@ function trust() {
 async function save() {
   error.value = ''
   try {
-    if (canSave.value) await configure('Save', tested.value, prefs.value.lang, prefs.value.theme, prefs.value.flat, prefs.value.safeGPU)
-    else await configure('SavePreferences', prefs.value.lang, prefs.value.theme, prefs.value.flat, prefs.value.safeGPU)
+    await configure('Save', tested.value, prefs.value.lang, prefs.value.theme, prefs.value.flat, prefs.value.safeGPU)
     password.value = ''
     location.assign('/') // the app again, with the new panel's session
   } catch (e) {
@@ -88,18 +92,26 @@ async function save() {
   }
 }
 
-// preferences apply at once on screen (and are saved with Save)
+// preferences apply at once on screen and are saved as they change
+const prefsSaved = ref(false)
 watch(
-  () => prefs.value.lang,
-  (l) => language(l || brand.lang),
-)
-watch(
-  () => [prefs.value.theme, prefs.value.flat],
-  ([theme, flat]) => Object.assign(platform.appearance, { theme, flat }),
+  () => ({ ...prefs.value }),
+  async (p, old) => {
+    if (!st.value || !old) return
+    if (p.lang !== old.lang) language(p.lang)
+    Object.assign(platform.appearance, { theme: p.theme, flat: p.flat })
+    try {
+      await configure('SavePreferences', p.lang, p.theme, p.flat, p.safeGPU)
+      prefsSaved.value = true
+      error.value = ''
+    } catch (e) {
+      error.value = e.message
+    }
+  },
 )
 
 function close() {
-  if (tested.value) configure('Cancel', tested.value)
+  dropTests()
   platform.screen = null
 }
 
@@ -181,14 +193,14 @@ const problem = computed(() => {
             <option v-for="[code, name] in languages" :key="code" :value="code">{{ name }}</option>
           </select>
         </div>
-        <div v-if="brand.themes?.length">
+        <div v-if="themeList.length">
           <label class="lbl" for="c-theme">{{ t('Theme') }}</label>
           <select id="c-theme" v-model="prefs.theme" class="inp">
             <option value="">{{ t('Panel default') }}</option>
-            <option v-for="th in brand.themes" :key="th.id" :value="th.id">{{ t(th.label) }}</option>
+            <option v-for="th in themeList" :key="th.id" :value="th.id">{{ t(th.label) }}</option>
           </select>
         </div>
-        <div v-if="brand.themes?.length">
+        <div v-if="themeList.length">
           <label class="lbl" for="c-flat">{{ t('Look') }}</label>
           <select id="c-flat" v-model="prefs.flat" class="inp">
             <option value="">{{ t('Panel default') }}</option>
@@ -204,12 +216,12 @@ const problem = computed(() => {
     </section>
 
     <div v-if="st" class="flex items-center gap-2">
-      <button ref="saveBtn" type="button" class="btn" :disabled="busy || (!canSave && !st.configured)" @click="save">
+      <button ref="saveBtn" type="button" class="btn" :disabled="busy || !canSave" @click="save">
         <Save :size="14" /> {{ t('Save') }}
       </button>
-      <button v-if="st.configured" type="button" class="btn-ghost" @click="close">{{ t('Cancel') }}</button>
-      <span v-if="!canSave && st.configured" class="text-fg-muted">{{
-        t('Without a new test, Save keeps the panel and saves only this computer’s preferences.')
+      <button v-if="st.configured" type="button" class="btn-ghost" @click="close">{{ t('Close') }}</button>
+      <span class="text-fg-muted">{{
+        prefsSaved ? t('This computer’s preferences are saved.') : t('This computer’s preferences are saved as they change.')
       }}</span>
       <span class="ml-auto text-fg-muted">{{ st.path }}</span>
     </div>

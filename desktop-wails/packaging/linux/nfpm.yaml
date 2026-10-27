@@ -21,8 +21,8 @@ contents:
     dst: /usr/share/applications/ad-manager-desktop-wails.desktop
     file_info:
       mode: 0644
-  - src: packaging/icon.png
-    dst: /usr/share/icons/hicolor/1024x1024/apps/ad-manager-desktop-wails.png
+  - src: packaging/icon-256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/ad-manager-desktop-wails.png
     file_info:
       mode: 0644
 overrides:

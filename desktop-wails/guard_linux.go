@@ -60,10 +60,18 @@ func admNavigationAllowed(uri *C.char) C.int {
 	return 0
 }
 
-// appURL tells whether s is the app's own origin, wails://localhost, exactly: no other host, port or user.
+// appURL tells whether s is the app's own origin, wails://localhost, exactly: no other host, port or user (in a
+// development build, Wails adds the Vite dev server's port: that one only).
 func appURL(s string) bool {
 	u, err := url.Parse(s)
-	return err == nil && u.Scheme == "wails" && u.Host == "localhost" && u.User == nil && u.Opaque == ""
+	if err != nil || u.Scheme != "wails" || u.Hostname() != "localhost" || u.User != nil || u.Opaque != "" {
+		return false
+	}
+	if u.Port() == "" {
+		return true
+	}
+	dev, err := url.Parse(devServer())
+	return err == nil && dev.Port() != "" && u.Port() == dev.Port()
 }
 
 // guardedStart is the window's first content: a blank page, so that the guard is on before the app's own page and

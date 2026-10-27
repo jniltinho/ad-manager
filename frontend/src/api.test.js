@@ -84,7 +84,44 @@ describe('sessions', () => {
   })
 })
 
+describe('session endings', () => {
+  it('drops a late failure of an earlier session too', async () => {
+    const late = deferred()
+    fetchQueue(
+      () => late.promise.then(() => Promise.reject(new TypeError('network'))),
+      () => res(200, {}),
+    )
+    const me = api('GET', '/me')
+    await api('POST', '/login', {})
+    auth.user = 'administrator'
+    late.resolve()
+    expect(await state(me)).toBe('pending')
+    expect(auth.user).toBe('administrator')
+  })
+
+  it('ends the session on a 401 of the current one', async () => {
+    const hook = vi.fn()
+    const off = onSessionChange(hook)
+    fetchQueue(() => res(401, { error: 'sign in' }))
+    auth.user = 'administrator'
+    // the call belonged to the session it ended: it never settles either (the sign-in screen replaces its page)
+    expect(await state(api('GET', '/users'))).toBe('pending')
+    expect(auth.user).toBe(null)
+    expect(hook).toHaveBeenCalledTimes(1)
+    off()
+  })
+})
+
 describe('latest', () => {
+  it('drops a failure that a newer load replaced', async () => {
+    const fresh = latest()
+    const a = deferred()
+    const first = fresh(a.promise.then(() => Promise.reject(new Error('server A down'))))
+    await fresh(Promise.resolve('B'))
+    a.resolve()
+    expect(await state(first)).toBe('pending')
+  })
+
   it('drops an answer that a newer load replaced', async () => {
     const fresh = latest()
     const a = deferred()

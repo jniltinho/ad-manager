@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,6 +39,13 @@ const BridgeCap = 32 << 20
 
 // ErrTooLarge is a body over BridgeCap.
 var ErrTooLarge = fmt.Errorf("larger than %d MiB, the most the desktop app passes through its window at once", BridgeCap>>20)
+
+// generations numbers every session of every Panel in this process: a request built under a session of a panel that
+// Configure replaced can never match a session of the new one.
+var generations atomic.Uint64
+
+// ErrSessionEnded is the panel's 401 on a transfer: the SPA ends its session (sign-in again).
+var ErrSessionEnded = errors.New("the session has ended: sign in again")
 
 // ErrURL is a panel URL that is not https://server[:port].
 var ErrURL = errors.New("Panel URL: enter an https://server:port URL") //nolint:staticcheck // the field's name starts the message
@@ -137,7 +145,7 @@ func (p *Panel) resetLocked() (sess, context.CancelFunc, *http.Client) {
 		CheckRedirect: func(*http.Request, []*http.Request) error { return ErrRedirect }}
 	ctx, cancel := context.WithCancel(context.Background())
 	old, oldHC := p.cancel, p.hc
-	p.gen++
+	p.gen = generations.Add(1)
 	p.hc, p.ctx, p.cancel = hc, ctx, cancel
 	return sess{p.gen, hc, ctx}, old, oldHC
 }

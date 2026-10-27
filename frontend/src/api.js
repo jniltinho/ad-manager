@@ -51,21 +51,30 @@ export const platform = shallowReactive({
   defaultUser: '',
 })
 
+// endSession ends the session on screen: a 401 of the current session, or a transfer the panel refused as signed
+// out. Open dialogs close and pollers stop (onSessionChange), and the sign-in screen shows.
+export function endSession() {
+  auth.user = null
+  newSession()
+}
+
 // apiRaw is fetch('/api' + path) with the session rules; api() and the few callers that need the raw answer (a
-// blob, a text) use it
+// blob, a text) use it. Everything about an earlier session never settles, a failure as much as an answer; a
+// sign-in or a sign-out counts only for the session it was made in.
 export async function apiRaw(path, opts = {}) {
   const gen = generation
   const headers = { ...opts.headers, 'X-ADM-Session': String(gen) }
   let r
   try {
     r = await fetch('/api' + path, { credentials: 'same-origin', ...opts, headers })
-  } finally {
-    if (path === '/logout') newSession(Number(r?.headers.get('X-ADM-Session')))
+  } catch (e) {
+    if (gen !== generation) return never()
+    if (path === '/logout') newSession() // a sign-out that failed still ends the session here
+    throw e
   }
-  if (path === '/login') {
-    if (r.ok) newSession(Number(r.headers.get('X-ADM-Session')))
-  } else if (path !== '/logout' && (gen !== generation || r.headers.has('X-ADM-Stale'))) return never()
-  if (r.status === 401 && path !== '/login') auth.user = null
+  if (gen !== generation || r.headers.has('X-ADM-Stale')) return never()
+  if (path === '/logout' || (path === '/login' && r.ok)) newSession(Number(r.headers.get('X-ADM-Session')))
+  else if (r.status === 401 && path !== '/login') endSession()
   return r
 }
 
@@ -93,15 +102,23 @@ export function checkUpload(fd) {
     throw new Error(t('The files are larger than {n} MiB, the most the desktop app sends at once.', { n: platform.maxUpload >> 20 }))
 }
 
-// latest() is a guard for a page that switches targets (a server, a filter): wrap each load's request with the
-// returned function and an answer that a newer load replaced never settles
+// latest() is a guard for a page that switches targets (a server): wrap each load's request with the returned
+// function, and an answer (or a failure) that a newer load replaced never settles; drop() replaces the pending one
+// at once (the target changed before a new load starts)
 export function latest() {
   let n = 0
-  return async (promise) => {
+  const fresh = async (promise) => {
     const mine = ++n
-    const v = await promise
-    return mine === n ? v : never()
+    try {
+      const v = await promise
+      return mine === n ? v : never()
+    } catch (e) {
+      if (mine !== n) return never()
+      throw e
+    }
   }
+  fresh.drop = () => n++
+  return fresh
 }
 
 // panelOrigin is the panel's address for links used outside the app (the single-use password link)
