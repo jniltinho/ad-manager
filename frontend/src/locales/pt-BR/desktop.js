@@ -48,4 +48,5 @@ export default {
   'File-server tokens are no longer used: they were removed from the configuration file.':
     'Tokens de servidores de arquivos não são mais usados: foram removidos do arquivo de configuração.',
   'the panel presented no certificate': 'o painel não apresentou certificado',
+  'The queue monitor is not available in the desktop app': 'O monitor de filas não está disponível no app desktop',
 }

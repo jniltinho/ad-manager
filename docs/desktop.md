@@ -18,7 +18,7 @@ Everything the web panel does, with its pages, dialogs, guards, the 20 themes (f
 because it is the same code: **Home**, **Users**, **Groups**, **OUs** (with GPOs), **Computers**, **Shares**,
 **Import/export**, **Backup** and **Sync**, **Logs** and **Settings**. On top of the web panel:
 
-- **Configure** (first run, the sign-in box and the header): the panel, the account and this computer's preferences.
+- **Configure** (first run, the sign-in box and the tab bar, next to Queues): the panel, the account and this computer's preferences.
 - **The panel's certificate is pinned**: a self-signed one is accepted only after the operator trusts its
   fingerprint, and then only that certificate. A redirect is never followed, and only `https://` is used.
 - **The session stays in the app**: the panel's session cookie is kept in Go and never reaches the page. Nothing of
@@ -27,7 +27,8 @@ because it is the same code: **Home**, **Users**, **Groups**, **OUs** (with GPOs
   their owner only (Linux, macOS). Backups are sent from disk with progress and a stop button.
 - **This computer's look**: the theme, flat or with depth, and the language can differ from the panel's.
 - **Its own window**: remembered size and place, one window per configuration file, the app's icon. The panel's
-  queue monitor and API docs open in the system browser.
+  API docs open in the system browser; the queue monitor is off (Queues shows disabled: it needs a browser session
+  to the panel).
 
 ## Configure
 

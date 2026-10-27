@@ -101,8 +101,7 @@
   --color-on-tab-hover: #222222;
   --shadow-tab: inset 1px 0 #c4c4c4, inset -1px 0 #c4c4c4, inset 0 1px #c4c4c4, inset 0 -1px #c4c4c4, inset 0 -7px 7px rgba(0, 0, 0, 0.07);
   --color-on-tab-aux: #333333;
-  --color-tab-aux-hover: #e4e4e4;
-  --color-on-tab-aux-hover: #222222;
+  --color-on-tab-aux-hover: #a64000;
   --color-tab-on-top: #ffffff;
   --color-tab-on: #ffffff;
   --color-on-tab-on: #222222;

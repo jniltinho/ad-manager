@@ -368,19 +368,21 @@ The desktop's user edit dialog SHALL name its Groups tab with the number of grou
 - **WHEN** the operator opens a user who is in 2 groups and removes one on the Groups tab
 - **THEN** the tab reads `Groups (2)` when the dialog opens and `Groups (1)` after the removal
 
-### Requirement: The desktop app is the Rust one
-The desktop app the project builds, tests and releases SHALL be `desktop/`; the Fyne app in `archive/desktop-go/` SHALL be
-kept as code only and SHALL NOT be built by `make`, tested by CI or published by a release.
+### Requirement: The desktop app is the Wails one
+The desktop app the project builds, tests and releases SHALL be `desktop/` (Go, Wails v3, the web SPA in desktop
+mode); the Rust app in `archive/desktop-rust/` and the Fyne app in `archive/desktop-go/` SHALL be kept as code only
+and SHALL NOT be built by `make`, tested by CI or published by a release.
 
 #### Scenario: Build
 - **WHEN** a developer runs `make build`
-- **THEN** `dist/` gets the server and, in `dist/desktop/`, the Rust app's archives and Linux binary, built in
-  Docker, and nothing from `desktop/`
+- **THEN** `dist/` gets the server and, in `dist/desktop/`, the Wails app's Linux and Windows archives, `.deb`, `.rpm`
+  and Linux binary, built in Docker, and nothing from `archive/`
 
-#### Scenario: Release
-- **WHEN** a `vX.Y.Z` tag is pushed
-- **THEN** the release has the server tarball, the `.deb` and `checksums.txt`, and no Fyne desktop archive
+#### Scenario: A configuration of the Rust app
+- **WHEN** the new app starts on a computer whose `desktop.toml` was written by the Rust app
+- **THEN** it uses the same panel, user, fingerprint, language and appearance, and keeps `[graphics] gpu_backend`
 
-#### Scenario: Themes in step
-- **WHEN** a theme's CSS changes and `themes.json` was not regenerated
-- **THEN** `make desktop-check` and the desktop CI fail until `make desktop-themes` is run
+#### Scenario: Docs screenshots
+- **WHEN** `make desktop-shots` runs
+- **THEN** `docs/screenshots/desktop-*.png` are taken from the real app at 2×, in Classic blue, with Example Company
+  Ltd and `domain.local`, against a demo panel, with no domain needed

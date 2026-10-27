@@ -32,6 +32,7 @@
   --color-tab: var(--color-cn-light);
   --color-on-tab: #fff;
   --color-on-tab-aux: #fff; /* API / Queues links: white on the band (also over its lighter top) */
+  --color-on-tab-aux-hover: #ffd166;
   --color-tab-divider: #424f56;
   --tab-divider-w: 1px;
   --tab-hover-filter: brightness(1.12);

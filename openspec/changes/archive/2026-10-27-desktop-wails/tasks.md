@@ -23,10 +23,11 @@
 - [x] 2.3 `Files.SendToPanel` and `Files.SaveFromPanel` (Go tests with 200 MiB; Linux smoke; Windows and macOS in
       milestone 3's CI): hashes,
       progress, cancellation and a throttled link.
-- [ ] 2.4 Native navigation guard prototype on the three engines (WebView2 `NavigationStarting`/
+- [x] 2.4 Native navigation guard prototype on the three engines (WebView2 `NavigationStarting`/
       `NewWindowRequested`, WebKitGTK `decide-policy`, WKWebView delegate). Choose an upstream WEP/PR or a carried
       patch. Record whether another origin can call bound methods. (Linux done in milestone 0; Windows and macOS
       need the carried patch, task 4.5.)
+      **Moved to `desktop-native-guard-users-virtual` (Linux done; Windows and macOS there).**
 - [x] 2.5 One bound service called from the SPA (`Shell.Version`, read back by the smoke build). The server build
       driven by Playwright moves to task 5.3.
 - [x] 2.6 Write the G1 result in `design.md` (go / no-go); stop here on no-go.
@@ -77,11 +78,12 @@
 - [x] 4.4 Services `Config` (with test ids and cancel), `Files` (`SaveText`, `SaveFromPanel`, `SendToPanel`,
       `0600`, progress, cancel) and `Shell.OpenExternal` (allowlist). With tests, including log capture without
       secrets.
-- [ ] 4.5 The native navigation guard on the three engines, upstream or as a carried patch with a test. Linux is
+- [x] 4.5 The native navigation guard on the three engines, upstream or as a carried patch with a test. Linux is
       done (`guard_linux.go`, exact `wails://localhost` origin, installed on a blank page before the app loads,
       fail closed). Windows and macOS need a change to Wails (it keeps the WebView2 controller and the WKWebView
       delegate private): an upstream PR or a carried patch, which needs the operator's go-ahead. **G2 stays closed
       until then.**
+      **Moved to `desktop-native-guard-users-virtual`.**
 - [x] 4.6 `frontend/src/desktop/`:
       - bootstrap: `Config.Load` before mount; user, language and theme precedence;
       - the Configure screen and its certificate card;
@@ -98,19 +100,22 @@
       `production` build, Windows `CGO_ENABLED=0` cross-build, and the archives.
 - [x] 5.2 Make targets `desktop-wails` and `desktop-wails-check` (not in `make build`); the version lockstep test
       (`lockstep_test.go`). `desktop-wails-e2e` comes with task 5.3.
-- [ ] 5.3 Test server build: loopback, `Host` check, per-run token, throwaway config. Playwright e2e on Chromium
+- [x] 5.3 Test server build: loopback, `Host` check, per-run token, throwaway config. Playwright e2e on Chromium
       and WebKit against the mock panel, with cookie-store and response-header checks. The live config for the
       all-in-one image.
-- [ ] 5.4 (written; checked by its first runs) `.github/workflows/desktop-wails-ci.yml`, a workflow of its own: path-filtered, not called by `ci.yml`
+      **Not done: superseded by the native smokes of `desktop-ci.yml` (desktop-switch 3.1).**
+- [x] 5.4 (written; checked by its first runs) `.github/workflows/desktop-wails-ci.yml`, a workflow of its own: path-filtered, not called by `ci.yml`
       or `release.yml`, artifacts named `desktop-wails-preview-*`. Native smoke with the `smoke` tag on Ubuntu,
       `windows-latest` and `macos-14` (universal). The shipped-binary check (no listener, no dev assets, no test
       adapters).
+      **Superseded: `desktop-ci.yml`, called by `ci.yml` (desktop-switch 3.1).**
 - [x] 5.5 `desktop-wails/bench/run.sh`: the current Rust binary re-measured in the same run; PSS and CPU over all
       webview processes; painted readiness. Report in `desktop-wails/docs/benchmark.md`, each budget marked pass,
       fail or waived. Result: G4 not met (4 of 6 budgets fail; the web's Users table renders all 5,000 rows).
-- [ ] 5.5a Virtualize the web's Users table and run the benchmark again (or a written waiver).
+- [x] 5.5a Virtualize the web's Users table and run the benchmark again (or a written waiver).
+      **Moved to `desktop-native-guard-users-virtual`.**
 - [x] 5.6 nfpm `.deb` (`libgtk-4-1, libwebkitgtk-6.0-4`) and `.rpm` (`gtk4, webkitgtk6.0`).
-- [ ] 5.7 G3 runs: Ubuntu 24.04, Debian 13, Fedora 40+, Windows 11, Windows Server 2022 with WebView2, macOS 14, and
+- [x] 5.7 G3 runs: Ubuntu 24.04, Debian 13, Fedora 40+, Windows 11, Windows Server 2022 with WebView2, macOS 14, and
       GPU-less Linux and Hyper-V VMs with painted-frame checks. Write the G3 and G4 results, and any written
       waivers, in `design.md`. Windows 11 Enterprise 25H2 (Vagrant `win11`, WebView2 151, 1024×768): Configure,
       certificate trust, sign-in, Home and Users, CSV export through the native save dialog, maximised restart and
@@ -125,15 +130,23 @@
       listener marks the window destroyed first: saved from a hook now); the window moved down by its title bar each
       start (X11 reads the client position, places the frame: corrected after placing). Windows 11 again with these
       fixes: fitted first window, stable place and size, maximised restart, restore to the saved size.
+      **Closed with the switch: Windows 11, macOS 15 and Linux (X11) ran as written above; Debian 13, Fedora,
+      Windows Server 2022 and the GPU-less VMs were not run.**
 
 ## 6. Phase 4 — preview (gate G5)
 
-- [ ] 6.1 Parity checklist of `design.md` complete, each row pointing to its test.
-- [ ] 6.2 Operator uses preview builds for at least 4 weeks; issues fixed or recorded.
-- [ ] 6.3 `docs/desktop.md` gets a "Wails preview" section (install deps, `--safe-gpu`, known limits).
-- [ ] 6.4 Decision recorded: switch (open the switch change) or stop (rollback in `design.md`).
+- [x] 6.1 Parity checklist of `design.md` complete, each row pointing to its test.
+      **Superseded by the operator's decision to switch (desktop-switch).**
+- [x] 6.2 Operator uses preview builds for at least 4 weeks; issues fixed or recorded.
+      **Superseded by the operator's decision to switch (desktop-switch).**
+- [x] 6.3 `docs/desktop.md` gets a "Wails preview" section (install deps, `--safe-gpu`, known limits).
+      **Superseded: `docs/desktop.md` documents the Wails app itself (desktop-switch 4.3).**
+- [x] 6.4 Decision recorded: switch (open the switch change) or stop (rollback in `design.md`).
+      **Done: the operator chose to switch (`desktop-switch`).**
 
 ## 7. Validate
 
-- [ ] 7.1 `make check && make test`; `make desktop-check` still green (Rust untouched); `make desktop-wails-check`.
-- [ ] 7.2 Codex review of the implementation of each phase (`codex exec --sandbox read-only …`).
+- [x] 7.1 `make check && make test`; `make desktop-check` still green (Rust untouched); `make desktop-wails-check`.
+      **Done on the switch: `make check`, `make test`, `make desktop-check`, `make build` (PR #24).**
+- [x] 7.2 Codex review of the implementation of each phase (`codex exec --sandbox read-only …`).
+      **Done on the switch: Codex review of the switch commit.**

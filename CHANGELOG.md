@@ -5,7 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- Desktop app: Configure moves from the header to the tab bar, next to Queues: the header is the web's.
+- Desktop app: Queues shows disabled (the queue monitor needs a browser session to the panel).
+- The links at the right of the tab bar (API, Queues, Configure) change only their text color on hover.
 
 ## [0.27.0] — 2026-10-27
 

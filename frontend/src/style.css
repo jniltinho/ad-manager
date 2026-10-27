@@ -135,7 +135,6 @@
   --color-on-tab-hover: #fff;
   --color-tab-divider: transparent;
   --color-on-tab-aux: #ccc; /* API / Queues links at the right of the tabs */
-  --color-tab-aux-hover: var(--color-cn-light);
   --color-on-tab-aux-hover: #fff;
   --color-tab-on-top: var(--color-cn-light);
   --color-tab-on: var(--color-cn);
