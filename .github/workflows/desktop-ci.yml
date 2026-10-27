@@ -67,6 +67,7 @@ jobs:
         if: failure()
         with:
           name: desktop-ci-diagnostics-linux
+          include-hidden-files: true # the smoke's folder is under .cache
           path: |
             desktop/.cache/smoke*/*.png
             desktop/.cache/smoke*/app.log

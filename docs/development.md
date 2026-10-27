@@ -85,8 +85,9 @@ This replaces `.run/visual/baseline` with the Chromium images; to go back to the
   `THEMES=<id> BASELINE=1 npx playwright test` and check the images in `.run/visual/baseline/`.
 - Languages: everything is in English — code, comments, docs, CLI output, server and agent messages, specs. pt-BR
   exists only as translation catalogs: UI texts use `t()` with the pt-BR in `frontend/src/locales/pt-BR/`; server and
-  agent messages have their pt-BR in the `internal/i18n` catalog (web via `/api/i18n`, desktop and CLI through the
-  package); the desktop app's own texts in `desktop/crates/core/assets/i18n/pt-BR.json`. After touching the catalog:
+  agent messages have their pt-BR in the `internal/i18n` catalog (web and desktop app via `/api/i18n`, CLI through
+  the package); the desktop app's own texts (Configure, its Go messages) in
+  `frontend/src/locales/pt-BR/desktop.js`. After touching the catalog:
   `UPDATE_I18N=1 go test ./internal/i18n` (updates the JSON used by the frontend tests).
 - No secrets in versioned files: `.env`, `inventory/`, `base/`, `.run/` are in `.gitignore`.
 

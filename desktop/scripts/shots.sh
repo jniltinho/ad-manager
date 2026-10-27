@@ -16,7 +16,12 @@ trap 'kill $app $panel 2>/dev/null || true; rm -rf "$cfg"' EXIT
 chmod 700 "$cfg"
 "$demo" --port 18643 >"$log" 2>&1 &
 panel=$!
-until grep -q '^fingerprint' "$log"; do sleep 0.1; done
+for _ in $(seq 1 100); do
+    grep -q '^fingerprint' "$log" && break
+    kill -0 "$panel" 2>/dev/null || break
+    sleep 0.1
+done
+grep -q '^fingerprint' "$log" || { echo "the demo panel did not start (port 18643 busy?):"; cat "$log"; exit 1; }
 # this computer's preferences only: Configure opens, in Classic blue and English
 (umask 077; printf 'lang = "en"\n\n[appearance]\ntheme = "classic-blue"\n' >"$cfg/desktop.toml")
 export GDK_BACKEND=x11 GDK_SCALE=2 LIBGL_ALWAYS_SOFTWARE=1
