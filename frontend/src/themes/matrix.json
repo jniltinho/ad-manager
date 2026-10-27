@@ -550,7 +550,7 @@
     {
       "id": "tab-aux/hover",
       "fg": "on-tab-aux-hover",
-      "bg": ["tab-aux-hover"],
+      "bg": ["tabs", "tabs-top"],
       "size": "normal"
     },
     {

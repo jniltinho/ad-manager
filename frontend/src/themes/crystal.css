@@ -88,7 +88,6 @@
   --color-on-tab-hover: rgba(0, 0, 0, 0.85);
   --color-tab-divider: transparent;
   --color-on-tab-aux: rgba(0, 0, 0, 0.75);
-  --color-tab-aux-hover: #f0f0f0;
   --color-on-tab-aux-hover: rgba(0, 0, 0, 0.85);
   --color-tab-on-top: #ffffff;
   --color-tab-on: #ffffff;
@@ -331,7 +330,6 @@
   --color-on-tab-hover: #ffffff;
   --color-tab-divider: transparent;
   --color-on-tab-aux: rgba(255, 255, 255, 0.75);
-  --color-tab-aux-hover: #2f2f2f;
   --color-on-tab-aux-hover: #ffffff;
   --color-tab-on-top: #1e1e1e; /* the current tab opens into the content (surface), as in the other themes */
   --color-tab-on: #1e1e1e;

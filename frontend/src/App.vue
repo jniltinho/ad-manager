@@ -136,12 +136,6 @@ onSessionChange(() => {
         <button class="act px-0 text-[11px] text-header-link hover:text-header-link-hover" @click="logout">
           <LogOut :size="11" /> {{ t('sign out') }}
         </button>
-        <template v-if="platform.configure">
-          <span class="text-on-header-subtle"> · </span>
-          <button class="act px-0 text-[11px] text-header-link hover:text-header-link-hover" @click="platform.configure()">
-            <Settings2 :size="11" /> {{ t('Configure') }}
-          </button>
-        </template>
       </div>
     </header>
     <nav class="top-tabs flex flex-wrap bg-tabs bg-(image:--bg-tabs) shadow-(--shadow-tabs)">
@@ -162,21 +156,37 @@ onSessionChange(() => {
           href="/swagger"
           target="_blank"
           rel="noopener"
-          class="tab-aux flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-on-tab-aux hover:bg-tab-aux-hover hover:text-on-tab-aux-hover"
+          class="tab-aux flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-on-tab-aux hover:text-on-tab-aux-hover"
           :title="t('API documentation (opens in a new tab)')"
         >
           <BookOpen :size="15" /> API
         </a>
         <a
-          v-if="auth.asynqmon"
+          v-if="auth.asynqmon && !platform.configure"
           href="/asynqmon"
           target="_blank"
           rel="noopener"
-          class="tab-aux flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-on-tab-aux hover:bg-tab-aux-hover hover:text-on-tab-aux-hover"
+          class="tab-aux flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-on-tab-aux hover:text-on-tab-aux-hover"
           :title="t('Agent queue monitor (opens in a new tab)')"
         >
           <ListChecks :size="15" /> {{ t('Queues') }}
         </a>
+        <!-- the queue monitor needs a browser session to the panel: off in the desktop -->
+        <span
+          v-else-if="auth.asynqmon"
+          class="tab-aux flex cursor-not-allowed items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-on-tab-aux opacity-50"
+          aria-disabled="true"
+          :title="t('The queue monitor is not available in the desktop app')"
+        >
+          <ListChecks :size="15" /> {{ t('Queues') }}
+        </span>
+        <button
+          v-if="platform.configure"
+          class="tab-aux flex cursor-pointer items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-on-tab-aux hover:text-on-tab-aux-hover"
+          @click="platform.configure()"
+        >
+          <Settings2 :size="15" /> {{ t('Configure') }}
+        </button>
       </div>
     </nav>
     <main ref="mainEl" class="min-h-0 flex-1 overflow-auto p-5">

@@ -1,4 +1,9 @@
-## ADDED Requirements
+# app-desktop-wails Specification
+
+## Purpose
+TBD - created by archiving change desktop-wails. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Wails desktop runs the web SPA
 The Wails desktop app SHALL run the web panel's SPA from `frontend/`, built with `vp build --mode desktop` and
@@ -223,6 +228,11 @@ a test.
 - **THEN** the app switches theme at once and `desktop.toml` gets `[appearance] theme = "breeze-dark"` with the
   rest of the file unchanged, and choosing "Panel default" follows the panel's theme again
 
+#### Scenario: Configure in the tab bar
+- **WHEN** the operator is signed in
+- **THEN** Configure is at the right of the tab bar, after Queues, and the header has only "my password" and
+  "sign out", as in the web panel
+
 ### Requirement: Wails desktop start-up preferences
 The sign-in screen SHALL start with the configured user. The language SHALL be the file's, then the panel's
 default, then English. The theme SHALL be the file's appearance, then the session's, then the public one.
@@ -297,7 +307,6 @@ from the window, not computed from `dvh`, so that WebKit (which does not scale `
 #### Scenario: 4K at OS scale 2
 - **WHEN** a 3840×2160 screen runs at OS scale 2 and the window fills it
 - **THEN** the page is 1920 CSS px wide with no extra zoom, drawn at 2× and filling the window
-
 
 The window SHALL open at 1280×800 (minimum 800×600), fitted and centred on a screen whose work area is smaller, and
 be restored where the operator left it, on a visible screen; a window closed maximised SHALL start maximised. A
