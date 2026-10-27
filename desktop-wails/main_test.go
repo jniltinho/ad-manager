@@ -11,7 +11,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"ad-manager/desktop-wails/internal/config"
 	"ad-manager/desktop-wails/internal/panel"
@@ -237,5 +239,64 @@ func TestInstanceIDPerConfig(t *testing.T) {
 	a, b := instanceID("/home/u/.config/ad-manager/desktop.toml"), instanceID("/tmp/lab/desktop.toml")
 	if a == b || a != instanceID("/home/u/.config/ad-manager/desktop.toml") || strings.ContainsAny(a, "-/") {
 		t.Fatalf("ids: %s %s", a, b)
+	}
+}
+
+// A test cancelled while it runs (held at /api/me) comes back stale, is never saveable, and its session is signed
+// out on the panel.
+func TestCancelWhileTheTestRuns(t *testing.T) {
+	gate, atMe := make(chan struct{}), make(chan struct{}, 1)
+	var logouts atomic.Int32
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/health":
+			_, _ = io.WriteString(w, `{"setup":false}`)
+		case "/api/login":
+			http.SetCookie(w, &http.Cookie{Name: "s", Value: "1", Path: "/"})
+		case "/api/me":
+			atMe <- struct{}{}
+			<-gate
+			_, _ = io.WriteString(w, `{"user":"administrator"}`)
+		case "/api/logout":
+			logouts.Add(1)
+		}
+	}))
+	defer s.Close()
+	d := newTestDesktop(t)
+	body, _ := json.Marshal(testRequest{ID: 11, URL: s.URL, User: "administrator", Password: "x", Trust: panel.CertPin(s.Certificate().Raw)})
+	done := make(chan []byte)
+	go func() {
+		w := httptest.NewRecorder()
+		d.routes(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/desktop/test", strings.NewReader(string(body))))
+		done <- w.Body.Bytes()
+	}()
+	<-atMe
+	(&Configure{d: d}).Cancel(11)
+	close(gate)
+	var res TestResult
+	if err := json.Unmarshal(<-done, &res); err != nil || !res.Stale {
+		t.Fatalf("a test cancelled while running: %+v %v", res, err)
+	}
+	if err := (&Configure{d: d}).Save(11, "", "", "", false); err == nil {
+		t.Fatal("a cancelled test was saved")
+	}
+	for i := 0; i < 50 && logouts.Load() == 0; i++ {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if logouts.Load() != 1 {
+		t.Fatalf("the cancelled test's session: %d sign-outs", logouts.Load())
+	}
+}
+
+func TestInstanceIDFollowsLinks(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real.toml")
+	_ = os.WriteFile(real, []byte(""), 0o600)
+	link := filepath.Join(dir, "link.toml")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("no symlinks here")
+	}
+	if instanceID(link) != instanceID(real) {
+		t.Fatal("a link and its target are two instances")
 	}
 }

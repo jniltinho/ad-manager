@@ -13,6 +13,9 @@
 # Readiness (the same for both): the mock answered the request a step waits for, then the CPU time of the whole
 # process tree did not move for 300 ms. Cold start is reported twice: when the window maps, and when the sign-in
 # screen is ready (the panel's /api/health answered and the tree is idle). A step not ready in 30 s fails the run.
+# Limits of the method: "idle" is the CPU going still, not a painted frame (as in the Rust benchmark); and the mock
+# answers /api/me without a session, so the Wails app's first ready screen is Home (more work than a sign-in
+# screen), which makes its cold-start number a little worse than a real first start.
 set -euo pipefail
 export LC_ALL=C
 cd "$(dirname "$0")/.."

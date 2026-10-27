@@ -35,6 +35,9 @@ runs in WebKit's own processes. The script is [bench/run.sh](../bench/run.sh); t
   helps every browser too) is the fix to measure next. The budget is not met otherwise.
 - The idle memory of the Wails run is taken on the sign-in screen after a sign-out. The mock answers `/api/me`
   without a session, so the SPA first opens Home, which leaves a little more in memory than a direct sign-in.
+- **Readiness** is the process tree's CPU going still, as in the Rust benchmark. It is not a painted frame. The Wails
+  app's first ready screen is the mock's auto-signed-in Home, so its cold start is measured on more work than a
+  sign-in screen.
 - Software rendering (llvmpipe) is the worst case for a webview. A machine with a GPU will start and draw faster.
   The method keeps both apps on the same footing, as the Rust benchmark did.
 

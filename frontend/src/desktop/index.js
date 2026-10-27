@@ -1,11 +1,12 @@
 // The Wails desktop's own code, loaded by main.js only in `vp build --mode desktop` (never part of the web build).
 import { Call, Events } from '@wailsio/runtime'
 import { markRaw, watch } from 'vue'
-import { auth, brand, endSession, platform, session, setGeneration } from '../api'
+import { auth, brand, endSession, onSessionChange, platform, session, setGeneration } from '../api'
 import { addTranslations, pinLang, serverText, useDefault } from '../i18n'
 import catalog from '../locales/pt-BR/desktop.js'
 import { toast } from '../toasts'
 import Configure from './Configure.vue'
+import builtinThemes from './themes.json'
 
 // marks a desktop bundle: the web build's check fails if this string reaches web/dist
 export const DESKTOP_SENTINEL = 'adm-desktop-wails-bundle'
@@ -33,17 +34,9 @@ export function language(l) {
   if (!l) useDefault(brand.lang)
 }
 
-// themes is the panel's theme registry, remembered for Configure when the panel cannot be reached (a convenience of
-// this computer: the registry itself comes from the panel)
-const THEMES_KEY = 'adm-desktop-themes'
-export function themes() {
-  if (brand.themes?.length) return brand.themes
-  try {
-    return JSON.parse(localStorage.getItem(THEMES_KEY)) || []
-  } catch {
-    return []
-  }
-}
+// themes is the panel's theme registry, or this build's copy of it (themes.json, kept in step with the server's by
+// internal/server's tests) when the panel cannot be reached
+export const themes = () => (brand.themes?.length ? brand.themes : builtinThemes)
 
 // install wires the desktop before the app mounts.
 export async function install() {
@@ -60,6 +53,7 @@ export async function install() {
     panelOrigin: origin,
     defaultUser: st.user,
     configure: () => (platform.screen = markRaw(Configure)),
+    themes: builtinThemes,
     cancelSend: () => call('Files', 'CancelUpload'),
     // files move in Go, between the panel and the disk, with native dialogs (files.go)
     async saveFile({ name, text, apiPath }) {
@@ -68,25 +62,18 @@ export async function install() {
     },
     async sendFile(apiPath, onProgress) {
       const off = Events.On('adm:upload-progress', (e) => onProgress?.(Math.round((100 * e.data.sent) / (e.data.total || 1))))
+      // a transfer whose session ends never settles: its listener goes with the session
+      const unhook = onSessionChange(() => (off(), unhook()))
       try {
         const answer = await call('Files', 'SendToPanel', session(), apiPath)
         return answer ? JSON.parse(answer) : null
       } finally {
         off()
+        unhook()
       }
     },
   })
   if (!st.configured || st.problem) platform.configure()
-  watch(
-    () => brand.themes,
-    (list) => {
-      try {
-        if (list?.length) localStorage.setItem(THEMES_KEY, JSON.stringify(list))
-      } catch {
-        /* a convenience only */
-      }
-    },
-  )
   // said once after sign-in: the agent tokens of an older desktop.toml were removed
   watch(
     () => auth.user,
@@ -106,9 +93,9 @@ export async function install() {
       const href = a.getAttribute('href')
       const to = new URL(href, location.href)
       if (href === '/asynqmon' || href === '/swagger' || to.origin !== location.origin) {
-        // the panel's own pages and its support link open in the system browser (Go checks which); nothing else
+        // the panel's own pages and its support link (as written: Go compares it exactly) open in the system browser
         e.preventDefault()
-        shell('OpenExternal', to.origin === location.origin ? href : to.href).catch(() => {})
+        shell('OpenExternal', href).catch(() => {})
       } else if (a.target === '_blank') e.preventDefault()
     },
     true,

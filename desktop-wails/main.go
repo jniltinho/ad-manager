@@ -40,6 +40,12 @@ func instanceID(cfgPath string) string {
 	if abs, err := filepath.Abs(cfgPath); err == nil {
 		cfgPath = abs
 	}
+	// a link and its target are one file (saving follows the link); a file not written yet, by its folder's target
+	if real, err := filepath.EvalSymlinks(cfgPath); err == nil {
+		cfgPath = real
+	} else if dir, err := filepath.EvalSymlinks(filepath.Dir(cfgPath)); err == nil {
+		cfgPath = filepath.Join(dir, filepath.Base(cfgPath))
+	}
 	sum := sha256.Sum256([]byte(cfgPath))
 	// a D-Bus name element: letters first, no dashes
 	return "io.github.jniltinho.admanager.desktop.c" + hex.EncodeToString(sum[:8])

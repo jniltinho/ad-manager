@@ -212,13 +212,16 @@ func (c *Configure) Save(id int64, lang, theme, flat string, safeGPU bool) error
 		d.mu.Unlock()
 		return err
 	}
-	old := d.panel
+	// the old panel's session ends here before the new one is published (nothing of it runs after Save); the old
+	// panel is then told to end it
+	var signOut func()
+	if d.panel != nil && d.panel != t.p {
+		signOut = d.panel.Detach()
+	}
 	d.cfg, d.panel, d.trial, d.unconfigured, d.problem = &cfg, t.p, nil, false, ""
 	d.mu.Unlock()
-	// the old panel's session: generations are unique to the process, so no request can reach it any more; the
-	// panel is told to end it
-	if old != nil && old != t.p {
-		go old.Logout(old.Generation())
+	if signOut != nil {
+		go signOut()
 	}
 	return nil
 }

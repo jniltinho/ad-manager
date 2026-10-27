@@ -124,6 +124,29 @@ describe('signed out', () => {
   })
 })
 
+describe('sign-out', () => {
+  it('a late sign-out answer does not reach a newer session', async () => {
+    const body = deferred()
+    fetchQueue(
+      () =>
+        new Response(
+          new ReadableStream({ start: (c) => body.promise.then(() => (c.enqueue(new TextEncoder().encode('{"error":"x"}')), c.close())) }),
+          { status: 401 },
+        ),
+      () => res(200, {}),
+      () => res(200, {}),
+    )
+    const out = api('POST', '/logout', {})
+    await new Promise((r) => setTimeout(r, 5))
+    await api('POST', '/logout', {})
+    await api('POST', '/login', {})
+    auth.user = 'administrator'
+    body.resolve()
+    expect(await state(out)).toBe('pending')
+    expect(auth.user).toBe('administrator')
+  })
+})
+
 describe('latest', () => {
   it('drops a failure that a newer load replaced', async () => {
     const fresh = latest()

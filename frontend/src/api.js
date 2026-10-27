@@ -47,6 +47,7 @@ export const platform = shallowReactive({
   panelOrigin: '',
   screen: null,
   configure: null,
+  themes: [], // the theme registry when the panel's is not there (the desktop's copy)
   appearance: reactive({ theme: '', flat: '' }),
   defaultUser: '',
 })
@@ -88,11 +89,14 @@ export async function api(method, path, body) {
     checkUpload(body)
     opts.body = body
   } else if (body) Object.assign(opts, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const gen = generation
+  const before = generation
   const r = await apiRaw(path, opts)
+  // the session this call belongs to: a sign-in or sign-out made its own session the current one (apiRaw); any
+  // other call, the one it was made in (a 401 that ended it, too)
+  const gen = path === '/login' || path === '/logout' ? generation : before
   if (r.status === 204) return null
   const data = await r.json().catch(() => ({}))
-  if (gen !== generation && path !== '/login' && path !== '/logout') return never()
+  if (gen !== generation) return never()
   if (!r.ok) throw new Error(serverText(data.error) || `HTTP ${r.status}`)
   return data
 }

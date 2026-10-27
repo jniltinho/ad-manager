@@ -99,6 +99,27 @@ func (p *Panel) Login(ctx context.Context, user, password string) (uint64, error
 	return s.gen, p.Call(ctx, s.gen, http.MethodPost, "/api/login", in, nil)
 }
 
+// Detach ends this panel's session here at once (its requests are cancelled, no new one can start) and returns the
+// panel's sign-out of it, to run afterwards with the session's own client (Configure replaced this panel).
+func (p *Panel) Detach() (logout func()) {
+	p.mu.Lock()
+	old := sess{p.gen, p.hc, p.ctx}
+	_, cancel, hc := p.resetLocked()
+	p.mu.Unlock()
+	cancel()
+	return func() {
+		ctx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+		defer stop()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.base.String()+"/api/logout", nil)
+		if err == nil {
+			if res, err := old.hc.Do(req); err == nil {
+				res.Body.Close()
+			}
+		}
+		hc.CloseIdleConnections()
+	}
+}
+
 // Logout ends session gen on the panel and here (best effort: a panel that does not answer still loses it here).
 func (p *Panel) Logout(gen uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

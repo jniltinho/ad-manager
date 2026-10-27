@@ -50,11 +50,12 @@ loadMe()
 // brand (with the theme registry) is loaded the app follows Settings. Until then — or if /api/health fails — the
 // theme of the HTML stays. A value outside the registry falls back to the first (Default).
 watchEffect(() => {
-  if (!brand.themes?.length) return
+  const themes = brand.themes?.length ? brand.themes : platform.themes
+  if (!themes.length) return
   // the desktop's own appearance (Configure) goes over the panel's
   const id = platform.appearance.theme || brand.theme
   const flat = platform.appearance.flat ? platform.appearance.flat === 'flat' : !!brand.flat
-  const theme = brand.themes.find((x) => x.id === id) || brand.themes[0]
+  const theme = themes.find((x) => x.id === id) || themes[0]
   document.documentElement.dataset.theme = theme.id
   document.documentElement.dataset.flat = String(flat)
   document.documentElement.style.colorScheme = theme.scheme // the served <html> carries it inline
