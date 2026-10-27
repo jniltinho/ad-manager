@@ -112,6 +112,18 @@ describe('session endings', () => {
   })
 })
 
+describe('signed out', () => {
+  it('answers the first /api/me with its 401 instead of hanging', async () => {
+    const hook = vi.fn()
+    const off = onSessionChange(hook)
+    fetchQueue(() => res(401, { error: 'sign in' }))
+    auth.user = null
+    await expect(api('GET', '/me')).rejects.toThrow()
+    expect(hook).not.toHaveBeenCalled()
+    off()
+  })
+})
+
 describe('latest', () => {
   it('drops a failure that a newer load replaced', async () => {
     const fresh = latest()

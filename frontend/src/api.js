@@ -74,7 +74,11 @@ export async function apiRaw(path, opts = {}) {
   }
   if (gen !== generation || r.headers.has('X-ADM-Stale')) return never()
   if (path === '/logout' || (path === '/login' && r.ok)) newSession(Number(r.headers.get('X-ADM-Session')))
-  else if (r.status === 401 && path !== '/login') endSession()
+  // a 401 ends a signed-in session; signed out (the first /api/me) it only says so, and the call answers
+  else if (r.status === 401 && path !== '/login') {
+    if (auth.user) endSession()
+    else auth.user = null
+  }
   return r
 }
 
