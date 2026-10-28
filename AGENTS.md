@@ -9,7 +9,8 @@ Server or Samba 4) and supports migrating a Windows DC to Samba 4.23. Read `docs
    allowed. Test against the Docker Samba (`make samba-up`, `empresa.test`), the all-in-one image
    (`docs/docker.md`) or the isolated labs (`vagrant/labs`).
 2. Secrets only through the environment (`.env` outside git). Never write passwords to versioned files, logs or audit.
-3. Every protection rule lives in `internal/ad` (server), not only in the UI.
+3. Every protection rule lives in `internal/ad` (server), not only in the UI. The Entra ID sync is the one
+   exception: its rules live in `internal/entrasync` next to its writes (`internal/gosamba` gives mechanisms only).
 4. Behavior change → OpenSpec change (`openspec/`), specs with testable scenarios.
 5. Release: `create-release` skill (`.claude/skills/create-release`, GitHub with `gh`). Community Go skills
    (`golang-*`), if installed, live in `.agents/skills/` (outside git).
