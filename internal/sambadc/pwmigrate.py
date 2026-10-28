@@ -424,7 +424,9 @@ def apply_one(samdb, drs, drs_handle, src_inv, u, lu, realm, src_realm):
     nt_hash, supp = decrypt_secrets(drs, obj, u["rid"])
     try:
         if nt_hash is None:
-            return "error", "no NT hash in the replicated object"
+            # an account created without a password (e.g. dsadd without -pwd, disabled): nothing to carry over, the
+            # target keeps the password it was created with
+            return "no_password", "the source user has no password"
         has_cleartext, kerberos_ok, kerb_reason, kerb_blob = inspect_supplemental(supp, realm, src_realm)
         if has_cleartext:
             return "rejected", "source stores a reversible/cleartext password (Primary:CLEARTEXT)"

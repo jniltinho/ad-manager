@@ -39,6 +39,7 @@ set **NTLM-only**; Kerberos keys rebuild on the next password change.
 | `same` | Already migrated — the NT hash matches, `pwdLastSet` is non-zero and there are no stale Kerberos keys (the apply is idempotent). |
 | `missing` | No matching user in this domain — import the objects first; no user is created. |
 | `builtin` | `Administrator` (RID 500), `Guest` (501), `krbtgt` (502), a trust or a machine account — never migrated, by RID/SID on both sides. |
+| `no_password` | The source user has no password (created without one, e.g. `dsadd` without `-pwd`) — nothing to carry over; the user keeps the password the import gave it. |
 | `rejected` | The source stores a reversible/cleartext password (`Primary:CLEARTEXT`) — not read into the target. |
 | `error` | A genuine extraction/decrypt/write failure. |
 

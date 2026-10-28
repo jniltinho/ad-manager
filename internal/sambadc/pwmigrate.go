@@ -21,7 +21,7 @@ type PwSource struct {
 }
 
 // PwUser is one user's outcome. Outcome is one of: would_set (plan only), set,
-// ntlm_only, same, missing, builtin, rejected, error.
+// ntlm_only, same, missing, builtin, no_password, rejected, error.
 type PwUser struct {
 	Sam     string `json:"sam"`
 	Outcome string `json:"outcome"`

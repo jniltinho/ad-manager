@@ -34,6 +34,13 @@ AD_URL=ldap://10.0.0.10 ad-manager export -d export-before
 On `old-dc`: `dcdiag /v > c:\dcdiag-before.txt`, `repadmin /showrepl`, Directory Service, DNS and FRS events
 without critical errors. Inventory who does LDAP binds or uses DNS hardcoded to the old DC's IP (security log, firewalls and appliances).
 
+An `RC4-only accounts` warning lists enabled users whose password predates the domain's AES Kerberos keys (set
+before the 2008 level, or while the account was local, before `dcpromo`): they keep RC4 only after the migration,
+and Ubuntu's Kerberos refuses RC4 by default. Reset their passwords (or have them changed) before the cutover. The
+check compares `pwdLastSet` with the creation of the Read-only Domain Controllers group, so it relies on the DC
+clocks having been right at that time; a domain created by Windows Server 2016 or later (Key Admins created with that
+group) is `ok`, as its accounts carry AES keys from the start.
+
 **Gate:** preflight without a `blocker`; dcdiag without failures.
 
 ### 2. Back up `old-dc`
@@ -112,12 +119,13 @@ Before: if `old-dc` has **Certificate Services (AD CS)**, the CA must be migrate
 does not demote a DC that hosts a CA. The DNS of **all** network cards on `old-dc` must point to Samba: the demotion
 finds the other DC through DNS.
 
-DHCP with Samba as the primary DNS; **normal** `dcpromo` on `old-dc` (do not check "last DC", no
-`/forceremoval`), `old-dc`'s DNS pointing to Samba. Announce the share outage during the
-reboot. Clean up **only** DC objects (NTDS Settings, SRV/`_msdcs` records of old-dc); keep `OLD-DC$`, A/PTR and SPNs.
-On the remaining Samba, run `samba-tool dbcheck --cross-ncs` after the demotion: the references to the DC that left
-(`msDS-NC-Replica-Locations`, `fromServer`) are removed with `--fix --yes`. Rehearsed in the Samba lab
-(`docs/labs.md`): 2 errors before, 0 after.
+DHCP with Samba as the primary DNS, and the members with a fixed DNS (file servers, application servers) pointed at
+Samba too — a Samba member left on `old-dc`'s DNS finds no DC once `old-dc` is off (winbind: "No logon servers");
+**normal** `dcpromo` on `old-dc` (do not check "last DC", no `/forceremoval`), `old-dc`'s DNS pointing to Samba.
+Announce the share outage during the reboot. Clean up **only** DC objects (NTDS Settings, SRV/`_msdcs` records of
+old-dc); keep `OLD-DC$`, A/PTR and SPNs. On the remaining Samba, run `samba-tool dbcheck --cross-ncs` after the
+demotion: the references to the DC that left (`msDS-NC-Replica-Locations`, `fromServer`) are removed with `--fix
+--yes`. Rehearsed in the Samba lab (`docs/labs.md`): 2 errors before, 0 after.
 
 **Gate:** shares accessible with a regular user after the reboot.
 

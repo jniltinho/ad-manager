@@ -217,7 +217,8 @@ AD_SOURCE_PASSWORD_FILE=/root/src.pass AGENT_TOKEN=… ad-manager migrate passwo
 
 Source password: `AD_SOURCE_PASSWORD_FILE` (a 0600 file) or the terminal — never an argument. Per-user outcome:
 `would_set` (preview), `set`, `ntlm_only` (Kerberos salt did not transfer), `same`, `missing` (import the objects
-first), `builtin` (RID 500/501/502, trust/machine), `rejected` (`Primary:CLEARTEXT`). The audit (`password.migrate`)
+first), `builtin` (RID 500/501/502, trust/machine), `no_password` (none at the source), `rejected`
+(`Primary:CLEARTEXT`), `error` (exit status 2). The audit (`password.migrate`)
 records counts only, never a secret.
 
 ## Script examples

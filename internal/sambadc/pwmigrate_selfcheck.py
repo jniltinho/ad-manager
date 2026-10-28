@@ -131,6 +131,13 @@ def main():
     check(ad(Exception("NT_STATUS_ACCESS_DENIED")), "NT_STATUS_ACCESS_DENIED is access-denied")
     check(not ad(Exception(53, "supplementalCredentialsBlob memcmp differ")), "a blob memcmp is NOT access-denied")
 
+    # 8. a source user without a password (no unicodePwd replicated) is no_password, not an error
+    ns["get_ncchanges_secret"] = lambda *a: object()
+    ns["decrypt_secrets"] = lambda *a: (None, None)
+    outcome, _ = ns["apply_one"](FakeDB(), None, None, None, {"dn": "CN=nopw", "guid": "g", "rid": 1105},
+                                 {"pwd_last_set": 0}, "lab2008.test", "lab2008.test")
+    check(outcome == "no_password", "a source user without a password is no_password")
+
     print("pwmigrate self-check passed")
 
 
