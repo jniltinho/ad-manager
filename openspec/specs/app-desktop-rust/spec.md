@@ -1,7 +1,7 @@
 # app-desktop-rust Specification
 
 ## Purpose
-TBD - created by archiving change desktop. Update Purpose after archive.
+The archived Rust desktop app (`archive/desktop-rust/`): a client that talks only to the panel, with certificate pinning, its own sessions and secrets, configuration and pages at parity with the web panel. Kept as code to study; not built, tested or released.
 
 ## Requirements
 

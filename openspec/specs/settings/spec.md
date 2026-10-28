@@ -422,12 +422,19 @@ themes, on the web or in the desktop palettes.
 - **THEN** the entries of the 14 existing themes keep every value they had (they only gain the `dialog-line` role)
   and none of them is depthless
 
-### Requirement: Classic blue Luna depth at AAA
+### Requirement: Classic blue Luna depth
 The `classic-blue` theme SHALL draw the Windows XP Luna look (vertical title-bar gradient in the header and dialog
 heads, taskbar footer, green primary button, XP push buttons, task-pane card heads, listview column headers, orange
-selected-tab top) through color, gradient and shadow values only, with the same layout as the other themes, and SHALL
-hold normal text to 7:1, large text to 4.5:1 and components to 3:1, on the web and in the colors the desktop draws.
-The flat look SHALL remove its gradients and depth shadows like any theme.
+selected-tab top) through color, gradient and shadow values only, with the same layout as the other themes. The flat
+look SHALL remove its gradients and depth shadows like any theme.
+
+#### Scenario: Same structure
+- **WHEN** a page is drawn in Classic blue before and after this change
+- **THEN** every element keeps its position and size; only colors, gradients and shadows differ
+
+### Requirement: Classic blue contrast at AAA
+The `classic-blue` theme SHALL hold normal text to 7:1, large text to 4.5:1 and components to 3:1, on the web and in
+the colors the desktop draws.
 
 #### Scenario: Text contrast
 - **WHEN** the contrast test runs for `classic-blue`
@@ -436,10 +443,6 @@ The flat look SHALL remove its gradients and depth shadows like any theme.
 #### Scenario: Highlights away from text
 - **WHEN** the header, a dialog head or the footer is drawn in Classic blue
 - **THEN** the light Luna band is only at the top edge and the text sits over colors with ≥ 7:1 against white
-
-#### Scenario: Same structure
-- **WHEN** a page is drawn in Classic blue before and after this change
-- **THEN** every element keeps its position and size; only colors, gradients and shadows differ
 
 ### Requirement: Flat look keeps the page dots
 The flat look SHALL keep the page's standard dot pattern (in the theme's `color-page-dots`) in every theme, on the web

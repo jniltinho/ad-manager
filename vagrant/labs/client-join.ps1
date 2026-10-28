@@ -14,18 +14,31 @@ function Read-EnvValue([string] $line) {
   $v
 }
 $ErrorActionPreference = 'Stop'
+$line = Get-Content $Secrets | Where-Object { $_ -match '^LAB_JOIN_PASSWORD=' } | Select-Object -First 1
+$cred = New-Object PSCredential('DESTINO\lab.ingresso', (ConvertTo-SecureString (Read-EnvValue $line) -AsPlainText -Force))
 $cs = Get-CimInstance Win32_ComputerSystem
 if ($cs.PartOfDomain) {
   # a fresh secure channel, not the one already open (Test-ComputerSecureChannel kept answering True for a computer
   # whose account had been deleted): 1787 when the domain no longer knows this computer
   cmd /c "nltest /sc_reset:$($cs.Domain) >nul 2>&1" # through cmd: PowerShell 5 turns a native stderr line into a stop
   if ($LASTEXITCODE -eq 0) { "already a member of $($cs.Domain)"; return }
-  # a lab domain created again (same name, new database) no longer knows this computer. Leaving it from here breaks
-  # WinRM's local logons (STATUS_NO_LOGON_SERVERS) until the workgroup is set again after a reboot, and a startup
-  # task meant to do that never ran (267011): so it is done on the console, as checked on win11 and ws2022m
-  throw ("$($cs.Domain) does not know $env:COMPUTERNAME (the domain was created again). On its console: " +
-    "(Get-CimInstance Win32_ComputerSystem | Invoke-CimMethod -MethodName UnjoinDomainOrWorkgroup -Arguments @{FUnjoinOptions=[uint32]0}); " +
-    "Restart-Computer; then Add-Computer -WorkgroupName WORKGROUP -Force; Restart-Computer; vagrant reload; then run the join again")
+  # a lab domain created again (same name, new database) no longer knows this computer. Leaving it would break
+  # WinRM's local logons until a reboot and a workgroup change, so the membership is repaired in place: the join
+  # account recreates the computer object (it may create computers in $OU; sealed LDAP), then the secure channel is
+  # repaired, which sets the machine password on the DC and here. Netlogon writes its SPNs and DNS name at the next boot.
+  $parent = New-Object DirectoryServices.DirectoryEntry("LDAP://$Domain/$OU", $cred.UserName,
+    $cred.GetNetworkCredential().Password, [DirectoryServices.AuthenticationTypes]'Secure,Sealing,Signing')
+  try { # ADSI's own methods (PowerShell's adapter hides DirectoryEntry's .NET members); not $ou: that is [string] $OU
+    $c = $parent.Create('computer', "CN=$env:COMPUTERNAME")
+    $c.Put('sAMAccountName', "$env:COMPUTERNAME`$")
+    $c.Put('userAccountControl', 4096) # WORKSTATION_TRUST_ACCOUNT
+    $c.SetInfo()
+  } catch {
+    if ($_.Exception.Message -notmatch 'exist') { throw }
+  }
+  if (-not (Test-ComputerSecureChannel -Repair -Credential $cred)) { throw "repairing the secure channel with $($cs.Domain) failed" }
+  "repaired $env:COMPUTERNAME's membership of $($cs.Domain) (the domain was created again): reboot"
+  return
 }
 # every card asks the domain's DC: the join finds it through DNS
 Get-NetAdapter | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ServerAddresses $DnsServer }
@@ -37,7 +50,5 @@ if ($Rsat) {
   Install-WindowsFeature RSAT-AD-Tools, GPMC, RSAT-DNS-Server -IncludeAllSubFeature | Out-Null
   'RSAT installed (ADUC, GPMC, DNS)'
 }
-$line = Get-Content $Secrets | Where-Object { $_ -match '^LAB_JOIN_PASSWORD=' } | Select-Object -First 1
-$cred = New-Object PSCredential('DESTINO\lab.ingresso', (ConvertTo-SecureString (Read-EnvValue $line) -AsPlainText -Force))
 Add-Computer -DomainName $Domain -OUPath $OU -Credential $cred -Force
 "$env:COMPUTERNAME joined $Domain ($OU): reboot"

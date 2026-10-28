@@ -1,7 +1,7 @@
 # import-credentials Specification
 
 ## Purpose
-TBD - created by archiving change import-credentials-db. Update Purpose after archive.
+The administrator credential of an import (GPOs, passwords) kept sealed in the panel's database, so the DC agent's write modes need no password on the DC.
 
 ## Requirements
 

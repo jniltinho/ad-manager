@@ -31,9 +31,32 @@ not respond or the theme is unknown.
 ### Requirement: Desktop login screen
 The desktop app login screen SHALL follow the web login in geometry and content (480 px box at 10% of the height,
 company or AD Manager logo, "ACTIVE DIRECTORY" with "NETBIOS (domain)", "Sign in" button, error below the box, hint
-with the user name formats), SHALL use the branding from `/api/health` even when it responds 503, and SHALL have
-visible depth in every theme outside the flat look (except a depthless theme, High contrast, which is always drawn
-flat), with the box always in the same place.
+with the user name formats), with the box always in the same place.
+
+#### Scenario: Same position
+- **WHEN** the theme changes
+- **THEN** the login box keeps the same position and size
+
+#### Scenario: Long error in a small window
+- **WHEN** the window is 800 × 600 and the login fails with a long message
+- **THEN** the message appears below the box, wrapped to at most 4 lines (the last one with an ellipsis), without
+  leaving the window
+
+### Requirement: Desktop login branding
+The desktop app login screen SHALL use the branding from `/api/health`, even when it responds 503.
+
+#### Scenario: Company logo
+- **WHEN** the panel reports `brand.logo`
+- **THEN** the login shows the company logo; if the image does not load or is an SVG that Fyne cannot draw, the AD
+  Manager logo
+
+#### Scenario: LDAP unavailable
+- **WHEN** `/api/health` responds 503 with domain and branding
+- **THEN** the login applies the theme and shows "NETBIOS (domain)"
+
+### Requirement: Desktop login depth
+The desktop app login screen SHALL have visible depth in every theme outside the flat look (except a depthless theme,
+High contrast, which is always drawn flat).
 
 #### Scenario: Shadow in a light theme
 - **WHEN** the theme is light and the look is not flat
@@ -50,24 +73,6 @@ flat), with the box always in the same place.
 #### Scenario: Flat look
 - **WHEN** `brand.flat` is true, in any theme
 - **THEN** the box has only the frame, with no shadow, bevel, highlight, gradient or gloss
-
-#### Scenario: Same position
-- **WHEN** the theme changes
-- **THEN** the login box keeps the same position and size
-
-#### Scenario: Company logo
-- **WHEN** the panel reports `brand.logo`
-- **THEN** the login shows the company logo; if the image does not load or is an SVG that Fyne cannot draw, the AD
-  Manager logo
-
-#### Scenario: LDAP unavailable
-- **WHEN** `/api/health` responds 503 with domain and branding
-- **THEN** the login applies the theme and shows "NETBIOS (domain)"
-
-#### Scenario: Long error in a small window
-- **WHEN** the window is 800 × 600 and the login fails with a long message
-- **THEN** the message appears below the box, wrapped to at most 4 lines (the last one with an ellipsis), without
-  leaving the window
 
 ### Requirement: Visual parity with the web
 Each part of the desktop app SHALL use the same color roles as the equivalent part of the web panel (with the

@@ -1,7 +1,7 @@
 # installation-guide Specification
 
 ## Purpose
-TBD - created by archiving change install-guide. Update Purpose after archive.
+One installation guide for the web panel, the agent and the desktop app (prerequisites to uninstall), linked from the other pages, and a complete configuration example.
 
 ## Requirements
 
