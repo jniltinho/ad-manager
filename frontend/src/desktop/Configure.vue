@@ -124,7 +124,7 @@ const problem = computed(() => {
 </script>
 
 <template>
-  <main class="mx-auto my-6 w-[min(720px,calc(100%-32px))] space-y-3 text-[12px] text-fg">
+  <main class="mx-auto my-6 w-[min(960px,calc(100%-32px))] space-y-3 text-[12px] text-fg">
     <section class="card">
       <div class="card-h">{{ t('Configure') }}</div>
       <form v-if="st" class="grid gap-x-4 gap-y-3 p-3 md:grid-cols-2" @submit.prevent="test">
@@ -215,7 +215,7 @@ const problem = computed(() => {
       </div>
     </section>
 
-    <div v-if="st" class="flex items-center gap-2">
+    <div v-if="st" class="flex flex-wrap items-center gap-2">
       <button ref="saveBtn" type="button" class="btn" :disabled="busy || !canSave" @click="save">
         <Save :size="14" /> {{ t('Save') }}
       </button>
@@ -223,7 +223,7 @@ const problem = computed(() => {
       <span class="text-fg-muted">{{
         prefsSaved ? t('This computer’s preferences are saved.') : t('This computer’s preferences are saved as they change.')
       }}</span>
-      <span class="ml-auto text-fg-muted">{{ st.path }}</span>
+      <span class="ml-auto whitespace-nowrap text-fg-muted">{{ st.path }}</span>
     </div>
     <p v-if="error" class="text-err" role="alert">{{ error }}</p>
   </main>
