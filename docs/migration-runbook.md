@@ -18,7 +18,7 @@ Example: domain `example.local` / `EXAMPLE`, single DC `old-dc` (Windows Server 
   Windows 2008 DNS answers `FORMERR` to queries with EDNS (`dig +noedns`).
 - New DC with more than one network card: `INTERFACES=` in the installer (otherwise DNS publishes the wrong IP and
   workstation joins fail).
-- Rehearse first in an isolated lab (`vagrant/labs`, [labs.md](labs.md)): the rehearsal does **not** cover
+- Rehearse first in an isolated lab (`vagrant/labs`, Windows DCs in `dockur/windows` containers, [labs.md](labs.md)): the rehearsal does **not** cover
   the bidirectional join, FSMO or `dcpromo` — those only during the window, with the gates below.
 
 ## Steps

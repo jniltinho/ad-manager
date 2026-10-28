@@ -2,7 +2,7 @@
 
 ## Requirements
 
-Go 1.27+, Node 24, Docker (test Samba), Vagrant + VirtualBox (lab). The frontend uses **Vite+** as the project's local
+Go 1.27+, Node 24, Docker (test Samba; Windows labs in `dockur/windows` containers, on KVM), Vagrant + VirtualBox (Samba labs). The frontend uses **Vite+** as the project's local
 CLI (`vite-plus` in `devDependencies`; `vp dev/build/check/test` via `npm run …`), with no need for a global `vp`.
 
 ## Cycle

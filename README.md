@@ -46,7 +46,7 @@ shares with Windows permissions, backups and migrations — behind one fast, aud
     <td valign="top"><b>🔐 Secure by design</b><br>No service account: LDAPS with the signed-in admin's credentials, <i>Domain Admins</i> only, every change audited.</td>
   </tr>
   <tr>
-    <td valign="top"><b>🖥️ Native desktop app</b><br>Linux, Windows and macOS (Apple Silicon, Intel, universal <code>.app</code>), same themes as the web.</td>
+    <td valign="top"><b>🖥️ Native desktop app</b><br>Linux (one AppImage for any desktop), Windows and macOS (universal <code>.app</code>, Apple Silicon and Intel), same themes as the web.</td>
     <td valign="top"><b>🤖 AI-ready</b><br>A built-in MCP server lets AI agents query and manage the directory under the same rules and audit.</td>
     <td valign="top"><b>🎨 20 themes</b><br>Light, dark and flat looks, English and Portuguese, sharp on QHD and 4K screens.</td>
   </tr>
