@@ -150,7 +150,7 @@ func TestDecodeListMemory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if alloc := after.TotalAlloc - before.TotalAlloc; alloc > 8*uint64(len(doc)) {
+	if alloc := after.TotalAlloc - before.TotalAlloc; alloc > raceAlloc*8*uint64(len(doc)) {
 		t.Fatalf("decoding %d bytes of XML allocated %d MiB", len(doc), alloc>>20)
 	}
 }

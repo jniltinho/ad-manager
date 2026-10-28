@@ -8,6 +8,10 @@ Server or Samba 4) and supports migrating a Windows DC to Samba 4.23. Read `docs
 1. **Never write to a production AD** without an explicit request. Reading (preflight, inventory, export) is
    allowed. Test against the Docker Samba (`make samba-up`, `empresa.test`), the all-in-one image
    (`docs/docker.md`) or the isolated labs (`vagrant/labs`).
+   **Windows labs: always [dockur/windows](https://github.com/dockur/windows) containers, not Vagrant VMs** —
+   faster and simpler (DCs, clients, domain joins; recipes and pitfalls in `docs/labs.md`: the 2008 R2 answer file
+   on a CD, NTP before `dcpromo`, `SAMBA=N` for SMB). KVM and VirtualBox do not run together: halt any Vagrant VM
+   first.
 2. Secrets only through the environment (`.env` outside git). Never write passwords to versioned files, logs or audit.
 3. Every protection rule lives in `internal/ad` (server), not only in the UI. The Entra ID sync is the one
    exception: its rules live in `internal/entrasync` next to its writes (`internal/gosamba` gives mechanisms only).
