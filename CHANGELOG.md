@@ -15,6 +15,11 @@ All notable changes to this project are documented here. The format follows
   `error` that made `migrate passwords` exit 2.
 - `import --apply --dir X` creates `X` (0700) instead of losing the generated passwords of the users just created.
 
+### Changed
+- The password migration runs in Go in the DC agent (no Python helper): read over a Kerberos-sealed DRSUAPI bound
+  to the DC's replication SPN, each account checked in its sealed reply, written with Samba's `ldbmodify`; the same
+  outcomes and stored material as before on Samba 4.23/4.22, Windows Server 2008 R2 and 2022 sources.
+
 ### Added
 - `migrate preflight` warns about `RC4-only accounts`: enabled users whose password predates the domain's AES
   Kerberos keys (Ubuntu's Kerberos refuses RC4); reset them before the cutover.

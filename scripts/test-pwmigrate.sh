@@ -10,7 +10,7 @@
 #   SRC_ADMIN_FILE                         a 0600 file with its Administrator password
 #   SRC_USERS_ENV                          a 0600 file of name=password lines: the users to migrate and check; the
 #                                          one named "plain" has no replication rights
-# PARITY=1 also migrates a twin destination with the previous Python helper (pwmigrate.py of git REF, default HEAD)
+# PARITY=1 also migrates a twin destination with the previous Python helper (pwmigrate.py of git REF, default 14706ec, its last commit)
 # and compares, user by user, the outcomes and the stored unicodePwd and supplementalCredentials (as hashes).
 #   IMAGE=ubuntu:26.04 PARITY=1 scripts/test-pwmigrate.sh
 set -euo pipefail
@@ -117,8 +117,8 @@ echo "== an account without replication rights is refused"
 if gorun 1 "$nb\\plain" "${pw[plain]}" >/dev/null 2>&1; then echo "accepted" >&2; exit 1; fi
 echo "refused"
 if [ "${PARITY:-}" = 1 ]; then
-	echo "== parity with the Python helper (git ${REF:-HEAD})"
-	git -C "$root" show "${REF:-HEAD}:internal/sambadc/pwmigrate.py" >"$work/pwmigrate.py"
+	echo "== parity with the Python helper (git ${REF:-14706ec})"
+	git -C "$root" show "${REF:-14706ec}:internal/sambadc/pwmigrate.py" >"$work/pwmigrate.py"
 	docker cp "$work/pwmigrate.py" "adm-pw-dstpy-$tag:/root/pwmigrate.py" >/dev/null
 	(umask 077; printf '%s' "$src_admin" >"$work/src.pass") # to jq by file, never an argument
 	jq -n --arg h "$srcip" --arg u "$nb\\Administrator" --rawfile p "$work/src.pass" --arg s "$(sid dstpy)" \
