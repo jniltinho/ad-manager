@@ -45,25 +45,8 @@ up() {
 
 join() {
   log "the clients join by the delegated account"
-  local m args out i
-  for m in win11 ws2022m; do
-    args=""
-    [ "$m" = ws2022m ] && args=" -Rsat"
-    out=$(wwin "$m" "& $L\\client-join.ps1$args")
-    printf '%s\n' "$out"
-    if grep -q "left the stale domain" <<<"$out"; then
-      # client-join.ps1 left a domain created again: its startup task sets the workgroup and reboots once more;
-      # then a reload mounts the synced folder again and the join runs
-      vagrant reload "$m" >/dev/null
-      for i in $(seq 40); do
-        wwin "$m" '(Get-CimInstance Win32_ComputerSystem).Workgroup' 2>/dev/null | grep -qx WORKGROUP && break
-        sleep 15
-      done
-      vagrant reload "$m" >/dev/null
-      wait_winrm "$m"
-      wwin "$m" "& $L\\client-join.ps1$args"
-    fi
-  done
+  wwin win11 "& $L\\client-join.ps1"
+  wwin ws2022m "& $L\\client-join.ps1 -Rsat"
   vagrant reload win11 ws2022m >/dev/null
   wait_winrm win11
   wait_winrm ws2022m

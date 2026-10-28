@@ -20,17 +20,12 @@ if ($cs.PartOfDomain) {
   # whose account had been deleted): 1787 when the domain no longer knows this computer
   cmd /c "nltest /sc_reset:$($cs.Domain) >nul 2>&1" # through cmd: PowerShell 5 turns a native stderr line into a stop
   if ($LASTEXITCODE -eq 0) { "already a member of $($cs.Domain)"; return }
-  # a lab domain created again (same name, new database) no longer knows this computer: leave it here (no account
-  # to disable there). Left like that, local logons fail with STATUS_NO_LOGON_SERVERS (WinRM included) until the
-  # workgroup is set again after a reboot, so a startup task does that once, then reboots (checked on win11 and
-  # ws2022m by hand); lab-clients.sh reboots, waits for WinRM and runs this again
-  $act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -Command "Add-Computer -WorkgroupName WORKGROUP -Force; ' +
-    'Unregister-ScheduledTask -TaskName lab-workgroup -Confirm:$false; Restart-Computer -Force"')
-  Register-ScheduledTask -TaskName lab-workgroup -Action $act -Trigger (New-ScheduledTaskTrigger -AtStartup) -User SYSTEM -RunLevel Highest -Force | Out-Null
-  $r = $cs | Invoke-CimMethod -MethodName UnjoinDomainOrWorkgroup -Arguments @{ FUnjoinOptions = [uint32]0 }
-  if ($r.ReturnValue -ne 0) { throw "leaving $($cs.Domain) failed: $($r.ReturnValue)" }
-  "left the stale domain $($cs.Domain): reboot and run again"
-  return
+  # a lab domain created again (same name, new database) no longer knows this computer. Leaving it from here breaks
+  # WinRM's local logons (STATUS_NO_LOGON_SERVERS) until the workgroup is set again after a reboot, and a startup
+  # task meant to do that never ran (267011): so it is done on the console, as checked on win11 and ws2022m
+  throw ("$($cs.Domain) does not know $env:COMPUTERNAME (the domain was created again). On its console: " +
+    "(Get-CimInstance Win32_ComputerSystem | Invoke-CimMethod -MethodName UnjoinDomainOrWorkgroup -Arguments @{FUnjoinOptions=[uint32]0}); " +
+    "Restart-Computer; then Add-Computer -WorkgroupName WORKGROUP -Force; Restart-Computer; vagrant reload; then run the join again")
 }
 # every card asks the domain's DC: the join finds it through DNS
 Get-NetAdapter | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ServerAddresses $DnsServer }
