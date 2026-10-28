@@ -30,7 +30,7 @@ build-prod: frontend
 test:
 	go vet ./...
 	go test ./... -count=1
-	cd third_party/go-msrpc && go test ./dcerpc -run 'TestBodyComplete' -count=1  # the security patch (PATCHED.md)
+	cd third_party/go-msrpc && go test ./dcerpc ./msrpc/drsr/drsuapi/v4 -run 'TestBodyComplete|TestDecryptPatched' -count=1  # the security patches (PATCHED.md)
 	cd frontend && npm run test
 
 # Requires the test Samba AD: make samba-up (Docker) or the lab VM.

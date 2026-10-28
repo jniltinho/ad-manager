@@ -68,29 +68,10 @@ const errMoreData = 234
 // call runs fn over a signed SMB connection to the named pipe of t, authenticated by Kerberos as cifs/<t.Host>. fn
 // gets the connection and the options of an RPC bind authenticated as host/<t.Host>; the call ends after timeout.
 func call(ctx context.Context, t Target, c Cred, pipe string, fn func(ctx context.Context, cc dcerpc.Conn, rpcSec []dcerpc.Option) error) error {
-	var rpcSec []dcerpc.Option
-	if t.Host == "" || strings.ContainsAny(t.Host, "/@ ") {
-		return fmt.Errorf("invalid host %q", t.Host)
+	sec, rpcSec, err := Kerberos(t, c)
+	if err != nil {
+		return err
 	}
-	if !realmRe.MatchString(c.Realm) {
-		return fmt.Errorf("invalid realm %q", c.Realm)
-	}
-	// built field by field (no configuration text to inject into): this realm, this KDC, no DNS lookups, TCP
-	conf := config.New()
-	conf.LibDefaults.DefaultRealm = c.Realm
-	conf.LibDefaults.DNSLookupKDC, conf.LibDefaults.DNSLookupRealm = false, false
-	conf.LibDefaults.UDPPreferenceLimit = 1
-	conf.Realms = []config.Realm{{Realm: c.Realm, KDC: []string{c.KDC}}}
-	krb := func(dce bool) *krb5.Config {
-		return &krb5.Config{KRB5Config: krb5.ParsedLibDefaults(conf), DisablePAFXFAST: true, AnyServiceClassSPN: true, DCEStyle: dce,
-			Flags: []int{int(gssapi.MutualAuthn), int(gssapi.Integrity), int(gssapi.Confidentiality)}}
-	}
-	cred := credential.NewFromPassword(c.User, c.Password, credential.Domain(c.Realm))
-	// Kerberos only (never NTLM): SMB session setup, then the RPC bind itself (DCE style, sealed) where the
-	// interface asks for it (the DNS server refuses an unauthenticated bind)
-	sec := []gssapi.ContextOption{gssapi.WithCredential(cred), gssapi.WithMechanismFactory(ssp.KRB5, krb(false))}
-	rpcSec = []dcerpc.Option{dcerpc.WithSeal(), dcerpc.WithTargetName("host/" + t.Host), dcerpc.WithCredentials(cred),
-		dcerpc.WithMechanism(ssp.KRB5, krb(true))}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	done := make(chan error, 1)
@@ -119,6 +100,33 @@ func call(ctx context.Context, t Target, c Cred, pipe string, fn func(ctx contex
 	case <-ctx.Done():
 		return fmt.Errorf("%s: %w", t.Host, ctx.Err())
 	}
+}
+
+// Kerberos returns the security options for t with c, Kerberos only (never NTLM): sec for a security context or
+// an SMB session (cifs/ principal set by the caller), rpcSec for an RPC bind as host/<t.Host>, DCE style and
+// sealed with keys from the service ticket.
+func Kerberos(t Target, c Cred) (sec []gssapi.ContextOption, rpcSec []dcerpc.Option, err error) {
+	if t.Host == "" || strings.ContainsAny(t.Host, "/@ ") {
+		return nil, nil, fmt.Errorf("invalid host %q", t.Host)
+	}
+	if !realmRe.MatchString(c.Realm) {
+		return nil, nil, fmt.Errorf("invalid realm %q", c.Realm)
+	}
+	// built field by field (no configuration text to inject into): this realm, this KDC, no DNS lookups, TCP
+	conf := config.New()
+	conf.LibDefaults.DefaultRealm = c.Realm
+	conf.LibDefaults.DNSLookupKDC, conf.LibDefaults.DNSLookupRealm = false, false
+	conf.LibDefaults.UDPPreferenceLimit = 1
+	conf.Realms = []config.Realm{{Realm: c.Realm, KDC: []string{c.KDC}}}
+	krb := func(dce bool) *krb5.Config {
+		return &krb5.Config{KRB5Config: krb5.ParsedLibDefaults(conf), DisablePAFXFAST: true, AnyServiceClassSPN: true, DCEStyle: dce,
+			Flags: []int{int(gssapi.MutualAuthn), int(gssapi.Integrity), int(gssapi.Confidentiality)}}
+	}
+	cred := credential.NewFromPassword(c.User, c.Password, credential.Domain(c.Realm))
+	sec = []gssapi.ContextOption{gssapi.WithCredential(cred), gssapi.WithMechanismFactory(ssp.KRB5, krb(false))}
+	rpcSec = []dcerpc.Option{dcerpc.WithSeal(), dcerpc.WithTargetName("host/" + t.Host), dcerpc.WithCredentials(cred),
+		dcerpc.WithMechanism(ssp.KRB5, krb(true))}
+	return sec, rpcSec, nil
 }
 
 // Zone is a DNS zone of the DC.
