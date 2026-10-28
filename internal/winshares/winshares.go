@@ -79,6 +79,9 @@ func Collect(ctx context.Context, run Runner, host, authFile string) ([]Share, e
 			return nil, fmt.Errorf("permission of %s: %w", s.Name, err)
 		}
 		aces := parseShareSD(o)
+		if !reDACL.MatchString(o) { // no security descriptor (or a NULL DACL): Windows lets Everyone in, Full Control
+			aces = [][2]string{{"S-1-1-0", "0x1f01ff"}}
+		}
 		sidACL[s.Name] = aces
 		shares[slices.IndexFunc(shares, func(x Share) bool { return x.Name == s.Name })].ShareDeny = strings.Contains(o, "ACCESS DENIED")
 		for _, a := range aces {
@@ -168,6 +171,7 @@ func parseEnum(out string) []Share {
 var (
 	reMask = regexp.MustCompile(`Permissions:\s*(0x[0-9a-fA-F]+)`)
 	reSID  = regexp.MustCompile(`SID:\s*(S-[0-9-]+)`)
+	reDACL = regexp.MustCompile(`(?m)^\s*DACL\s*$`) // the DACL section header (not SEC_DESC_DACL_PRESENT)
 )
 
 // parseShareSD returns (SID, mask) for each "ACCESS ALLOWED" ACE.

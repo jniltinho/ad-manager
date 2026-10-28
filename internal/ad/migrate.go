@@ -75,6 +75,10 @@ func (c *Conn) Preflight() ([]Check, error) {
 	lvl("domain functional level", r.GetAttributeValue("domainFunctionality"))
 	lvl("forest functional level", r.GetAttributeValue("forestFunctionality"))
 
+	if ck, ok := c.rc4Only(base); ok {
+		out = append(out, ck)
+	}
+
 	sv, err := c.search(schemaNC, ldap.ScopeBaseObject, "(objectClass=*)", []string{"objectVersion"})
 	if err == nil {
 		v := sv[0].GetAttributeValue("objectVersion")
@@ -114,6 +118,70 @@ func (c *Conn) Preflight() ([]Check, error) {
 		out = append(out, Check{Item: "domain controllers", Status: st, Detail: strings.Join(names, ", ")})
 	}
 	return out, nil
+}
+
+// rc4Only finds the enabled users whose password predates the domain's AES Kerberos keys: a password set before the
+// domain reached the 2008 level (or while the account was still local, before dcpromo) has only the NT hash, so
+// RC4 is its only Kerberos key — on the source and, after a dc-join or a password migration, on Samba too. Ubuntu's
+// MIT Kerberos refuses RC4 by default. Microsoft's heuristic: pwdLastSet older than the creation of the Read-only
+// Domain Controllers group (RID 521), created when a 2008 DC first holds the PDC role — a heuristic: a password set
+// later on a remaining 2003 DC is missed. Users that must change their password (pwdLastSet 0) are left out: they
+// get new keys at their next logon. ok is false when that group is unreadable (a 2003 domain is a blocker already).
+func (c *Conn) rc4Only(base string) (Check, bool) {
+	sid, err := c.DomainSID()
+	if err != nil {
+		return Check{}, false
+	}
+	g, err := c.search(base, ldap.ScopeWholeSubtree, "(objectSid="+sid+"-521)", []string{"whenCreated"})
+	if err != nil || len(g) == 0 {
+		return Check{}, false
+	}
+	since := genTime(g[0].GetAttributeValue("whenCreated"))
+	if since.IsZero() {
+		return Check{}, false
+	}
+	// Key Admins (RID 526) appears when a 2016 DC holds the PDC role: created with the RODC group, the domain was born
+	// on 2016 or later, whose local accounts already carry AES keys before dcpromo (checked on the 2019 and 2022 labs)
+	if ka, err := c.search(base, ldap.ScopeWholeSubtree, "(objectSid="+sid+"-526)", []string{"whenCreated"}); err == nil &&
+		len(ka) > 0 && bornOn2016(since, genTime(ka[0].GetAttributeValue("whenCreated"))) {
+		return Check{Item: "RC4-only accounts", Status: "ok", Detail: "none: the domain was created by Windows Server 2016 or later"}, true
+	}
+	us, err := c.search(base, ldap.ScopeWholeSubtree, "(&(objectCategory=person)(objectClass=user)"+
+		"(!(userAccountControl:1.2.840.113556.1.4.803:=2))(pwdLastSet>=1)(pwdLastSet<="+toFileTime(since)+"))",
+		[]string{"sAMAccountName"})
+	if err != nil {
+		return Check{}, false
+	}
+	names := make([]string, 0, len(us))
+	for _, u := range us {
+		names = append(names, u.GetAttributeValue("sAMAccountName"))
+	}
+	return rc4Check(names), true
+}
+
+// bornOn2016 reports whether the Key Admins group was created together with the RODC group (the same dcpromo, within
+// the hour): the domain's first DC was Windows Server 2016 or later.
+func bornOn2016(rodc, keyAdmins time.Time) bool {
+	return !keyAdmins.IsZero() && keyAdmins.Sub(rodc).Abs() < time.Hour
+}
+
+// rc4Check is the preflight row for the users with RC4-only Kerberos keys.
+func rc4Check(names []string) Check {
+	if len(names) == 0 {
+		return Check{Item: "RC4-only accounts", Status: "ok", Detail: "none found: no enabled user's password predates the domain's 2008 level"}
+	}
+	sort.Strings(names)
+	shown := names
+	if len(shown) > 10 {
+		shown = shown[:10]
+	}
+	d := fmt.Sprintf("%d enabled user(s) whose password predates the domain's 2008 level (likely RC4-only Kerberos keys): %s",
+		len(names), strings.Join(shown, ", "))
+	if len(names) > len(shown) {
+		d += ", …"
+	}
+	return Check{Item: "RC4-only accounts", Status: StatusWarning,
+		Detail: d + "; reset their passwords before the cutover (Ubuntu's Kerberos refuses RC4)"}
 }
 
 // serverOf extracts the server name from "CN=NTDS Settings,CN=ADM,CN=Servers,...".

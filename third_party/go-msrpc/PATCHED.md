@@ -21,5 +21,12 @@ Patch (procure `ad-manager patch`):
   no último fragmento, a saída da operação precisa estar completa (`ErrTruncatedResponse`); teste comportamental
   em `dcerpc/patch_test.go` (`make test` e CI).
 
+- `msrpc/drsr/drsuapi/v4/encryption.go` (`DecryptData*`, `DecryptHash*`): o checksum CRC32 do `ENCRYPTED_PAYLOAD`
+  é cifrado junto com o dado e nunca era decifrado nem conferido — uma chave de sessão errada ou um byte corrompido
+  davam um hash errado como se fosse válido; e `DES_ECB_LM` entrava em panic com menos de 16 bytes. Agora o sal tem
+  de ter 16 bytes, o CRC32 é conferido ([MS-DRSR] 4.1.10.6.22) e o hash tem de ter 16 bytes; teste em
+  `encryption_patch_test.go` (`make test`). Pacotes copiados para isso: `msrpc/drsr/drsuapi/v4`,
+  `msrpc/epm/epm/v3`, `msrpc/well_known` (usados por `internal/gosamba/drs`).
+
 Para atualizar: copie de novo os pacotes da versão nova (mesmo comando `go list -deps`), reaplique o patch se o
 upstream não o tiver incorporado e rode `go test ./internal/winrpc` (o teste `TestMsrpcPatched` confere o patch).

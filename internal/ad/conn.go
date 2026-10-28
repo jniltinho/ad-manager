@@ -197,6 +197,24 @@ func (c *Conn) search(base string, scope int, filter string, attrs []string) ([]
 	return res.Entries, nil
 }
 
+// Search runs a paged, read-only search with the connection's identity, for callers that need their own filters
+// and attributes (the Entra sync, which reads with its sync account).
+func (c *Conn) Search(base string, scope int, filter string, attrs []string) ([]*ldap.Entry, error) {
+	return c.search(base, scope, filter, attrs)
+}
+
+// NamingContexts returns the domain's and the configuration's naming contexts, read from the rootDSE.
+func (c *Conn) NamingContexts() (domain, config string, err error) {
+	root, err := c.search("", ldap.ScopeBaseObject, "(objectClass=*)", []string{"defaultNamingContext", "configurationNamingContext"})
+	if err != nil {
+		return "", "", err
+	}
+	if len(root) == 0 || root[0].GetAttributeValue("defaultNamingContext") == "" {
+		return "", "", errors.New("the rootDSE has no defaultNamingContext")
+	}
+	return root[0].GetAttributeValue("defaultNamingContext"), root[0].GetAttributeValue("configurationNamingContext"), nil
+}
+
 // one fetches exactly one object.
 func (c *Conn) one(filter string, attrs []string) (*ldap.Entry, error) {
 	es, err := c.search(c.cfg.Base(), ldap.ScopeWholeSubtree, filter, attrs)

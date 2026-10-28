@@ -15,7 +15,17 @@ var outputs = map[string]string{
 	"netshareenumall": "netname: ADMIN$\n\tremark:\tRemote Admin\n\tpath:\tC:\\Windows\n" +
 		"netname: Financeiro\n\tremark:\t\n\tpath:\tE:\\Financeiro\n" +
 		"netname: Notas Fiscais$\n\tremark:\tNotas\n\tpath:\tE:\\Financeiro\\NFe\n" +
-		"netname: Publico\n\tremark:\t\n\tpath:\tE:\\Publico\n",
+		"netname: Publico\n\tremark:\t\n\tpath:\tE:\\Publico\n" +
+		"netname: Aberto\n\tremark:\t\n\tpath:\tE:\\Aberto\n" +
+		"netname: Nulo\n\tremark:\t\n\tpath:\tE:\\Nulo\n" +
+		"netname: Vazio\n\tremark:\t\n\tpath:\tE:\\Vazio\n",
+	// a NULL DACL (DACL_PRESENT, no DACL section): Everyone, Full Control; an empty DACL: nobody
+	`netsharegetinfo "Nulo" 502`:  "netname: Nulo\n\trevision: 1\n\ttype: 0x8004: SEC_DESC_DACL_PRESENT SEC_DESC_SELF_RELATIVE \n",
+	`netsharegetinfo "Vazio" 502`: "netname: Vazio\n\trevision: 1\n\ttype: 0x8004: SEC_DESC_DACL_PRESENT SEC_DESC_SELF_RELATIVE \nDACL\n\tACL\tNum ACEs:\t0\trevision:\t4\n\t---\n",
+	"//h/Nulo":                    "ACL:EMPRESA\\Domain Users:ALLOWED/OI|CI/CHANGE\n",
+	"//h/Vazio":                   "ACL:EMPRESA\\Domain Users:ALLOWED/OI|CI/CHANGE\n",
+	// a share created without a security descriptor (NetShareAdd level 2): no DACL in the reply
+	`netsharegetinfo "Aberto" 502`:         "netname: Aberto\n\tremark:\t\n\tpath:\tE:\\Aberto\n\tpassword:\t(null)\n\ttype:\t0x0\n\tperms:\t0\n\tmax_uses:\t-1\n\tnum_uses:\t0\n",
 	`netsharegetinfo "Financeiro" 502`:     sd("500:0x1f01ff", "512:0x1f01ff", "1103:0x1301bf"),
 	`netsharegetinfo "Notas Fiscais$" 502`: sd("512:0x1f01ff", "1162:0x1200a9"),
 	`netsharegetinfo "Publico" 502`:        sd("512:0x1f01ff", "S-1-1-0:0x1f01ff"),
@@ -24,6 +34,7 @@ var outputs = map[string]string{
 		"ACL:CREATOR OWNER:ALLOWED/OI|CI|IO|I/0x10000000\n",
 	"//h/Notas Fiscais$": "ACL:EMPRESA\\Financeiro:ALLOWED/OI|CI|I/FULL\nACL:EMPRESA\\0000045E:ALLOWED/OI|CI/FULL\n",
 	"//h/Publico":        "ACL:BUILTIN\\Users:ALLOWED/OI|CI|I/READ\nACL:EMPRESA\\Comercial:ALLOWED/OI|CI/RWXD\nACL:EMPRESA\\Estagio:DENIED/OI|CI/FULL\n",
+	"//h/Aberto":         "ACL:EMPRESA\\Domain Users:ALLOWED/OI|CI/CHANGE\nACL:BUILTIN\\Administrators:ALLOWED/OI|CI|I/FULL\n",
 }
 
 // sd builds a fake netsharegetinfo security descriptor from "rid:mask" pairs.
@@ -67,8 +78,8 @@ func TestCollectAndPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(shares) != 3 {
-		t.Fatalf("expected 3 data shares (without ADMIN$), got %d", len(shares))
+	if len(shares) != 6 {
+		t.Fatalf("expected 6 data shares (without ADMIN$), got %d", len(shares))
 	}
 	d := Directory{
 		NetBIOS: "EMPRESA",
@@ -90,6 +101,11 @@ func TestCollectAndPlan(t *testing.T) {
 		{"user and hidden name", "Notas Fiscais$", "/srv/shares/Financeiro/NFe", nil, nil, []string{`EMPRESA\ana.lima`}, []string{`EMPRESA\Domain Admins`}},
 		// Everyone on the share: NTFS decides; Users becomes Domain Users
 		{"everyone on the share", "Publico", "/srv/shares/Publico", []string{`EMPRESA\Comercial`}, []string{`EMPRESA\Domain Users`}, nil, []string{`EMPRESA\Domain Admins`}},
+		// no share security descriptor: Everyone has Full Control on the share, NTFS decides
+		{"share without a security descriptor", "Aberto", "/srv/shares/Aberto", []string{`EMPRESA\Domain Users`}, nil, nil, []string{`EMPRESA\Domain Admins`}},
+		{"share with a NULL DACL", "Nulo", "/srv/shares/Nulo", []string{`EMPRESA\Domain Users`}, nil, nil, []string{`EMPRESA\Domain Admins`}},
+		// an empty DACL lets nobody in at the share: only Domain Admins (always added)
+		{"share with an empty DACL", "Vazio", "/srv/shares/Vazio", nil, nil, nil, []string{`EMPRESA\Domain Admins`}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

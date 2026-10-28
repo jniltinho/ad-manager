@@ -68,6 +68,7 @@ for share in Financeiro Diretoria TI Publico; do
   for _ in $(seq 60); do st=$(api GET /agents/$A/syncs | jq -r --arg r "$run" ".runs[]|select(.id==\$r)|.status"); [ "$st" = running ] || [ "$st" = queued ] || break; sleep 3; done
   echo "sync $share: $(api GET /agents/$A/syncs | jq -c --arg r "$run" ".runs[]|select(.id==\$r)|{status,error,transfers:.result.transfers}")"
 done' | tee "$OUT/path-a-sync.log"
+  check_syncs "$OUT/path-a-sync.log"
 }
 
 validate() {
@@ -108,6 +109,7 @@ try lab.dani TI "put /tmp/t.txt t-dani.txt; del t-dani.txt" "writes: expected ok
       echo "- $p: source $(vm samba-fs "sudo sha256sum /srv/shares/$p | cut -c1-16" | tr -d '\r'), target $(vm samba-dst-fs "sudo sha256sum /srv/shares/$p 2>/dev/null | cut -c1-16" | tr -d '\r')"
     done
   } | tee "$report"
+  check_report "$report"
 }
 
 path_b() {
@@ -121,6 +123,9 @@ path_b() {
       vm samba-mig "sudo tar --xattrs --xattrs-include='*' -C /var/lib/samba -xpf - && echo 'SYSVOL copied'"
     vm samba-mig "sudo bash $d sysvol-reset" </dev/null
     printf '%s\n' "$LAB_SAMBA_SRC_PASSWORD" | vm samba-src "sudo bash $d demote"
+    # a member with a fixed DNS (the file server) still asks samba-src: point it at samba-mig, or winbind finds no DC
+    # once samba-src is off ("No logon servers" in every sync)
+    vm samba-fs "printf 'nameserver 192.168.57.32\nsearch $SRC\n' | sudo tee /etc/resolv.conf >/dev/null && sudo systemctl restart winbind smbd && sleep 5 && sudo net ads testjoin && wbinfo -n '$SRCNB\\\\Domain Users'" </dev/null
     vm samba-mig "sudo bash $d cleanup" </dev/null
     vm samba-mig "sudo bash $d report" </dev/null
   } 2>&1 | tee "$OUT/path-b.log"

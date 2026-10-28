@@ -14,7 +14,19 @@ function Read-EnvValue([string] $line) {
   $v
 }
 $ErrorActionPreference = 'Stop'
-if ((Get-CimInstance Win32_ComputerSystem).PartOfDomain) { "already a member of $((Get-CimInstance Win32_ComputerSystem).Domain)"; return }
+$cs = Get-CimInstance Win32_ComputerSystem
+if ($cs.PartOfDomain) {
+  # a fresh secure channel, not the one already open (Test-ComputerSecureChannel kept answering True for a computer
+  # whose account had been deleted): 1787 when the domain no longer knows this computer
+  cmd /c "nltest /sc_reset:$($cs.Domain) >nul 2>&1" # through cmd: PowerShell 5 turns a native stderr line into a stop
+  if ($LASTEXITCODE -eq 0) { "already a member of $($cs.Domain)"; return }
+  # a lab domain created again (same name, new database) no longer knows this computer. Leaving it from here breaks
+  # WinRM's local logons (STATUS_NO_LOGON_SERVERS) until the workgroup is set again after a reboot, and a startup
+  # task meant to do that never ran (267011): so it is done on the console, as checked on win11 and ws2022m
+  throw ("$($cs.Domain) does not know $env:COMPUTERNAME (the domain was created again). On its console: " +
+    "(Get-CimInstance Win32_ComputerSystem | Invoke-CimMethod -MethodName UnjoinDomainOrWorkgroup -Arguments @{FUnjoinOptions=[uint32]0}); " +
+    "Restart-Computer; then Add-Computer -WorkgroupName WORKGROUP -Force; Restart-Computer; vagrant reload; then run the join again")
+}
 # every card asks the domain's DC: the join finds it through DNS
 Get-NetAdapter | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ServerAddresses $DnsServer }
 # Vagrant's NAT card (10.0.2.15 on every VM) stays out of the domain's DNS: only the lab network's address

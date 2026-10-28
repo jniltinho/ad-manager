@@ -6,7 +6,7 @@ Migrate a legacy Windows DC to Samba 4: preflight, inventory, export and import,
 ## Requirements
 
 ### Requirement: Source domain preflight
-The tool SHALL run a read-only preflight against the source DC and report `ok`, `warning` or `blocker` for each item: network reachability (DNS 53, Kerberos 88, RPC 135, LDAP 389, SMB 445, LDAPS 636, global catalog 3268 and the dynamic RPC range 49152-65535 when tested from the future DC), administrator authentication, domain and forest functional level, schema version, owner of each FSMO role, presence of the Exchange schema and number of DCs.
+The tool SHALL run a read-only preflight against the source DC and report `ok`, `warning` or `blocker` for each item: network reachability (the DC ports, and the dynamic RPC range when tested from the future DC), administrator authentication, functional levels, schema version, FSMO owners, the Exchange schema, number of DCs and RC4-only accounts.
 
 #### Scenario: Eligible domain
 - **WHEN** the operator runs the preflight against `ldaps://10.0.0.10` with valid credentials and all ports respond
@@ -23,6 +23,20 @@ The tool SHALL run a read-only preflight against the source DC and report `ok`, 
 #### Scenario: Invalid credential
 - **WHEN** the administrator password is wrong
 - **THEN** the command reports an authentication failure without showing the password and exits with a non-zero code
+
+#### Scenario: RC4-only accounts
+- **WHEN** enabled users of the source have a `pwdLastSet` older than the creation of the Read-only Domain Controllers
+  group (RID 521, created when the domain reaches 2008): passwords set before that level, or while the account was
+  still local before `dcpromo`, carry no AES Kerberos keys
+- **THEN** the preflight shows `RC4-only accounts` as `warning` with their count and up to ten names, advising a
+  password reset before the cutover; with none it shows `ok`. It is a heuristic (a password set later on a
+  remaining 2003 DC is missed), and users that must change their password at next logon are not listed
+
+#### Scenario: Domain created by Windows Server 2016 or later
+- **WHEN** the Key Admins group (RID 526) was created together with the Read-only Domain Controllers group (the same
+  `dcpromo`): the domain was born on a 2016+ DC, whose local accounts already carry AES keys before `dcpromo`
+- **THEN** `RC4-only accounts` is `ok` ("the domain was created by Windows Server 2016 or later") and no account is
+  listed
 
 ### Requirement: Exportable inventory
 The tool SHALL export a domain inventory as JSON containing users (with enabled/disabled state and groups), groups (with members), OUs, computers (with operating system) and the password policy, without any hashes or secrets.
@@ -140,6 +154,29 @@ audited as `password.migrate` with counts only.
 #### Scenario: Reversible-password source rejected
 - **WHEN** a source account stores a reversible/cleartext secret (`Primary:CLEARTEXT`)
 - **THEN** that account is reported rejected and no cleartext is read into the target
+
+#### Scenario: Source user without a password
+- **WHEN** a source user has no password (created without one, e.g. `dsadd` without `-pwd`), so no NT hash replicates
+- **THEN** the apply reports it `no_password`, sets nothing, the user keeps the password the import gave it, and the
+  command does not fail because of it
+
+#### Scenario: No Python helper
+- **WHEN** the password migration runs on a DC without `python3-samba` but with Samba's `ldb-tools`
+- **THEN** the plan and the apply complete in the agent itself, reading over DRSUAPI and writing through `ldbmodify`
+  with the password-hash bypass control, with the secrets only on its standard input
+
+#### Scenario: Same outcomes as before
+- **WHEN** the same source is migrated into twin destinations by the previous (Python) and the Go implementation
+- **THEN** every user has the same outcome and the same stored `unicodePwd` and `supplementalCredentials`
+
+#### Scenario: Tampered listing
+- **WHEN** the source's LDAP listing names an account whose sealed DRS reply carries another `sAMAccountName`, or a
+  SID outside the source domain
+- **THEN** the run stops before writing anything for that account and reports the mismatch
+
+#### Scenario: Database path from Samba's configuration
+- **WHEN** Samba's configuration cannot be read, or names a private dir without `sam.ldb`
+- **THEN** the migration refuses, without falling back to a default database path
 
 ### Requirement: Import carries last-logon and operating system
 The "From another AD" import SHALL carry, in addition to the objects, the last-logon timestamp

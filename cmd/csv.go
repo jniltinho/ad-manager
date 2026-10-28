@@ -172,6 +172,10 @@ func writePasswords(dir string, pw map[string]string) (string, error) {
 	for u, p := range pw {
 		rows = append(rows, []string{u, p})
 	}
+	// the users already exist when this runs: a missing directory must not lose their only copy of the passwords
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
 	path := filepath.Join(dir, "generated-passwords-"+time.Now().Format("20060102-150405")+".csv")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {

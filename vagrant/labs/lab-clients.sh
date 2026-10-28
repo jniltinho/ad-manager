@@ -40,7 +40,7 @@ prepare() {
 }
 
 up() {
-  vagrant up win11 ws2022m ubuntu-desk >"$OUT/up.log" 2>&1
+  up_retry win11 ws2022m ubuntu-desk >"$OUT/up.log" 2>&1
 }
 
 join() {
@@ -122,14 +122,16 @@ roteiro() {
     echo
     # what disabling does: the station can no longer set up its secure channel (logons that need the DC through it,
     # NTLM and the first interactive logon, fail). The channel already up lasts until it is set up again (a reboot,
-    # or nltest /sc_reset here), and Samba's KDC still gives Kerberos service tickets for the disabled station.
+    # or nltest /sc_reset here). Kerberos service tickets for the disabled station: older Samba KDCs still gave them,
+    # Samba 4.23 refuses them as Windows does; either is reported, the secure channel is what this step asserts.
     # cmd /c: nltest's error text on stderr would make PowerShell report an error of its own
     trap 'panel POST /computers/WIN11%24/enable >/dev/null' EXIT # enabled again whatever fails below
     sc() { wwin win11 'cmd /c "nltest /sc_reset:destino.lab 2>&1"' </dev/null | tr -d '\r' | grep -m1 -E 'Status =|failed' || true; }
     panel POST /computers/WIN11%24/disable >/dev/null
     echo "- WIN11 disabled by the panel"
     echo "- secure channel set up again: $(sc)"
-    wwin win11 "& $L\\client-check.ps1 -Step user -User lab.caio -Share ''" </dev/null | tr -d '\r' | sed 's/^/- lab.caio (Kerberos network logon): /'
+    { wwin win11 "& $L\\client-check.ps1 -Step user -User lab.caio -Share ''" </dev/null || true; } | tr -d '\r' |
+      grep -m1 -vE '^\s*\+ ' | sed 's/^/- lab.caio (Kerberos network logon): /'
     panel POST /computers/WIN11%24/enable >/dev/null
     trap - EXIT
     echo "- WIN11 enabled again; secure channel set up again: $(sc)"

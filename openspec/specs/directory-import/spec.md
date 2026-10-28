@@ -20,3 +20,8 @@ The panel SHALL connect to a source AD given by the operator (URL, domain, user 
 #### Scenario: Reuse a profile
 - **WHEN** the operator picks a profile with a kept password and runs the preview with the password field empty
 - **THEN** the panel uses the kept password and the preview runs
+
+#### Scenario: Generated passwords directory does not exist
+- **WHEN** the CLI import runs with `--apply` and a `--dir` that does not exist yet
+- **THEN** the directory is created (0700) and the generated passwords CSV (0600) is written there, so the users just
+  created never lose their only copy of the password

@@ -10,6 +10,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-ldap/ldap/v3"
+
+	"ad-manager/internal/gosamba/samdb"
 )
 
 // testCfg points at the test Samba AD: `make samba-up` (Docker) —
@@ -267,6 +271,10 @@ func TestAdminAndInventory(t *testing.T) {
 	if err != nil || len(pf) < 8 {
 		t.Fatalf("preflight: %v %v", pf, err)
 	}
+	// the RC4-only row is there (its status depends on when provisioning set Administrator's password: a heuristic)
+	if i := slices.IndexFunc(pf, func(c Check) bool { return c.Item == "RC4-only accounts" }); i < 0 || pf[i].Status == StatusBlocker {
+		t.Fatalf("RC4-only accounts row: %v", pf)
+	}
 }
 
 // TestImportComputer checks that importing computers pre-creates the account
@@ -372,5 +380,27 @@ func TestDCHostName(t *testing.T) {
 	h, err := c.DCHostName()
 	if err != nil || !strings.HasSuffix(strings.ToLower(h), "."+strings.ToLower(testCfg().Domain)) {
 		t.Fatalf("%q %v", h, err)
+	}
+}
+
+// TestSearchForSync covers what the Entra sync reads: the naming contexts and a paged search returning binary
+// attributes untouched.
+func TestSearchForSync(t *testing.T) {
+	c := dialAdmin(t)
+	dom, conf, err := c.NamingContexts()
+	if err != nil || dom != testCfg().Base() || conf != "CN=Configuration,"+dom {
+		t.Fatalf("NamingContexts = %q, %q, %v", dom, conf, err)
+	}
+	es, err := c.Search(dom, ldap.ScopeWholeSubtree, "(sAMAccountName=Administrator)", []string{"objectGUID", "objectSid"})
+	if err != nil || len(es) != 1 {
+		t.Fatalf("Search: %d entries, %v", len(es), err)
+	}
+	g, sid := es[0].GetRawAttributeValue("objectGUID"), es[0].GetRawAttributeValue("objectSid")
+	if len(g) != 16 || len(sid) != 28 {
+		t.Fatalf("objectGUID %d bytes, objectSid %d bytes", len(g), len(sid))
+	}
+	root, _ := c.Search("", ldap.ScopeBaseObject, "(objectClass=*)", []string{"dnsHostName"})
+	if len(root) == 1 { // for scripts/test-dc.sh's DRSUAPI run against a DC without fixtures (read only)
+		t.Logf("dnsHostName %s, Administrator objectGUID %s", root[0].GetAttributeValue("dnsHostName"), samdb.GUID(g))
 	}
 }

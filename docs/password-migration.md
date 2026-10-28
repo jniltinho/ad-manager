@@ -16,12 +16,14 @@ the new-domain cutover only — a `dc-join` already replicates the hashes.
 - **Extraction (source, read-only).** The agent performs a sealed DRSUAPI `GetNCChanges` with the per-object
   extended op (`REPL_OBJ`) for each requested user, decrypts the material in memory, and keeps only the NT hash and
   the Kerberos package. It **never** sets `DRS_ADD_REF`, calls `UpdateRefs`, or runs any join/provision step — the
-  source's directory is left unchanged. It uses Samba's own `samba.drs_utils`/`drsuapi` bindings on the DC; no
-  vendored `impacket`.
+  source's directory is left unchanged. It runs in the agent itself, in Go (`internal/gosamba/drs`), Kerberos only:
+  the source's account list comes over LDAP, and each account is checked again in its sealed replication reply (name,
+  SID, type) before anything is written. No Python helper, no vendored `impacket`.
 - **Setting (destination, local).** For each matching user (by `sAMAccountName`) the agent sets `unicodePwd` from
   the NT hash — and, when the Kerberos keys transfer, `supplementalCredentials` — on the local `sam.ldb` through
   Samba's password bypass control, one atomic transaction per user, with `pwdLastSet` non-zero (no "must change").
-  The write is local; it never goes over LDAP.
+  The write is local, through Samba's own `ldbmodify` with the material on its standard input; it never goes over
+  LDAP (Samba refuses an NT hash there).
 
 ### Why the NT hash transfers but Kerberos may not
 
@@ -39,6 +41,7 @@ set **NTLM-only**; Kerberos keys rebuild on the next password change.
 | `same` | Already migrated — the NT hash matches, `pwdLastSet` is non-zero and there are no stale Kerberos keys (the apply is idempotent). |
 | `missing` | No matching user in this domain — import the objects first; no user is created. |
 | `builtin` | `Administrator` (RID 500), `Guest` (501), `krbtgt` (502), a trust or a machine account — never migrated, by RID/SID on both sides. |
+| `no_password` | The source user has no password (created without one, e.g. `dsadd` without `-pwd`) — nothing to carry over; the user keeps the password the import gave it. |
 | `rejected` | The source stores a reversible/cleartext password (`Primary:CLEARTEXT`) — not read into the target. |
 | `error` | A genuine extraction/decrypt/write failure. |
 

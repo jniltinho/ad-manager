@@ -5,7 +5,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Fixed
+- Folder sync: a run is no longer refused with "… is writable to the sync worker" when a folder outside the
+  destination is mounted twice on the same point (the covered mount is unreachable); seen after a reboot of a
+  Vagrant file server.
+- Share migration: a Windows share without a security descriptor (Everyone: Full Control) keeps the root's NTFS
+  access (e.g. `Domain Users` write) instead of none.
+- Password migration: a source user without a password is `no_password` (it keeps the generated one) instead of an
+  `error` that made `migrate passwords` exit 2.
+- `import --apply --dir X` creates `X` (0700) instead of losing the generated passwords of the users just created.
+
+### Changed
+- The password migration runs in Go in the DC agent (no Python helper): read over a Kerberos-sealed DRSUAPI bound
+  to the DC's replication SPN, each account checked in its sealed reply, written with Samba's `ldbmodify`; the same
+  outcomes and stored material as before on Samba 4.23/4.22, Windows Server 2008 R2 and 2022 sources.
+
+### Added
+- `migrate preflight` warns about `RC4-only accounts`: enabled users whose password predates the domain's AES
+  Kerberos keys (Ubuntu's Kerberos refuses RC4); reset them before the cutover.
+- `internal/gosamba`: Go replacements for the python3-samba calls of the Entra sync — DRSUAPI hash read (sealed,
+  Kerberos only, CRC-checked) and value formats; tested on Samba 4.23/4.22 and Windows Server 2022, 2019 and 2008 R2.
+- `internal/entrasync`: the start of the AzureADConnect_Samba4 port (`nbfx` binary XML codec, AAD password hash);
+  OpenSpec change `entra-sync-go`.
+- go-msrpc DRSUAPI decryption checks the payload's CRC32 (`third_party/go-msrpc/PATCHED.md`).
 
 ## [0.27.1] — 2026-10-27
 
