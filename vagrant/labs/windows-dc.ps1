@@ -79,10 +79,12 @@ Install-ADDSForest -DomainName '$Domain' -DomainNetbiosName '$NetBIOS' -SafeMode
         Export-Certificate -Cert $cert -FilePath $tmp -Force | Out-Null
         Import-Certificate -FilePath $tmp -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
         Remove-Item $tmp
-        Restart-Service NTDS -Force
+        # -Force stops the KDC too, and it may fail to come back at the first try: start it until AD answers again
+        Restart-Service NTDS -Force -ErrorAction SilentlyContinue
         for ($i = 0; $i -lt 30; $i++) { # AD answers again (and its web services, for the cmdlets that follow)
-          try { Get-ADDomain -ErrorAction Stop | Out-Null; break } catch { Start-Sleep 10 }
+          try { Start-Service Kdc -ErrorAction Stop; Get-ADDomain -ErrorAction Stop | Out-Null; break } catch { Start-Sleep 10 }
         }
+        if ((Get-Service Kdc).Status -ne 'Running') { throw 'the KDC did not start after the NTDS restart' }
       }
       $trust = $cert
     } else {
@@ -107,9 +109,11 @@ Install-ADDSForest -DomainName '$Domain' -DomainNetbiosName '$NetBIOS' -SafeMode
       $trust = Get-ChildItem Cert:\LocalMachine\Root | Where-Object Subject -like "*$NetBIOS Lab CA*" | Select-Object -First 1
     }
     if ($CaExport -and $trust) { Export-Certificate -Cert $trust -FilePath $CaExport -Force | Out-Null }
+    Start-Service Kdc # a stopped KDC (an earlier NTDS restart) answers LDAP but no Kerberos
     $ldaps = Test-NetConnection $LabIP -Port 636 -InformationLevel Quiet -WarningAction SilentlyContinue
+    $krb = Test-NetConnection $LabIP -Port 88 -InformationLevel Quiet -WarningAction SilentlyContinue
     "DC: $((Get-ADDomain).DNSRoot) · forest/domain levels: $((Get-ADForest).ForestMode)/$((Get-ADDomain).DomainMode)"
-    "DC certificate: $(if ($cert) { $cert[0].Subject } else { 'NOT YET' }) · LDAPS 636: $ldaps"
+    "DC certificate: $(if ($cert) { $cert[0].Subject } else { 'NOT YET' }) · LDAPS 636: $ldaps · Kerberos 88: $krb"
     "the DC's DNS (server): $((Resolve-DnsName "$env:COMPUTERNAME.$Domain" -Type A -Server $LabIP -DnsOnly).IPAddress -join ', ')"
   }
 }

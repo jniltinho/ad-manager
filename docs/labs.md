@@ -220,14 +220,143 @@ expected results, and the step fails saying what was missing.
 
 - **Disabling a computer** cuts the secure channel, and with it NTLM logon and the first interactive logon of users
   without a cache. It is not immediate: an established channel stays valid until it is re-established (reboot or
-  `nltest /sc_reset`). And Samba's KDC keeps issuing service tickets for the disabled workstation: network Kerberos
-  logon on it keeps working.
+  `nltest /sc_reset`). Service tickets for the disabled workstation depend on the KDC: older Samba kept issuing them
+  (network Kerberos logon kept working); on 2026-10-28 (Samba 4.23.6) the first try was refused, as on Windows. The
+  walkthrough reports either and asserts the secure channel.
 - **RSAT against Samba**: ADUC, GPMC and the DNS console work (LDAP, SMB and RPC). The PowerShell modules
   `ActiveDirectory` and `DnsServer` do not, because they need ADWS and Windows DNS. `dnscmd /enumzones` without a
   filter comes back empty from Samba; with `/Primary` it lists the zones.
 - **Client DNS**: Windows also registers the address of Vagrant's NAT card (10.0.2.15, the same on every VM),
   and sssd, without `dyndns_iface`, registers nothing. The join disables registration on Windows' NAT card and
   points sssd's `dyndns_iface` to the card that reaches the DC (and needs `nsupdate`, from the `bind9-dnsutils`
-  package).
+  package). sssd 2.10 (Ubuntu 26.04) may still not send the update after the join: the join then registers the
+  address itself with a secure update (`nsupdate -g`) and the machine's keytab, as a Windows member does.
 - **Outside the walkthrough**: changing the password at first logon needs an interactive logon (console or RDP),
   which WinRM does not provide.
+
+## Full run of 2026-10-28 (`.deb` 0.27.1 with the Entra-sync work)
+
+Every lab from scratch except the reused `destino.lab` noted below; the scripts' new checks fail a step instead of
+only printing a difference.
+
+| Lab | Result |
+|---|---|
+| Windows 2022 (`lab-windows.sh`, hardened) | import with no failure, 4 syncs `ok`, access by name identical on 4 shares, 7 SMB tests as expected, hashes and attributes identical, `kinit` ok; path B: `MIG22` 7/7 roles, `dbcheck` 0 errors; isolation ok |
+| Windows 2019 (`lab-windows.sh`) | the same, with `MIG19`; the KDC had stayed stopped after the DC step (fixed in `windows-dc.ps1`) |
+| Clients (`lab-clients.sh`) | win11, ws2022m and ubuntu-desk joined by the delegated account; secure channel, logon, tickets, share by name; RSAT (ADUC, GPMC, DNS) against Samba; GPO by moving to an OU in the panel; SMB session in the panel; disable/enable cuts and restores the secure channel |
+| Samba → Samba (`lab-samba.sh`) | 5 machines through the wizard, access by name identical, 7 SMB tests as expected, path B `MIGDC` 7/7 roles, `dbcheck` 0 errors; run onto the `destino.lab` of the 2022 lab, so one reverse-zone `dns.conflict` was expected |
+
+### What this run fixed
+
+- **Product — sync refused after a reboot** (`openspec/changes/sync-confinement-covered-mounts`): with `/vagrant`
+  mounted twice (at boot and by Vagrant), systemd left the covered mount `rw` inside the worker's unit, and the
+  confinement check refused every sync ("/vagrant is writable to the sync worker"). Covered mounts are unreachable
+  and no longer count; the lab re-ran the syncs on the same machine: `ok`, identical hashes.
+- **Labs — failures that only printed**: `path-a` now fails when a sync is not `ok` (`check_syncs`) and `validate`
+  when hashes, SMB results, access, attributes or `kinit` differ (`check_report`). The failed sync above had gone
+  through with exit 0.
+- **Labs — first boot that hangs**: a fresh Ubuntu 26.04 guest sometimes stalls (kernel RCU stalls under
+  VirtualBox 7.2) before SSH; `up_retry` power-cycles it once and runs its provisioners (isolation included) again.
+- **Labs — KDC stopped on the 2019 DC** after the NTDS restart of the DC step: the step now starts it with retries
+  and reports `Kerberos 88`.
+- **Labs — Ubuntu client DNS**: the registration fallback above.
+
+KVM (QEMU, `dockur/windows`) and VirtualBox cannot run VMs at the same time on this host: halt the Vagrant labs
+before the containers.
+
+### Windows in a container (`dockur/windows`)
+
+- **Windows 10 joining the test Samba** (`make samba-up`, `empresa.test`): a `dockurr/windows` container on the
+  compose network with `--dns` at the DC and `DOMAIN=empresa.test` joined during its unattended install. The CLI
+  listed it (`ad-manager computer list`: OS and last logon filled), moved it to a new OU, disabled and enabled it
+  (each in `audit.log`); the client registered itself in the DC's DNS (secure update); on the client the domain
+  logon (`empresatest\administrator`) holds Kerberos tickets from `dc1.empresa.test` (`cifs/`, `LDAP/`, AES-256).
+  The secure channel checks out (`Test-ComputerSecureChannel`: `True`, "in good condition"; the OEM script's
+  `nltest /sc_verify:empresa.test` → `NERR_Success`).
+- **Windows Server 2008 R2 lab DC** (`VERSION=2008`, forest `lab2008.test` by `dcpromo /unattend` from `/oem`,
+  plus fixtures: `plain`, a user without rights, and `nopw`, created without a password). Three things the image
+  needs for 2008 R2:
+  - **The answer file on a CD.** Its setup reads `Autounattend.xml` from no USB drive (dockur's `setup.img`), so it
+    stopped at the language screen. Copy `setup.img`'s files into an ISO (`genisoimage -J -joliet-long -r`) and attach
+    it with `ARGUMENTS="-drive file=/storage/au.iso,media=cdrom,readonly=on"`: the install runs unattended.
+  - **`SAMBA=N`.** dockur keeps 139/445 for its own shared folder, so SMB never reached the DC (`preflight`
+    blocker, no `migrate shares`).
+  - **The clock.** The guest came up 7 h ahead (Pacific time over a UTC clock): Kerberos failed with
+    `KRB_AP_ERR_SKEW`. `tzutil /s utc` and `time` in the guest fixed it.
+- **2008 R2 results** (destination: the all-in-one image built from this tree, `AD_DOMAIN=lab2008.test`, on the same
+  Docker network):
+  - DRSUAPI hash read (`internal/gosamba/drs`, from Ubuntu 26.04 and Debian 13): Administrator's hash, `nopw` → no
+    hash, unknown GUID refused, `plain` refused (`ERROR_DS_DRA_BAD_DN`), wrong password refused. LDAP reads
+    (`TestSearchForSync`) over `ldap://` + NTLM.
+  - CLI over `ldap://` + NTLM: `migrate preflight` with no blocker (functional level 2008 R2, schema 47, FSMO),
+    `user list`, `migrate inventory`, `export`. A write (`user disable`) is refused: "changes require a TLS
+    connection" (the 2008 R2 LDAPS speaks only TLS 1.0/1.1).
+  - New-domain cutover: `import ad --only objects --apply` created `labadmin`, `nopw` and `plain`;
+    `migrate passwords --apply` set `plain` and `labadmin` (`ntlm_only`: no Kerberos keys that Samba takes) and
+    `nopw` → `no_password`; the second run reported `same`, exit 0. `plain`'s production password works on the
+    target over SMB and LDAP; `kinit` waits for the next password change (documented for `ntlm_only`).
+  - `migrate shares` from `\\LABADMI-EFDUN97\Financeiro`: the target agent created `/srv/shares/Financeiro` with
+    `Domain Users` write (NTFS `0x1301bf`).
+- **2008 R2 → Samba by `dc-join`** (the lab's path B): an Ubuntu 26.04 container with systemd as PID 1 (`mig2008`,
+  standing in for the `samba-dst` VM: KVM and VirtualBox do not run together) on the DC's network, with a route to the
+  guest's own address (the DC registers `172.30.96.x`, behind dockur's NAT), the `.deb` of this tree installed. Its
+  setup wizard (`setup-wizard.sh`, role `dc-join`) joined at the domain's level (2008_R2); `samba-dc.sh` then
+  replicated the five partitions (`[ALL GOOD]`), transferred five FSMO roles and seized the two DNS ones (7/7), copied
+  SYSVOL (2 GPOs, `sysvolcheck` ok); the Windows DC was turned off and its metadata removed (`remove-dead`):
+  `dbcheck` 0 errors, `MIG2008` the only DC, SRV records on it. After the cutover: `plain` signs in with its 2008
+  password over Kerberos (AES) and NTLM; the CLI writes over LDAPS (OU, user, group, member, move, disable/enable,
+  password reset, delete — all audited); the panel signs in and lists the users.
+  - **RC4-only accounts.** `Administrator` and `labadmin` had their passwords set while still local accounts (before
+    `dcpromo`): they carry the NT hash only, no AES keys, on the 2008 R2 DC as on Samba after the join. Samba's KDC
+    serves them RC4, but Ubuntu 26.04's MIT client refuses RC4 by default (`kinit`: "KDC has no support for
+    encryption type"). `migrate preflight` now warns about them (`RC4-only accounts`: `pwdLastSet` older than the
+    Read-only Domain Controllers group); on the migrated domain it listed `Administrator` (and `labadmin`, whose
+    reset predates the group only because the lab's clock was 7 h ahead when the domain was created). After a
+    password reset both get AES-256 tickets from `kinit`.
+  - **A Windows client joins the migrated domain**: a new `dockurr/windows` Windows 10 container (`DOMAIN=lab2008.test`,
+    DNS at `mig2008`) joined during its install; `nltest /sc_verify:lab2008.test` → `NERR_Success` with
+    `\\mig2008.lab2008.test`, and `nltest /dsgetdc` finds it as PDC, GC, KDC, writable. The ad-manager on `mig2008`
+    moved the computer to `OU=Estacoes`, disabled and enabled it (audited); its DNS record registered.
+  - Container notes: systemd needs `mount -o remount,rw /sys/fs/cgroup` before `/sbin/init` (private cgroup
+    namespace, `SYS_ADMIN`, never `--privileged`: chrony runs with `-x` and must not set the host clock), and the
+    Ubuntu `redis-server` unit needs `PrivateUsers=false` (no user namespaces in the container).
+- **From scratch with the final tree** (same day, after every fix above; the `.deb` of this tree):
+  - A new 2008 R2 DC with the right clock. dockur's answer file names no time zone, so WinPE reads the UTC RTC as
+    Pacific time and the domain is born 7 h ahead; `<TimeZone>` in the answer file is too late for that. What
+    works: the OEM `install.bat` syncs over NTP (`w32tm`, unlimited phase correction) before `dcpromo`.
+  - `migrate preflight` against it: no blocker, `RC4-only accounts` → `Administrator` (its password was set
+    before `dcpromo`). The runbook's fix — reset on the source (`net rpc password`) — and the preflight again:
+    `ok`.
+  - `dc-join` by the setup wizard, replication `[ALL GOOD]`, 7/7 roles, SYSVOL (2 GPOs, `sysvolcheck` ok), the
+    Windows DC off and removed, `dbcheck` 0 errors, `MIG2008` the only DC. `kinit` of `Administrator`,
+    `labadmin` and `plain`: AES-256 for all three; `preflight` on Samba: `RC4-only accounts` ok.
+  - Clients joined to the migrated domain: **Windows 10, Windows 11 and Server 2022** (`dockurr/windows`,
+    `DOMAIN=lab2008.test`, DNS at `mig2008`; `nltest /sc_verify` → `NERR_Success` with `mig2008`, `dsgetdc` → PDC,
+    GC, KDC, writable) and **Ubuntu 26.04** (`ubuntu-client.sh join` in a systemd container: realmd/sssd into
+    `OU=Estacoes`, DNS registered; `lab.ana` logs on over SSH with a password, gets a Kerberos ticket and a home
+    folder, and reads the DC's share with Kerberos). The ad-manager on `mig2008` listed the five computers, moved the
+    Windows ones to `OU=Estacoes`, disabled and enabled Windows 11 (audited).
+  - Container notes for the Ubuntu client: `--cap-add DAC_READ_SEARCH` (sssd 2.10 reads the keytab with that
+    capability), and Docker's own `/etc/resolv.conf` and `/etc/hostname` mounts (no `rm`, no `hostnamectl`).
+- **The RC4-only check against the real keys** (each enabled user's `supplementalCredentials` in `sam.ldb`): on the
+  Vagrant domains created by Windows 2022 and 2019 (2016 level, migrated to `samba-mig22`/`samba-mig19`) the first
+  version flagged `Administrator` and `vagrant`, which do have AES keys (2016+ stores them for local accounts before
+  `dcpromo`); on 2008 R2 they do not. Domains born on 2016+ (Key Admins created with the RODC group) are now `ok`;
+  rechecked on the three migrated domains, in line with the keys.
+- **The Vagrant labs again with the final tree** (`.deb` of this tree on every Samba VM):
+  - `lab-clients.sh join/validate/roteiro`: Windows 11, Server 2022 (RSAT) and Ubuntu in `destino.lab` — secure
+    channel, GPO, logon, Kerberos, share, RSAT on Samba, move to an OU with a GPO, SMB session, disable/enable (1787 →
+    `NERR_Success`). `destino.lab` had been created again by a later lab, so the clients were members of a domain that
+    no longer knew them: `ubuntu-client.sh join` now leaves it (old homes set aside, sssd cache emptied with
+    `sssctl cache-remove`) and joins again; `client-join.ps1` stops with the recovery steps checked on win11 and
+    ws2022m (leaving from WinRM breaks WinRM's local logons with `STATUS_NO_LOGON_SERVERS` until the workgroup is set
+    again and the machine rebooted).
+  - `lab-samba.sh`: the four syncs `ok`, access by name the same on the four shares, the SMB checks as expected, file
+    hashes equal. Path B now points `samba-fs` (fixed DNS) at `samba-mig`: left on `samba-src`, once it was off every
+    sync failed with "No logon servers" (the runbook says so now).
+- **What the 2008 R2 lab fixed** (OpenSpec `windows-2008-migration-fixes`): a share without a security descriptor
+  (Everyone: Full Control on Windows) was migrated with no access for `Domain Users`; a source user without a
+  password was an `error` that made `migrate passwords` exit 2; `import ad --apply --dir X` lost the generated
+  passwords when `X` did not exist.
+- The **real** 2008 R2 DC was also read (read-only): the DRSUAPI hash equals the MD4 of the known password.
+

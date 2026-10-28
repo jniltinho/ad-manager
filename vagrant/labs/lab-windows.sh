@@ -78,7 +78,7 @@ harden() {
 destination() {
   log "path A: a fresh destino.lab (samba-dst, samba-dst-fs) by the .deb and the wizard"
   vagrant destroy -f samba-dst samba-dst-fs >/dev/null 2>&1 || true
-  vagrant up samba-dst samba-dst-fs >"$OUT/up-dst.log" 2>&1
+  up_retry samba-dst samba-dst-fs >"$OUT/up-dst.log" 2>&1
   install samba-dst samba-dst-fs
   wizard samba-dst "$LAB_SAMBA_DST_PASSWORD" "{\"role\":\"new-dc\",\"realm\":\"$DST\",\"domain\":\"$DSTNB\",\"ip\":\"192.168.57.40\",\"files\":false}"
   wizard samba-dst-fs "$LAB_SAMBA_DST_PASSWORD" "{\"role\":\"member\",\"realm\":\"$DST\",\"domain\":\"$DSTNB\",\"dns_dc\":\"192.168.57.40\",\"share_root\":\"/srv/shares\"}"
@@ -113,6 +113,7 @@ for share in Financeiro Diretoria TI Publico; do
   for _ in $(seq 60); do st=$(api GET /agents/$A/syncs | jq -r --arg r "$run" ".runs[]|select(.id==\$r)|.status"); [ "$st" = running ] || [ "$st" = queued ] || break; sleep 3; done
   echo "sync $share: $(api GET /agents/$A/syncs | jq -c --arg r "$run" ".runs[]|select(.id==\$r)|{status,error,transfers:.result.transfers}")"
 done' | tee "$OUT/path-a-sync.log"
+  check_syncs "$OUT/path-a-sync.log"
 }
 
 validate() {
@@ -172,6 +173,7 @@ try lab.dani TI "put /tmp/t.txt t-dani.txt; del t-dani.txt" "writes: expected ok
     echo
     printf '%s\n' "$LAB_SAMBA_USER_PASSWORD" | vm samba-dst 'read -r PW; export KRB5CCNAME=FILE:/tmp/krb-lab; echo "$PW" | kinit lab.ana@DESTINO.LAB >/dev/null 2>&1 && echo "- kinit lab.ana@DESTINO.LAB: ok ($(klist | grep -c krbtgt) TGT)" || echo "- kinit lab.ana@DESTINO.LAB: FAILED"; kdestroy >/dev/null 2>&1 || true'
   } | tee "$report"
+  check_report "$report"
 }
 
 isolation() {

@@ -50,3 +50,28 @@ register() {
 read -r TOK; export TOK; api GET /agents | jq -e '.[]|select(.name==\"$4\")' >/dev/null && { echo '$4 already registered'; exit 0; }
 jq -n '{name:\"$4\",url:\"https://$5:9443\",token:env.TOK,insecure:true}' | api POST /agents - | jq -c '{id,name,error}'"
 }
+
+# check_syncs LOG: every "sync SHARE: {...}" line of a path A sync log ended "ok" (a failed sync once went unnoticed:
+# the validation only printed the different hashes)
+check_syncs() {
+  awk '/^sync / { n++; if ($0 !~ /"status":"ok"/) { print "SYNC FAILED: " $0; bad=1 } } END { if (!n) { print "no sync ran"; bad=1 }; exit bad }' "$1" >&2
+}
+
+# check_report REPORT: a path A validation fails on what it would otherwise only print — different file hashes, an
+# SMB result other than the expected one, a share whose access differs, attribute differences, a failed kinit
+check_report() {
+  awk '/: source [0-9a-f]+, target/ { split($0, a, "source "); split(a[2], b, ", target "); if (b[1] != b[2]) { print "FILES DIFFER: " $0; bad=1 } }
+       /expected ok\): / && !/expected ok\): ok$/ { print "UNEXPECTED: " $0; bad=1 }
+       /expected ACCESS_DENIED\): / && !/NT_STATUS_ACCESS_DENIED$/ { print "UNEXPECTED: " $0; bad=1 }
+       /\| no \|$/ || /DIFFERENCES/ || /: FAILED/ { print "FAILED: " $0; bad=1 }
+       END { exit bad }' "$1" >&2
+}
+
+# up_retry MACHINE...: vagrant up each machine; one whose guest kernel hangs on its first boot (RCU stalls before SSH,
+# seen with VirtualBox 7.2 and the Ubuntu 26.04 kernel) is power-cycled once with its provisioners run again
+up_retry() {
+  local m
+  for m in "$@"; do
+    vagrant up "$m" || { echo "$m: the first boot hung, power-cycling it" >&2; vagrant reload --provision "$m"; }
+  done
+}
