@@ -51,7 +51,7 @@ app in `archive/desktop-go/` and the Rust app in `archive/desktop-rust/` are **a
 study — not built, tested or released, and not changed.
 
 After every change run `make build`: it updates `dist/` (the server, and in `dist/desktop/` the desktop app's
-Linux and Windows archives, .deb, .rpm and its Linux binary; macOS is built by its release workflow).
+Linux AppImage, the Windows zip and its Linux binary; macOS is built by its release workflow).
 
 UI: run the panel against the test Samba (`docs/development.md`) and check it in the browser.
 Also validate big changes with Codex (`codex exec --sandbox read-only …`).

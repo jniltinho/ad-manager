@@ -31,7 +31,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Checks (gofmt, go vet, go test, the web build without the desktop's code)
         run: make -C desktop check
-      - name: Linux and Windows builds, .deb and .rpm
+      - name: Linux (AppImage) and Windows builds
         run: make -C desktop dist DIST=dist
       - name: Test panel (all-in-one image, domain.local, random password in a 0600 file)
         run: |

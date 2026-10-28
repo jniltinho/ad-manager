@@ -2,7 +2,7 @@
 # desktop mode (built with the host's npm, as the server's); Go builds run in Docker (scripts/go-docker.sh: Go,
 # GTK4, WebKitGTK 6.0). Linux needs CGO; Windows does not.
 #
-#   make dist     Linux tar.gz and Windows zip (+ SHA256SUMS) into DIST
+#   make dist     Linux AppImage and Windows zip (+ SHA256SUMS) into DIST
 #   make check    gofmt, go vet, go test, the web build without the desktop
 
 SHELL   := /bin/sh
@@ -12,7 +12,7 @@ GO      := scripts/go-docker.sh
 VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
 DIST    ?= dist
 LDFLAGS := -s -w -X main.version=$(VERSION)
-# the packages' version: the tag's number without its v (v0.27.0 → 0.27.0)
+# the files' version: the tag's number without its v (v0.27.0 → 0.27.0)
 PKG_VERSION = $(patsubst v%,%,$(VERSION))
 # the exe's version resource: numbers only (v0.27.0-3-gabc → 0.27.0)
 WIN_VERSION = $(firstword $(subst -, ,$(PKG_VERSION)))
@@ -20,7 +20,7 @@ WIN_VERSION = $(firstword $(subst -, ,$(PKG_VERSION)))
 DIST_IN_DOCKER = $(patsubst $(abspath ..)/%,/work/%,$(abspath $(DIST)))
 NAME    := ad-manager-desktop
 
-.PHONY: help frontend linux windows dist packages check test web-check shots
+.PHONY: help frontend linux windows dist appimage check test web-check shots
 
 help: ## Show this help
 	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z_-]+:.*## / { printf "  %-10s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -37,17 +37,22 @@ windows: frontend ## bin/windows/ad-manager-desktop.exe (production build, no CG
 		--original-filename $(NAME).exe --product-version $(WIN_VERSION) --file-version $(WIN_VERSION)
 	$(GO) env GOOS=windows CGO_ENABLED=0 go build -tags production -trimpath -ldflags "$(LDFLAGS) -H windowsgui" -o bin/windows/$(NAME).exe .
 
-packages: linux ## .deb and .rpm of the Linux build into DIST (nfpm, in the toolchain image)
-	mkdir -p $(DIST)
-	$(GO) sh -c 'for p in deb rpm; do VERSION=$(PKG_VERSION) nfpm package --config packaging/linux/nfpm.yaml --packager $$p --target $(DIST_IN_DOCKER)/ || exit 1; done'
+# shortcut: Wails' generator fetches linuxdeploy and its GTK plugin ("continuous" builds) at each run; pin them if
+# one of their releases breaks the AppImage.
+appimage: linux ## The AppImage of the Linux build into DIST (GTK4 and WebKitGTK 6.0 inside: any Linux desktop)
+	mkdir -p $(DIST) .cache/appimage-in .cache/appimage-out
+	cp packaging/icon-256.png .cache/appimage-in/$(NAME).png
+	$(GO) sh -c 'GOFLAGS= go run github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0 generate appimage -binary bin/linux/$(NAME) \
+		-icon .cache/appimage-in/$(NAME).png -desktopfile packaging/linux/$(NAME).desktop -outputdir .cache/appimage-out \
+		-builddir .cache/appimage'
+	mv .cache/appimage-out/$(NAME)-x86_64.AppImage $(DIST)/$(NAME)_$(PKG_VERSION)_linux_x86_64.AppImage
 
-dist: linux windows packages ## Release archives, packages and SHA256SUMS into DIST
+dist: linux windows appimage ## Release AppImage, zip and SHA256SUMS into DIST
 	mkdir -p $(DIST)
-	tar -C bin/linux -czf $(DIST)/$(NAME)_$(PKG_VERSION)_linux_x86_64.tar.gz $(NAME) -C $(CURDIR) README.md
 	rm -f $(DIST)/$(NAME)_$(PKG_VERSION)_windows_x86_64.zip
 	cd bin/windows && python3 -m zipfile -c $(abspath $(DIST))/$(NAME)_$(PKG_VERSION)_windows_x86_64.zip $(NAME).exe ../../README.md
 	cp bin/linux/$(NAME) $(DIST)/
-	cd $(DIST) && sha256sum *.tar.gz *.zip *.deb *.rpm > SHA256SUMS
+	cd $(DIST) && sha256sum *.AppImage *.zip > SHA256SUMS
 
 test: ## Go tests
 	$(GO) go test ./...

@@ -9,8 +9,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.28.0] — 2026-10-28
 
-**The password migration runs in Go (no Python helper), a preflight warning for RC4-only accounts, and migration
-fixes found by the Windows Server 2008 R2 lab.**
+**The password migration runs in Go (no Python helper), a preflight warning for RC4-only accounts, migration fixes
+found by the Windows Server 2008 R2 lab, and the Linux desktop app as one AppImage.**
 
 ### Fixed
 - Folder sync: a run is no longer refused with "… is writable to the sync worker" when a folder outside the
@@ -30,6 +30,10 @@ fixes found by the Windows Server 2008 R2 lab.**
   outcomes and stored material as before on Samba 4.23/4.22 and Windows Server 2008 R2, 2019 and 2022 sources.
 - Every OpenSpec spec passes strict validation; Windows labs run in dockur/windows containers (AGENTS.md) and a lab
   client of a recreated domain is repaired in place.
+- Desktop app for Linux: one AppImage (`ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage`, GTK4 and WebKitGTK 6.0
+  inside) for any x86_64 desktop with glibc 2.39+, instead of the `.tar.gz`, `.deb` and `.rpm`. It keeps
+  `desktop.toml` in `~/.config/ad-manager/`; WebKit's sandbox needs `bubblewrap` and `xdg-dbus-proxy`, which GNOME
+  and KDE have. A `.deb` or `.rpm` install can be removed: its `desktop.toml` stays.
 
 ### Added
 - `migrate preflight` warns about `RC4-only accounts`: enabled users whose password predates the domain's AES

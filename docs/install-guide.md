@@ -16,7 +16,7 @@ Everything is on the [Releases page](https://github.com/jniltinho/ad-manager/rel
 |---|---|---|---|
 | **Web panel** (`ad-manager server`) | Linux amd64 server, can be the DC itself | `ad-manager_X.Y.Z_amd64.deb` | `ad-manager_vX.Y.Z_linux_amd64.tar.gz` |
 | **Agent** (`ad-manager agent`) | each Samba file server, or the DC that also serves files | the same `.deb` | the same `.tar.gz` |
-| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz`, `…_windows_x86_64.zip`, `…_macos_universal.zip` (the same release) |
+| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage`, `…_windows_x86_64.zip`, `…_macos_universal.zip` (the same release) |
 | CLI and MCP (`ad-manager …`) | any machine with LDAPS to a DC | the same `.deb` | the same `.tar.gz` (Linux; on Windows, build it from source) |
 
 The panel, the agent, the CLI and MCP are **one binary** (`ad-manager`); what a machine runs depends on which systemd
@@ -272,8 +272,7 @@ The desktop app is a client of the panel's API only (the file servers through th
 
 | System | Install |
 |---|---|
-| Linux (package) | `sudo apt install ./ad-manager-desktop_X.Y.Z_amd64.deb` or `sudo dnf install ./ad-manager-desktop-X.Y.Z-1.x86_64.rpm` (they bring GTK4 and WebKitGTK 6.0); then **AD Manager** in the applications menu |
-| Linux (archive) | `sudo apt install libgtk-4-1 libwebkitgtk-6.0-4` (or `sudo dnf install gtk4 webkitgtk6.0`), then `tar xzf ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop` |
+| Linux | put `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage` in a folder of your own (e.g. `~/Apps`), `chmod +x` it and run it: it carries GTK4 and WebKitGTK 6.0, for any x86_64 desktop with glibc 2.39+ (Ubuntu 24.04+, Debian 13+, Fedora 40+); WebKit's sandbox needs `bubblewrap` and `xdg-dbus-proxy`, which GNOME and KDE have ([desktop.md](desktop.md#requirements)) |
 | Windows | unzip `ad-manager-desktop_X.Y.Z_windows_x86_64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` (it needs the WebView2 runtime: part of Windows 10/11; on Windows Server 2016–2022 install it from Microsoft) |
 | macOS | unzip `…_macos_universal.zip` and move `AD Manager.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
 
@@ -281,7 +280,8 @@ On the first run the **Configure** screen asks for the panel URL, the user and t
 look are this computer's preferences); **Test
 connection** signs in for real (a self-signed certificate is shown with its fingerprint, to trust once), and **Save**
 writes the file and opens the app signed in. The password is never saved. It saves `.config/desktop.toml` beside the
-executable; when that folder is not writable (or inside the macOS `.app`), the user's configuration folder:
+executable; when that folder is not writable (and always for the Linux AppImage and the macOS `.app`), the user's
+configuration folder:
 `~/.config/ad-manager/desktop.toml` on Linux, `~/Library/Application Support/ad-manager/` on macOS,
 `%AppData%\ad-manager\` on Windows. On Linux and macOS the file is `0600` and the app refuses a looser one; on
 Windows its protection is the folder's, so keep the app in a folder of your own. `--config` or `AD_MANAGER_DESKTOP`
@@ -300,7 +300,7 @@ method. Take a panel backup before a major upgrade (**Backup → panel**, [backu
 | `.deb` (panel and/or agent) | `sudo apt install --no-install-recommends ./ad-manager_NEW_amd64.deb` (the package restarts the panel and the agent that are running; it never starts or enables one that is not) |
 | Binary (panel) | download the new tarball and its `deploy/` files at the new tag, then `sudo ./install.sh ./ad-manager` (replaces the binary and the unit, keeps the rest, restarts the panel) |
 | Binary (agent) | `sudo install -m 0755 ad-manager /opt/ad-manager/ad-manager`, refresh `/etc/systemd/system/ad-manager-agent.service` from the new tag, `sudo systemctl daemon-reload && sudo systemctl restart ad-manager-agent` |
-| Desktop app | install the new `.deb`/`.rpm`, or replace the executable (or the `.app`) in its folder; `desktop.toml` stays (the Rust app's is used as is) |
+| Desktop app | replace the AppImage, the executable or the `.app` in its folder; `desktop.toml` stays (the Rust app's is used as is) |
 
 After it: `ad-manager version` and the health checks above (`/api/health` reports `version`). Keep the agents and the
 panel on the same version.

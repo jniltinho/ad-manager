@@ -380,8 +380,8 @@ and SHALL NOT be built by `make`, tested by CI or published by a release.
 
 #### Scenario: Build
 - **WHEN** a developer runs `make build`
-- **THEN** `dist/` gets the server and, in `dist/desktop/`, the Wails app's Linux and Windows archives, `.deb`, `.rpm`
-  and Linux binary, built in Docker, and nothing from `archive/`
+- **THEN** `dist/` gets the server and, in `dist/desktop/`, the Wails app's Linux AppImage, Windows zip and Linux
+  binary, built in Docker, and nothing from `archive/`
 
 #### Scenario: A configuration of the Rust app
 - **WHEN** the new app starts on a computer whose `desktop.toml` was written by the Rust app

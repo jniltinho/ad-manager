@@ -147,9 +147,13 @@ func set(m map[string]any, k, v string) {
 	}
 }
 
-// localPath is .config/desktop.toml next to the executable; none inside a macOS .app (writing there would break its
-// signature).
+// localPath is .config/desktop.toml next to the executable; none in an AppImage (its files are a read-only mount, or a
+// temporary copy gone at the next start: it uses the per-user file) or inside a macOS .app (writing there would break
+// its signature).
 func localPath() string {
+	if os.Getenv("APPIMAGE") != "" {
+		return ""
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return ""

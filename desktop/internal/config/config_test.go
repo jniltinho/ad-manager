@@ -121,3 +121,12 @@ func TestResolveOrder(t *testing.T) {
 		t.Fatalf("env: %+v", f)
 	}
 }
+
+// An AppImage has no local file: its desktop.toml is the per-user one (~/.config/ad-manager), not in its read-only (or
+// temporary) files.
+func TestLocalPathOfAnAppImage(t *testing.T) {
+	t.Setenv("APPIMAGE", "/home/ana/Apps/ad-manager-desktop-x86_64.AppImage")
+	if got := localPath(); got != "" {
+		t.Fatalf("localPath = %q", got)
+	}
+}

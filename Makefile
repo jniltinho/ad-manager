@@ -73,7 +73,7 @@ samba-down:
 # Desktop app (desktop/: Go, Wails v3, the web SPA in desktop mode): its Go builds run in Docker (its toolchain image)
 # and the SPA with the host's npm, as the server's. The Rust and Fyne apps in archive/ are kept as code only (not built,
 # tested or released). Its version is the server's (VERSION, from git describe or the release tag).
-#   make desktop          Linux and Windows archives, .deb, .rpm and the Linux binary in dist/desktop/
+#   make desktop          the Linux AppImage, the Windows zip and the Linux binary in dist/desktop/
 #   make desktop-check    what its CI runs: gofmt, go vet, Go tests, the web build without the desktop's code
 #   make desktop-test     its Go tests only
 #   make desktop-shots    its docs screenshots (docs/screenshots/desktop-*.png: 2x, Classic blue, a demo panel)

@@ -10,5 +10,5 @@ import _ "embed"
 var appIcon []byte
 
 // iconName is the icon's name in the icon theme and the program name (WM_CLASS, the Wayland app id), the same as
-// the .desktop file the .deb and .rpm install.
+// the .desktop file in the AppImage.
 const iconName = "ad-manager-desktop"

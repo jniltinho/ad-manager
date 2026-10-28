@@ -182,7 +182,8 @@ and Go strings cannot be wiped.
 
 ### Requirement: Wails desktop configuration file
 The app SHALL read and write the same `desktop.toml` as the Rust app, with the same keys, legacy keys and lookup
-order (`--config`, `AD_MANAGER_DESKTOP`, `.config/desktop.toml` beside the executable, the user config folder). It
+order (`--config`, `AD_MANAGER_DESKTOP`, `.config/desktop.toml` beside the executable, the user config folder); a Linux AppImage and
+a macOS `.app` SHALL use the user config folder instead of a file beside the executable. It
 SHALL write the file atomically with mode `0600`, keep keys and sections it does not use, and refuse a file
 readable by group or others (Unix).
 
@@ -204,6 +205,11 @@ readable by group or others (Unix).
 #### Scenario: Preferences only
 - **WHEN** the file has `lang` and `[appearance]` but no `[panel] url`
 - **THEN** the app starts on Configure, as unconfigured, in that language and theme
+
+#### Scenario: AppImage
+- **WHEN** the Linux AppImage starts with `~/.config/ad-manager/desktop.toml` filled in, or with no file at all
+- **THEN** it reads, or at the first Save writes, `~/.config/ad-manager/desktop.toml`, never a file beside the
+  `.AppImage` or inside its mounted files
 
 ### Requirement: Wails desktop Configure
 Configure SHALL test by reading the certificate, the panel health and signing in with the account. Save SHALL be
