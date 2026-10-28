@@ -1,5 +1,5 @@
 import { expect, test } from 'vite-plus/test'
-import { generatePassword, daysSince } from './util.js'
+import { generatePassword, daysSince, footerVersion } from './util.js'
 import { lang, t } from './i18n.js'
 
 test('generatePassword has the 4 character sets and the requested length', () => {
@@ -39,4 +39,12 @@ test('saveFile and downloadCsv go through the desktop when it is there', async (
   expect(got[0]).toEqual({ name: 'b.tar.gz', apiPath: '/api/backups/panel/1/download', text: undefined })
   expect(got[1].name).toBe('users.csv')
   expect(got[1].text).toBe('﻿"Login"\r\n"carol"')
+})
+
+test('footerVersion: the desktop app version, and the panel version when it differs', () => {
+  expect(footerVersion('', 'v0.27.0')).toEqual({ main: 'v0.27.0', panel: '' }) // the browser
+  expect(footerVersion('v0.28.0', 'v0.28.0')).toEqual({ main: 'v0.28.0', panel: '' })
+  expect(footerVersion('v0.28.0', '0.28.0')).toEqual({ main: 'v0.28.0', panel: '' })
+  expect(footerVersion('v0.27.1', 'v0.27.0')).toEqual({ main: 'v0.27.1', panel: 'v0.27.0' })
+  expect(footerVersion('v0.28.0', '')).toEqual({ main: 'v0.28.0', panel: '' })
 })

@@ -82,8 +82,12 @@ export async function install() {
       if (n) toast.warn(serverText(n))
     },
   )
-  // the app's version, from Go: also proves the bindings work (the smoke build reads it)
-  shell('Version').then((v) => (window.__admDesktopVersion = v))
+  // the app's version, from Go: the footer shows it (the panel's may differ); also proves the bindings work (the smoke
+  // build reads it)
+  shell('Version').then((v) => {
+    window.__admDesktopVersion = v
+    auth.appVersion = v
+  })
   // the window never leaves the app: the panel's own pages open in the system browser, other links do nothing
   document.addEventListener(
     'click',

@@ -2,7 +2,8 @@
 import { reactive, shallowReactive } from 'vue'
 import { serverText, setServerCatalog, t, useDefault } from './i18n'
 
-export const auth = reactive({ user: null, domain: '', version: '', checked: false, settings: {}, brand: {} })
+// version is the panel's (/api/me); appVersion the desktop app's own, set by the desktop build only
+export const auth = reactive({ user: null, domain: '', version: '', appVersion: '', checked: false, settings: {}, brand: {} })
 
 // brand is the public company branding (login page), loaded before login.
 export const brand = reactive({

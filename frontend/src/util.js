@@ -131,3 +131,11 @@ export function agentHost(url) {
     return ''
   }
 }
+
+// footerVersion is what the footer shows: the app's own version, and the panel's beside it when they differ (a desktop
+// app talks to a panel that may be older or newer). In the browser the app is the panel: its version alone.
+export function footerVersion(appVersion, panelVersion) {
+  const bare = (v) => (v || '').replace(/^v/, '')
+  const main = appVersion || panelVersion
+  return { main, panel: appVersion && panelVersion && bare(appVersion) !== bare(panelVersion) ? panelVersion : '' }
+}

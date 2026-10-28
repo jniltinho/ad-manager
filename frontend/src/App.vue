@@ -1,9 +1,10 @@
 <script setup>
-import { ref, watchEffect } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { auth, brand, loadBrand, loadMe, logoUrl, onSessionChange, platform, post } from './api'
 import { cancelDialogs } from './dialogs'
 import { t } from './i18n'
+import { footerVersion } from './util'
 import Login from './pages/Login.vue'
 import Setup from './pages/Setup.vue'
 import PanelDialogs from './components/PanelDialogs.vue'
@@ -35,6 +36,7 @@ import {
 } from 'lucide-vue-next'
 
 // public page of a password link (no session needed)
+const version = computed(() => footerVersion(auth.appVersion, auth.version))
 const linkToken = location.pathname.match(/^\/password\/([0-9a-f]{64})$/)?.[1] || ''
 
 const DEFAULT_SUPPORT = 'https://github.com/jniltinho/ad-manager/wiki'
@@ -219,7 +221,10 @@ onSessionChange(() => {
       <span class="inline-flex items-center gap-1"
         ><Clock :size="12" /> {{ t('session expires after {n} min idle', { n: auth.settings?.session_minutes }) }}</span
       >
-      <span class="text-footer-strong">ad-manager {{ auth.version }}</span>
+      <span class="text-footer-strong"
+        >ad-manager {{ version.main
+        }}<template v-if="version.panel"> · {{ t('panel {version}', { version: version.panel }) }}</template></span
+      >
     </footer>
   </div>
 
