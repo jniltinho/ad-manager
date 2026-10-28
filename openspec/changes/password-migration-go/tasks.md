@@ -13,7 +13,10 @@
 - [x] 3.1a Parity script `scripts/test-pwmigrate.sh` (Python × Go): Samba 4.23 (Ubuntu 26.04) and 4.22 (Debian 13) → Samba:
       same outcomes, same stored material, NTLM and Kerberos AES with the source passwords, `same` on repeat, refusal
       without rights.
-- [ ] 3.1b Parity with a Windows Server 2008 R2 source (dockur) → Samba; then 2022/2019.
+- [x] 3.1b Windows Server 2008 R2 source (dockur) → Samba: the same outcomes as the Python helper (ntlm_only — Samba
+      refuses the Windows Kerberos blob, "unexpected Kerberos key count" — no_password, missing), the same stored
+      material, NTLM with the source passwords, `same` on repeat, refusal without rights.
+- [ ] 3.1c Windows Server 2022 and 2019 sources (dockur) → Samba.
 - [ ] 3.2 Remove `pwmigrate.py` and its self-check; docs.
 
 ## 4. Validation
