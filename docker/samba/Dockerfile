@@ -1,6 +1,7 @@
-# Test Samba AD DC — Ubuntu 26.04 + distro packages. Only for integration tests
-# and for the panel in development; throwaway domain.
-FROM ubuntu:26.04
+# Test Samba AD DC — Ubuntu 26.04 (or BASE=debian:13) + distro packages. Only for
+# integration tests and for the panel in development; throwaway domain.
+ARG BASE=ubuntu:26.04
+FROM ${BASE}
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends samba-ad-dc samba-ad-provision winbind krb5-user smbclient ldb-tools python3-setproctitle \
