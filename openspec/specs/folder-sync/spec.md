@@ -22,6 +22,11 @@ without an external binary or mount, in a child process confined to the destinat
 - **WHEN** someone replaces a destination subfolder with a link to `/etc` during the run
 - **THEN** nothing is written outside the destination (the child can only write to it and to the quarantine)
 
+#### Scenario: A folder mounted twice
+- **WHEN** a folder outside the destination is mounted twice on the same point and the worker's unit leaves the top
+  mount read-only and the covered one writable
+- **THEN** the run is not refused for the covered mount, and a writable mount the worker can reach is still refused
+
 ### Requirement: Secure SMB
 The SMB connection SHALL require signing, SHALL use Kerberos by default and SHALL reject guest sessions; NTLM SHALL
 be an exception flagged on the job, audited, with the password in a 0600 file on the server.

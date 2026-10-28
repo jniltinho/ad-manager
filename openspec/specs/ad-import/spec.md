@@ -46,6 +46,11 @@ writing.
 - **WHEN** the source has a GPO named `--restore-metadata`
 - **THEN** it is skipped in the plan and never reaches `samba-tool` as an option
 
+#### Scenario: Share without a security descriptor
+- **WHEN** the source share has no security descriptor (created with `NetShareAdd` level 2, or a NULL DACL), so
+  Windows gives Everyone Full Control on the share, and the root grants `Domain Users` Change
+- **THEN** the plan gives `TARGET\Domain Users` write access, as the NTFS ACL decides, instead of no access
+
 ### Requirement: Import through the CLI and MCP
 The CLI (`ad-manager import ad`) and MCP (`ad_import_plan`, `ad_import_apply`) SHALL produce the same plan as the
 panel for the same source and target, SHALL only read from the source, and SHALL write to the target only with
