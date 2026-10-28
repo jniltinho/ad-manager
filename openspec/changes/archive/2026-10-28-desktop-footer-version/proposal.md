@@ -6,7 +6,7 @@ v0.27.0 panel showed v0.27.0, so an updated desktop app looked like it had not b
 ## What Changes
 
 - In the desktop app the footer shows the app's own version (Go's `main.version`, from the release tag), and the
-  panel's beside it when they differ ("ad-manager v0.28.0 · panel v0.27.0"). The web panel is unchanged.
+  panel's beside it when they differ ("desktop v0.28.0 · panel v0.27.0"). The web panel is unchanged.
 
 ## Capabilities
 

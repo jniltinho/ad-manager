@@ -222,8 +222,9 @@ onSessionChange(() => {
         ><Clock :size="12" /> {{ t('session expires after {n} min idle', { n: auth.settings?.session_minutes }) }}</span
       >
       <span class="text-footer-strong"
-        >ad-manager {{ version.main
-        }}<template v-if="version.panel"> · {{ t('panel {version}', { version: version.panel }) }}</template></span
+        ><template v-if="version.panel"
+          >{{ t('desktop {version}', { version: version.main }) }} · {{ t('panel {version}', { version: version.panel }) }}</template
+        ><template v-else>ad-manager {{ version.main }}</template></span
       >
     </footer>
   </div>

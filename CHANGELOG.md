@@ -21,8 +21,8 @@ found by the Windows Server 2008 R2 lab, and the Linux desktop app as one AppIma
 - Password migration: a source user without a password is `no_password` (it keeps the generated one) instead of an
   `error` that made `migrate passwords` exit 2.
 - `import --apply --dir X` creates `X` (0700) instead of losing the generated passwords of the users just created.
-- Desktop app: the footer shows the app's own version (a v0.27.1 app showed its panel's v0.27.0), and the panel's
-  beside it when they differ.
+- Desktop app: the footer shows the app's own version (a v0.27.1 app showed its panel's v0.27.0); when the panel
+  runs another one, both are labeled: "desktop v0.28.0 · panel v0.27.0".
 
 ### Changed
 - The password migration runs in Go in the DC agent (no Python helper): read over a Kerberos-sealed DRSUAPI bound
