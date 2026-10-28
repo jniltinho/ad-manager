@@ -12,9 +12,12 @@ control, falling back to the NT hash when Samba refuses the copied Kerberos blob
 
 `drs.Reader` gains `Secrets(ctx, guid) (Secrets, error)`: the NT hash (`unicodePwd`, as `NTHash` today) and the
 `supplementalCredentials` value decrypted from its encrypted payload (session key + salt, CRC-checked; no RID layer).
-The bind stays Kerberos-only with the KDC at the source address and the SPN from the source's `dnsHostName` (rootDSE),
-so a source given by IP works (checked on the 2008 R2 lab). The reply also carries the object's SID and
-`sAMAccountName`, returned with the secrets.
+The bind stays Kerberos-only with the KDC at the source address. Its service principal is the DC's replication SPN,
+`E3514235-4B06-11D1-AB04-00C04FC2DCD2/<NTDS Settings objectGUID>/<domain>`, which only a DC of the domain holds:
+the rootDSE that names the DC is anonymous, so a host principal taken from it could be any machine whose key an
+attacker controls; a ticket for the replication SPN is useless to anyone but a real DC (checked on Samba 4.23 and
+Windows Server 2008 R2). The reply also carries the object's SID, `sAMAccountName` and `sAMAccountType`, returned
+with the secrets.
 
 A refusal (access denied, or Windows' `ERROR_DS_DRA_BAD_DN`) counts as missing replication rights only while no
 secret has been read yet: the run stops with the "Replication rights required" error and nothing written. After a
@@ -29,7 +32,10 @@ candidates, never send one account's material to another.
 
 LDAP binds without the password travelling: NTLM over plain LDAP (a 2008 DC), else Kerberos (GSSAPI) over LDAPS
 with the TLS channel binding (`tls-server-end-point`, RFC 5929), which Samba ("ldap server require strong auth") and
-a Windows DC with LDAP signing require; go-ldap's GSSAPI client sends no binding, so a small client adds it. The
+a Windows DC with LDAP signing require. go-ldap's GSSAPI client sends no binding, so a small client of our own
+does the bind: the binding in the authenticator, the AP-REP checked against the authenticator sent (RFC 4120
+3.2.5), and RFC 4752's last step with a rotated wrap token undone and "no security layer" (1) selected. LDAP calls
+end when the run is cancelled. The
 certificate is not checked: integrity comes from D1b, and neither bind gives a man in the middle the password.
 
 ### D2. Parse supplementalCredentials in Go, rebuild it as Samba does
@@ -62,7 +68,9 @@ blob, a second invocation writes the NT hash only → `ntlm_only` with the same 
 `objectSid`, `sAMAccountType`, `pwdLastSet`); during the apply, a user's `unicodePwd` and `supplementalCredentials`
 only for the `same` check, dropped as soon as compared. Malformed output is an error, never "no credentials".
 
-A cancelled or timed-out run stops; no fallback write follows a write cut short. Users already set stay set (the
+A cancelled or timed-out run stops (the DRS reader's own timeout included: it closed its sockets); no fallback write
+follows a write cut short; an unreadable current state is that user's `error`, never a write. Owned copies of the
+material (the parsed packages, the decoded Kerberos package, the LDIF, ldbsearch's output) are cleared after use. Users already set stay set (the
 apply is idempotent, so the run can be repeated).
 
 ### D4. Same guarantees

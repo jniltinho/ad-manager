@@ -109,6 +109,13 @@ func (bl *Blob) Bytes() []byte {
 	return append(out, 0)
 }
 
+// Zero overwrites the packages' values (the keys they hold).
+func (bl *Blob) Zero() {
+	for i := range bl.Packages {
+		clear(bl.Packages[i].Data)
+	}
+}
+
 // Has reports whether the blob holds a package with that name.
 func (bl *Blob) Has(name string) bool {
 	for _, pk := range bl.Packages {
@@ -122,8 +129,9 @@ func (bl *Blob) Has(name string) bool {
 // KerberosSalt returns the default salt of a Primary:Kerberos (revision 3) or Primary:Kerberos-Newer-Keys
 // (revision 4) package value (hexadecimal ASCII), checking that every key it lists lies inside the value.
 func KerberosSalt(data []byte) (string, error) {
-	raw, err := hex.DecodeString(string(data))
-	if err != nil {
+	raw := make([]byte, hex.DecodedLen(len(data)))
+	defer clear(raw)
+	if _, err := hex.Decode(raw, data); err != nil {
 		return "", errMalformed
 	}
 	u16 := func(off int) (int, bool) {
@@ -210,6 +218,7 @@ func Inspect(supp []byte, destRealm, srcRealm string) Inspection {
 	if err != nil {
 		return Inspection{Reason: "supplementalCredentials unreadable (NTLM only)"}
 	}
+	defer bl.Zero()
 	in := Inspection{Cleartext: bl.Has(Cleartext)}
 	var names, kerb []string
 	for _, pk := range bl.Packages {

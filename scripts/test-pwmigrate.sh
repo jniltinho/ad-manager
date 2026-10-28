@@ -120,14 +120,17 @@ if [ "${PARITY:-}" = 1 ]; then
 	echo "== parity with the Python helper (git ${REF:-HEAD})"
 	git -C "$root" show "${REF:-HEAD}:internal/sambadc/pwmigrate.py" >"$work/pwmigrate.py"
 	docker cp "$work/pwmigrate.py" "adm-pw-dstpy-$tag:/root/pwmigrate.py" >/dev/null
-	jq -n --arg h "$srcip" --arg u "$nb\\Administrator" --arg p "$src_admin" --arg s "$(sid dstpy)" \
+	(umask 077; printf '%s' "$src_admin" >"$work/src.pass") # to jq by file, never an argument
+	jq -n --arg h "$srcip" --arg u "$nb\\Administrator" --rawfile p "$work/src.pass" --arg s "$(sid dstpy)" \
 		'{op:"apply",source:{host:$h,user:$u,password:$p},dest_sid:$s}' |
 		x dstpy bash -c 'python3 -I -s -B -c "$(cat /root/pwmigrate.py)"' | jq -c '.result' >"$work/py.json"
 	echo "python: $(outcomes <"$work/py.json")"
 	[ "$(outcomes <"$work/py.json")" = "$(outcomes <"$work/go.json")" ] || { echo "the Python outcomes differ" >&2; exit 1; }
 	material() { # sha256 of each user's stored unicodePwd and supplementalCredentials
 		for u in $users plain nopw; do
+			# LDIF folds long values: unfold before keeping the two attributes, so the whole values are compared
 			x "$1" ldbsearch -H /var/lib/samba/private/sam.ldb "(sAMAccountName=$u)" unicodePwd supplementalCredentials |
+				awk '/^ / { l = l substr($0, 2); next } { if (l != "") print l; l = $0 } END { if (l != "") print l }' |
 				{ grep -E '^(unicodePwd|supplementalCredentials)::' || true; } | sort | sha256sum | cut -c1-16 | sed "s/^/$u /"
 		done
 	}

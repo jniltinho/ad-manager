@@ -51,6 +51,9 @@ type Cred struct {
 type Target struct {
 	Addr string `json:"addr"`
 	Host string `json:"host"`
+	// SPN, when set, replaces host/<Host> as the RPC bind's service principal (e.g. the DRS replication SPN, which
+	// only a DC of the domain holds).
+	SPN string `json:"spn,omitempty"`
 }
 
 // timeout bounds every call, including the SMB steps the RPC library does not tie to a context.
@@ -112,6 +115,13 @@ func Kerberos(t Target, c Cred) (sec []gssapi.ContextOption, rpcSec []dcerpc.Opt
 	if !realmRe.MatchString(c.Realm) {
 		return nil, nil, fmt.Errorf("invalid realm %q", c.Realm)
 	}
+	spn := "host/" + t.Host
+	if t.SPN != "" {
+		if strings.ContainsAny(t.SPN, "@ ") || strings.Count(t.SPN, "/") < 1 {
+			return nil, nil, fmt.Errorf("invalid service principal %q", t.SPN)
+		}
+		spn = t.SPN
+	}
 	// built field by field (no configuration text to inject into): this realm, this KDC, no DNS lookups, TCP
 	conf := config.New()
 	conf.LibDefaults.DefaultRealm = c.Realm
@@ -124,7 +134,7 @@ func Kerberos(t Target, c Cred) (sec []gssapi.ContextOption, rpcSec []dcerpc.Opt
 	}
 	cred := credential.NewFromPassword(c.User, c.Password, credential.Domain(c.Realm))
 	sec = []gssapi.ContextOption{gssapi.WithCredential(cred), gssapi.WithMechanismFactory(ssp.KRB5, krb(false))}
-	rpcSec = []dcerpc.Option{dcerpc.WithSeal(), dcerpc.WithTargetName("host/" + t.Host), dcerpc.WithCredentials(cred),
+	rpcSec = []dcerpc.Option{dcerpc.WithSeal(), dcerpc.WithTargetName(spn), dcerpc.WithCredentials(cred),
 		dcerpc.WithMechanism(ssp.KRB5, krb(true))}
 	return sec, rpcSec, nil
 }

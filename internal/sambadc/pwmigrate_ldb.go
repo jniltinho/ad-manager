@@ -117,7 +117,12 @@ func (e *ldbEnv) localUsers(ctx context.Context, base string) (map[string]localU
 }
 
 func (e *ldbEnv) currentState(ctx context.Context, dn string) ([]byte, []byte, error) {
-	rs, err := e.search(ctx, dn, "base", "(objectClass=*)", "unicodePwd", "supplementalCredentials")
+	out, err := e.run(ctx, "ldbsearch", []string{"-H", e.db, "-s", "base", "-b", dn, "(objectClass=*)", "unicodePwd", "supplementalCredentials"}, nil)
+	defer clear(out) // the values in base64
+	if err != nil {
+		return nil, nil, err
+	}
+	rs, err := parseLDIF(out)
 	if err != nil || len(rs) != 1 {
 		return nil, nil, errors.Join(errors.New("user not found"), err)
 	}
@@ -132,16 +137,29 @@ func (e *ldbEnv) write(ctx context.Context, dn string, nt, supp []byte, pwdLastS
 }
 
 // modifyLDIF is the one-record LDIF ldbmodify reads on stdin: the NT hash, the Kerberos blob (or none, so no stale
-// keys stay), an explicit pwdLastSet. Values and the DN go base64 (::).
+// keys stay), an explicit pwdLastSet. Values and the DN go base64 (::), encoded straight into the buffer the caller
+// clears (no string copy of a secret).
 func modifyLDIF(dn string, nt, supp []byte, pwdLastSet int64) []byte {
-	var b bytes.Buffer
-	b64 := base64.StdEncoding.EncodeToString
-	fmt.Fprintf(&b, "dn:: %s\nchangetype: modify\nreplace: unicodePwd\nunicodePwd:: %s\n-\nreplace: supplementalCredentials\n", b64([]byte(dn)), b64(nt))
-	if len(supp) > 0 {
-		fmt.Fprintf(&b, "supplementalCredentials:: %s\n", b64(supp))
+	enc := base64.StdEncoding
+	b := make([]byte, 0, 256+len(dn)*2+enc.EncodedLen(len(nt))+enc.EncodedLen(len(supp)))
+	b64 := func(v []byte) {
+		n := len(b)
+		b = append(b, make([]byte, enc.EncodedLen(len(v)))...)
+		enc.Encode(b[n:], v)
 	}
-	fmt.Fprintf(&b, "-\nreplace: pwdLastSet\npwdLastSet: %d\n-\n", pwdLastSet)
-	return b.Bytes()
+	b = append(b, "dn:: "...)
+	b64([]byte(dn))
+	b = append(b, "\nchangetype: modify\nreplace: unicodePwd\nunicodePwd:: "...)
+	b64(nt)
+	b = append(b, "\n-\nreplace: supplementalCredentials\n"...)
+	if len(supp) > 0 {
+		b = append(b, "supplementalCredentials:: "...)
+		b64(supp)
+		b = append(b, '\n')
+	}
+	b = append(b, "-\nreplace: pwdLastSet\npwdLastSet: "...)
+	b = strconv.AppendInt(b, pwdLastSet, 10)
+	return append(b, "\n-\n"...)
 }
 
 // ldifRecord is one entry of ldbsearch's output.
@@ -228,16 +246,6 @@ func dnsOf(dn string) string {
 	return strings.Join(parts, ".")
 }
 
-// ridOf is the last sub-authority of a SID in its text form.
-func ridOf(sid string) (uint32, bool) {
-	i := strings.LastIndex(sid, "-")
-	if !strings.HasPrefix(sid, "S-1-") || i < 0 {
-		return 0, false
-	}
-	v, err := strconv.ParseUint(sid[i+1:], 10, 32)
-	return uint32(v), err == nil
-}
-
 // ldapSource is the source domain: users and SID over LDAP (ldap:// + NTLM, as a 2008 DC needs), secrets over a
 // Kerberos-sealed DRSUAPI to the same address.
 type ldapSource struct {
@@ -265,13 +273,16 @@ func (e *ldbEnv) openSource(ctx context.Context, src PwSource, password string) 
 		return nil, err
 	}
 	l.SetTimeout(30 * time.Second)
+	stop := context.AfterFunc(ctx, func() { l.Close() })
 	root, err := l.Search(ldap.NewSearchRequest("", ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 30, false,
-		"(objectClass=*)", []string{"defaultNamingContext", "dnsHostName"}, nil))
+		"(objectClass=*)", []string{"defaultNamingContext", "dnsHostName", "dsServiceName"}, nil))
+	stop()
 	l.Close()
 	if err != nil || len(root.Entries) != 1 {
-		return nil, errors.Join(errors.New("source rootDSE unreadable"), err)
+		return nil, errors.Join(errors.New("source rootDSE unreadable"), ctx.Err(), err)
 	}
 	base, dcName := root.Entries[0].GetAttributeValue("defaultNamingContext"), root.Entries[0].GetAttributeValue("dnsHostName")
+	dsa := root.Entries[0].GetAttributeValue("dsServiceName")
 	domain := dnsOf(base)
 	if domain == "" || dcName == "" {
 		return nil, errors.New("source rootDSE without a domain or DNS name")
@@ -282,6 +293,7 @@ func (e *ldbEnv) openSource(ctx context.Context, src PwSource, password string) 
 		return nil, err
 	}
 	defer c.Close()
+	defer context.AfterFunc(ctx, func() { c.Close() })() // a cancelled run does not wait for the listing
 	// the listing only proposes accounts: each one's name and SID are checked again in its sealed DRS reply
 	d, err := c.Search(ldap.NewSearchRequest(base, ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 30, false,
 		"(objectClass=*)", []string{"objectSid"}, nil))
@@ -297,6 +309,17 @@ func (e *ldbEnv) openSource(ctx context.Context, src PwSource, password string) 
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// the DRS bind's service principal is the DC's replication SPN (its NTDS Settings GUID), which only a DC of this
+	// domain holds: the rootDSE that named it is anonymous, but a ticket for that SPN is useless to anyone else
+	nt, err := c.Search(ldap.NewSearchRequest(dsa, ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 30, false,
+		"(objectClass=nTDSDSA)", []string{"objectGUID"}, nil))
+	if err != nil || len(nt.Entries) != 1 || len(nt.Entries[0].GetRawAttributeValue("objectGUID")) != 16 {
+		return nil, errors.Join(errors.New("source DC's NTDS Settings unreadable"), err)
+	}
+	spn := "E3514235-4B06-11D1-AB04-00C04FC2DCD2/" + samdb.GUID(nt.Entries[0].GetRawAttributeValue("objectGUID")) + "/" + domain
 	s := &ldapSource{sid: sid, realm: strings.ToUpper(domain)}
 	for _, en := range us.Entries {
 		rid, ok := samdb.RID(en.GetRawAttributeValue("objectSid"))
@@ -306,7 +329,7 @@ func (e *ldbEnv) openSource(ctx context.Context, src PwSource, password string) 
 		}
 		s.users = append(s.users, srcUser{Sam: en.GetAttributeValue("sAMAccountName"), GUID: guid})
 	}
-	s.reader, err = drs.Dial(ctx, winrpc.Target{Addr: host, Host: dcName},
+	s.reader, err = drs.Dial(ctx, winrpc.Target{Addr: host, Host: dcName, SPN: spn},
 		winrpc.Cred{Realm: strings.ToUpper(domain), KDC: net.JoinHostPort(host, "88"), User: sam, Password: password})
 	if err != nil {
 		return nil, err

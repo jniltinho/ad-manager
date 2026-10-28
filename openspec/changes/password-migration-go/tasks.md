@@ -24,4 +24,8 @@
 - [x] 4.0 Codex review of the proposal: 2 blockers (database path fails closed; integrity of the LDAP listing) and 9
       should-fix items applied (rights only before the first read, cancellation, rebuild and idempotency rules,
       malformed output, secret sentinels).
-- [ ] 4.1 `make check`, `make test`, `make test-integration`, `scripts/test-dc.sh`; Codex review of the code.
+- [x] 4.1a Codex review of the code: 1 blocker (the DRS SPN from the anonymous rootDSE → the replication SPN) and 9
+      should-fix items applied (account type and RID checked in the sealed reply, AP-REP binding, RFC 4752 layer
+      selection and rotated tokens, LDAP cancellation, timeouts stop the run, unreadable state is an error, zeroing,
+      no password in the test's argv, unfolded LDIF in the parity comparison); Samba and 2008 R2 parity rerun.
+- [ ] 4.1 `make check`, `make test`, `make test-integration`, `scripts/test-dc.sh`.

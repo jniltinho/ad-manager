@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,8 +167,9 @@ type applyRun struct {
 func (r *applyRun) one(ctx context.Context, u srcUser, lu localUser) (string, string, error) {
 	sec, err := r.src.Secrets(ctx, u.GUID)
 	if err != nil {
-		if ctx.Err() != nil {
-			return "", "", ctx.Err()
+		// cancelled, or the reader's own timeout (it closed its sockets): no later user can be read either
+		if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return "", "", fmt.Errorf("password migration: stopped at %s: %w", u.Sam, err)
 		}
 		if !r.read && isRightsError(err) {
 			return "", "", ErrRights
@@ -178,7 +180,9 @@ func (r *applyRun) one(ctx context.Context, u srcUser, lu localUser) (string, st
 	r.read = true
 	// the LDAP listing (names, GUIDs, the source SID) is not integrity-protected; the sealed DRS reply is: the object
 	// must be this account of the source domain, never one of this domain
-	if !strings.EqualFold(sec.SAMAccountName, u.Sam) || domainOf(sec.SID) != r.src.SID() || domainOf(sec.SID) == r.destSID {
+	rid, _ := ridOf(sec.SID)
+	if !strings.EqualFold(sec.SAMAccountName, u.Sam) || domainOf(sec.SID) != r.src.SID() || domainOf(sec.SID) == r.destSID ||
+		protectedRIDs[rid] || sec.SAMAccountType != samNormalUser {
 		return "", "", errors.New("password migration: the source's replicated object does not match its LDAP listing; stopped")
 	}
 	if sec.NTHash == nil {
@@ -195,7 +199,13 @@ func (r *applyRun) one(ctx context.Context, u srcUser, lu localUser) (string, st
 	// whose keys Samba refused before: the outcome would not change)
 	if lu.PwdLastSet != 0 {
 		nt, supp, err := r.env.currentState(ctx, lu.DN)
-		same := err == nil && nt != nil && equalBytes(nt, sec.NTHash) && ((in.Kerberos && equalBytes(supp, in.Rebuilt)) || len(supp) == 0)
+		if err != nil { // unknown state: no write on a guess (it would reset pwdLastSet)
+			if ctx.Err() != nil {
+				return "", "", ctx.Err()
+			}
+			return "error", "the user's current state is unreadable", nil
+		}
+		same := nt != nil && equalBytes(nt, sec.NTHash) && ((in.Kerberos && equalBytes(supp, in.Rebuilt)) || len(supp) == 0)
 		clear(nt)
 		clear(supp)
 		if same {
@@ -214,14 +224,30 @@ func (r *applyRun) one(ctx context.Context, u srcUser, lu localUser) (string, st
 		// Samba re-serializes the blob and refuses one that differs (or a key count/salt it does not accept): the NT
 		// hash alone still lets the production password work, and the Kerberos keys rebuild on the next change
 		if err := r.env.write(ctx, lu.DN, sec.NTHash, nil, now); err != nil {
+			if ctx.Err() != nil {
+				return "", "", ctx.Err()
+			}
 			return "error", reasonOf(err), nil
 		}
 		return "ntlm_only", "Samba rejected the copied Kerberos keys (" + reasonOf(err) + ") → NTLM only", nil
 	}
 	if err := r.env.write(ctx, lu.DN, sec.NTHash, nil, now); err != nil {
+		if ctx.Err() != nil {
+			return "", "", ctx.Err()
+		}
 		return "error", reasonOf(err), nil
 	}
 	return "ntlm_only", in.Reason, nil
+}
+
+// ridOf is the last sub-authority of a SID in its text form.
+func ridOf(sid string) (uint32, bool) {
+	i := strings.LastIndex(sid, "-")
+	if !strings.HasPrefix(sid, "S-1-") || i < 0 {
+		return 0, false
+	}
+	v, err := strconv.ParseUint(sid[i+1:], 10, 32)
+	return uint32(v), err == nil
 }
 
 // domainOf is the domain part of an account's SID (without its RID).

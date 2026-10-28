@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -23,6 +24,7 @@ type fakeSource struct {
 	secrets    map[string]*drs.Secrets // by sAMAccountName
 	errs       map[string]error
 	tamper     map[string][2]string // sam → the name and SID the DRS reply carries instead
+	machine    map[string]bool      // the DRS reply says a machine account
 	read       []string
 }
 
@@ -40,11 +42,15 @@ func (s *fakeSource) Secrets(_ context.Context, guid []byte) (*drs.Secrets, erro
 	if t, ok := s.tamper[sam]; ok { // what the sealed reply really holds
 		name, sid = t[0], t[1]
 	}
-	sec := s.secrets[sam]
-	if sec == nil {
-		return &drs.Secrets{SAMAccountName: name, SID: sid}, nil
+	typ := uint32(samNormalUser)
+	if s.machine[sam] {
+		typ = samMachine
 	}
-	return &drs.Secrets{NTHash: bytes.Clone(sec.NTHash), Supplemental: bytes.Clone(sec.Supplemental), SAMAccountName: name, SID: sid}, nil
+	out := &drs.Secrets{SAMAccountName: name, SID: sid, SAMAccountType: typ}
+	if sec := s.secrets[sam]; sec != nil {
+		out.NTHash, out.Supplemental = bytes.Clone(sec.NTHash), bytes.Clone(sec.Supplemental)
+	}
+	return out, nil
 }
 
 type written struct {
@@ -57,6 +63,7 @@ type fakeEnv struct {
 	local      map[string]localUser
 	state      map[string][2][]byte // dn → current NT hash, supplementalCredentials
 	refuseSupp bool                 // Samba rejects any Kerberos blob
+	stateErr   bool                 // the current state is unreadable
 	src        *fakeSource
 	writes     []written
 }
@@ -68,6 +75,9 @@ func (e *fakeEnv) localUsers(context.Context, string) (map[string]localUser, err
 	return e.local, nil
 }
 func (e *fakeEnv) currentState(_ context.Context, dn string) ([]byte, []byte, error) {
+	if e.stateErr {
+		return nil, nil, errors.New("ldif: unexpected line")
+	}
 	s := e.state[dn]
 	return bytes.Clone(s[0]), bytes.Clone(s[1]), nil
 }
@@ -287,11 +297,41 @@ func TestMigrateTamperedListing(t *testing.T) {
 		"another account":        {"bia", "S-1-5-21-1-1-1-1106"},
 		"another domain":         {"kerb", "S-1-5-21-6-6-6-1105"},
 		"the destination domain": {"kerb", "S-1-5-21-2-2-2-1105"},
+		"a built-in RID":         {"kerb", "S-1-5-21-1-1-1-500"},
 	} {
 		e := newFake(t)
 		e.src.tamper = map[string][2]string{"kerb": tw}
 		if _, err := migrate(context.Background(), e, true, PwSource{}, "pw", e.sid); err == nil || len(e.writes) != 0 {
 			t.Errorf("%s: err=%v writes=%d", name, err, len(e.writes))
+		}
+	}
+}
+
+// The listing said an ordinary user; the sealed reply says a machine account: stopped.
+func TestMigrateTamperedType(t *testing.T) {
+	e := newFake(t)
+	e.src.machine = map[string]bool{"kerb": true}
+	if _, err := migrate(context.Background(), e, true, PwSource{}, "pw", e.sid); err == nil || len(e.writes) != 0 {
+		t.Fatalf("machine account accepted: %v, %d writes", err, len(e.writes))
+	}
+}
+
+// The reader's own timeout stops the run; an unreadable current state is that user's error, with no write.
+func TestMigrateTimeoutAndUnreadableState(t *testing.T) {
+	e := newFake(t)
+	e.src.errs["clear"] = fmt.Errorf("dc: %w", context.DeadlineExceeded)
+	if _, err := migrate(context.Background(), e, true, PwSource{}, "pw", e.sid); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("timeout: %v", err)
+	}
+	e = newFake(t)
+	e.stateErr = true
+	r, err := migrate(context.Background(), e, true, PwSource{}, "pw", e.sid)
+	if err != nil || outcomes(r)["same"] != "error" {
+		t.Fatalf("unreadable state: %v %v", outcomes(r), err)
+	}
+	for _, w := range e.writes {
+		if w.dn == "CN=same" {
+			t.Fatal("wrote over an unreadable state")
 		}
 	}
 }

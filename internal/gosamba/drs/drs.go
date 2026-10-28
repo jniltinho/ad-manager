@@ -44,6 +44,7 @@ const (
 	oidUnicodePwd     = "1.2.840.113556.1.4.90"
 	oidSupplementalCr = "1.2.840.113556.1.4.125" // supplementalCredentials
 	oidSAMAccountName = "1.2.840.113556.1.4.221"
+	oidSAMAccountType = "1.2.840.113556.1.4.302"
 )
 
 // Secrets is one object's password material as replicated: the NT hash (16 bytes) and the supplementalCredentials
@@ -55,6 +56,7 @@ type Secrets struct {
 	Supplemental   []byte
 	SID            string
 	SAMAccountName string
+	SAMAccountType uint32 // 0 when the reply has none
 }
 
 // Zero overwrites the material, for the caller to call as soon as it is done with it.
@@ -250,6 +252,14 @@ func (r *Reader) secrets(reply *drsuapi.MessageGetNCChangesReplyV6, want *dtyp.G
 		}
 		name := oid.String()
 		vb := a.AttributeValue
+		if name == oidSAMAccountType {
+			if vb == nil || vb.ValueCount != 1 || len(vb.Values) != 1 || vb.Values[0] == nil || len(vb.Values[0].Value) != 4 {
+				out.Zero()
+				return nil, errors.New("DRSGetNCChanges: malformed sAMAccountType")
+			}
+			out.SAMAccountType = binary.LittleEndian.Uint32(vb.Values[0].Value)
+			continue
+		}
 		if name == oidSAMAccountName {
 			if vb == nil || vb.ValueCount != 1 || len(vb.Values) != 1 || vb.Values[0] == nil || len(vb.Values[0].Value)%2 != 0 {
 				out.Zero()
