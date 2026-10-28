@@ -1,7 +1,7 @@
 # release Specification
 
 ## Purpose
-TBD - created by archiving change unified-release. Update Purpose after archive.
+One release for the server and the desktop app, built and checked by one CI.
 
 ## Requirements
 

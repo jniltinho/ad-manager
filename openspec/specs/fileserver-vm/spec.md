@@ -1,7 +1,7 @@
 # fileserver-vm Specification
 
 ## Purpose
-TBD - created by archiving change fileserver-dc-vm. Update Purpose after archive.
+A file server VM ready for XCP-ng, with its data on a separate XFS disk and a documented provisioning.
 
 ## Requirements
 

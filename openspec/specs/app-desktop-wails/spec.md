@@ -1,7 +1,7 @@
 # app-desktop-wails Specification
 
 ## Purpose
-TBD - created by archiving change desktop-wails. Update Purpose after archive.
+The desktop app (Go + Wails v3) that runs the web SPA in desktop mode: it talks only to the configured panel with certificate pinning, keeps the session and secrets on this computer, and is built, tested and released with the server.
 
 ## Requirements
 

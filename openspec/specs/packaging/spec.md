@@ -1,7 +1,7 @@
 # packaging Specification
 
 ## Purpose
-TBD - created by archiving change deb-restart-on-upgrade. Update Purpose after archive.
+How the packages manage their services on install and upgrade.
 
 ## Requirements
 

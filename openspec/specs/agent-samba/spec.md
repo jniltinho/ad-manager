@@ -82,8 +82,7 @@ of a domain controller and a PTR pointing to one. Every attempt is audited.
 The panel SHALL restore a GPO backup only as a new GPO (new GUID, unlinked), with explicit confirmation, through the
 agent of a DC whose import write mode is on (`import_modes = true`, or the former account and 0600 password file);
 the administrator credential SHALL come from the panel's sealed import credential, sent with the task. Without the
-mode the DC agent SHALL stay read-only. The file SHALL be validated before any write and the response SHALL list the
-other DCs, whose SYSVOL Samba does not replicate.
+mode the DC agent SHALL stay read-only.
 
 #### Scenario: Restore
 - **WHEN** support uploads the "Default Domain Policy" backup with the name "Copy of Default"
@@ -92,6 +91,10 @@ other DCs, whose SYSVOL Samba does not replicate.
 #### Scenario: Agent without write mode
 - **WHEN** the DC agent has neither `import_modes` nor `gpo_restore_user`
 - **THEN** the panel responds 503 and nothing is written
+
+### Requirement: GPO backup validated before the restore
+The GPO backup file SHALL be validated before any write, and the response SHALL list the other DCs, whose SYSVOL
+Samba does not replicate.
 
 #### Scenario: Malicious file
 - **WHEN** the `.tar.gz` contains `../`, an absolute path, a link or two GPOs
