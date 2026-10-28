@@ -348,9 +348,11 @@ before the containers.
     channel, GPO, logon, Kerberos, share, RSAT on Samba, move to an OU with a GPO, SMB session, disable/enable (1787 →
     `NERR_Success`). `destino.lab` had been created again by a later lab, so the clients were members of a domain that
     no longer knew them: `ubuntu-client.sh join` now leaves it (old homes set aside, sssd cache emptied with
-    `sssctl cache-remove`) and joins again; `client-join.ps1` stops with the recovery steps checked on win11 and
-    ws2022m (leaving from WinRM breaks WinRM's local logons with `STATUS_NO_LOGON_SERVERS` until the workgroup is set
-    again and the machine rebooted).
+    `sssctl cache-remove`) and joins again; `client-join.ps1` detects it with `nltest /sc_reset` and repairs
+    the membership in place: the join account recreates the computer object in `OU=Estacoes` (sealed LDAP) and
+    `Test-ComputerSecureChannel -Repair` sets its password. Leaving the domain instead broke WinRM's local logons
+    (`STATUS_NO_LOGON_SERVERS`) until a workgroup change and a reboot, and a startup task never ran. Checked by
+    deleting the three computer accounts with the ad-manager: join, validate and roteiro pass.
   - `lab-samba.sh`: the four syncs `ok`, access by name the same on the four shares, the SMB checks as expected, file
     hashes equal. Path B now points `samba-fs` (fixed DNS) at `samba-mig`: left on `samba-src`, once it was off every
     sync failed with "No logon servers" (the runbook says so now).
