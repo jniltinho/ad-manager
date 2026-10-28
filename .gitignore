@@ -20,6 +20,8 @@ config.toml
 .review/
 base/
 .run/
+# client migrations (real domains, IPs and data): local only
+/migrations/
 
 # ── build ────────────────────────────────────────────────────────────────────
 /dist/
