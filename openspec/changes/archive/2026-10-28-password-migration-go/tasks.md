@@ -16,8 +16,8 @@
 - [x] 3.1b Windows Server 2008 R2 source (dockur) → Samba: the same outcomes as the Python helper (ntlm_only — Samba
       refuses the Windows Kerberos blob, "unexpected Kerberos key count" — no_password, missing), the same stored
       material, NTLM with the source passwords, `same` on repeat, refusal without rights.
-- [x] 3.1c Windows Server 2022 source (dockur) → Samba: the same outcomes and stored material as the Python helper.
-      2019 not run: 2008 R2 and 2022 bracket it, and the code path is the same.
+- [x] 3.1c Windows Server 2022 and 2019 sources (dockur) → Samba: the same outcomes and stored material as the Python
+      helper.
 - [x] 3.2 Remove `pwmigrate.py` and its self-check; docs (`password-migration.md`, `internal/gosamba/README.md`). The
       parity script reads the Python helper from git (`REF`, default 14706ec, its last commit).
 

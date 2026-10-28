@@ -160,6 +160,24 @@ audited as `password.migrate` with counts only.
 - **THEN** the apply reports it `no_password`, sets nothing, the user keeps the password the import gave it, and the
   command does not fail because of it
 
+#### Scenario: No Python helper
+- **WHEN** the password migration runs on a DC without `python3-samba` but with Samba's `ldb-tools`
+- **THEN** the plan and the apply complete in the agent itself, reading over DRSUAPI and writing through `ldbmodify`
+  with the password-hash bypass control, with the secrets only on its standard input
+
+#### Scenario: Same outcomes as before
+- **WHEN** the same source is migrated into twin destinations by the previous (Python) and the Go implementation
+- **THEN** every user has the same outcome and the same stored `unicodePwd` and `supplementalCredentials`
+
+#### Scenario: Tampered listing
+- **WHEN** the source's LDAP listing names an account whose sealed DRS reply carries another `sAMAccountName`, or a
+  SID outside the source domain
+- **THEN** the run stops before writing anything for that account and reports the mismatch
+
+#### Scenario: Database path from Samba's configuration
+- **WHEN** Samba's configuration cannot be read, or names a private dir without `sam.ldb`
+- **THEN** the migration refuses, without falling back to a default database path
+
 ### Requirement: Import carries last-logon and operating system
 The "From another AD" import SHALL carry, in addition to the objects, the last-logon timestamp
 (`lastLogonTimestamp`) of users and computers and the `operatingSystem` of computers, to the matching objects of the
