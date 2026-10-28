@@ -16,7 +16,7 @@ Everything is on the [Releases page](https://github.com/jniltinho/ad-manager/rel
 |---|---|---|---|
 | **Web panel** (`ad-manager server`) | Linux amd64 server, can be the DC itself | `ad-manager_X.Y.Z_amd64.deb` | `ad-manager_vX.Y.Z_linux_amd64.tar.gz` |
 | **Agent** (`ad-manager agent`) | each Samba file server, or the DC that also serves files | the same `.deb` | the same `.tar.gz` |
-| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage`, `…_windows_x86_64.zip`, `…_macos_universal.zip` (the same release) |
+| **Desktop app** (`ad-manager-desktop`) | the operator's Linux, Windows or macOS | — | `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage` (or `…_linux_x86_64.tar.gz`), `…_windows_x86_64.zip`, `…_macos_universal.zip` (the same release) |
 | CLI and MCP (`ad-manager …`) | any machine with LDAPS to a DC | the same `.deb` | the same `.tar.gz` (Linux; on Windows, build it from source) |
 
 The panel, the agent, the CLI and MCP are **one binary** (`ad-manager`); what a machine runs depends on which systemd
@@ -272,7 +272,8 @@ The desktop app is a client of the panel's API only (the file servers through th
 
 | System | Install |
 |---|---|
-| Linux | put `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage` in a folder of your own (e.g. `~/Apps`), `chmod +x` it and run it: it carries GTK4 and WebKitGTK 6.0, for any x86_64 desktop with glibc 2.39+ (Ubuntu 24.04+, Debian 13+, Fedora 40+); WebKit's sandbox needs `bubblewrap` and `xdg-dbus-proxy`, which GNOME and KDE have ([desktop.md](desktop.md#requirements)) |
+| Linux (AppImage) | put `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage` in a folder of your own (e.g. `~/Apps`), `chmod +x` it and run it: it carries GTK4 and WebKitGTK 6.0, for any x86_64 desktop with glibc 2.39+ (Ubuntu 24.04+, Debian 13+, Fedora 40+); WebKit's sandbox needs `bubblewrap` and `xdg-dbus-proxy`, which GNOME and KDE have ([desktop.md](desktop.md#requirements)) |
+| Linux (binary) | `sudo apt install libgtk-4-1 libwebkitgtk-6.0-4` (or `sudo dnf install gtk4 webkitgtk6.0`), then `tar xzf ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz` into a folder of your own (e.g. `~/apps/ad-manager`) and run `./ad-manager-desktop` |
 | Windows | unzip `ad-manager-desktop_X.Y.Z_windows_x86_64.zip` into a folder of your own (not `Program Files`) and run `ad-manager-desktop.exe` (it needs the WebView2 runtime: part of Windows 10/11; on Windows Server 2016–2022 install it from Microsoft) |
 | macOS | unzip `…_macos_universal.zip` and move `AD Manager.app` to Applications (the first time: right-click → **Open**, it is ad-hoc signed); it runs on Apple Silicon and Intel |
 

@@ -91,7 +91,8 @@ desktop lists them from the panel.
   AppImage carries GTK4 and WebKitGTK 6.0; the system gives the graphics drivers (Mesa) and WebKit's sandbox,
   `bubblewrap` and `xdg-dbus-proxy`, which GNOME and KDE desktops have (else `sudo apt install bubblewrap
   xdg-dbus-proxy` or `sudo dnf install bubblewrap xdg-dbus-proxy`). The sandbox needs unprivileged user namespaces,
-  which desktop distributions allow.
+  which desktop distributions allow. The `.tar.gz` has the bare binary, which needs GTK4 and WebKitGTK 6.0 from the
+  system: `sudo apt install libgtk-4-1 libwebkitgtk-6.0-4` or `sudo dnf install gtk4 webkitgtk6.0`.
 - **Windows**: 10 or 11 (Windows Server 2025 too), with the WebView2 runtime. Windows 10/11 have it; on Windows
   Server 2016–2022 install it from Microsoft first.
 - **macOS**: 12 or later (a universal `.app`, Apple Silicon and Intel).
@@ -102,14 +103,14 @@ The Go builds run in Docker (`desktop/docker/Dockerfile`: Go, GTK4, WebKitGTK 6.
 as the server's.
 
 ```bash
-make desktop          # Linux AppImage, Windows zip and the Linux binary in dist/desktop/
+make desktop          # Linux AppImage and tar.gz, Windows zip and the Linux binary in dist/desktop/
 make desktop-check    # gofmt, go vet, Go tests, and the web build without the desktop's code
 make desktop-shots    # the docs screenshots (2×, Classic blue, a demo panel; on the host: Xvfb, xdotool)
 ```
 
 macOS builds on a Mac (see [desktop/README.md](../desktop/README.md)). The desktop app has the server's version and
 comes in the same release: a tag `vX.Y.Z` (`release.yml`) publishes `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage`,
-`…_windows_x86_64.zip` and `…_macos_universal.zip` beside the server's packages, with one
+`…_linux_x86_64.tar.gz` (the bare binary), `…_windows_x86_64.zip` and `…_macos_universal.zip` beside the server's packages, with one
 `checksums.txt`.
 
 ## Earlier desktop apps (archived)

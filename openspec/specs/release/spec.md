@@ -6,15 +6,15 @@ One release for the server and the desktop app, built and checked by one CI.
 ## Requirements
 
 ### Requirement: One release for the server and the desktop app
-A tag `vX.Y.Z` SHALL publish one release with the server's packages and the desktop app's (a Linux AppImage, Windows,
-macOS universal) and one `checksums.txt`, after the CI of both passed; the desktop app SHALL carry
+A tag `vX.Y.Z` SHALL publish one release with the server's packages and the desktop app's (a Linux AppImage and the bare
+binary's `.tar.gz`, Windows, macOS universal) and one `checksums.txt`, after the CI of both passed; the desktop app SHALL carry
 the tag's version X.Y.Z, given to its build.
 
 #### Scenario: Release with both
 - **WHEN** the tag `v0.27.0` is pushed
 - **THEN** the release `v0.27.0` has `ad-manager_v0.27.0_linux_amd64.tar.gz`, `ad-manager_0.27.0_amd64.deb`,
-  `ad-manager-desktop_0.27.0_{linux_x86_64.AppImage,windows_x86_64.zip,macos_universal.zip}` and `checksums.txt`,
-  and no desktop `.tar.gz`, `.deb` or `.rpm`
+  `ad-manager-desktop_0.27.0_{linux_x86_64.AppImage,linux_x86_64.tar.gz,windows_x86_64.zip,macos_universal.zip}`
+  and `checksums.txt`, and no desktop `.deb` or `.rpm`
 
 #### Scenario: Versions apart
 - **WHEN** the tag `v0.27.0` is pushed

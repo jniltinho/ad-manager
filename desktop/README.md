@@ -59,7 +59,7 @@ rendering are this computer's preferences, saved without a test.
 Everything but the SPA runs in Docker (`docker/Dockerfile`: Go, GTK4, WebKitGTK 6.0, Xvfb; built on first use):
 
 ```bash
-make dist      # Linux AppImage, Windows zip, SHA256SUMS and the Linux binary in dist/
+make dist      # Linux AppImage and tar.gz, Windows zip, SHA256SUMS and the Linux binary in dist/
 make check     # gofmt, go vet, go test, and the web build without the desktop's code
 make shots     # the docs screenshots, on the host (Xvfb, xdotool): 2x, Classic blue, the demo panel
 ```

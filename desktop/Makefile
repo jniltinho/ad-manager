@@ -2,7 +2,7 @@
 # desktop mode (built with the host's npm, as the server's); Go builds run in Docker (scripts/go-docker.sh: Go,
 # GTK4, WebKitGTK 6.0). Linux needs CGO; Windows does not.
 #
-#   make dist     Linux AppImage and Windows zip (+ SHA256SUMS) into DIST
+#   make dist     Linux AppImage and tar.gz, Windows zip (+ SHA256SUMS) into DIST
 #   make check    gofmt, go vet, go test, the web build without the desktop
 
 SHELL   := /bin/sh
@@ -47,12 +47,13 @@ appimage: linux ## The AppImage of the Linux build into DIST (GTK4 and WebKitGTK
 		-builddir .cache/appimage'
 	mv .cache/appimage-out/$(NAME)-x86_64.AppImage $(DIST)/$(NAME)_$(PKG_VERSION)_linux_x86_64.AppImage
 
-dist: linux windows appimage ## Release AppImage, zip and SHA256SUMS into DIST
+dist: linux windows appimage ## Release AppImage, tar.gz, zip and SHA256SUMS into DIST
 	mkdir -p $(DIST)
+	tar -C bin/linux -czf $(DIST)/$(NAME)_$(PKG_VERSION)_linux_x86_64.tar.gz $(NAME) -C $(CURDIR) README.md
 	rm -f $(DIST)/$(NAME)_$(PKG_VERSION)_windows_x86_64.zip
 	cd bin/windows && python3 -m zipfile -c $(abspath $(DIST))/$(NAME)_$(PKG_VERSION)_windows_x86_64.zip $(NAME).exe ../../README.md
 	cp bin/linux/$(NAME) $(DIST)/
-	cd $(DIST) && sha256sum *.AppImage *.zip > SHA256SUMS
+	cd $(DIST) && sha256sum *.AppImage *.tar.gz *.zip > SHA256SUMS
 
 test: ## Go tests
 	$(GO) go test ./...

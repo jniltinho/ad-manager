@@ -8,7 +8,7 @@ One installation guide for the web panel, the agent and the desktop app (prerequ
 ### Requirement: Installation guide for every component
 The documentation SHALL have one installation guide covering prerequisites, installation, configuration, first run,
 verification, upgrade and uninstall of the web panel and the agent (from the `.deb` and from the release `.tar.gz`)
-and of the desktop app (from its AppImage, `.zip` or macOS `.app`), and the other pages SHALL link to it instead of repeating those
+and of the desktop app (from its AppImage, `.tar.gz`, `.zip` or macOS `.app`), and the other pages SHALL link to it instead of repeating those
 steps.
 
 #### Scenario: Binary install of the agent

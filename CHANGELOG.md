@@ -31,7 +31,8 @@ found by the Windows Server 2008 R2 lab, and the Linux desktop app as one AppIma
 - Every OpenSpec spec passes strict validation; Windows labs run in dockur/windows containers (AGENTS.md) and a lab
   client of a recreated domain is repaired in place.
 - Desktop app for Linux: one AppImage (`ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage`, GTK4 and WebKitGTK 6.0
-  inside) for any x86_64 desktop with glibc 2.39+, instead of the `.tar.gz`, `.deb` and `.rpm`. It keeps
+  inside) for any x86_64 desktop with glibc 2.39+, instead of the `.deb` and `.rpm`; the bare binary's `.tar.gz`
+  stays (it needs the system's GTK4 and WebKitGTK 6.0). It keeps
   `desktop.toml` in `~/.config/ad-manager/`; WebKit's sandbox needs `bubblewrap` and `xdg-dbus-proxy`, which GNOME
   and KDE have. A `.deb` or `.rpm` install can be removed: its `desktop.toml` stays.
 

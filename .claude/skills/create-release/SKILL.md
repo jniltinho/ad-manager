@@ -98,7 +98,7 @@ gh release view vX.Y.Z --repo "$REPO" --json name,assets -q '.name, (.assets[].n
 ```
 
 Expect: `ad-manager_vX.Y.Z_linux_amd64.tar.gz`, `ad-manager_X.Y.Z_amd64.deb`,
-`ad-manager-desktop_X.Y.Z_{linux_x86_64.AppImage,windows_x86_64.zip,macos_universal.zip}` and `checksums.txt`
+`ad-manager-desktop_X.Y.Z_{linux_x86_64.AppImage,linux_x86_64.tar.gz,windows_x86_64.zip,macos_universal.zip}` and `checksums.txt`
 (the server and the desktop app in one release; the Fyne and Rust apps in
 `archive/` are archived and no longer released).
 
@@ -128,6 +128,8 @@ the Downloads list from the published assets, and the compare link from the prev
 - `ad-manager_X.Y.Z_amd64.deb` — server package for Ubuntu 26.04
 - `ad-manager-desktop_X.Y.Z_linux_x86_64.AppImage` — desktop app for Linux (any x86_64 desktop; GTK4 and
   WebKitGTK 6.0 inside)
+- `ad-manager-desktop_X.Y.Z_linux_x86_64.tar.gz` — desktop app for Linux, the bare binary (it needs the system's
+  GTK4 and WebKitGTK 6.0: `sudo apt install libgtk-4-1 libwebkitgtk-6.0-4`)
 - `ad-manager-desktop_X.Y.Z_windows_x86_64.zip` — desktop app for Windows
 - `ad-manager-desktop_X.Y.Z_macos_universal.zip` — desktop app for macOS (universal: Apple Silicon and Intel)
 - `checksums.txt` — SHA-256 checksums of every file above
