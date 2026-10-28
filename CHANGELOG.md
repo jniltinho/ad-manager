@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.28.0] — 2026-10-28
+
+**The password migration runs in Go (no Python helper), a preflight warning for RC4-only accounts, and migration
+fixes found by the Windows Server 2008 R2 lab.**
+
 ### Fixed
 - Folder sync: a run is no longer refused with "… is writable to the sync worker" when a folder outside the
   destination is mounted twice on the same point (the covered mount is unreachable); seen after a reboot of a
@@ -18,7 +25,9 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - The password migration runs in Go in the DC agent (no Python helper): read over a Kerberos-sealed DRSUAPI bound
   to the DC's replication SPN, each account checked in its sealed reply, written with Samba's `ldbmodify`; the same
-  outcomes and stored material as before on Samba 4.23/4.22, Windows Server 2008 R2 and 2022 sources.
+  outcomes and stored material as before on Samba 4.23/4.22 and Windows Server 2008 R2, 2019 and 2022 sources.
+- Every OpenSpec spec passes strict validation; Windows labs run in dockur/windows containers (AGENTS.md) and a lab
+  client of a recreated domain is repaired in place.
 
 ### Added
 - `migrate preflight` warns about `RC4-only accounts`: enabled users whose password predates the domain's AES
