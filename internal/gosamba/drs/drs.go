@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"unicode/utf16"
 
 	"github.com/oiweiwei/go-msrpc/dcerpc"
 	"github.com/oiweiwei/go-msrpc/msrpc/drsr/drsuapi/v4"
@@ -28,6 +29,7 @@ import (
 	"github.com/oiweiwei/go-msrpc/ndr"
 	"github.com/oiweiwei/go-msrpc/ssp/gssapi"
 
+	"ad-manager/internal/gosamba/samdb"
 	"ad-manager/internal/winrpc"
 )
 
@@ -37,8 +39,32 @@ const timeout = 30 * time.Second
 // exopSuccess is EXOP_ERR_SUCCESS, the extended return of a successful extended operation ([MS-DRSR] 4.1.10.2.21).
 const exopSuccess = 1
 
-// oidUnicodePwd is the attribute unicodePwd, looked up through the reply's prefix table (ATTIDs are per DC).
-const oidUnicodePwd = "1.2.840.113556.1.4.90"
+// The secret attributes, looked up through the reply's prefix table (ATTIDs are per DC).
+const (
+	oidUnicodePwd     = "1.2.840.113556.1.4.90"
+	oidSupplementalCr = "1.2.840.113556.1.4.125" // supplementalCredentials
+	oidSAMAccountName = "1.2.840.113556.1.4.221"
+)
+
+// Secrets is one object's password material as replicated: the NT hash (16 bytes) and the supplementalCredentials
+// blob (USER_PROPERTIES, [MS-SAMR] 2.2.10.1), each nil when the object has none. SID and SAMAccountName come from the
+// same sealed reply, so a caller can check that the object is the one it asked for (an LDAP listing is not
+// integrity-protected).
+type Secrets struct {
+	NTHash         []byte
+	Supplemental   []byte
+	SID            string
+	SAMAccountName string
+}
+
+// Zero overwrites the material, for the caller to call as soon as it is done with it.
+func (s *Secrets) Zero() {
+	if s == nil {
+		return
+	}
+	clear(s.NTHash)
+	clear(s.Supplemental)
+}
 
 // Reader is an open, sealed DRSUAPI binding to one DC. A Reader is used by one goroutine at a time.
 type Reader struct {
@@ -139,11 +165,21 @@ func Dial(ctx context.Context, t winrpc.Target, c winrpc.Cred) (*Reader, error) 
 // NTHash returns the NT hash (16 bytes) of the object whose objectGUID is guid (16 bytes as LDAP returns them),
 // or nil when it has none (a user that never had a password). The reply must name that same object.
 func (r *Reader) NTHash(ctx context.Context, guid []byte) ([]byte, error) {
+	s, err := r.Secrets(ctx, guid)
+	if err != nil {
+		return nil, err
+	}
+	clear(s.Supplemental)
+	return s.NTHash, nil
+}
+
+// Secrets returns the password material of the object whose objectGUID is guid, read in the same request.
+func (r *Reader) Secrets(ctx context.Context, guid []byte) (*Secrets, error) {
 	want, err := msGUID(guid)
 	if err != nil {
 		return nil, err
 	}
-	return guard(ctx, r.host, r.dialer.closeAll, func(ctx context.Context) ([]byte, error) {
+	return guard(ctx, r.host, r.dialer.closeAll, func(ctx context.Context) (*Secrets, error) {
 		resp, err := r.cli.GetNCChanges(ctx, &drsuapi.GetNCChangesRequest{
 			Handle:    r.drs,
 			InVersion: 8,
@@ -165,12 +201,12 @@ func (r *Reader) NTHash(ctx context.Context, guid []byte) ([]byte, error) {
 		if !ok || resp.OutVersion != 6 {
 			return nil, fmt.Errorf("DRSGetNCChanges: reply version %d", resp.OutVersion)
 		}
-		return r.hash(reply, want)
+		return r.secrets(reply, want)
 	})
 }
 
-// hash checks the reply and decrypts its unicodePwd.
-func (r *Reader) hash(reply *drsuapi.MessageGetNCChangesReplyV6, want *dtyp.GUID) ([]byte, error) {
+// secrets checks the reply and decrypts its unicodePwd and supplementalCredentials.
+func (r *Reader) secrets(reply *drsuapi.MessageGetNCChangesReplyV6, want *dtyp.GUID) (*Secrets, error) {
 	if reply.DRSError != 0 {
 		return nil, fmt.Errorf("DRSGetNCChanges: DRS error 0x%08x", reply.DRSError)
 	}
@@ -193,31 +229,60 @@ func (r *Reader) hash(reply *drsuapi.MessageGetNCChangesReplyV6, want *dtyp.GUID
 		return nil, errors.New("DRSGetNCChanges: malformed SID")
 	}
 	rid := binary.LittleEndian.Uint32(sid[len(sid)-4:])
+	sidText := samdb.SID(sid)
+	if sidText == "" {
+		return nil, errors.New("DRSGetNCChanges: malformed SID")
+	}
+	out := &Secrets{SID: sidText}
 	if reply.PrefixTableSource == nil || ei.AttributeBlock == nil {
-		return nil, nil
+		return out, nil
 	}
 	prefixes := reply.PrefixTableSource.Build()
 	for _, a := range ei.AttributeBlock.Attribute {
 		if a == nil {
+			out.Zero()
 			return nil, errors.New("DRSGetNCChanges: empty attribute")
 		}
 		oid, err := prefixes.AttributeToOID(a.AttributeType)
 		if err != nil {
+			out.Zero()
 			return nil, fmt.Errorf("DRSGetNCChanges: attribute 0x%x not in the prefix table: %w", a.AttributeType, err)
 		}
-		if oid.String() != oidUnicodePwd {
+		name := oid.String()
+		vb := a.AttributeValue
+		if name == oidSAMAccountName {
+			if vb == nil || vb.ValueCount != 1 || len(vb.Values) != 1 || vb.Values[0] == nil || len(vb.Values[0].Value)%2 != 0 {
+				out.Zero()
+				return nil, errors.New("DRSGetNCChanges: malformed sAMAccountName")
+			}
+			u := make([]uint16, len(vb.Values[0].Value)/2)
+			for i := range u {
+				u[i] = binary.LittleEndian.Uint16(vb.Values[0].Value[2*i:])
+			}
+			out.SAMAccountName = string(utf16.Decode(u))
 			continue
 		}
-		vb := a.AttributeValue
+		if name != oidUnicodePwd && name != oidSupplementalCr {
+			continue
+		}
 		switch {
 		case vb != nil && vb.ValueCount == 0 && len(vb.Values) == 0: // Samba lists it with no value for a user without one
-			return nil, nil
+			continue
 		case vb == nil || vb.ValueCount != 1 || len(vb.Values) != 1 || vb.Values[0] == nil || len(vb.Values[0].Value) == 0:
-			return nil, errors.New("DRSGetNCChanges: malformed unicodePwd")
+			out.Zero()
+			return nil, fmt.Errorf("DRSGetNCChanges: malformed %s", map[string]string{oidUnicodePwd: "unicodePwd", oidSupplementalCr: "supplementalCredentials"}[name])
 		}
-		return drsuapi.DecryptHash(r.ctx, rid, vb.Values[0].Value)
+		if name == oidUnicodePwd {
+			out.NTHash, err = drsuapi.DecryptHash(r.ctx, rid, vb.Values[0].Value)
+		} else {
+			out.Supplemental, err = drsuapi.DecryptData(r.ctx, vb.Values[0].Value)
+		}
+		if err != nil {
+			out.Zero()
+			return nil, err
+		}
 	}
-	return nil, nil
+	return out, nil
 }
 
 // Close unbinds and closes the connection; every socket is closed even when the unbind fails.

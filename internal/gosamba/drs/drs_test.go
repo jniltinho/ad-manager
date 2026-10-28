@@ -166,6 +166,9 @@ func TestUnicodePwdValues(t *testing.T) {
 	if nt, err := r.hash(reply(0x9005A, &drsuapi.AttributeValueBlock{}), want); err != nil || nt != nil {
 		t.Fatalf("empty unicodePwd: %x, %v", nt, err)
 	}
+	if s, err := r.secrets(reply(0x9007D, &drsuapi.AttributeValueBlock{}), want); err != nil || s.Supplemental != nil || s.NTHash != nil {
+		t.Fatalf("empty supplementalCredentials: %v", err)
+	}
 	for name, rp := range map[string]*drsuapi.MessageGetNCChangesReplyV6{
 		"count without values": reply(0x9005A, &drsuapi.AttributeValueBlock{ValueCount: 1}),
 		"two values": reply(0x9005A, &drsuapi.AttributeValueBlock{ValueCount: 2,
@@ -173,9 +176,22 @@ func TestUnicodePwdValues(t *testing.T) {
 		"empty value":         reply(0x9005A, &drsuapi.AttributeValueBlock{ValueCount: 1, Values: []*drsuapi.AttributeValue{{}}}),
 		"no value block":      reply(0x9005A, nil),
 		"ATTID not in prefix": reply(0x63005A, &drsuapi.AttributeValueBlock{}),
+		// supplementalCredentials (ATTID 0x9007D) follows the same rule
+		"two supplementalCredentials": reply(0x9007D, &drsuapi.AttributeValueBlock{ValueCount: 2,
+			Values: []*drsuapi.AttributeValue{{Value: []byte{1}}, {Value: []byte{2}}}}),
+		"empty supplementalCredentials value": reply(0x9007D, &drsuapi.AttributeValueBlock{ValueCount: 1, Values: []*drsuapi.AttributeValue{{}}}),
 	} {
 		if nt, err := r.hash(rp, want); err == nil {
 			t.Errorf("%s: accepted (%x)", name, nt)
 		}
 	}
+}
+
+// hash is NTHash's view of a reply, for the tests above.
+func (r *Reader) hash(reply *drsuapi.MessageGetNCChangesReplyV6, want *dtyp.GUID) ([]byte, error) {
+	s, err := r.secrets(reply, want)
+	if err != nil {
+		return nil, err
+	}
+	return s.NTHash, nil
 }

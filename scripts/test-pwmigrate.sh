@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# The password migration (new-domain cutover) in Go against real Samba DCs, on an internal Docker network: a source
+# DC and a destination DC of the same realm (a new domain, its own SID), the users imported on the destination with
+# other passwords. It applies the migration with internal/sambadc (TestMigratePasswordsLive, run as root in the
+# destination), then checks that the users sign in to the destination with their source passwords (NTLM and
+# Kerberos), that a second run is all "same", and that a user without rights is refused.
+#
+# PARITY=1 also migrates a twin destination with the previous Python helper (pwmigrate.py of git REF, default HEAD)
+# and compares, user by user, the outcomes and the stored unicodePwd and supplementalCredentials (as hashes).
+#   IMAGE=ubuntu:26.04 PARITY=1 scripts/test-pwmigrate.sh
+set -euo pipefail
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+base=${IMAGE:-ubuntu:26.04}
+tag=$(echo "$base" | tr ':.' '--')
+work=$(mktemp -d)
+trap 'docker rm -f $(cat "$work/containers" 2>/dev/null) >/dev/null 2>&1 || true; docker network rm $(cat "$work/networks" 2>/dev/null) >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+rnd() { echo "Pw-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')-x9Q"; }
+ADMIN_PASS=$(rnd)
+export ADMIN_PASS
+
+(cd "$root" && CGO_ENABLED=0 go test -c -tags integration -o "$work/pw.test" ./internal/sambadc)
+docker build -q --build-arg BASE="$base" -t "ad-manager-samba-test:$tag" "$root/docker/samba" >/dev/null
+net="adm-pw-$tag"
+docker network create --internal "$net" >/dev/null && echo "$net" >>"$work/networks"
+dcs="src dstgo"
+[ "${PARITY:-}" = 1 ] && dcs="$dcs dstpy"
+for dc in $dcs; do
+	docker run -d --name "adm-pw-$dc-$tag" --network "$net" --hostname "$dc" --domainname parity.test -e REALM=PARITY.TEST \
+		-e DOMAIN=PARITY -e ADMIN_PASS --cap-add SYS_ADMIN --tmpfs /run "ad-manager-samba-test:$tag" >/dev/null
+	echo "adm-pw-$dc-$tag" >>"$work/containers"
+done
+for dc in $dcs; do
+	i=0
+	until [ "$(docker inspect -f '{{.State.Health.Status}}' "adm-pw-$dc-$tag")" = healthy ]; do
+		i=$((i + 1)); [ $i -lt 150 ] || { docker logs "adm-pw-$dc-$tag" | tail -20; exit 1; }; sleep 2
+	done
+done
+ip() { docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "adm-pw-$1-$tag"; }
+x() { local dc=$1; shift; docker exec -i "adm-pw-$dc-$tag" "$@"; }
+users="ana bia caio"
+# passwords on the source (kept in this process only, handed to containers on stdin); other ones on the destinations
+declare -A pw
+for u in $users plain; do pw[$u]=$(rnd); done
+# the test users' passwords are random and live only in these throwaway containers
+for u in $users plain; do x src samba-tool user create "$u" "${pw[$u]}" >/dev/null; done
+printf 'dn: CN=nopw,CN=Users,DC=parity,DC=test\nobjectClass: user\nsAMAccountName: nopw\n' | x src ldbadd -H /var/lib/samba/private/sam.ldb >/dev/null
+x src samba-tool user create onlysrc "$(rnd)" >/dev/null
+for dc in ${dcs#src }; do
+	for u in $users plain; do x "$dc" samba-tool user create "$u" "$(rnd)" >/dev/null; done
+	printf 'dn: CN=nopw,CN=Users,DC=parity,DC=test\nobjectClass: user\nsAMAccountName: nopw\n' | x "$dc" ldbadd -H /var/lib/samba/private/sam.ldb >/dev/null
+done
+sid() { x "$1" ldbsearch -H /var/lib/samba/private/sam.ldb -s base -b DC=parity,DC=test objectSid | sed -n 's/^objectSid: //p'; }
+srcip=$(ip src)
+docker cp "$work/pw.test" "adm-pw-dstgo-$tag:/root/pw.test" >/dev/null
+gorun() { # gorun APPLY [USER PASSWORD]: the Go migration in dstgo, its JSON result
+	printf 'PW_SRC_HOST=%s\nPW_SRC_USER=%s\nPW_SRC_PASSWORD=%s\nPW_DEST_SID=%s\nPW_APPLY=%s\n' "$srcip" "${2:-PARITY\\Administrator}" \
+		"${3:-$ADMIN_PASS}" "$(sid dstgo)" "$1" >"$work/env"
+	local rc=0
+	docker exec --env-file "$work/env" "adm-pw-dstgo-$tag" /root/pw.test -test.run TestMigratePasswordsLive -test.v \
+		-test.count=1 >"$work/run.log" 2>&1 || rc=$?
+	rm -f "$work/env"
+	sed -n 's/.*RESULT //p' "$work/run.log"
+	[ $rc = 0 ] || { grep -vE 'RESULT' "$work/run.log" | tail -5 >&2; return $rc; }
+}
+outcomes() { jq -c '[.users[]|{(.sam):.outcome}]|add'; }
+echo "== $base: plan"; gorun 0 | outcomes
+echo "== apply"; gorun 1 | tee "$work/go.json" | outcomes
+expect='{"ana":"set","bia":"set","caio":"set","nopw":"no_password","onlysrc":"missing","plain":"set"}'
+[ "$(outcomes <"$work/go.json")" = "$expect" ] || { echo "unexpected outcomes" >&2; exit 1; }
+echo "== the source passwords on the destination"
+cat >"$work/check.sh" <<'CHK'
+read -r P
+u=$1
+PASSWD=$P smbclient //127.0.0.1/netlogon -U "PARITY\\$u" -c ls >/dev/null 2>&1 && n=ok || n=FAIL
+k=FAIL
+# this DC's own KDC (the container's DNS is Docker's, which knows no realm)
+printf '[libdefaults]\n default_realm = PARITY.TEST\n dns_lookup_kdc = false\n[realms]\n PARITY.TEST = {\n  kdc = 127.0.0.1\n }\n' >/tmp/krb5.conf
+if printf '%s\n' "$P" | KRB5_CONFIG=/tmp/krb5.conf kinit "$u@PARITY.TEST" >/tmp/kinit.log 2>&1; then
+	k=$(KRB5_CONFIG=/tmp/krb5.conf klist -e | grep -m1 -A1 krbtgt | tail -1 | sed 's/.*tkt): //')
+fi
+echo "$u: NTLM $n, Kerberos $k"
+[ "$k" != FAIL ] || sed 's/^/  kinit: /' /tmp/kinit.log
+[ "$n" = ok ] && [ "$k" != FAIL ]
+CHK
+docker cp "$work/check.sh" "adm-pw-dstgo-$tag:/root/check.sh" >/dev/null
+for u in $users; do printf '%s\n' "${pw[$u]}" | x dstgo bash /root/check.sh "$u"; done
+echo "== apply again"; again=$(gorun 1 | outcomes)
+echo "$again"
+[ "$again" = '{"ana":"same","bia":"same","caio":"same","nopw":"no_password","onlysrc":"missing","plain":"same"}' ] || exit 1
+echo "== an account without replication rights is refused"
+if gorun 1 "PARITY\\plain" "${pw[plain]}" >/dev/null 2>&1; then echo "accepted" >&2; exit 1; fi
+echo "refused"
+if [ "${PARITY:-}" = 1 ]; then
+	echo "== parity with the Python helper (git ${REF:-HEAD})"
+	git -C "$root" show "${REF:-HEAD}:internal/sambadc/pwmigrate.py" >"$work/pwmigrate.py"
+	docker cp "$work/pwmigrate.py" "adm-pw-dstpy-$tag:/root/pwmigrate.py" >/dev/null
+	jq -n --arg h "$srcip" --arg p "$ADMIN_PASS" --arg s "$(sid dstpy)" \
+		'{op:"apply",source:{host:$h,user:"PARITY\\Administrator",password:$p},dest_sid:$s}' |
+		x dstpy bash -c 'python3 -I -s -B -c "$(cat /root/pwmigrate.py)"' | jq -c '.result' >"$work/py.json"
+	echo "python: $(outcomes <"$work/py.json")"
+	[ "$(outcomes <"$work/py.json")" = "$expect" ] || { echo "the Python outcomes differ" >&2; exit 1; }
+	material() { # sha256 of each user's stored unicodePwd and supplementalCredentials
+		for u in $users plain nopw; do
+			x "$1" ldbsearch -H /var/lib/samba/private/sam.ldb "(sAMAccountName=$u)" unicodePwd supplementalCredentials |
+				{ grep -E '^(unicodePwd|supplementalCredentials)::' || true; } | sort | sha256sum | cut -c1-16 | sed "s/^/$u /"
+		done
+	}
+	material dstgo >"$work/m-go"; material dstpy >"$work/m-py"
+	if diff "$work/m-go" "$work/m-py"; then echo "stored material: the same for every user"; else echo "stored material differs" >&2; exit 1; fi
+fi
+x dstgo samba --version
+echo "ok"

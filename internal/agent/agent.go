@@ -808,8 +808,8 @@ func (a *Agent) Routes() *echo.Echo {
 	}, dcOnly)
 	// password-material migration (docs/migration-runbook.md), in the dedicated write mode: read the named
 	// source's password hashes over a sealed, read-only DRSUAPI and set them on the local directory. plan reads no
-	// secret; apply reads and writes per user. The source password reaches the helper through a 0600 file removed
-	// at the end, never an argument or a log; the answer carries only outcomes and the domain SIDs.
+	// secret; apply reads and writes per user. The source password is never an argument, a file or a log; the
+	// answer carries only outcomes and the domain SIDs.
 	api.POST("/dc/passwords/migrate", func(c *echo.Context) error {
 		if err := a.passwordMigrationReady(); err != nil {
 			return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
@@ -826,10 +826,8 @@ func (a *Agent) Routes() *echo.Echo {
 		}
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Minute)
 		defer cancel()
-		// the source password goes to the helper on stdin only — never written to disk, so a crash leaves nothing
-		// behind. The interpreter is the agent's python3 (empty → /usr/bin/python3, as the Samba bridge uses);
-		// a.caps.Python is a version string, not a path, so it must not be passed here.
-		res, err := sambadc.MigratePasswords(ctx, "", in.Apply, in.Source, in.Password, in.DestSID)
+		// the source password stays in this process (the source binds); the material goes to ldbmodify on stdin only
+		res, err := sambadc.MigratePasswords(ctx, in.Apply, in.Source, in.Password, in.DestSID)
 		if err != nil {
 			return c.JSON(http.StatusBadGateway, map[string]string{"error": err.Error()})
 		}
