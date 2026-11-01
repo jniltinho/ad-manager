@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.29.0] — 2026-11-01
+
+**An SSH terminal to the managed servers, in the web panel and the desktop app.**
+
 ### Added
 - SSH terminal: a **Terminal** sub-tab beside Backup and Sync opens an SSH shell (xterm.js) to the host of a
   registered server, port 22, with a password or a private key; `xterm-256color` with the classic xterm
