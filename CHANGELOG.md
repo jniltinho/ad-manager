@@ -15,6 +15,10 @@ All notable changes to this project are documented here. The format follows
   terminal WebSocket (session cookie, pinned certificate) and passes the frames to the window. See
   `docs/ssh-terminal.md`.
 
+### Changed
+- CI and release build the macOS desktop app on the `macos-15` runner (GitHub retires `macos-14` on November 2,
+  2026); the app still targets macOS 12 and later.
+
 ## [0.28.0] — 2026-10-28
 
 **The password migration runs in Go (no Python helper), a preflight warning for RC4-only accounts, migration fixes
