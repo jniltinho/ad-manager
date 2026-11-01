@@ -31,7 +31,7 @@ frame is terminal input even if its bytes are valid JSON:
 - client → server, first message only, text JSON within 30 s:
   `{"user","password"?,"key"?,"passphrase"?,"cols","rows","trust"?}`; `trust` is the fingerprint the operator
   confirmed. Malformed JSON, missing user, or `cols`/`rows` outside 1–1000 → error and close.
-- server → client control, text JSON: `{"type":"hostkey","fingerprint"}` (unknown key: connection closed, the SPA
+- server → client control, text JSON: `{"type":"hostkey","fingerprint","key_type"}` (unknown key: connection closed, the SPA
   asks and reconnects with `trust`), `{"type":"error","code"}`, `{"type":"ready"}`.
 - after `ready`: binary frames are terminal bytes both ways; text JSON `{"type":"resize","cols","rows"}` changes
   the PTY window; the server pings every 30 s (keeps reverse proxies from dropping an idle terminal).
@@ -44,23 +44,23 @@ carry server-controlled disconnect text) is never written anywhere.
 
 ### Host key pinning (TOFU)
 
-A `ssh_host_key` column on the agents table, added for existing databases by an `ALTER TABLE … ADD COLUMN` that
-ignores "duplicate column" (the store only has `CREATE TABLE IF NOT EXISTS` today). `HostKeyCallback`:
+An `ssh_host_keys (agent, key, rev)` table: a new table, so the schema's `CREATE TABLE IF NOT EXISTS` also adds it
+to existing databases (no `ALTER TABLE`); deleting an agent deletes its row. `rev` is read with the key before the
+handshake and bumped by every reset and URL host change. `HostKeyCallback`:
 
-- empty and no `trust`, or `trust` ≠ the key's fingerprint → fail with the fingerprint;
-- empty and `trust` matches → `UPDATE agents SET ssh_host_key=? WHERE id=? AND url=? AND ssh_host_key='' AND
-  ssh_host_key_rev=?`; zero rows
-  (another connection trusted first, or the agent was edited or reset meanwhile) → fail closed and re-read;
-  `ssh.hostkey.trust`;
+- empty and no `trust`, or `trust` ≠ the key's fingerprint → fail with the fingerprint and key type;
+- empty and `trust` matches → `INSERT … ON CONFLICT(agent) DO UPDATE … WHERE key = '' AND rev = ?`; zero rows
+  (another connection trusted first, or a reset came meanwhile) → fail closed and re-read (the same key saved by the
+  other connection goes on); `ssh.hostkey.trust`;
 - saved and equal → go on; saved and different → `hostkey_changed`, nothing saved, no credential sent;
 - any database error → fail closed.
 
-A `ssh_host_key_rev` integer, read with the key when the callback starts, is incremented by every reset and URL
-change; the trust update also requires `ssh_host_key_rev=?`, so a stale trust can never undo a reset that happened
-after it started.
+Host key algorithms: with nothing pinned Ed25519 is preferred (then ECDSA, then RSA), the key operators check with
+`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`; once pinned only the pinned key's type is asked for, so a key of
+another type the server gains later is not reported as changed.
 
 `DELETE /api/agents/:id/ssh/hostkey` clears it (`ssh.hostkey.reset`). Saving an agent with another URL host clears
-it in the same update, audited as `ssh.hostkey.reset` with target `server (url changed)`. Cross-origin `DELETE`
+it right after the save, audited as `ssh.hostkey.reset` with target `server (url changed)`. Cross-origin `DELETE`
 needs a CORS preflight the panel never allows, so no extra CSRF token.
 
 ### Session binding

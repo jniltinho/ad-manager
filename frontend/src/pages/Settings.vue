@@ -180,6 +180,18 @@ const readonlyRows = computed(() => {
                   {{ t('Only for signed-in administrators, like the queue monitor. Keep it off in production.') }}
                 </p>
               </div>
+              <div class="min-w-0 flex-1">
+                <label class="flex items-center gap-2 font-semibold text-fg-strong"
+                  ><input v-model="form.ssh_terminal" type="checkbox" /> {{ t('SSH terminal (Backup › Terminal)') }}</label
+                >
+                <p class="mt-0.5 text-[11px] text-fg-muted">
+                  {{
+                    t(
+                      "SSH to the registered servers from the panel. Commands run there skip the panel's protections and audit (only the connection is audited). Turning it off closes open terminals.",
+                    )
+                  }}
+                </p>
+              </div>
             </div>
           </div>
         </section>

@@ -141,3 +141,39 @@ func TestCheckDBMissingColumns(t *testing.T) {
 		t.Fatalf("a panel database was refused: %v", err)
 	}
 }
+
+func TestHostKeys(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "x.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if k, rev, err := s.HostKey(7); k != "" || rev != 0 || err != nil {
+		t.Fatalf("HostKey of a new agent = %q %d %v", k, rev, err)
+	}
+	if ok, err := s.TrustHostKey(7, 0, "ssh-ed25519 AAAA"); !ok || err != nil {
+		t.Fatalf("first trust = %v %v", ok, err)
+	}
+	if ok, _ := s.TrustHostKey(7, 0, "ssh-ed25519 BBBB"); ok {
+		t.Error("a second key replaced the pinned one")
+	}
+	if err := s.ResetHostKey(7); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := s.TrustHostKey(7, 0, "ssh-ed25519 CCCC"); ok {
+		t.Error("a trust read before the reset was saved after it")
+	}
+	k, rev, _ := s.HostKey(7)
+	if k != "" || rev != 1 {
+		t.Fatalf("after reset = %q %d", k, rev)
+	}
+	if ok, _ := s.TrustHostKey(7, rev, "ssh-ed25519 DDDD"); !ok {
+		t.Error("a trust at the current revision was refused")
+	}
+	if err := s.DeleteAgent(7); err != nil {
+		t.Fatal(err)
+	}
+	if k, rev, _ := s.HostKey(7); k != "" || rev != 0 {
+		t.Errorf("the key outlived its agent: %q %d", k, rev)
+	}
+}

@@ -49,4 +49,5 @@ export default {
     'Tokens de servidores de arquivos não são mais usados: foram removidos do arquivo de configuração.',
   'the panel presented no certificate': 'o painel não apresentou certificado',
   'The queue monitor is not available in the desktop app': 'O monitor de filas não está disponível no app desktop',
+  'The SSH terminal is not available in the desktop app': 'O terminal SSH não está disponível no app desktop',
 }

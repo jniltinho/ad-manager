@@ -710,6 +710,44 @@ paths:
           application/json:
             schema: { type: object, required: [pid, session_id], properties: { pid: { type: integer }, session_id: { type: string } } }
       responses: { "200": { description: "{closed: [sessions]}" }, "400": { $ref: "#/components/responses/Error" } }
+  /api/agents/{id}/ssh:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    get:
+      tags: [File servers]
+      summary: SSH terminal to the agent's host (WebSocket)
+      description: |
+        WebSocket upgrade; needs settings.ssh_terminal (404 when off) and an Origin whose host and port equal Host (403
+        otherwise, also for a missing or null Origin). Dials the host of the agent's URL on port 22, never another
+        host or port. At most 4 terminals per operator (429).
+
+        First message, text JSON within 30 s and at most 64 KiB: {user, password?, key?, passphrase?, cols, rows,
+        trust?}; cols and rows 1–1000; a password or a key (PEM/OpenSSH, optional passphrase) is required. The
+        credential is used only for the handshake and never stored, logged or audited.
+
+        Server control messages (text JSON): {type: "hostkey", fingerprint, key_type} — unknown host key (Ed25519 preferred; once pinned only its type is
+        asked for), nothing was sent to
+        the server; reconnect with trust set to that fingerprint to pin it (audited as ssh.hostkey.trust);
+        {type: "error", code} with code bad_request, auth_failed, hostkey_changed, unreachable, timeout, closed or
+        internal; {type: "ready"}.
+
+        After ready, binary frames (at most 64 KiB) carry terminal bytes both ways, and a text frame
+        {type: "resize", cols, rows} resizes the PTY. The server pings every 30 s. The terminal closes with the
+        panel session (logout, idle expiry; input counts as activity) or when the switch is turned off. Audited as
+        ssh.open (target server:user, the error code on failure) and ssh.close (with the duration); keystrokes and
+        output are not.
+      responses:
+        "101": { description: Switching Protocols }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/agents/{id}/ssh/hostkey:
+    parameters: [{ $ref: "#/components/parameters/id" }]
+    delete:
+      tags: [File servers]
+      summary: Clear the pinned SSH host key
+      description: The next terminal to this server asks to trust its key again. Audited as ssh.hostkey.reset. Saving the agent with another URL host clears it too.
+      responses: { "204": { description: Cleared }, "404": { $ref: "#/components/responses/Error" } }
   /api/agents/{id}/dc/replication:
     parameters: [{ $ref: "#/components/parameters/id" }]
     get:
@@ -1050,3 +1088,4 @@ components:
         support_url: { type: string }
         theme: { type: string, enum: [default, admanager, breeze, breeze-dark, violet, violet-dark, aurora, aurora-dark, crystal, crystal-dark, cone, classic-blue, classic-gray, graphite, grafana, rabbitmq, matrix, winamp, pink-panther, high-contrast], default: default, description: "Visual theme for every operator, one of the theme registry (brand.themes); also in the public brand of /api/health and /api/me" }
         flat: { type: boolean, default: false, description: "Flat look: the theme without gradients and depth shadows (brand.flat)" }
+        ssh_terminal: { type: boolean, default: false, description: "Terminal sub-tab: an SSH shell to the agents' hosts (GET /api/agents/{id}/ssh). Turning it off closes every open terminal." }

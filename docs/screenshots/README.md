@@ -68,9 +68,9 @@ demo environment: the all-in-one image
 |---|---|
 | ![Source](31-sync-wizard.png) | ![What to copy](32-sync-wizard-what-to-copy.png) |
 
-| Run log (a long log scrolls inside the modal) |  |
+| Run log (a long log scrolls inside the modal) | SSH terminal (Backup › Terminal, switched on in Settings) |
 |---|---|
-| ![Run log](33-sync-log.png) |  |
+| ![Run log](33-sync-log.png) | ![Terminal](34-terminal.png) |
 
 ### Policy, import and logs
 
@@ -175,6 +175,10 @@ Everything runs locally, with passwords only in environment variables.
    ```bash
    (cd frontend && DOCS_PASS="$AD_ADMIN_PASSWORD" DOCS_SYNC_PASS='<test account password>' node tests/visual/docs-shots.mjs ../docs/screenshots)
    ```
+
+   `34-terminal` needs **SSH terminal** on in Settings and an `sshd` in the container (`apt-get install
+   openssh-server`, `PermitRootLogin yes`, a root password for the demo only), passed as `DOCS_SSH_PASS`; without it
+   that shot fails and the others go on.
 
 4. Setup (fictitious data, after `npm run build`):
 

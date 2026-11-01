@@ -70,7 +70,7 @@ database error SHALL refuse the connection.
 
 #### Scenario: First connection
 - **WHEN** the operator connects to `sambadc01` for the first time
-- **THEN** the page shows `SHA256:…` and asks to trust it; after confirming, the shell opens and the audit log has
+- **THEN** the page shows `ssh-ed25519 SHA256:…` (the Ed25519 key when the server has one) and asks to trust it; after confirming, the shell opens and the audit log has
   `ssh.hostkey.trust` for `sambadc01`
 
 #### Scenario: Confirmed fingerprint does not match
@@ -85,6 +85,10 @@ database error SHALL refuse the connection.
 - **WHEN** an administrator clears the key of `sambadc01` while a connection that confirmed an older fingerprint is
   still in its handshake
 - **THEN** that connection saves nothing and is refused, and the next one asks to trust again
+
+#### Scenario: Server gains a key of another type
+- **WHEN** `sambadc01`'s pinned key is ECDSA and the server later also gets an Ed25519 key
+- **THEN** the panel still asks for the ECDSA key and connects without reporting a changed key
 
 #### Scenario: Key changed
 - **WHEN** `sambadc01` presents a host key different from the saved one

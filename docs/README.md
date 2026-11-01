@@ -21,6 +21,7 @@ Samba 4.23 on Ubuntu 26.04: everything comes from `config.toml` and the **Settin
 | Use Samba as DC and file server on the same machine | [dc-file-server.md](dc-file-server.md) |
 | Build that DC as a VM (separate XFS data disk) and move it to XCP-ng | [fileserver-vm.md](fileserver-vm.md) |
 | Bring folders over from another server (SMB) and restore files from quarantine | [sync.md](sync.md) |
+| Open an SSH shell to a server from the panel | [ssh-terminal.md](ssh-terminal.md) |
 | Use the app on my machine (Linux, Windows, macOS) | [desktop.md](desktop.md) |
 | Automate from the terminal | [cli.md](cli.md) |
 | Connect an AI agent (Claude, Codex…) to AD | [mcp.md](mcp.md) |

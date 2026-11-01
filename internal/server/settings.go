@@ -33,6 +33,7 @@ type Settings struct {
 	Swagger        bool   `json:"swagger"`         // API documentation at /swagger (administrators only; off by default)
 	Theme          string `json:"theme"`           // visual theme for every operator, one of the registry (themes.go); default "default"
 	Flat           bool   `json:"flat"`            // flat look: the theme without gradients and depth shadows
+	SSHTerminal    bool   `json:"ssh_terminal"`    // Terminal sub-tab: SSH to the agents' hosts (off by default)
 }
 
 const (
@@ -136,6 +137,9 @@ func (s *Server) putSettings(c *echo.Context) error {
 	audit.Log(sess(c).user, c.RealIP(), "settings.update", "", err)
 	if err != nil {
 		return fail(c, err)
+	}
+	if !st.SSHTerminal { // after the write: a terminal admitted before it is closed here, none is admitted after
+		s.closeTerminals(func(*terminal) bool { return true }, 0)
 	}
 	return c.JSON(http.StatusOK, st)
 }

@@ -62,6 +62,8 @@ type Server struct {
 	kpasswd          func(cfg *ad.Config, sam, oldPwd, newPwd string) error // Kerberos password change
 	rpc              rpcClient                                              // DNS and remote sessions (winrpc, in a child process)
 	linkMu           sync.Mutex                                             // serializes password link generation and use
+	terms            map[*terminal]bool                                     // open SSH terminals, under mu
+	sshPort          string                                                 // SSH port of the agents' hosts (tests change it)
 }
 
 // directory is the subset of *ad.Conn the handlers use (allows a fake in tests).
@@ -103,9 +105,12 @@ type directory interface {
 }
 
 // New builds the Echo instance with the API and the SPA. st may be nil.
-func New(cfg *config.Config, st *store.Store) *echo.Echo {
-	s := &Server{cfg: cfg, store: st, sessions: map[string]*session{}, fails: map[string][]time.Time{},
-		kpasswd: ad.ChangePasswordKerberos, rpc: winrpc.Isolated{Exe: self()},
+func New(cfg *config.Config, st *store.Store) *echo.Echo { return newServer(cfg, st).routes() }
+
+// newServer builds the Server behind New.
+func newServer(cfg *config.Config, st *store.Store) *Server {
+	return &Server{cfg: cfg, store: st, sessions: map[string]*session{}, fails: map[string][]time.Time{},
+		terms: map[*terminal]bool{}, sshPort: "22", kpasswd: ad.ChangePasswordKerberos, rpc: winrpc.Isolated{Exe: self()},
 		dial: func(c *ad.Config, u, p string) (directory, error) {
 			conn, err := ad.Dial(c, u, p)
 			if err != nil {
@@ -113,7 +118,6 @@ func New(cfg *config.Config, st *store.Store) *echo.Echo {
 			}
 			return conn, nil
 		}}
-	return s.routes()
 }
 
 // routes registers every route.
@@ -300,7 +304,8 @@ func Run(ctx context.Context, cfg *config.Config, insecureDev bool) error {
 		defer st.Close()
 	}
 
-	srv := &http.Server{Addr: sc.Listen, Handler: New(cfg, st), TLSConfig: tlsCfg, ReadHeaderTimeout: 10 * time.Second,
+	s := newServer(cfg, st)
+	srv := &http.Server{Addr: sc.Listen, Handler: s.routes(), TLSConfig: tlsCfg, ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() {
@@ -318,7 +323,9 @@ func Run(ctx context.Context, cfg *config.Config, insecureDev bool) error {
 	}
 	shut, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return srv.Shutdown(shut)
+	err = srv.Shutdown(shut)
+	s.closeTerminals(func(*terminal) bool { return true }, 5*time.Second) // Shutdown does not track hijacked connections
+	return err
 }
 
 // securityHeaders sets the security headers on every response.
@@ -381,7 +388,7 @@ func (s *Server) session(c *echo.Context) string {
 	s.mu.Lock()
 	se, ok := s.sessions[ck.Value]
 	if ok && time.Since(se.seen) > s.ttl() {
-		delete(s.sessions, ck.Value)
+		s.dropSession(ck.Value)
 		ok = false
 	}
 	if ok {
@@ -463,7 +470,7 @@ func (s *Server) login(c *echo.Context) error {
 	s.netbios = nb
 	for k, v := range s.sessions { // lazy cleanup
 		if time.Since(v.seen) > s.ttl() {
-			delete(s.sessions, k)
+			s.dropSession(k)
 		}
 	}
 	s.sessions[id] = &session{user: sam, pass: in.Password, seen: time.Now()}
@@ -476,7 +483,7 @@ func (s *Server) login(c *echo.Context) error {
 // logout handles POST /api/logout.
 func (s *Server) logout(c *echo.Context) error {
 	s.mu.Lock()
-	delete(s.sessions, c.Get("sid").(string))
+	s.dropSession(c.Get("sid").(string))
 	s.mu.Unlock()
 	c.SetCookie(&http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	return c.NoContent(http.StatusNoContent)

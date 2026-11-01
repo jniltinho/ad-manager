@@ -69,7 +69,9 @@ CREATE TABLE IF NOT EXISTS sync_secrets (
   agent INTEGER NOT NULL, job TEXT NOT NULL, secret BLOB NOT NULL, PRIMARY KEY (agent, job));
 CREATE TABLE IF NOT EXISTS password_links (
   id TEXT PRIMARY KEY, sam TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', secret BLOB NOT NULL,
-  expires TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, claim TEXT NOT NULL DEFAULT '');`
+  expires TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, claim TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS ssh_host_keys (
+  agent INTEGER PRIMARY KEY, key TEXT NOT NULL DEFAULT '', rev INTEGER NOT NULL DEFAULT 0);`
 
 // RestoreSuffix names the database a panel restoration staged beside the current one (<db>.restore).
 const RestoreSuffix = ".restore"
@@ -260,11 +262,43 @@ func (s *Store) SaveAgent(a *Agent) error {
 
 // DeleteAgent removes the registration (it does not touch the server).
 func (s *Store) DeleteAgent(id int64) error {
-	// its sync passwords go with it (a new agent may get the same id)
+	// its sync passwords and SSH host key go with it (a new agent may get the same id)
 	if _, err := s.db.Exec(`DELETE FROM sync_secrets WHERE agent = ?`, id); err != nil {
 		return err
 	}
+	if _, err := s.db.Exec(`DELETE FROM ssh_host_keys WHERE agent = ?`, id); err != nil {
+		return err
+	}
 	_, err := s.db.Exec(`DELETE FROM agents WHERE id = ?`, id)
+	return err
+}
+
+// HostKey returns the SSH host key pinned for agent id (an authorized_keys line, "" when none) and its revision.
+func (s *Store) HostKey(id int64) (key string, rev int64, err error) {
+	err = s.db.QueryRow(`SELECT key, rev FROM ssh_host_keys WHERE agent = ?`, id).Scan(&key, &rev)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", 0, nil
+	}
+	return key, rev, err
+}
+
+// TrustHostKey pins key for agent id only while none is pinned and the revision is still rev (read with HostKey
+// before the handshake): a reset in between makes it report false and save nothing.
+func (s *Store) TrustHostKey(id, rev int64, key string) (bool, error) {
+	res, err := s.db.Exec(`INSERT INTO ssh_host_keys (agent, key, rev) VALUES (?, ?, ?)
+		ON CONFLICT(agent) DO UPDATE SET key = excluded.key WHERE ssh_host_keys.key = '' AND ssh_host_keys.rev = excluded.rev`,
+		id, key, rev)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+// ResetHostKey clears the SSH host key pinned for agent id and bumps its revision.
+func (s *Store) ResetHostKey(id int64) error {
+	_, err := s.db.Exec(`INSERT INTO ssh_host_keys (agent, key, rev) VALUES (?, '', 1)
+		ON CONFLICT(agent) DO UPDATE SET key = '', rev = rev + 1`, id)
 	return err
 }
 

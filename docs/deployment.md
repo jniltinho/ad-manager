@@ -151,7 +151,8 @@ trust_proxy = true
 ```
 
 Without `cert_file` the panel only accepts listening on loopback, and only with `trust_proxy = true` (or
-`--insecure-dev`).
+`--insecure-dev`). The SSH terminal also needs the proxy to pass WebSocket upgrades and the original `Host`
+([ssh-terminal.md](ssh-terminal.md#behind-a-reverse-proxy)).
 
 ## Docker
 

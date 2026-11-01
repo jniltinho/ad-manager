@@ -249,6 +249,24 @@ const shots = [
     },
   ],
   [
+    '34-terminal',
+    async () => {
+      // needs Settings › SSH terminal on and an sshd on the DC agent's host (DOCS_SSH_PASS: its root password)
+      if (!process.env.DOCS_SSH_PASS) throw new Error('DOCS_SSH_PASS not set')
+      await go('/terminal')
+      await page.locator('#t-user').fill('root')
+      await page.locator('#t-pass').fill(process.env.DOCS_SSH_PASS)
+      await button(/^connect/i).click()
+      await button(/trust and connect/i).click()
+      await page.getByText(/connected as/i).waitFor()
+      await page.locator('[data-testid=terminal]').click()
+      await page.keyboard.type('samba-tool domain level show')
+      await page.keyboard.press('Enter')
+      await page.waitForTimeout(3000)
+      await snap('34-terminal')
+    },
+  ],
+  [
     '30-sync',
     async () => {
       await go('/sync')

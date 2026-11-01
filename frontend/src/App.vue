@@ -42,9 +42,11 @@ const linkToken = location.pathname.match(/^\/password\/([0-9a-f]{64})$/)?.[1] |
 const DEFAULT_SUPPORT = 'https://github.com/jniltinho/ad-manager/wiki'
 const router = useRouter()
 const route = useRoute()
-// the Backup tab also holds the Sync page (BackupTabs)
+// the Backup tab also holds the Sync and Terminal pages (BackupTabs)
 const isActive = (to) =>
-  to === '/' ? route.path === '/' : route.path.startsWith(to) || (to === '/backup' && route.path.startsWith('/sync'))
+  to === '/'
+    ? route.path === '/'
+    : route.path.startsWith(to) || (to === '/backup' && (route.path.startsWith('/sync') || route.path.startsWith('/terminal')))
 loadBrand()
 loadMe()
 

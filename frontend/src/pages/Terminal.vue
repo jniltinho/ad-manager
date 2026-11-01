@@ -1,0 +1,272 @@
+<script setup>
+// Terminal: an SSH shell to a registered server's host (port 22), carried by the panel over a WebSocket. The SSH
+// password, key and passphrase go only in the first message and are cleared once the shell opens; the host key is
+// pinned on first use. Not in the desktop app (its proxy carries no WebSocket).
+import { FileKey, KeyRound, Plug, Unplug, RefreshCw, SquareTerminal } from 'lucide-vue-next'
+import { nextTick, onUnmounted, ref } from 'vue'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
+import { del, get, onSessionChange, platform } from '../api'
+import { askConfirm } from '../dialogs'
+import { t } from '../i18n'
+import { toast } from '../toasts'
+import { agentHost, spinner } from '../util'
+import BackupTabs from '../components/BackupTabs.vue'
+
+const desktop = !!platform.configure
+const agents = ref([])
+const currentId = ref(0)
+const loading = ref(false)
+const spin = spinner(loading)
+const form = ref({ user: 'root', password: '', key: '', keyName: '', passphrase: '' })
+const state = ref('idle') // idle, connecting, open
+const error = ref('')
+const termEl = ref(null)
+let ws = null
+let term = null
+let fit = null
+let resizeObs = null
+let attempts = 0 // the latest connect: an older socket's answers are ignored
+const keyInput = ref(null)
+
+async function load() {
+  loading.value = true
+  try {
+    agents.value = await get('/agents')
+    if (!agents.value.some((a) => a.id === currentId.value)) currentId.value = agents.value[0]?.id || 0
+  } catch (e) {
+    toast.error(e.message)
+  }
+  loading.value = false
+}
+const current = () => agents.value.find((a) => a.id === currentId.value)
+function pick(id) {
+  if (state.value !== 'idle') return // one terminal per page: disconnect first
+  currentId.value = id
+  error.value = ''
+}
+
+async function pickKey(ev) {
+  const f = ev.target.files[0]
+  ev.target.value = ''
+  if (!f) return
+  if (f.size > 32 << 10) return toast.error(t('The key file is too large.'))
+  form.value.key = await f.text()
+  form.value.keyName = f.name
+}
+function clearKey() {
+  form.value.key = form.value.keyName = form.value.passphrase = ''
+}
+function forget() {
+  form.value.password = ''
+  clearKey()
+}
+
+const codes = {
+  auth_failed: 'SSH authentication failed',
+  hostkey_changed: 'The host key of {server} changed',
+  unreachable: 'The server does not answer on port 22',
+  timeout: 'The server did not answer',
+  closed: 'Connection closed',
+  bad_request: 'Enter the user and a password or a key',
+  internal: 'The panel could not open the terminal',
+}
+
+// the terminal takes the panel theme's surface and text roles
+function termTheme() {
+  const css = getComputedStyle(document.documentElement)
+  const role = (r) => css.getPropertyValue(`--color-${r}`).trim()
+  return { background: role('surface'), foreground: role('fg'), cursor: role('fg-strong'), selectionBackground: role('row-hover') }
+}
+
+function ensureTerm() {
+  if (term) return
+  term = new Terminal({
+    cursorBlink: true,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
+    fontSize: 13,
+    theme: termTheme(),
+  })
+  fit = new FitAddon()
+  term.loadAddon(fit)
+  term.open(termEl.value)
+  fit.fit()
+  term.onData((d) => ws?.readyState === WebSocket.OPEN && state.value === 'open' && ws.send(new TextEncoder().encode(d)))
+  term.onResize(({ cols, rows }) => state.value === 'open' && ws.send(JSON.stringify({ type: 'resize', cols, rows })))
+  resizeObs = new ResizeObserver(() => fit.fit())
+  resizeObs.observe(termEl.value)
+}
+
+async function connect(trust = '') {
+  const a = current()
+  if (!a || desktop) return
+  error.value = ''
+  state.value = 'connecting'
+  await nextTick()
+  ensureTerm()
+  term.reset()
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+  const sock = new WebSocket(`${proto}://${location.host}/api/agents/${a.id}/ssh`)
+  const n = ++attempts
+  ws = sock
+  sock.binaryType = 'arraybuffer'
+  let answered = false
+  sock.onopen = () => {
+    const { user, password, key, passphrase } = form.value
+    sock.send(JSON.stringify({ user, password, key, passphrase, cols: term.cols, rows: term.rows, trust }))
+  }
+  sock.onmessage = async (ev) => {
+    if (typeof ev.data !== 'string') return term.write(new Uint8Array(ev.data))
+    answered = true
+    const m = JSON.parse(ev.data)
+    if (m.type === 'ready') {
+      state.value = 'open'
+      forget() // the credential is not kept once the shell is open
+      term.focus()
+    } else if (m.type === 'hostkey') {
+      state.value = 'idle'
+      const ok = await askConfirm(
+        t('First connection to {server}. Check that its SSH host key fingerprint is:', { server: a.name }) +
+          '\n\n' +
+          `${m.key_type} ${m.fingerprint}`,
+        { title: t('Trust the host key?'), ok: t('Trust and connect') },
+      )
+      if (ok && n === attempts) connect(m.fingerprint)
+    } else if (m.type === 'error') {
+      error.value = t(codes[m.code] || codes.internal, { server: a.name })
+      if (state.value === 'open') term.write('\r\n\x1b[2m[' + error.value + ']\x1b[0m\r\n')
+    }
+  }
+  sock.onclose = () => {
+    if (ws !== sock) return
+    // closed before any answer: the upgrade was refused (switched off, 4 terminals already, signed out) or dropped
+    if (!answered && state.value === 'connecting') error.value = t('The terminal could not be opened.')
+    if (state.value === 'open' && !error.value) term.write('\r\n\x1b[2m[' + t('Connection closed') + ']\x1b[0m\r\n')
+    state.value = 'idle'
+    ws = null
+  }
+}
+
+function disconnect() {
+  ws?.close()
+}
+
+async function resetKey() {
+  const a = current()
+  if (!a) return
+  if (
+    !(await askConfirm(t('Clear the SSH host key saved for {server}? The next connection asks to trust it again.', { server: a.name }), {
+      ok: t('Clear'),
+    }))
+  )
+    return
+  try {
+    await del(`/agents/${a.id}/ssh/hostkey`)
+    error.value = ''
+    toast.success(t('SSH host key cleared.'))
+  } catch (e) {
+    toast.error(e.message)
+  }
+}
+
+const offSession = onSessionChange(() => ws?.close())
+onUnmounted(() => {
+  attempts++ // a trust confirmed after leaving the page connects nothing
+  offSession()
+  ws?.close()
+  resizeObs?.disconnect()
+  term?.dispose()
+})
+if (!desktop) load()
+</script>
+
+<template>
+  <div class="flex h-full min-h-0 flex-col">
+    <BackupTabs />
+    <p v-if="desktop" class="p-3 text-fg-muted">{{ t('The SSH terminal is not available in the desktop app') }}</p>
+    <div v-else class="grid min-h-0 flex-1 gap-5 lg:grid-cols-[300px_1fr] lg:grid-rows-[minmax(0,1fr)]">
+      <aside class="flex min-h-0 flex-col gap-5">
+        <section class="card">
+          <div class="card-h flex items-center justify-between">
+            {{ t('Servers') }}
+            <button class="act normal-case" :disabled="loading" @click="load">
+              <RefreshCw :class="spin && 'motion-safe:animate-spin'" :size="12" /> {{ t('refresh') }}
+            </button>
+          </div>
+          <ul class="side-nav divide-y divide-line text-[12px]">
+            <li
+              v-for="a in agents"
+              :key="a.id"
+              class="px-3 py-2 font-semibold"
+              :class="[
+                currentId === a.id ? 'nav-on bg-nav-on text-on-nav-on shadow-(--shadow-nav-on)' : 'hover:bg-row-hover',
+                state === 'idle' ? 'cursor-pointer' : 'cursor-not-allowed',
+              ]"
+              :aria-current="currentId === a.id || null"
+              @click="pick(a.id)"
+            >
+              {{ a.name }}
+              <span class="block text-[11px] font-normal">{{ agentHost(a.url) }}</span>
+            </li>
+            <li v-if="!agents.length" class="px-3 py-3 text-fg-muted">{{ t('No servers.') }}</li>
+          </ul>
+        </section>
+        <p class="text-[11px] text-fg-muted">
+          {{
+            t(
+              "SSH to the host of the server's agent URL, port 22. The password or key is used only to sign in and is not kept. Commands run here skip the panel's protections and audit: the server's own login records are the record.",
+            )
+          }}
+        </p>
+      </aside>
+
+      <section v-if="current()" class="card flex min-h-0 flex-col">
+        <div class="card-h flex items-center gap-3">
+          <SquareTerminal :size="14" /> {{ current().name }}
+          <span class="font-normal normal-case text-fg-muted">{{ agentHost(current().url) }}:22</span>
+          <button class="act ml-auto normal-case" :disabled="state !== 'idle'" @click="resetKey">
+            <KeyRound :size="12" /> {{ t('Clear SSH host key') }}
+          </button>
+        </div>
+        <form v-if="state !== 'open'" class="flex flex-wrap items-end gap-2 p-3" @submit.prevent="connect()">
+          <div>
+            <label class="lbl" for="t-user">{{ t('User') }}</label>
+            <input id="t-user" v-model.trim="form.user" class="inp w-40" autocomplete="off" required />
+          </div>
+          <div>
+            <label class="lbl" for="t-pass">{{ t('Password') }}</label>
+            <input id="t-pass" v-model="form.password" type="password" class="inp w-48" autocomplete="off" />
+          </div>
+          <div>
+            <span class="lbl">{{ t('Private key') }}</span>
+            <!-- the panel's own button, not the browser's file field (aligned with the inputs, translated) -->
+            <input ref="keyInput" type="file" class="hidden" @change="pickKey" />
+            <span v-if="form.keyName" class="flex items-center gap-2">
+              <span class="tag bg-surface-2">{{ form.keyName }}</span>
+              <button type="button" class="act" @click="clearKey">{{ t('remove') }}</button>
+            </span>
+            <button v-else type="button" class="btn-ghost" @click="keyInput.click()">
+              <FileKey :size="13" /> {{ t('Choose a key file (optional)') }}
+            </button>
+          </div>
+          <div v-if="form.keyName">
+            <label class="lbl" for="t-phrase">{{ t('Passphrase') }}</label>
+            <input id="t-phrase" v-model="form.passphrase" type="password" class="inp w-40" autocomplete="off" />
+          </div>
+          <button class="btn" :disabled="state !== 'idle' || !form.user || (!form.password && !form.key)">
+            <Plug :size="14" /> {{ state === 'connecting' ? t('Connecting…') : t('Connect') }}
+          </button>
+        </form>
+        <div v-else class="flex items-center gap-2 p-3">
+          <span class="text-fg-muted">{{ t('Connected as {user}', { user: form.user }) }}</span>
+          <button class="btn-ghost ml-auto" @click="disconnect"><Unplug :size="14" /> {{ t('Disconnect') }}</button>
+        </div>
+        <p v-if="error" class="px-3 pb-2 text-err" role="alert">{{ error }}</p>
+        <div class="min-h-[320px] flex-1 bg-surface p-2">
+          <div ref="termEl" class="h-full w-full" data-testid="terminal"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>

@@ -15,6 +15,7 @@ const pages = [
   ['/import-export', 'Import/export', () => import('./pages/ImportExport.vue')],
   ['/backup', 'Backup', () => import('./pages/Backup.vue')],
   ['/sync', 'Sync', () => import('./pages/Sync.vue')],
+  ['/terminal', 'Terminal', () => import('./pages/Terminal.vue')],
   ['/logs', 'Logs', () => import('./pages/Logs.vue')],
   ['/settings', 'Settings', () => import('./pages/Settings.vue')],
 ]

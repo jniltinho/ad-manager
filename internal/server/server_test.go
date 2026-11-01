@@ -45,7 +45,7 @@ const goodPassword = "Right-Password-1"
 func newTest(t *testing.T, admin bool) (*Server, http.Handler) {
 	t.Helper()
 	cfg := &config.Config{AD: ad.Config{Domain: "empresa.test", URL: "ldaps://127.0.0.1:1"}, Server: config.Server{SessionMinutes: 30}}
-	s := &Server{cfg: cfg, sessions: map[string]*session{}, fails: map[string][]time.Time{}}
+	s := &Server{cfg: cfg, sessions: map[string]*session{}, fails: map[string][]time.Time{}, terms: map[*terminal]bool{}, sshPort: "22"}
 	s.dial = func(_ *ad.Config, user, pass string) (directory, error) {
 		if pass != goodPassword {
 			return nil, ad.ErrBadLogin
