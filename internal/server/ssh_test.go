@@ -261,6 +261,31 @@ func waitFor(t *testing.T, ws *websocket.Conn, want string) {
 	}
 }
 
+// waitForSize types `size` until the shell reports want: the resize travels as an SSH channel request, apart from
+// the keystrokes, so the test server may apply it after a `size` sent right behind it.
+func waitForSize(t *testing.T, ws *websocket.Conn, want string) {
+	t.Helper()
+	for range 50 {
+		typeIn(t, ws, "size\r")
+		_ = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
+		var out []byte
+		for !bytes.Contains(out, []byte("\r\n$ ")) {
+			var f termFrame
+			if err := frameCodec.Receive(ws, &f); err != nil {
+				t.Fatalf("waiting for %q, got %q: %v", want, out, err)
+			}
+			if f.typ == websocket.BinaryFrame {
+				out = append(out, f.data...)
+			}
+		}
+		if bytes.Contains(out, []byte(want)) {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("the PTY never reported %s", want)
+}
+
 func typeIn(t *testing.T, ws *websocket.Conn, s string) {
 	t.Helper()
 	if err := frameCodec.Send(ws, termFrame{websocket.BinaryFrame, []byte(s)}); err != nil {
@@ -361,8 +386,7 @@ func TestSSHTerminalSession(t *testing.T) {
 	_ = frameCodec.Send(ws, termFrame{websocket.TextFrame, b})
 	// binary input that happens to be resize JSON is typed, not obeyed
 	typeIn(t, ws, `{"type":"resize","cols":1,"rows":1}`+"\r")
-	typeIn(t, ws, "size\r")
-	waitFor(t, ws, "120x40")
+	waitForSize(t, ws, "120x40")
 	typeIn(t, ws, "exit\r")
 	if m := control(t, ws); m["code"] != codeClosed {
 		t.Fatalf("exit: %v", m)
@@ -609,8 +633,7 @@ func TestSSHTerminalResizeIsNotActivity(t *testing.T) {
 	st.s.mu.Unlock()
 	b, _ := json.Marshal(map[string]any{"type": "resize", "cols": 100, "rows": 30})
 	_ = frameCodec.Send(ws, termFrame{websocket.TextFrame, b})
-	typeIn(t, ws, "size\r")
-	waitFor(t, ws, "100x30")
+	waitForSize(t, ws, "100x30")
 	st.s.mu.Lock()
 	seen := st.s.sessions[st.cookie.Value].seen
 	st.s.mu.Unlock()
