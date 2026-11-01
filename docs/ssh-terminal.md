@@ -27,6 +27,9 @@ closes every open terminal at once.
 - The **password, key and passphrase** go only in the first message, are used to sign in and are not kept: not in
   the database, the logs, the audit or the browser's storage. The form clears once the shell opens. SSH errors are
   shown as fixed messages, never the server's text.
+- The terminal is `xterm-256color` (the PTY's `TERM`) with the classic xterm palette — black background, the 16
+  ANSI colors and the 256-color cube — the same in every panel theme.
+- **Shift+Insert** pastes the clipboard into the terminal (the browser asks once to allow reading it).
 - The desktop app does not have it (its proxy carries no WebSocket): the sub-tab shows disabled there.
 
 ## Host key

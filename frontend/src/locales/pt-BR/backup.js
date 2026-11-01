@@ -117,4 +117,5 @@ export default {
   "SSH to the registered servers from the panel. Commands run there skip the panel's protections and audit (only the connection is audited). Turning it off closes open terminals.":
     'SSH para os servidores cadastrados a partir do painel. Comandos executados lá não passam pelas proteções nem pela auditoria do painel (só a conexão é auditada). Desligar fecha os terminais abertos.',
   'Choose a key file (optional)': 'Escolher arquivo de chave (opcional)',
+  'The browser did not allow reading the clipboard.': 'O navegador não permitiu ler a área de transferência.',
 }

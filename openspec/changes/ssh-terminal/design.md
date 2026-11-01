@@ -96,7 +96,9 @@ Settings switch and `docs/` say so, and the host's own `auth.log` and shell hist
 keeps the Backup top tab active on `/terminal`. `pages/Terminal.vue`: the Servers list on the left (agents only, as
 in Backup), and on the right user, password or key file (read with `FileReader`, never stored), Connect/Disconnect,
 "Clear SSH host key" for the selected server, the fingerprint confirmation dialog, and the xterm.js view with
-`@xterm/addon-fit`. A fixed dark terminal palette and a monospace font; the frame follows the theme. In the desktop
+`@xterm/addon-fit`. The terminal is `xterm-256color` with the classic xterm palette (black background, the 16 ANSI colors, xterm.js
+deriving the 256-color cube), the same in every theme: the colors live in `src/themes/xterm.js`, the one place
+the color lint allows literals; a monospace font; the frame follows the theme. In the desktop
 app the sub-tab is disabled and the page, reached directly at `/terminal`, shows the message and opens no WebSocket.
 
 ## Risks

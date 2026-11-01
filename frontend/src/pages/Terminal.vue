@@ -7,6 +7,7 @@ import { nextTick, onUnmounted, ref } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import xtermColors from '../themes/xterm'
 import { del, get, onSessionChange, platform } from '../api'
 import { askConfirm } from '../dialogs'
 import { t } from '../i18n'
@@ -73,25 +74,29 @@ const codes = {
   internal: 'The panel could not open the terminal',
 }
 
-// the terminal takes the panel theme's surface and text roles
-function termTheme() {
-  const css = getComputedStyle(document.documentElement)
-  const role = (r) => css.getPropertyValue(`--color-${r}`).trim()
-  return { background: role('surface'), foreground: role('fg'), cursor: role('fg-strong'), selectionBackground: role('row-hover') }
-}
-
 function ensureTerm() {
   if (term) return
   term = new Terminal({
     cursorBlink: true,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
     fontSize: 13,
-    theme: termTheme(),
+    theme: xtermColors,
   })
   fit = new FitAddon()
   term.loadAddon(fit)
   term.open(termEl.value)
   fit.fit()
+  // Shift+Insert pastes the clipboard, as in a desktop terminal (the browser does not send it to xterm.js)
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.key !== 'Insert' || !e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return true
+    e.preventDefault()
+    if (e.type === 'keydown')
+      navigator.clipboard
+        ?.readText()
+        .then((text) => text && term.paste(text))
+        .catch(() => toast.error(t('The browser did not allow reading the clipboard.')))
+    return false
+  })
   term.onData((d) => ws?.readyState === WebSocket.OPEN && state.value === 'open' && ws.send(new TextEncoder().encode(d)))
   term.onResize(({ cols, rows }) => state.value === 'open' && ws.send(JSON.stringify({ type: 'resize', cols, rows })))
   resizeObs = new ResizeObserver(() => fit.fit())
@@ -263,10 +268,23 @@ if (!desktop) load()
           <button class="btn-ghost ml-auto" @click="disconnect"><Unplug :size="14" /> {{ t('Disconnect') }}</button>
         </div>
         <p v-if="error" class="px-3 pb-2 text-err" role="alert">{{ error }}</p>
-        <div class="min-h-[320px] flex-1 bg-surface p-2">
+        <div class="term-box min-h-[320px] flex-1">
           <div ref="termEl" class="h-full w-full" data-testid="terminal"></div>
         </div>
       </section>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* the terminal's own black fills the whole box (xterm.js paints its viewport, which covers the padding box) */
+.term-box :deep(.xterm) {
+  height: 100%;
+  padding: 6px;
+}
+/* a thin scrollbar (xterm.js sets 14 px inline); its colors are the palette's (themes/xterm.js) */
+.term-box :deep(.xterm-scrollable-element > .scrollbar.vertical),
+.term-box :deep(.xterm-scrollable-element > .scrollbar.vertical > .slider) {
+  width: 6px !important;
+}
+</style>

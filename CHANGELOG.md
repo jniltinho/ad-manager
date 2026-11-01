@@ -7,7 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 - SSH terminal: a **Terminal** sub-tab beside Backup and Sync opens an SSH shell (xterm.js) to the host of a
-  registered server, port 22, with a password or a private key. The SSH client runs in the panel over a
+  registered server, port 22, with a password or a private key; `xterm-256color` with the classic xterm
+  palette, a thin scrollbar and Shift+Insert to paste. The SSH client runs in the panel over a
   same-origin WebSocket; off by default (Settings), host key pinned on first use, at most 4 terminals per operator,
   closed with the panel session; the credential is never kept and only the connection is audited (`ssh.open`,
   `ssh.close`, `ssh.hostkey.trust`, `ssh.hostkey.reset`). Not in the desktop app. See `docs/ssh-terminal.md`.

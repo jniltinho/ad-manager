@@ -260,7 +260,7 @@ const shots = [
       await button(/trust and connect/i).click()
       await page.getByText(/connected as/i).waitFor()
       await page.locator('[data-testid=terminal]').click()
-      await page.keyboard.type('samba-tool domain level show')
+      await page.keyboard.type('ls --color=auto /var/lib/samba; samba-tool domain level show')
       await page.keyboard.press('Enter')
       await page.waitForTimeout(3000)
       await snap('34-terminal')
