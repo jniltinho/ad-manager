@@ -69,13 +69,13 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	shell, files, configure := &Shell{d: d}, &Files{d: d}, &Configure{d: d}
+	shell, files, configure, terminals := &Shell{d: d}, &Files{d: d}, &Configure{d: d}, &Terminals{d: d}
 	opts := application.Options{
 		Name:        "AD Manager",
 		Description: "AD Manager desktop",
 		LogLevel:    slog.LevelInfo, // never Debug: Wails logs binding arguments there
 		Services: []application.Service{application.NewService(shell), application.NewService(files),
-			application.NewService(configure)},
+			application.NewService(configure), application.NewService(terminals)},
 		Assets: application.AssetOptions{
 			Handler:        application.AssetFileServerFS(dist),
 			Middleware:     application.ChainMiddleware(smokeRoutes, d.routes),

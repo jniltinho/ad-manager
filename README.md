@@ -38,7 +38,7 @@ shares with Windows permissions, backups and migrations — behind one fast, aud
   <tr>
     <td width="33%" valign="top"><b>👤 Directory, done right</b><br>Users, groups, OUs, computers and password policy. Password generator and <b>self-service reset links</b>.</td>
     <td width="33%" valign="top"><b>🗂️ Shares with real NTFS ACLs</b><br>Folders and shares on Samba with Windows permissions, history and one-click restore.</td>
-    <td width="33%" valign="top"><b>💾 Backup &amp; sync</b><br>Back up DCs, file servers and the panel on a schedule; pull folders from any SMB server.</td>
+    <td width="33%" valign="top"><b>💾 Backup, sync &amp; SSH</b><br>Back up DCs, file servers and the panel on a schedule; pull folders from any SMB server; open an <b>SSH terminal</b> to any managed server.</td>
   </tr>
   <tr>
     <td valign="top"><b>🧭 Setup wizard</b><br>Turn a fresh Ubuntu server into a domain controller or file server — from the browser.</td>
@@ -54,7 +54,7 @@ shares with Windows permissions, backups and migrations — behind one fast, aud
 
 <p align="center">
   <img src="docs/screenshots/12-edit-share.png" alt="Shares with Windows permissions" width="33%">
-  <img src="docs/screenshots/31-sync-wizard.png" alt="Sync wizard" width="33%">
+  <img src="docs/screenshots/34-terminal.png" alt="SSH terminal" width="33%">
   <img src="docs/screenshots/desktop-05-users.png" alt="Desktop app" width="29.7%">
 </p>
 

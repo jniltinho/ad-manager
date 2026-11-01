@@ -19,6 +19,9 @@ because it is the same code: **Home**, **Users**, **Groups**, **OUs** (with GPOs
 **Import/export**, **Backup** and **Sync**, **Logs** and **Settings**. On top of the web panel:
 
 - **Configure** (first run, the sign-in box and the tab bar, next to Queues): the panel, the account and this computer's preferences.
+- **SSH terminal** (Backup › Terminal, when the panel turns it on): the app's Go opens the panel's terminal WebSocket
+  with the session's cookie and the pinned certificate, and passes the terminal to the window; Shift+Insert pastes
+  the system clipboard ([ssh-terminal.md](ssh-terminal.md)).
 - **The panel's certificate is pinned**: a self-signed one is accepted only after the operator trusts its
   fingerprint, and then only that certificate. A redirect is never followed, and only `https://` is used.
 - **The session stays in the app**: the panel's session cookie is kept in Go and never reaches the page. Nothing of

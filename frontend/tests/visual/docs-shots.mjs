@@ -249,6 +249,20 @@ const shots = [
     },
   ],
   [
+    '35-terminal-hostkey',
+    async () => {
+      // the first connection's host key confirmation (run before 34-terminal, which trusts the key)
+      if (!process.env.DOCS_SSH_PASS) throw new Error('DOCS_SSH_PASS not set')
+      await go('/terminal')
+      await page.locator('#t-user').fill('root')
+      await page.locator('#t-pass').fill(process.env.DOCS_SSH_PASS)
+      await button(/^connect/i).click()
+      await button(/trust and connect/i).waitFor()
+      await snap('35-terminal-hostkey')
+      await button(/^cancel/i).click()
+    },
+  ],
+  [
     '34-terminal',
     async () => {
       // needs Settings › SSH terminal on and an sshd on the DC agent's host (DOCS_SSH_PASS: its root password)
@@ -257,7 +271,9 @@ const shots = [
       await page.locator('#t-user').fill('root')
       await page.locator('#t-pass').fill(process.env.DOCS_SSH_PASS)
       await button(/^connect/i).click()
-      await button(/trust and connect/i).click()
+      await button(/trust and connect/i)
+        .click({ timeout: 5000 })
+        .catch(() => {}) // already trusted by an earlier run
       await page.getByText(/connected as/i).waitFor()
       await page.locator('[data-testid=terminal]').click()
       await page.keyboard.type('ls --color=auto /var/lib/samba; samba-tool domain level show')

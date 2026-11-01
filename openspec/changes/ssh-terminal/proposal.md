@@ -28,8 +28,10 @@ already manages, from the same browser session, with an audit line for each sess
   it.
 - **Session bound to the panel session**: logout, panel session expiry, panel shutdown or switch off closes the
   terminal; terminal input counts as activity. At most 4 terminals per operator.
-- **Desktop app**: the Wails asset proxy carries no WebSocket, so the Terminal sub-tab shows disabled there with
-  "The SSH terminal is not available in the desktop app", like Queues, and `/terminal` opens nothing.
+- **Desktop app**: the Wails asset proxy carries no WebSocket, so the desktop's Go opens the panel's terminal
+  WebSocket itself (the session's cookie, the panel's origin, the pinned certificate) and passes its frames to the
+  page as Wails events; the Terminal sub-tab works the same as on the web. Shift+Insert reads the clipboard in Go
+  (the window denies clipboard reads to the page).
 
 ### Why the panel and not the agent
 
@@ -53,7 +55,7 @@ not the WASM client.
 
 Free host or port, a per-server SSH port, using the panel's AD credential for SSH, SFTP/file transfer, jump hosts,
 SSH agent forwarding, session recording, command filtering, several terminals inside one page (open another browser
-tab), SSH to "This panel"'s host, the desktop app.
+tab), SSH to "This panel"'s host.
 
 ## Capabilities
 
@@ -63,7 +65,7 @@ tab), SSH to "This panel"'s host, the desktop app.
 
 ### Modified Capabilities
 
-- `app-desktop-wails`: the Terminal sub-tab disabled in the desktop app (added requirement).
+- `app-desktop-wails`: the SSH terminal through the desktop's Go (added requirement).
 - `web-panel`: the Audit requirement gains the SSH terminal exception (connection audited, not its commands).
 
 ## Impact

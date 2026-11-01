@@ -11,7 +11,9 @@ All notable changes to this project are documented here. The format follows
   palette, a thin scrollbar and Shift+Insert to paste. The SSH client runs in the panel over a
   same-origin WebSocket; off by default (Settings), host key pinned on first use, at most 4 terminals per operator,
   closed with the panel session; the credential is never kept and only the connection is audited (`ssh.open`,
-  `ssh.close`, `ssh.hostkey.trust`, `ssh.hostkey.reset`). Not in the desktop app. See `docs/ssh-terminal.md`.
+  `ssh.close`, `ssh.hostkey.trust`, `ssh.hostkey.reset`). In the desktop app too: its Go opens the panel's
+  terminal WebSocket (session cookie, pinned certificate) and passes the frames to the window. See
+  `docs/ssh-terminal.md`.
 
 ## [0.28.0] — 2026-10-28
 

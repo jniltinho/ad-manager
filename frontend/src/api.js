@@ -40,7 +40,7 @@ export const setGeneration = (gen) => (generation = gen)
 
 // platform holds what the desktop replaces (src/desktop): file saving and sending, the upload limit of its bridge,
 // the panel's origin for links used outside the app, a screen shown instead of the app (Configure) and how to open
-// it, this computer's appearance over the panel's, the user the sign-in starts with
+// it, this computer's appearance over the panel's, the user the sign-in starts with, the SSH terminal's transport
 export const platform = shallowReactive({
   saveFile: null,
   sendFile: null,
@@ -51,6 +51,8 @@ export const platform = shallowReactive({
   themes: [], // the theme registry when the panel's is not there (the desktop's copy)
   appearance: reactive({ theme: '', flat: '' }),
   defaultUser: '',
+  terminal: null, // the SSH terminal's WebSocket (the desktop opens the panel's in Go)
+  readClipboard: null, // the clipboard's text for the terminal's Shift+Insert (the desktop reads it in Go)
 })
 
 // endSession ends the session on screen: a 401 of the current session, or a transfer the panel refused as signed

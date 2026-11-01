@@ -60,6 +60,52 @@ export async function install() {
       if (apiPath) await call('Files', 'SaveFromPanel', session(), apiPath, name)
       else await call('Files', 'SaveText', name, text)
     },
+    // the SSH terminal: the webview opens no WebSocket (the asset proxy carries none, the cookie is in Go), so Go opens
+    // the panel's (terminal.go) and its frames come as "adm:terminal" events; this has the WebSocket's shape
+    terminal(agentId) {
+      const sock = { readyState: 0, binaryType: 'arraybuffer', error: '', onopen: null, onmessage: null, onclose: null }
+      let id = 0
+      let off = () => {}
+      let queue = Promise.resolve() // one call at a time, in order, as a WebSocket sends: a pasted line before its Enter
+      const closed = () => {
+        if (sock.readyState === 3) return
+        sock.readyState = 3
+        off()
+        sock.onclose?.()
+      }
+      sock.send = (d) => {
+        if (sock.readyState !== 1) return
+        // ignoreBOM: a pasted text's leading U+FEFF is typed as the browser's WebSocket would send it
+        const [method, arg] = typeof d === 'string' ? ['Control', d] : ['Input', new TextDecoder('utf-8', { ignoreBOM: true }).decode(d)]
+        queue = queue.then(() => call('Terminals', method, id, arg)).catch(closed)
+      }
+      sock.close = () => {
+        // after the input already queued (an Enter then Disconnect still runs the command)
+        if (id && sock.readyState !== 3) queue = queue.then(() => call('Terminals', 'Close', id)).catch(() => {})
+        closed()
+      }
+      call('Terminals', 'Open', session(), agentId).then(
+        (n) => {
+          if (sock.readyState === 3) return call('Terminals', 'Close', n)
+          id = n
+          // subscribed before the first message goes: the panel sends nothing until it gets it
+          off = Events.On('adm:terminal', ({ data: m }) => {
+            if (m.id !== id) return
+            if (m.closed) closed()
+            else if (m.text != null) sock.onmessage?.({ data: m.text })
+            else sock.onmessage?.({ data: Uint8Array.from(atob(m.data), (c) => c.charCodeAt(0)).buffer })
+          })
+          sock.readyState = 1
+          sock.onopen?.()
+        },
+        (e) => {
+          sock.error = e.message
+          closed()
+        },
+      )
+      return sock
+    },
+    readClipboard: () => call('Terminals', 'Clipboard'),
     async sendFile(apiPath, onProgress) {
       const off = Events.On('adm:upload-progress', (e) => onProgress?.(Math.round((100 * e.data.sent) / (e.data.total || 1))))
       // a transfer whose session ends never settles: its listener goes with the session

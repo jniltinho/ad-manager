@@ -24,6 +24,7 @@ permissions on Samba file servers.
 | 👤 **Directory** | Users, groups, OUs, computers and password policy: create, edit, move, enable/disable, delete with typed confirmation, password generator and **self-service password links** |
 | 🗂️ **File servers** | Folders and shares with **Windows (NTFS) ACLs** per group and user, permission history and one-click restore, recycle bin, access-based enumeration and file auditing |
 | 💾 **Backup** | Domain controller, file servers and the panel itself, with schedules, retention and restore |
+| 🖥️ **SSH terminal** | An SSH shell to the managed servers inside the panel and the desktop app (xterm, 256 colors), off by default, host key pinned, every session audited |
 | 🔄 **Folder sync** | Bring folders from another SMB server (Windows or Samba) with a wizard, preview, quarantine and verification |
 | 🧭 **Setup wizard** | Turn a fresh Ubuntu server into a domain controller or a file server from the browser |
 | 🚚 **Migration** | Windows → Samba: inventory, comparison, import from another AD (users, groups, DNS, shares) and DC join |
@@ -45,6 +46,10 @@ permissions on Samba file servers.
 | Setup wizard | Desktop app |
 |---|---|
 | ![Setup](screenshots/setup-5-details.png) | ![Desktop](screenshots/desktop-05-users.png) |
+
+| SSH terminal (Backup › Terminal) | Host key on first connection |
+|---|---|
+| ![Terminal](screenshots/34-terminal.png) | ![Host key](screenshots/35-terminal-hostkey.png) |
 
 <p align="center">
   <img src="screenshots/themes.jpg" alt="The 20 themes" width="80%">

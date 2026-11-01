@@ -11,6 +11,8 @@ registered server from the panel: pick the server on the left, enter the SSH use
 It is **off by default**. In **Settings**, check **SSH terminal (Backup › Terminal)** and save. Turning it off
 closes every open terminal at once.
 
+![Settings](screenshots/17-settings.png)
+
 > Commands run in the terminal skip the panel's protections (protected accounts, DCs, OUs…) and its audit: the
 > panel records only the connection (`ssh.open`, `ssh.close`). The server's own login records (`auth.log`,
 > shell history) are the record of what was done.
@@ -30,9 +32,14 @@ closes every open terminal at once.
 - The terminal is `xterm-256color` (the PTY's `TERM`) with the classic xterm palette — black background, the 16
   ANSI colors and the 256-color cube — the same in every panel theme.
 - **Shift+Insert** pastes the clipboard into the terminal (the browser asks once to allow reading it).
-- The desktop app does not have it (its proxy carries no WebSocket): the sub-tab shows disabled there.
+- **Desktop app**: the same sub-tab. The window cannot open the panel's WebSocket (its asset proxy carries none and
+  the session cookie stays in Go), so the app's Go opens it — with the session's cookie, the panel's origin and the
+  certificate trusted in Configure — and passes the terminal's bytes to the window. Signing out or changing the panel
+  in Configure closes it. Shift+Insert reads the system clipboard in Go (the window denies clipboard reads to pages).
 
 ## Host key
+
+![Host key](screenshots/35-terminal-hostkey.png)
 
 The first connection to a server shows the type and **SHA-256 fingerprint** of its SSH host key (Ed25519 when the
 server has one) and asks to trust it; check it on the server with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`

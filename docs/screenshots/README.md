@@ -72,6 +72,10 @@ demo environment: the all-in-one image
 |---|---|
 | ![Run log](33-sync-log.png) | ![Terminal](34-terminal.png) |
 
+| SSH terminal — host key on the first connection |  |
+|---|---|
+| ![Host key](35-terminal-hostkey.png) |  |
+
 ### Policy, import and logs
 
 | Password policy (Users → Password policy) | Import/export |
@@ -176,9 +180,9 @@ Everything runs locally, with passwords only in environment variables.
    (cd frontend && DOCS_PASS="$AD_ADMIN_PASSWORD" DOCS_SYNC_PASS='<test account password>' node tests/visual/docs-shots.mjs ../docs/screenshots)
    ```
 
-   `34-terminal` needs **SSH terminal** on in Settings and an `sshd` in the container (`apt-get install
+   `35-terminal-hostkey` and `34-terminal` (in that order: 34 trusts the key) need **SSH terminal** on in Settings and an `sshd` in the container (`apt-get install
    openssh-server`, `PermitRootLogin yes`, a root password for the demo only), passed as `DOCS_SSH_PASS`; without it
-   that shot fails and the others go on.
+   those shots fail and the others go on.
 
 4. Setup (fictitious data, after `npm run build`):
 

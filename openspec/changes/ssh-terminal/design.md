@@ -99,7 +99,24 @@ in Backup), and on the right user, password or key file (read with `FileReader`,
 `@xterm/addon-fit`. The terminal is `xterm-256color` with the classic xterm palette (black background, the 16 ANSI colors, xterm.js
 deriving the 256-color cube), the same in every theme: the colors live in `src/themes/xterm.js`, the one place
 the color lint allows literals; a monospace font; the frame follows the theme. In the desktop
-app the sub-tab is disabled and the page, reached directly at `/terminal`, shows the message and opens no WebSocket.
+app the page talks to the panel through the desktop's Go (below).
+
+### Desktop app
+
+The webview's page cannot open a WebSocket to the panel: the asset proxy (Wails) carries none, and the session cookie
+lives in Go. So `panel.Panel.Terminal(ctx, gen, agentID)` dials `wss://<panel>/api/agents/{id}/ssh` itself with
+`github.com/coder/websocket` (already in the module graph through Wails): session `gen`'s cookie jar, `Origin` set to
+the panel's own origin (the panel's same-origin check passes as for a browser), the panel's TLS (pinned or system
+roots) restricted to HTTP/1.1 for the upgrade, no redirect followed; a stale `gen` is refused and the connection is
+closed when its session ends (sign-in, sign-out, Configure).
+
+A `Terminals` Wails service: `Open(gen, agentID) → id`, `Control(id, text)` (text frames: the first message, resize),
+`Input(id, text)` (binary frames: keystrokes), `Close(id)`, `Clipboard() → text` (Shift+Insert: the window denies
+clipboard reads to the page). Frames from the panel come back as `adm:terminal` events `{id, text}` or `{id, data}`
+(base64 bytes), and `{id, closed}`. In `frontend/src/desktop/index.js`, `platform.terminal(agentID)` wraps them in an
+object with the WebSocket's shape (`onopen`, `onmessage`, `onclose`, `send`, `close`, `readyState`), so
+`Terminal.vue` runs unchanged. The credentials cross the webview bridge only in memory; Wails never logs binding
+arguments at the app's log level (Info). The window's CSP keeps `connect-src 'self'`.
 
 ## Risks
 

@@ -1,7 +1,7 @@
 <script setup>
 // Terminal: an SSH shell to a registered server's host (port 22), carried by the panel over a WebSocket. The SSH
 // password, key and passphrase go only in the first message and are cleared once the shell opens; the host key is
-// pinned on first use. Not in the desktop app (its proxy carries no WebSocket).
+// pinned on first use. In the desktop app the panel's WebSocket is opened in Go (platform.terminal).
 import { FileKey, KeyRound, Plug, Unplug, RefreshCw, SquareTerminal } from 'lucide-vue-next'
 import { nextTick, onUnmounted, ref } from 'vue'
 import { Terminal } from '@xterm/xterm'
@@ -10,12 +10,11 @@ import '@xterm/xterm/css/xterm.css'
 import xtermColors from '../themes/xterm'
 import { del, get, onSessionChange, platform } from '../api'
 import { askConfirm } from '../dialogs'
-import { t } from '../i18n'
+import { serverText, t } from '../i18n'
 import { toast } from '../toasts'
 import { agentHost, spinner } from '../util'
 import BackupTabs from '../components/BackupTabs.vue'
 
-const desktop = !!platform.configure
 const agents = ref([])
 const currentId = ref(0)
 const loading = ref(false)
@@ -90,9 +89,11 @@ function ensureTerm() {
   term.attachCustomKeyEventHandler((e) => {
     if (e.key !== 'Insert' || !e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return true
     e.preventDefault()
+    // the desktop reads it in Go: its window denies clipboard reads to the page
+    const read = platform.readClipboard || (() => navigator.clipboard.readText())
     if (e.type === 'keydown')
-      navigator.clipboard
-        ?.readText()
+      Promise.resolve()
+        .then(read)
         .then((text) => text && term.paste(text))
         .catch(() => toast.error(t('The browser did not allow reading the clipboard.')))
     return false
@@ -105,14 +106,15 @@ function ensureTerm() {
 
 async function connect(trust = '') {
   const a = current()
-  if (!a || desktop) return
+  if (!a) return
   error.value = ''
   state.value = 'connecting'
   await nextTick()
   ensureTerm()
   term.reset()
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  const sock = new WebSocket(`${proto}://${location.host}/api/agents/${a.id}/ssh`)
+  // the desktop's has the WebSocket's shape (onopen, onmessage, onclose, send, close, readyState)
+  const sock = platform.terminal ? platform.terminal(a.id) : new WebSocket(`${proto}://${location.host}/api/agents/${a.id}/ssh`)
   const n = ++attempts
   ws = sock
   sock.binaryType = 'arraybuffer'
@@ -146,7 +148,8 @@ async function connect(trust = '') {
   sock.onclose = () => {
     if (ws !== sock) return
     // closed before any answer: the upgrade was refused (switched off, 4 terminals already, signed out) or dropped
-    if (!answered && state.value === 'connecting') error.value = t('The terminal could not be opened.')
+    if (!answered && state.value === 'connecting')
+      error.value = sock.error ? serverText(sock.error) : t('The terminal could not be opened.')
     if (state.value === 'open' && !error.value) term.write('\r\n\x1b[2m[' + t('Connection closed') + ']\x1b[0m\r\n')
     state.value = 'idle'
     ws = null
@@ -183,14 +186,13 @@ onUnmounted(() => {
   resizeObs?.disconnect()
   term?.dispose()
 })
-if (!desktop) load()
+load()
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <BackupTabs />
-    <p v-if="desktop" class="p-3 text-fg-muted">{{ t('The SSH terminal is not available in the desktop app') }}</p>
-    <div v-else class="grid min-h-0 flex-1 gap-5 lg:grid-cols-[300px_1fr] lg:grid-rows-[minmax(0,1fr)]">
+    <div class="grid min-h-0 flex-1 gap-5 lg:grid-cols-[300px_1fr] lg:grid-rows-[minmax(0,1fr)]">
       <aside class="flex min-h-0 flex-col gap-5">
         <section class="card">
           <div class="card-h flex items-center justify-between">
