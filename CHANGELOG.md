@@ -5,7 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Changed
+- SSH terminal: a slimmer layout — the connect form is one row (placeholders instead of labels, the key file as a
+  link, a refused or closed connection said beside Connect), and once connected the card's header holds the
+  status and Disconnect, leaving the height to the terminal.
 
 ## [0.29.0] — 2026-11-01
 

@@ -231,45 +231,51 @@ load()
       <section v-if="current()" class="card flex min-h-0 flex-col">
         <div class="card-h flex items-center gap-3">
           <SquareTerminal :size="14" /> {{ current().name }}
-          <span class="font-normal normal-case text-fg-muted">{{ agentHost(current().url) }}:22</span>
-          <button class="act ml-auto normal-case" :disabled="state !== 'idle'" @click="resetKey">
+          <span class="font-normal normal-case text-fg-muted">
+            {{ agentHost(current().url) }}:22<template v-if="state === 'open'">
+              · {{ t('Connected as {user}', { user: form.user }) }}</template
+            >
+          </span>
+          <!-- connected: the header is the whole bar, so the terminal gets the height -->
+          <button v-if="state === 'open'" class="act ml-auto normal-case" @click="disconnect">
+            <Unplug :size="12" /> {{ t('Disconnect') }}
+          </button>
+          <button v-else class="act ml-auto normal-case" :disabled="state !== 'idle'" @click="resetKey">
             <KeyRound :size="12" /> {{ t('Clear SSH host key') }}
           </button>
         </div>
-        <form v-if="state !== 'open'" class="flex flex-wrap items-end gap-2 p-3" @submit.prevent="connect()">
-          <div>
-            <label class="lbl" for="t-user">{{ t('User') }}</label>
-            <input id="t-user" v-model.trim="form.user" class="inp w-40" autocomplete="off" required />
-          </div>
-          <div>
-            <label class="lbl" for="t-pass">{{ t('Password') }}</label>
-            <input id="t-pass" v-model="form.password" type="password" class="inp w-48" autocomplete="off" />
-          </div>
-          <div>
-            <span class="lbl">{{ t('Private key') }}</span>
-            <!-- the panel's own button, not the browser's file field (aligned with the inputs, translated) -->
-            <input ref="keyInput" type="file" class="hidden" @change="pickKey" />
-            <span v-if="form.keyName" class="flex items-center gap-2">
-              <span class="tag bg-surface-2">{{ form.keyName }}</span>
-              <button type="button" class="act" @click="clearKey">{{ t('remove') }}</button>
-            </span>
-            <button v-else type="button" class="btn-ghost" @click="keyInput.click()">
-              <FileKey :size="13" /> {{ t('Choose a key file (optional)') }}
-            </button>
-          </div>
-          <div v-if="form.keyName">
-            <label class="lbl" for="t-phrase">{{ t('Passphrase') }}</label>
-            <input id="t-phrase" v-model="form.passphrase" type="password" class="inp w-40" autocomplete="off" />
-          </div>
-          <button class="btn" :disabled="state !== 'idle' || !form.user || (!form.password && !form.key)">
-            <Plug :size="14" /> {{ state === 'connecting' ? t('Connecting…') : t('Connect') }}
+        <!-- one slim row: the labels are for screen readers, the placeholders say what goes where -->
+        <form v-if="state !== 'open'" class="flex flex-wrap items-center gap-2 px-3 py-2" @submit.prevent="connect()">
+          <label class="sr-only" for="t-user">{{ t('User') }}</label>
+          <input id="t-user" v-model.trim="form.user" class="inp w-36" :placeholder="t('User')" autocomplete="off" required />
+          <label class="sr-only" for="t-pass">{{ t('Password') }}</label>
+          <input id="t-pass" v-model="form.password" type="password" class="inp w-44" :placeholder="t('Password')" autocomplete="off" />
+          <!-- the panel's own button, not the browser's file field (aligned with the inputs, translated) -->
+          <input ref="keyInput" type="file" class="hidden" @change="pickKey" />
+          <template v-if="form.keyName">
+            <span class="tag bg-surface-2" :title="t('Private key')">{{ form.keyName }}</span>
+            <button type="button" class="act" @click="clearKey">{{ t('remove') }}</button>
+            <label class="sr-only" for="t-phrase">{{ t('Passphrase') }}</label>
+            <input
+              id="t-phrase"
+              v-model="form.passphrase"
+              type="password"
+              class="inp w-36"
+              :placeholder="t('Passphrase')"
+              autocomplete="off"
+            />
+          </template>
+          <button v-else type="button" class="act normal-case" @click="keyInput.click()">
+            <FileKey :size="12" /> {{ t('Choose a key file (optional)') }}
           </button>
+          <!-- the last outcome (refused, closed) on the same row, beside Connect -->
+          <span class="ml-auto flex min-w-0 items-center gap-3">
+            <span v-if="error" class="truncate text-err" role="alert" :title="error">{{ error }}</span>
+            <button class="btn shrink-0" :disabled="state !== 'idle' || !form.user || (!form.password && !form.key)">
+              <Plug :size="14" /> {{ state === 'connecting' ? t('Connecting…') : t('Connect') }}
+            </button>
+          </span>
         </form>
-        <div v-else class="flex items-center gap-2 p-3">
-          <span class="text-fg-muted">{{ t('Connected as {user}', { user: form.user }) }}</span>
-          <button class="btn-ghost ml-auto" @click="disconnect"><Unplug :size="14" /> {{ t('Disconnect') }}</button>
-        </div>
-        <p v-if="error" class="px-3 pb-2 text-err" role="alert">{{ error }}</p>
         <div class="term-box min-h-[320px] flex-1">
           <div ref="termEl" class="h-full w-full" data-testid="terminal"></div>
         </div>
