@@ -92,7 +92,7 @@ demo environment: the all-in-one image
 
 ### Settings, language, API and queues
 
-| Settings (options, theme, company, agent token, `config.toml`) | Portuguese UI |
+| Settings (tabs: General, Company, Directory, Panel server, Agents) | Portuguese UI |
 |---|---|
 | ![Settings](17-settings.png) | ![Português](18-portuguese-users.png) |
 
@@ -100,9 +100,9 @@ demo environment: the all-in-one image
 |---|---|
 | ![Swagger](24-swagger.png) | ![asynqmon](19-asynqmon.png) |
 
-| QHD (2560 × 1440, automatic zoom) |  |
+| QHD (2560 × 1440, automatic zoom) | Settings › Directory (`config.toml` `[ad]`, applied by the agent) |
 |---|---|
-| ![QHD](20-qhd.png) |  |
+| ![QHD](20-qhd.png) | ![Directory](36-settings-directory.png) |
 
 ### Browser-based setup
 

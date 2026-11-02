@@ -117,6 +117,41 @@ export default {
   'Save settings': 'Salvar configuração',
   'Discard changes': 'Descartar alterações',
   'From config.toml (read-only)': 'Do config.toml (somente leitura)',
+  Agents: 'Agentes',
+  Directory: 'Diretório',
+  'Panel server': 'Servidor do painel',
+  'Directory (config.toml [ad])': 'Diretório (config.toml [ad])',
+  'derived from the domain': 'derivado do domínio',
+  '{dn} (derived from the domain)': '{dn} (derivado do domínio)',
+  "Register the agent of the panel's host in Shares to change these here, or edit {file} and restart ad-manager.":
+    'Cadastre o agente do host do painel em Compartilhamentos para alterar estes valores aqui, ou edite {file} e reinicie o ad-manager.',
+  "Applied by the agent of {name} (the panel's host): it checks the values, writes {file}, restarts the panel and puts the previous file back if the panel does not answer.":
+    'Aplicado pelo agente de {name} (o host do painel): ele confere os valores, grava {file}, reinicia o painel e volta o arquivo anterior se o painel não responder.',
+  'Set by the environment ({env}).': 'Definido pelo ambiente ({env}).',
+  'StartTLS on ldap://': 'StartTLS com ldap://',
+  "Don't verify the DC's certificate (lab only)": 'Não verificar o certificado do DC (só em laboratório)',
+  'Applying: the panel restarts and the sign-in page opens when it is back.':
+    'Aplicando: o painel reinicia e a tela de login abre quando ele voltar.',
+  'Last change: {keys} by {user}, {at}:': 'Última alteração: {keys} por {user}, {at}:',
+  applied: 'aplicada',
+  'failed: {error}': 'falhou: {error}',
+  unknown: 'desconhecido',
+  'Apply and restart': 'Aplicar e reiniciar',
+  "The agent on the panel's host writes config.toml and restarts itself with the new switches.":
+    'O agente do host do painel grava o config.toml e reinicia a si mesmo com as novas opções.',
+  'Sent: the agent restarts with the new switches.': 'Enviado: o agente reinicia com as novas opções.',
+  'system trust store (e.g. /opt/ad-manager/tls/samba-ca.pem)': 'certificados do sistema (ex.: /opt/ad-manager/tls/samba-ca.pem)',
+  "This server's agent (config.toml [agent])": 'Agente deste servidor (config.toml [agent])',
+  "These switch on write modes of the agent, which runs as root on the panel's host: every administrator of the panel can then use them. The agent restarts to apply them.":
+    'Estas opções ligam modos de escrita do agente, que roda como root no host do painel: todo administrador do painel passa a poder usá-los. O agente reinicia para aplicá-las.',
+  'This DC also serves the shares': 'Este DC também serve os compartilhamentos',
+  'Folders, shares and ACLs on the domain controller (Windows ACLs and registry shares required).':
+    'Pastas, compartilhamentos e ACLs no controlador de domínio (exige ACLs do Windows e compartilhamentos no registro).',
+  'GPO import and password migration': 'Importação de GPO e migração de senhas',
+  'The administrator credential is the one kept in Import from an existing AD, below.':
+    'A credencial de administrador é a guardada em Importar de um AD existente, abaixo.',
+  "The agent on the panel's host writes config.toml and restarts the panel: every session ends and you sign in again. If the panel does not come back within 60 s, the agent puts the previous file back.":
+    'O agente do host do painel grava o config.toml e reinicia o painel: todas as sessões terminam e você entra de novo. Se o painel não voltar em 60 s, o agente volta o arquivo anterior.',
   'Domain controller': 'Controlador de domínio',
   Domain: 'Domínio',
   'LDAPS CA': 'CA do LDAPS',

@@ -28,3 +28,12 @@ func fileID(f *os.File) string {
 	}
 	return fmt.Sprintf("%d:%d", st.Dev, st.Ino)
 }
+
+// chownLike gives path the owner and group of fi (as root; a no-op otherwise).
+func chownLike(path string, fi os.FileInfo) error {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok || os.Geteuid() != 0 {
+		return nil
+	}
+	return os.Chown(path, int(st.Uid), int(st.Gid))
+}

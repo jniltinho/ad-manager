@@ -503,6 +503,12 @@ func (s *Server) proxy(method, path, action string) echo.HandlerFunc {
 				return c.JSON(http.StatusBadRequest, msg("invalid request body"))
 			}
 		}
+		if action == "task" { // the panel's configuration goes only through PUT /api/settings/config and its checks
+			var t agent.TaskReq
+			if json.Unmarshal(body, &t) == nil && t.Type == agent.TypePanelConfig {
+				return c.JSON(http.StatusBadRequest, msg("use the Settings screen to change the panel's configuration"))
+			}
+		}
 		ctx := c.Request().Context()
 		if slow := map[string]time.Duration{"/api/sizes": 2 * time.Minute, "/api/dc/checks": 10 * time.Minute}[path]; slow > 0 {
 			var cancel context.CancelFunc // du on large folders, dbcheck on a large directory

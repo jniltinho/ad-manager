@@ -163,6 +163,8 @@ func (s *Server) routes() *echo.Echo {
 	p.GET("/settings", s.getSettings)
 	p.PUT("/settings", s.putSettings)
 	p.PUT("/settings/logo", s.putLogo)
+	p.GET("/settings/config", s.getConfig)
+	p.PUT("/settings/config", s.putConfig)
 	p.GET("/settings/import-credential", s.getImportCredential)
 	p.PUT("/settings/import-credential", s.putImportCredential)
 	p.DELETE("/settings/import-credential", s.deleteImportCredential)

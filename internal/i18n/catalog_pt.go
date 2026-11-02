@@ -319,6 +319,23 @@ var ptBR = map[string]string{
 	"AD_PANEL_URL must be https:// (http only on 127.0.0.1/localhost): the password goes in the login": "AD_PANEL_URL precisa ser https:// (http só em 127.0.0.1/localhost): a senha vai no login",
 	"this restore replaces what is in use":                                                             "esta restauração substitui o que está em uso",
 	"an earlier run left the Windows inheritance pending: reapplying it to the whole folder":           "uma execução anterior deixou a herança do Windows pendente: reaplicando-a na pasta inteira",
+	"not editable from the panel":                                                                      "não editável pelo painel",
+	"invalid value":                                                                                    "valor inválido",
+	"true or false":                                                                                    "true ou false",
+	"nothing to change":                                                                                "nada a alterar",
+	"enter ldaps://host or ldap://host[:port]":                                                         "informe ldaps://host ou ldap://host[:porta]",
+	"enter the DNS name of the domain (example.local)":                                                 "informe o nome DNS do domínio (example.local)",
+	"empty or DC=…,DC=…":                                                                               "vazio ou DC=…,DC=…",
+	"an absolute path":                                                                                 "um caminho absoluto",
+	"not an administrator under the running configuration":                                             "não é administrador na configuração em uso",
+	"the panel runs without a config.toml":                                                             "o painel roda sem config.toml",
+	"use the Settings screen to change the panel's configuration":                                      "use a tela Configurações para alterar a configuração do painel",
+	"the panel does not run on this server (no ad-manager unit)":                                       "o painel não roda neste servidor (sem a unidade ad-manager)",
+	"the panel's configuration is managed by the container image":                                      "a configuração do painel é gerida pela imagem do contêiner",
+	"config.toml is not the panel's (another server, or it changed)":                                   "o config.toml não é o do painel (outro servidor, ou foi alterado)",
+	"reload the page": "recarregue a página",
+	"the edited config.toml does not match the change (unusual layout": "o config.toml editado não confere com a alteração (formato incomum",
+	"edit it by hand)": "edite à mão)",
 }
 
 // ptPatterns cover parts that carry names or values ($1, $2 are the captures).
@@ -494,4 +511,9 @@ var ptPatterns = []pattern{
 	{`^profile (".*") does not exist \(save it in the panel: Import/export → From another AD\)$`, "perfil $1 não existe (salve no painel: Importar/exportar → De outro AD)"},
 	{`^(\S+) must have mode 0600$`, "$1 precisa ter modo 0600"},
 	{`^task (\S+)$`, "tarefa $1"},
+	{`^set by the environment \((AD_[A-Z_]+)\)$`, "definido pelo ambiente ($1)"},
+	{`^(\S+) cannot sign in with these values$`, "$1 não consegue entrar com esses valores"},
+	{`^(\S+) would not be in the administrators group with these values$`, "$1 não estaria no grupo de administradores com esses valores"},
+	{`^no registered server runs the agent on the panel's host \(queue (\S+)\)$`, "nenhum servidor cadastrado roda o agente no host do painel (fila $1)"},
+	{`^more than one registered server answers with the panel's queue (\S+)$`, "mais de um servidor cadastrado responde com a fila do painel $1"},
 }

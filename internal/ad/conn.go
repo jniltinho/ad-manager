@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -101,7 +102,7 @@ func Dial(cfg *Config, login, password string) (*Conn, error) {
 		tc.ServerName = host
 	}
 	if cfg.CAFile != "" {
-		pem, err := os.ReadFile(cfg.CAFile)
+		pem, err := readCA(cfg.CAFile)
 		if err != nil {
 			return nil, fmt.Errorf("read ca_file: %w", err)
 		}
@@ -301,4 +302,42 @@ func (c *Conn) DCHostName() (string, error) {
 		return "", fmt.Errorf("%w: rootDSE without dnsHostName", ErrWrongInput)
 	}
 	return es[0].GetAttributeValue("dnsHostName"), nil
+}
+
+// CheckAdmin is the lockout rule of a configuration change: with cfg, login must connect, bind and be a member of the
+// administrative group. dial is Dial (or a fake in tests).
+func CheckAdmin[D interface {
+	IsAdmin() (bool, error)
+	Close()
+}](cfg *Config, login, password string, dial func(*Config, string, string) (D, error)) error {
+	d, err := dial(cfg, login, password)
+	if err != nil {
+		if errors.Is(err, ErrBadLogin) {
+			return fmt.Errorf("%s cannot sign in with these values", login)
+		}
+		return err
+	}
+	defer d.Close()
+	ok, err := d.IsAdmin()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%s would not be in the administrators group with these values", login)
+	}
+	return nil
+}
+
+// readCA reads a CA file of up to 1 MiB (a device or a huge file is refused, not read into memory).
+func readCA(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, 1<<20+1))
+	if err == nil && len(b) > 1<<20 {
+		err = errors.New("larger than 1 MiB")
+	}
+	return b, err
 }

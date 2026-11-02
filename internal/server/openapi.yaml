@@ -880,6 +880,20 @@ paths:
       requestBody: { content: { multipart/form-data: { schema: { type: object, properties: { logo: { type: string, format: binary } } } } } }
       responses: { "204": { description: Saved } }
     delete: { tags: [Settings], summary: Remove the logo, responses: { "204": { description: Removed } } }
+  /api/settings/config:
+    get:
+      tags: [Settings]
+      summary: "The panel's editable config.toml keys ([ad]): values, environment locks, the local agent and the last apply"
+      description: "keys and values: ad.url, ad.domain, ad.base_dn, ad.start_tls, ad.ca_file, ad.insecure_skip_verify, ad.admin_group, agent.dc_file_server, agent.import_modes (the values of config.toml as it is now); env: the keys set by an AD_* variable (locked); agent: {id, name} of the one registered agent whose queue is the panel's agent.queue, or agent_error; last: the last panel:config task (task, keys, user, at, state, error)."
+      responses: { "200": { description: OK } }
+    put:
+      tags: [Settings]
+      summary: Apply new [ad] values or agent switches through the local agent (it edits config.toml, restarts the panel and rolls back on failure, or restarts itself)
+      description: "Only the keys that differ from the running values are sent. Checked first: allowlist and formats, environment locks, the operator still an administrator, and the operator able to connect, bind and be in the administrators group with the new values (no lockout). Sent as a panel:config task with the SHA-256 of config.toml; the restart ends every session. Audited as settings.config (the key names and the task id, never the values)."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [keys], properties: { keys: { type: object, additionalProperties: true, example: { ad.url: "ldaps://dc2.domain.local", ad.admin_group: "Domain Admins" } } } } } }
+      responses: { "202": { description: "{task, keys}" }, "400": { $ref: "#/components/responses/Error" }, "403": { $ref: "#/components/responses/Error" }, "409": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
   /api/settings/import-credential:
     get: { tags: [Settings], summary: "The import credential: {user, set}, never the password", responses: { "200": { description: OK } } }
     put:
