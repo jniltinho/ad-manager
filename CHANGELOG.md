@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+—
+
+## [0.30.0] — 2026-11-02
+
+**Settings in tabs, and the panel's `config.toml` `[ad]` keys and agent switches editable from the panel.**
+
 ### Added
 - Settings in tabs: General, Company, Directory, Panel server and Agents (the tab is kept in `?tab=`).
 - Directory tab: the `[ad]` keys of `config.toml` (DC, domain, base DN, StartTLS, CA, certificate check,
