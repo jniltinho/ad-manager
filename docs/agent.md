@@ -68,6 +68,7 @@ Tasks:
 | `folder:create` | `path`, `owner_group`, `full_groups[]`, `rw_groups[]`, `ro_groups[]`, `full_users[]`, `rw_users[]`, `ro_users[]` |
 | `share:create` | `name` (a trailing `$` = hidden), `path`, `comment`, `full_groups[]`, `rw_groups[]`, `ro_groups[]`, `full_users[]`, `rw_users[]`, `ro_users[]`, `hidden`, `create_path` |
 | `share:delete` | `name` (unpublishes; the folder and the files remain) |
+| `panel:config` | `config_sha256`, `nonce` (read back from the state dir's `panel-config.nonce`), `keys` (`ad.url`, `ad.domain`, `ad.base_dn`, `ad.start_tls`, `ad.ca_file`, `ad.insecure_skip_verify`, `ad.admin_group`, `agent.dc_file_server`, `agent.import_modes`): only on the panel's host under systemd, also on a read-only DC, never retried; edits `config.toml` (keeping `config.toml.bak`), restarts `ad-manager` and rolls back if the panel does not answer within 60 s (`[ad]` keys), and restarts itself after the task (`[agent]` keys) ([deployment](deployment.md#4-configuration-in-the-panel)) |
 
 Groups in winbind format: `EXAMPLE\Finance`. The share gets `valid users`, `read only = yes` and
 `write list` (write and full control). **Domain Admins** are always in both lists, just as administrators

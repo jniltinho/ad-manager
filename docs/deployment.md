@@ -118,8 +118,34 @@ database `data/ad-manager.db`):
 | Default OU for new users | `CN=Users` | any OU in the domain |
 | Company name, support link, logo | AD Manager branding | PNG, JPEG or SVG logo up to 512 KiB |
 
-Every change goes to the audit log (`settings.update`, `settings.logo`). What comes from `config.toml` (DC, TLS,
-Redis, database, audit) is shown read-only on the same screen.
+The screen is in tabs: **General**, **Company**, **Directory**, **Panel server** and **Agents**. Every change goes
+to the audit log (`settings.update`, `settings.logo`, `settings.config`).
+
+**Directory** changes the `[ad]` keys of `config.toml` — `url`, `domain`, `base_dn`, `start_tls`, `ca_file`,
+`insecure_skip_verify`, `admin_group` — through the **agent on the panel's host** (the registered server whose queue
+is the panel's own `agent.queue`; the panel's service cannot write `config.toml`, which the root agent also reads):
+
+1. the panel checks that you are still an administrator and that you can connect, bind and be in the administrators
+   group with the new values (no saving a lockout);
+2. it sends a `panel:config` task with the SHA-256 of `config.toml` and a nonce it writes to
+   `data/panel-config.nonce`; the agent refuses it when its own file differs (the file changed meanwhile), the nonce
+   file on its disk does not match (another server) or the panel does not run under systemd here;
+3. the agent changes only those lines (comments and the other keys stay), keeps `config.toml.bak`, restarts
+   `ad-manager` and waits up to 60 s for the panel's `/api/health` on loopback; when the panel does not answer it puts
+   `config.toml.bak` back and restarts it again (the task fails with `rolled back: …`).
+
+![Settings › Directory](screenshots/36-settings-directory.png)
+
+**Agents** also has the switches of the agent on the panel's host — `dc_file_server` (this DC also serves the shares)
+and `import_modes` (GPO import and password migration, with the credential kept in the same tab). They give every
+administrator of the panel those write modes of the root agent. The same task writes them and the agent restarts
+itself; the panel is not restarted unless `[ad]` keys change too.
+
+The restart ends every session; the tab shows the last change's result after you sign in again. A key set by an
+`AD_*` variable is shown locked. Without an agent on the panel's host, or in the all-in-one Docker image (its
+entrypoint writes `config.toml` at each start), the tab is read-only: edit the file and restart `ad-manager`. If an
+apply is cut short (the agent stopped mid-way), the agent restores `config.toml.bak` at its next start. **Panel
+server** shows the rest of `config.toml` (listen, TLS, Redis, database, audit) read-only.
 
 ## 5. File servers (optional)
 

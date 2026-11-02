@@ -5,7 +5,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-—
+### Added
+- Settings in tabs: General, Company, Directory, Panel server and Agents (the tab is kept in `?tab=`).
+- Directory tab: the `[ad]` keys of `config.toml` (DC, domain, base DN, StartTLS, CA, certificate check,
+  administrators group) are editable from the panel. The agent on the panel's host applies them as a `panel:config`
+  task: it edits only those lines (keeping comments and `config.toml.bak`), restarts the panel and rolls back when the
+  panel does not answer within 60 s. The panel first refuses values with which the operator could not sign in as an
+  administrator; the generic task proxy refuses `panel:config`.
+- Agents tab: the switches `dc_file_server` and `import_modes` of the agent on the panel's host, applied by the same
+  task (the agent restarts itself).
 
 ## [0.29.1] — 2026-11-01
 

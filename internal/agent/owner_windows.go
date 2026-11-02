@@ -8,3 +8,5 @@ func ownedByMe(os.FileInfo) bool { return false }
 func sameDevice(*os.File, *os.File) bool { return false }
 
 func fileID(*os.File) string { return "" }
+
+func chownLike(string, os.FileInfo) error { return nil }

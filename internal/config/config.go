@@ -109,13 +109,7 @@ func (c *Config) StateDir() string {
 // Load reads the configuration file. An empty path searches ./config.toml and
 // /opt/ad-manager/config.toml; a missing file means defaults plus environment only.
 func Load(path string) (*Config, error) {
-	c := &Config{
-		AD:     ad.Config{URL: "ldaps://dc1.example.local", Domain: "example.local"},
-		Server: Server{Listen: "127.0.0.1:8443", SessionMinutes: 30, AuditLog: "audit.log"},
-		DB:     DB{Path: "ad-manager.db"},
-		Agent:  Agent{Listen: "0.0.0.0:9443", TokenFile: "/opt/ad-manager/agent.token", ShareRoots: []string{"/srv/shares"}},
-		Samba:  Samba{LogDir: "/var/log/samba"},
-	}
+	c := defaults()
 	candidates := []string{path}
 	if path == "" {
 		candidates = []string{"config.toml", "/opt/ad-manager/config.toml"}
@@ -134,6 +128,32 @@ func Load(path string) (*Config, error) {
 		c.File = p
 		break
 	}
+	return finish(c)
+}
+
+// defaults is the configuration before any file.
+func defaults() *Config {
+	return &Config{
+		AD:     ad.Config{URL: "ldaps://dc1.example.local", Domain: "example.local"},
+		Server: Server{Listen: "127.0.0.1:8443", SessionMinutes: 30, AuditLog: "audit.log"},
+		DB:     DB{Path: "ad-manager.db"},
+		Agent:  Agent{Listen: "0.0.0.0:9443", TokenFile: "/opt/ad-manager/agent.token", ShareRoots: []string{"/srv/shares"}},
+		Samba:  Samba{LogDir: "/var/log/samba"},
+	}
+}
+
+// Parse is the configuration the content b of file gives, as Load gives it (defaults, then b, then the environment).
+func Parse(b []byte, file string) (*Config, error) {
+	c := defaults()
+	if err := toml.Unmarshal(b, c); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	c.File = file
+	return finish(c)
+}
+
+// finish applies the environment and the derived values.
+func finish(c *Config) (*Config, error) {
 	env := func(k string, dst *string) {
 		if v := os.Getenv(k); v != "" {
 			*dst = v

@@ -95,15 +95,17 @@ func loadHash(path string) ([]byte, error) {
 
 // Agent ties together the API, the queue and the executor.
 type Agent struct {
-	cfg    config.Agent
-	files  bool             // folders, shares, ACLs, syncs and data backups allowed (fileMode)
-	why    string           // why not
-	logDir string           // Samba log directory (Logs page)
-	caps   sambabridge.Caps // what the Samba Python API offers on this server
-	mgr    *shares.Manager
-	client *asynq.Client
-	insp   *asynq.Inspector
-	hash   []byte
+	cfg        config.Agent
+	configFile string           // the config.toml read (panel:config edits it)
+	stateDir   string           // where the panel writes PanelNonceFile
+	files      bool             // folders, shares, ACLs, syncs and data backups allowed (fileMode)
+	why        string           // why not
+	logDir     string           // Samba log directory (Logs page)
+	caps       sambabridge.Caps // what the Samba Python API offers on this server
+	mgr        *shares.Manager
+	client     *asynq.Client
+	insp       *asynq.Inspector
+	hash       []byte
 
 	sizes *sizeJob // the share folder sizes, measured in the background (sizes.go)
 
@@ -290,7 +292,7 @@ func Run(ctx context.Context, cfg *config.Config, insecureDev bool) error {
 	rctx, rcancel := context.WithTimeout(ctx, 20*time.Second)
 	role, realm := serverRole(rctx, caps), strings.ToLower(testparm(rctx, "realm"))
 	rcancel()
-	a := &Agent{cfg: ac, logDir: cfg.Samba.LogDir, caps: caps, role: role, realm: realm, client: asynq.NewClient(ro), insp: asynq.NewInspector(ro),
+	a := &Agent{cfg: ac, configFile: cfg.File, stateDir: cfg.StateDir(), logDir: cfg.Samba.LogDir, caps: caps, role: role, realm: realm, client: asynq.NewClient(ro), insp: asynq.NewInspector(ro),
 		hash: hash, mgr: NewManager(cfg, bridge, caps), backups: &backup.Store{Dir: backupDir(ac)},
 		sync: &syncState{running: map[string]context.CancelFunc{}, trees: map[string]string{}, active: map[string]string{}}}
 	defer a.client.Close()
@@ -304,6 +306,7 @@ func Run(ctx context.Context, cfg *config.Config, insecureDev bool) error {
 	if a.why != "" {
 		slog.Info("files off on this server", "why", a.why)
 	}
+	a.recoverPanelConfig(ctx) // an apply of the panel's configuration cut short by this agent's stop
 	a.sizes = newSizeJob(filepath.Join(cfg.StateDir(), "share-sizes.json"), a.mgr)
 	go a.sizes.run(ctx)
 	// the backup schedules live on the agent (they run with the panel off): registered from the saved file
@@ -503,6 +506,16 @@ func (a *Agent) mux() *asynq.ServeMux {
 		}
 		return a.mgr.DeleteShare(ctx, r.Name)
 	})
+	// the panel's configuration is not a directory or file change: it runs on a read-only DC too, never retried
+	m.HandleFunc(TypePanelConfig, func(ctx context.Context, t *asynq.Task) error {
+		err := a.applyPanelConfig(ctx, t.Payload())
+		slog.Info("task", "type", TypePanelConfig, "id", t.ResultWriter().TaskID(), "err", err)
+		if err != nil {
+			return fmt.Errorf("%w: %w", err, asynq.SkipRetry)
+		}
+		_, _ = t.ResultWriter().Write([]byte("ok"))
+		return nil
+	})
 	return m
 }
 
@@ -528,6 +541,10 @@ type TaskInfo struct {
 
 // validate checks the request before enqueueing it (the worker checks again).
 func (a *Agent) validate(t TaskReq) error {
+	if t.Type == TypePanelConfig { // not a directory or file change: allowed on a read-only DC
+		_, _, _, err := a.checkPanelConfig(t.Payload)
+		return err
+	}
 	if a.readOnly() {
 		return errReadOnlyDC
 	}
@@ -858,8 +875,12 @@ func (a *Agent) Routes() *echo.Echo {
 		if err := a.validate(t); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
+		retries := 5
+		if t.Type == TypePanelConfig {
+			retries = 0 // a restart of the panel is not repeated on its own
+		}
 		info, err := a.client.EnqueueContext(c.Request().Context(), asynq.NewTask(t.Type, t.Payload),
-			asynq.Queue(a.cfg.Queue), asynq.MaxRetry(5), asynq.Retention(7*24*time.Hour), asynq.Timeout(taskTimeout))
+			asynq.Queue(a.cfg.Queue), asynq.MaxRetry(retries), asynq.Retention(7*24*time.Hour), asynq.Timeout(taskTimeout))
 		if err != nil {
 			return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "queue unavailable: " + err.Error()})
 		}

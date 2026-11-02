@@ -355,6 +355,14 @@ const shots = [
     },
   ],
   [
+    '36-settings-directory',
+    async () => {
+      await go('/settings?tab=directory')
+      await page.getByRole('button', { name: /apply and restart/i }).waitFor()
+      await snap('36-settings-directory')
+    },
+  ],
+  [
     '24-swagger',
     async () => {
       await go('/swagger')
